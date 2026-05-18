@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync"
 
 	"github.com/poconnor/calm-poc/internal/analyzer"
 	"github.com/poconnor/calm-poc/internal/calm"
@@ -44,7 +43,6 @@ type Checker struct {
 	Validator   Validator
 	Analyzers   map[string]SourceAnalyzer
 	State       *State
-	mu          sync.Mutex
 }
 
 // ErrorKind classifies checker failures for HTTP clients.
@@ -174,8 +172,6 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 }
 
 func (c *Checker) state() *State {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.State == nil {
 		c.State = NewState()
 	}
