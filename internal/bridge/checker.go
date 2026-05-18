@@ -290,6 +290,11 @@ func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
 			return result, nil
 		}), true
 	}
+	if language == "python" {
+		return AnalyzerFunc(func(ctx context.Context, path string) (analyzer.AnalysisResult, error) {
+			return analyzer.AnalyzePythonFile(ctx, path, "")
+		}), true
+	}
 	return nil, false
 }
 

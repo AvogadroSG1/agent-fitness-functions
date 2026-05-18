@@ -375,6 +375,44 @@ func TestHandlerCheckPassesCleanGoContent(t *testing.T) {
 	}
 }
 
+func TestHandlerCheckRunsPythonAnalyzerAndRoutesAdvisoryViolation(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	body := postCheckForLanguage(t, server.URL, repo, "databricks/cost-analytics/src/setup/dd_stage_bronze.py", "python", complexPythonSource())
+	if body.Status != StatusAdvisory || len(body.Violations) != 1 {
+		t.Fatalf("response = %+v, want advisory violation", body)
+	}
+	violation := body.Violations[0]
+	if violation.FitnessFunction != "cyclomatic_complexity" || violation.Function != "build_config" || violation.Value <= 9 || violation.Limit != 9 {
+		t.Fatalf("violation = %+v, want Python build_config CC violation", violation)
+	}
+}
+
+func TestHandlerCheckPassesCleanPythonContent(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true, Output: `{"hasErrors":false}`}, nil
+		}),
+	}, nil))
+	defer server.Close()
+
+	body := postCheckForLanguage(t, server.URL, repo, "src/setup/clean.py", "python", cleanPythonSource())
+	if body.Status != StatusPass || len(body.Violations) != 0 {
+		t.Fatalf("response = %+v, want pass", body)
+	}
+}
+
 func TestHandlerCheckRoutesViolationsByEnforcementMode(t *testing.T) {
 	tests := []struct {
 		name string
@@ -758,10 +796,15 @@ func writeRepoConfig(t *testing.T, repo string, mode EnforcementMode, fitness ma
 
 func postCheck(t *testing.T, serverURL, repo, file, source string) CheckResponse {
 	t.Helper()
+	return postCheckForLanguage(t, serverURL, repo, file, "go", source)
+}
+
+func postCheckForLanguage(t *testing.T, serverURL, repo, file, language, source string) CheckResponse {
+	t.Helper()
 	response, err := http.Post(serverURL+"/check", "application/json", strings.NewReader(`{
 		"repo": `+jsonString(repo)+`,
 		"file": `+jsonString(file)+`,
-		"language": "go",
+		"language": `+jsonString(language)+`,
 		"proposed_content": `+jsonString(source)+`
 	}`))
 	if err != nil {
@@ -838,6 +881,38 @@ func cleanGoSource() string {
 func Parse() error {
 	return nil
 }
+`
+}
+
+func complexPythonSource() string {
+	return `from datetime import date
+
+def build_config(value, table_value=None, fallback=None):
+    if value == "a":
+        return "a"
+    if value == "b":
+        return "b"
+    if value == "c":
+        return "c"
+    if value == "d":
+        return "d"
+    if value == "e":
+        return "e"
+    if value == "f":
+        return "f"
+    if value == "g":
+        return "g"
+    if value == "h":
+        return "h"
+    if table_value:
+        return table_value
+    return fallback or date.today().isoformat()
+`
+}
+
+func cleanPythonSource() string {
+	return `def build_config():
+    return {"status": "ok"}
 `
 }
 
