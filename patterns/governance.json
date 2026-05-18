@@ -17,7 +17,7 @@
     },
     "implementation-depth": {
       "description": "Minimum average implementation LOC per public method",
-      "threshold": 0.72,
+      "threshold": 0.722,
       "operator": "gte",
       "unit": "module"
     },
