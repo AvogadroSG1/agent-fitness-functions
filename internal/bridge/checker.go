@@ -126,8 +126,11 @@ func (c Checker) Check(ctx context.Context, request CheckRequest) (response Chec
 	}()
 
 	validator := c.Validator
-	if validator == nil {
+	switch {
+	case validator == nil:
 		validator = calm.Validator{}
+	case isNilInterface(validator):
+		return CheckResponse{}, infrastructureError("CALM validator is not configured", nil)
 	}
 	validation, err := validator.Validate(ctx, architecturePath, patternPath)
 	if err != nil && !isValidationFailure(validation) {
@@ -244,13 +247,17 @@ func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
 }
 
 func isNilSourceAnalyzer(sourceAnalyzer SourceAnalyzer) bool {
-	if sourceAnalyzer == nil {
+	return isNilInterface(sourceAnalyzer)
+}
+
+func isNilInterface(value any) bool {
+	if value == nil {
 		return true
 	}
-	value := reflect.ValueOf(sourceAnalyzer)
-	switch value.Kind() {
+	reflected := reflect.ValueOf(value)
+	switch reflected.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
+		return reflected.IsNil()
 	default:
 		return false
 	}
