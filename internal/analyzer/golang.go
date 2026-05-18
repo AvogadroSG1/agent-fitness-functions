@@ -27,9 +27,9 @@ func AnalyzeGoFile(file string) (AnalysisResult, error) {
 	functions := make([]FunctionMetric, 0)
 	publicMethods := 0
 	stats := gocyclo.AnalyzeASTFile(parsed, fileSet, nil)
-	statsByName := make(map[string]gocyclo.Stat, len(stats))
+	statsByLine := make(map[int]gocyclo.Stat, len(stats))
 	for _, stat := range stats {
-		statsByName[stat.FuncName] = stat
+		statsByLine[stat.Pos.Line] = stat
 	}
 	for _, decl := range parsed.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
@@ -40,7 +40,10 @@ func AnalyzeGoFile(file string) (AnalysisResult, error) {
 		if ast.IsExported(name) {
 			publicMethods++
 		}
-		stat := statsByName[name]
+		stat, ok := statsByLine[fileSet.Position(fn.Pos()).Line]
+		if !ok {
+			continue
+		}
 		functions = append(functions, FunctionMetric{
 			Name:                 name,
 			CyclomaticComplexity: stat.Complexity,
