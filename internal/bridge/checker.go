@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/poconnor/calm-poc/internal/analyzer"
@@ -103,6 +104,9 @@ func (c Checker) Check(ctx context.Context, request CheckRequest) (response Chec
 		var checkErr *CheckError
 		if errors.As(err, &checkErr) {
 			return CheckResponse{}, checkErr
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return CheckResponse{}, infrastructureError("check canceled during analysis", err)
 		}
 		return CheckResponse{}, inputError(fmt.Sprintf("analyzing %s file", request.Language), err)
 	}
@@ -216,7 +220,7 @@ func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm
 
 func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
 	if sourceAnalyzer, ok := c.Analyzers[language]; ok {
-		if sourceAnalyzer == nil {
+		if isNilSourceAnalyzer(sourceAnalyzer) {
 			return nil, false
 		}
 		return sourceAnalyzer, true
@@ -237,6 +241,19 @@ func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
 		}), true
 	}
 	return nil, false
+}
+
+func isNilSourceAnalyzer(sourceAnalyzer SourceAnalyzer) bool {
+	if sourceAnalyzer == nil {
+		return true
+	}
+	value := reflect.ValueOf(sourceAnalyzer)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 func validSourceExtension(extension string) bool {
