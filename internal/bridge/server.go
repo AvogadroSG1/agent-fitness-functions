@@ -88,17 +88,17 @@ func Serve(ctx context.Context, addr string) error {
 	if err != nil {
 		return err
 	}
+	shutdownRequested := make(chan struct{}, 1)
 	server := &http.Server{
 		Addr:              addr,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 	}
 	server.Handler = NewHandler(func() {
-		go func() {
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-			_ = server.Shutdown(shutdownCtx)
-		}()
+		select {
+		case shutdownRequested <- struct{}{}:
+		default:
+		}
 	})
 
 	errs := make(chan error, 1)
@@ -108,18 +108,24 @@ func Serve(ctx context.Context, addr string) error {
 
 	select {
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			return err
-		}
-		return ctx.Err()
+		return shutdown(server, ctx.Err())
+	case <-shutdownRequested:
+		return shutdown(server, nil)
 	case err := <-errs:
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
 		return err
 	}
+}
+
+func shutdown(server *http.Server, returnErr error) error {
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		return err
+	}
+	return returnErr
 }
 
 func writeJSON(w http.ResponseWriter, value any) {

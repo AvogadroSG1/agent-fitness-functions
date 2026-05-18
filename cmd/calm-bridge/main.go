@@ -40,6 +40,9 @@ func runWithDependencies(args []string, stdout, stderr io.Writer, client *http.C
 	case "check":
 		if err := runCheck(args[1:], stdout, client, starter); err != nil {
 			_, _ = fmt.Fprintln(stderr, err)
+			if isUsageError(err) {
+				return 2
+			}
 			return 1
 		}
 		return 0
@@ -76,10 +79,10 @@ func runCheck(args []string, stdout io.Writer, client *http.Client, starter func
 	language := flags.String("language", "", "source language")
 	staged := flags.Bool("staged", false, "read content from git staged state")
 	if err := flags.Parse(args); err != nil {
-		return err
+		return usageError{err: err}
 	}
 	if *file == "" || *repo == "" {
-		return errors.New("check requires --file and --repo")
+		return usageError{err: errors.New("check requires --file and --repo")}
 	}
 
 	if !isHealthy(client, *addr) {
@@ -119,7 +122,12 @@ func runCheck(args []string, stdout io.Writer, client *http.Client, starter func
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("check failed with HTTP %d", response.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
+		message := strings.TrimSpace(string(body))
+		if message == "" {
+			return fmt.Errorf("check failed with HTTP %d", response.StatusCode)
+		}
+		return fmt.Errorf("check failed with HTTP %d: %s", response.StatusCode, message)
 	}
 	_, err = io.Copy(stdout, response.Body)
 	return err
@@ -130,10 +138,16 @@ func resolveContent(repo, file, explicitContent string, staged bool) (string, er
 		return explicitContent, nil
 	}
 	if staged {
-		command := exec.Command("git", "-C", repo, "show", ":"+file)
-		output, err := command.Output()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		command := exec.CommandContext(ctx, "git", "-C", repo, "show", ":"+file)
+		output, err := command.CombinedOutput()
 		if err != nil {
-			return "", fmt.Errorf("reading staged content for %s: %w", file, err)
+			detail := strings.TrimSpace(string(output))
+			if detail == "" {
+				return "", fmt.Errorf("reading staged content for %s: %w", file, err)
+			}
+			return "", fmt.Errorf("reading staged content for %s: %w: %s", file, err, detail)
 		}
 		return string(output), nil
 	}
@@ -183,8 +197,26 @@ func startDaemon(addr string) error {
 	command := exec.Command(executable, "serve", "--addr", listenAddr)
 	command.Stdout = io.Discard
 	command.Stderr = io.Discard
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := command.Start(); err != nil {
 		return err
 	}
 	return command.Process.Release()
+}
+
+type usageError struct {
+	err error
+}
+
+func (e usageError) Error() string {
+	return e.err.Error()
+}
+
+func (e usageError) Unwrap() error {
+	return e.err
+}
+
+func isUsageError(err error) bool {
+	var target usageError
+	return errors.As(err, &target)
 }
