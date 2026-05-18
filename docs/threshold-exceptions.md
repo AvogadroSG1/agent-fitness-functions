@@ -10,16 +10,16 @@ Generated from baseline reports on 2026-05-18. These existing results exceed or 
 | Interface Width | `lte` | 20 |
 | Implementation Depth | `gte` | 0.722 |
 | Logic Density | `gte` | 0.255 |
-| Dependency Discipline | `gte` | 0 |
+| Dependency Discipline | `gte` | 0.001 |
 
 ## Exception Counts
 
-| Repository | Language | CC > 9 | Public Methods > 20 | Avg LOC/Public < 0.722 | LDR < 0.255 | DDC < 0 |
+| Repository | Language | CC > 9 | Public Methods > 20 | Avg LOC/Public < 0.722 | LDR < 0.255 | DDC < 0.001 |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | graft | go | 49 | 2 | 0 | 0 | 0 |
-| ringstation | python | 137 | 36 | 0 | 18 | 0 |
-| SlackStatus | csharp | 2 | 1 | 6 | 6 | 0 |
-| StackOverflow.Api.V3 | csharp | 23 | 31 | 7 | 31 | 0 |
+| ringstation | python | 137 | 36 | 0 | 18 | 15 |
+| SlackStatus | csharp | 2 | 1 | 6 | 6 | 45 |
+| StackOverflow.Api.V3 | csharp | 23 | 31 | 7 | 31 | 205 |
 
 ## graft (go)
 
@@ -310,7 +310,23 @@ No exceptions.
 
 ### Dependency Discipline
 
-No exceptions.
+| File | Used/Total Imports | DDC |
+| --- | --- | ---: |
+| `/Users/poconnor/peter_code/ringstation/databricks/cost-analytics/src/validation/comparison_helpers.py` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/ringstation/packages/ring-station-azure/src/ring_station_azure/transforms/arm_parser.py` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/ringstation/packages/ring-station-gcp/src/ring_station_gcp/transforms/shared_allocator.py` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/ringstation/packages/ring-station/src/ring_station/domain/errors.py` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/ringstation/src/ring_station/dashboards/components/bar_chart.py` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/ringstation/src/ring_station/dashboards/components/breadcrumb.py` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/ringstation/src/ring_station/dashboards/components/kpi_tiles.py` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/ringstation/src/ring_station/dashboards/components/resource_table.py` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/ringstation/src/ring_station/dashboards/components/sparkline.py` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/ringstation/src/ring_station/dashboards/components/trend_chart.py` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/ringstation/src/ring_station/dashboards/components/trend_selector.py` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/ringstation/src/ring_station/dashboards/layout.py` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/ringstation/src/ring_station/dashboards/state.py` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/ringstation/src/ring_station/domain/errors.py` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/ringstation/src/ring_station/domain/transforms/arm_parser.py` | 0/1 | 0.000 |
 
 ## SlackStatus (csharp)
 
@@ -351,7 +367,53 @@ No exceptions.
 
 ### Dependency Discipline
 
-No exceptions.
+| File | Used/Total Imports | DDC |
+| --- | --- | ---: |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Domain/Services/StatusResolver.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/IMusicDetector.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/WorkHoursDetector.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Process/IProcessRunner.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/ISlackChatClient.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/ISlackEmojiClient.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Models/CockpitSnapshot.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/BroadcastPresetChannelResolver.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/ISettingsRepository.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/ScheduledBroadcastService.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/StatusWorkerHealthCheck.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Domain.Tests/GlobalUsings.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/DebouncedMeetingDetector.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/MeetingDetector.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/ISlackProfileClient.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/CockpitStateService.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/WorkspaceEmojiCatalog.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Domain.Tests/Models/NowPlayingInfoTests.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Domain.Tests/Models/SlackUserStatusTests.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Domain.Tests/Models/SystemStateTests.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/GlobalUsings.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/BroadcastPresetChannelResolverTests.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/AppleMusicDetector.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Configuration/ConfigurationLoader.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Configuration/SlackStatusSettings.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Domain.Tests/Services/StatusResolverTests.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Detectors/WorkHoursDetectorTests.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Music/ItunesSearchUrlResolverTests.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/GlobalUsings.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/CockpitStateServiceTests.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/EmojiMapperTests.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Slack/SlackChannelClientTests.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Slack/SlackChatClientTests.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Slack/SlackEmojiClientTests.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/YamlSettingsRepositoryTests.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Detectors/DebouncedMeetingDetectorTests.cs` | 0/5 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/WorkspaceEmojiCatalogTests.cs` | 0/5 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Detectors/AppleMusicDetectorTests.cs` | 0/6 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Detectors/MeetingDetectorTests.cs` | 0/6 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/StatusWorker.cs` | 0/7 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/YamlSettingsRepository.cs` | 0/7 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/MorningBroadcastServiceTests.cs` | 0/7 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/ScheduledBroadcastServiceTests.cs` | 0/8 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/SlackStatusMcpToolsTests.cs` | 0/8 | 0.000 |
+| `/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Program.cs` | 0/11 | 0.000 |
 
 ## StackOverflow.Api.V3 (csharp)
 
@@ -469,5 +531,211 @@ No exceptions.
 
 ### Dependency Discipline
 
-No exceptions.
+| File | Used/Total Imports | DDC |
+| --- | --- | ---: |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Answers/AnswersSortParameter.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ApiApplications/ApiApplicationService.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Articles/ArticleSortParameter.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Attributes/AllowCommonStaticAccessAttribute.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Auth/AccessTokenRepository.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Auth/Authorization/PolicyExtensions.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Auth/Authorization/Requirements/AllowListOnlyRequirement.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ChannelPreferences/ChannelPreferencesRepository.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Collectives/CollectiveSortParameter.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Comments/CommentSortParameter.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Communities/CommunityResults.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Communities/CommunitySortParameter.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ContentFeeds/ContentFeedChangeSortParameter.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ContentFeeds/ContentFeedChangesContentType.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Cors.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Discussions/DiscussionsSortParameter.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Helpers/TimeBasedPaginationHelper.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Request/CollectionRequestModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Request/CollectionsFilterRequestModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Request/CommentRequestModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Request/CommunityJoinModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Request/CommunityLeaveModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Request/SubjectMatterExpertRequestModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Request/UnifiedSearchRequestModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/AuthTestResponseModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/ImageResponseModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/IngestionConfluenceSpacesResponseModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/IngestionFileUploadResponseModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/IngestionPostEvalResponseModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/IngestionQuestionAnswerResponseModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/IngestionQuestionResponseModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/MentionedUserGroupResponseModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/MentionedUserResponseModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/SiteResponseModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/SubjectMatterExpertResponseModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/TagBulkCreateResponseModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/TagWatchersResponseModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/TagWikiResponseModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/UnifiedSearchResultModel.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ModuleIntegration/EventsModuleSettingsProvider.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Questions/QuestionSortParameter.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Revisions/RevisionSortParameter.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Search/SearchResults.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Search/SearchSortParameter.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Sites/SiteRepository.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/StaticQuarantine/IImmediateCache.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/StaticQuarantine/ImmediateCacheWrapper.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/SwaggerUIMiddleware.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Tags/SubjectMatterExpertResults.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Tags/TagResults.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Tags/TagSynonymSortParameter.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Tags/TagWatchersResults.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Tags/TagWikiResults.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Tags/TagsSortParameter.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/UserGroups/UserGroupsSortParameter.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Users/UsersSortParameter.cs` | 0/1 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Accounts/AccountService.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ApiApplications/ApiApplicationRepository.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Articles/ArticleType.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Attributes/SwaggerIgnoreInEnvironmentAttribute.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Auth/ApiKeyRepository.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Auth/Authentication/TokenValidationProvider.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Auth/Authorization/AuthenticationPropertiesExtensions.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Auth/Authorization/Requirements/AccountHasActiveUserRequirement.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Collections/CollectionResults.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Collections/CollectionsRepository.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ContentFeeds/ContentFeedChangeResults.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/DiscussionReplies/DiscussionReplyFlag.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/DiscussionReplies/DiscussionReplyResults.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/DiscussionReplies/DiscussionReplySortParameter.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Discussions/DiscussionFlag.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Flags/FlagResults.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Helpers/SiteHelper.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Helpers/UtcDateTimeConverter.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Images/ImageRepository.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Images/ImageService.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/ProblemDetailsExtensions.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Request/IngestionQuestionRequestModel.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Request/QuestionFilterRequestModel.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/CollectionContentSummaryResponseModel.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/PrivilegeResponseModel.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ModuleIntegration/ModuleCurrentProvider.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ModuleIntegration/TagsModuleSettingsProvider.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Questions/LinkedOrRelatedQuestionsSortParameter.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Revisions/RevisionRepository.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Revisions/RevisionResults.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Search/SearchRepository.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/StaticQuarantine/ImmediateSiteCacheWrapper.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/OpenApiDocumentExtensions.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/TypeCrawler.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Tags/RelatedTagsResults.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Tags/TagSortExtensions.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/UrlHelperFactory.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/UserGroups/UserGroupRepository.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Users/CurrentUserPermissions.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Users/UserRepository.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Votes/VoteService.cs` | 0/2 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Accounts/AccountRepository.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Answers/AnswerResults.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Articles/ArticleResults.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Attributes/RequireChannelsOrEnterprise.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Auth/AccessTokenService.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Auth/Authentication/WorkloadIdentity/AuthenticationBuilderExtensions.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Auth/Authorization/AuthorizationMiddlewareResultHandler.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Communities/CommunityResponseModelBuilder.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/BaseController.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/HomeController.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/StackyController.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Discussions/DiscussionsResult.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Helpers/ApiEnvHelper.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Helpers/HttpHelper.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Helpers/IngestionHelper.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Images/ImageModels.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Ingestion/IngestionResults.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Middleware/ErrorHandlerMiddlewareExtensions.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Middleware/RateLimiter/GenericRateLimiter.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Request/TagFilterRequestModel.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/CursorPageResponseModel.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/PageResponseModel.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ModuleIntegration/OverflowApiModuleIntegrationExtensions.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ModuleIntegration/TagsModuleIntegrationExtensions.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Privileges/PrivilegeService.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Questions/QuestionResults.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Settings.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/SiteService.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/ChannelsDisabledDocumentFilter.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/SwaggerPageSizeSchemaFilter.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/TitleDocumentFilter.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Tags/TagResponseModelBuilder.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/UnifiedSearch/UnifiedSearchRepository.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/UserGroups/UserGroupResults.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Users/WatchedTagResults.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Votes/VoteRepository.cs` | 0/3 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ApiV3ChannelsCurrentContextProvider.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Attributes/FeatureCheckAttribute.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Comments/CommentResults.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Middleware/RateLimiter/BurstThrottleRateLimiter.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Middleware/RateLimiter/TokenBucketRateLimiter.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/CollectionsResponseModel.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/DiscussionReplyResponseModel.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ModuleIntegration/ModuleCurrentSite.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ModuleIntegration/TagsModuleRegistryProvider.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Privileges/PrivilegeRepository.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/MainSiteDisabledDocumentFilter.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/SwaggerLimitSchemaFilter.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/SwaggerProblemDetailsExampleFilter.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/UnifiedSearch/UnifiedSearchService.cs` | 0/4 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Articles/ArticleRepository.cs` | 0/5 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Attributes/EnableOnAttribute.cs` | 0/5 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Attributes/PIIActionFilterAttribute.cs` | 0/5 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Comments/CommentRepository.cs` | 0/5 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/AdminController.cs` | 0/5 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Middleware/RateLimiter/BackoffRateLimiter.cs` | 0/5 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Models/Response/RevisionResponseModel.cs` | 0/5 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Program.cs` | 0/5 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/ApiEnvDocumentFilter.cs` | 0/5 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/ChannelsOrEnterpriseDocumentFilter.cs` | 0/5 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/FeatureCheckDocumentFilter.cs` | 0/5 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Auth/ServiceCollectionExtensions.cs` | 0/6 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ContentFeeds/ContentFeedChangeRepository.cs` | 0/6 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/PrivilegesController.cs` | 0/6 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Discussions/DiscussionRepository.cs` | 0/6 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Middleware/HttpMessageProductEventMiddleware.cs` | 0/6 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Middleware/RateLimiter/IdentityRateLimiter.cs` | 0/6 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Posts/PostRepository.cs` | 0/6 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Questions/QuestionRepository.cs` | 0/6 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/AppTypeDocumentFilter.cs` | 0/6 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/SwaggerHideForOverflowApiFilter.cs` | 0/6 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/SwaggerIgnoreInEnvironmentSchemaFilter.cs` | 0/6 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Tags/TagService.cs` | 0/6 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Attributes/BlockSensitiveSiteAttribute.cs` | 0/7 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/IngestionConfluenceController.cs` | 0/7 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/UnifiedSearchController.cs` | 0/7 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/DiscussionReplies/DiscussionReplyRepository.cs` | 0/7 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Discussions/DiscussionService.cs` | 0/7 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/SwaggerIgnoreInEnvironmentOperationFilter.cs` | 0/7 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Attributes/RequireSite.cs` | 0/8 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Attributes/RouteAnalyticsAttribute.cs` | 0/8 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/ContentFeeds/ContentFeedChangeService.cs` | 0/8 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/ImageWriteController.cs` | 0/8 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/IngestionFileController.cs` | 0/8 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/SearchController.cs` | 0/8 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Swagger/SecurityRequirementsOperationFilter.cs` | 0/8 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Attributes/AppTypeRequiredAttribute.cs` | 0/9 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Collections/CollectionsService.cs` | 0/9 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/CommentsReadController.cs` | 0/9 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/DiscussionsReadController.cs` | 0/9 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/ImageReadController.cs` | 0/9 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/RevisionsReadController.cs` | 0/9 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/DiscussionReplies/DiscussionReplyService.cs` | 0/9 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/AuthController.cs` | 0/10 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/CollectionsWriteController.cs` | 0/10 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/TagsWriteController.cs` | 0/10 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/UserGroupsWriteController.cs` | 0/10 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Comments/CommentService.cs` | 0/11 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/AnswersReadController.cs` | 0/11 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/IngestionController.cs` | 0/11 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Answers/AnswerService.cs` | 0/12 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Articles/ArticleService.cs` | 0/12 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/CommentsWriteController.cs` | 0/12 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Collectives/CollectiveService.cs` | 0/13 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/AnswersWriteController.cs` | 0/13 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/QuestionsWriteController.cs` | 0/13 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/UsersReadController.cs` | 0/13 | 0.000 |
+| `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Ingestion/IngestionService.cs` | 0/13 | 0.000 |
 

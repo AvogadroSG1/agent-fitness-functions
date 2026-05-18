@@ -7,6 +7,7 @@ See [docs/spec/why-and-what.md](docs/spec/why-and-what.md) and [docs/spec/engine
 ## Tool Requirements
 
 - Go 1.22 or newer for `calm-bridge`
+- FINOS CALM CLI 1.40.0 via `npm install -g @finos/calm-cli@1.40.0`
 - `radon` 6.0.1 on `PATH`, or pass `--radon <path>`, for Python baseline analysis
 - .NET 8 SDK for `tools/roslyn-analyzer`; `calm-bridge baseline --language csharp` builds the local analyzer automatically when `--roslyn <path>` is omitted
 
