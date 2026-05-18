@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/poconnor/calm-poc/internal/analyzer"
 	"github.com/poconnor/calm-poc/internal/bridge"
 )
 
@@ -39,6 +40,15 @@ func runWithDependencies(args []string, stdout, stderr io.Writer, client *http.C
 		return runServe(args[1:], stderr)
 	case "check":
 		if err := runCheck(args[1:], stdout, client, starter); err != nil {
+			_, _ = fmt.Fprintln(stderr, err)
+			if isUsageError(err) {
+				return 2
+			}
+			return 1
+		}
+		return 0
+	case "baseline":
+		if err := runBaseline(args[1:], stdout); err != nil {
 			_, _ = fmt.Fprintln(stderr, err)
 			if isUsageError(err) {
 				return 2
@@ -202,6 +212,39 @@ func startDaemon(addr string) error {
 		return err
 	}
 	return command.Process.Release()
+}
+
+func runBaseline(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("baseline", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	repo := flags.String("repo", "", "repository root")
+	language := flags.String("language", "", "source language")
+	output := flags.String("output", "", "baseline report output path")
+	name := flags.String("name", "", "repository name for the report")
+	radon := flags.String("radon", "", "radon executable path")
+	roslyn := flags.String("roslyn", "", "Roslyn analyzer executable path")
+	if err := flags.Parse(args); err != nil {
+		return usageError{err: err}
+	}
+	if *repo == "" || *language == "" || *output == "" {
+		return usageError{err: errors.New("baseline requires --repo, --language, and --output")}
+	}
+	repositoryName := *name
+	if repositoryName == "" {
+		repositoryName = filepath.Base(*repo)
+	}
+	results, err := analyzer.AnalyzeRepository(context.Background(), *repo, *language, analyzer.RepositoryOptions{
+		RadonPath:  *radon,
+		RoslynPath: *roslyn,
+	})
+	if err != nil {
+		return err
+	}
+	if err := analyzer.WriteBaselineReport(*output, repositoryName, *language, results); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "wrote %s (%d files)\n", *output, len(results))
+	return err
 }
 
 type usageError struct {

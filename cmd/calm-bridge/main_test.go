@@ -145,6 +145,27 @@ func TestResolveContentReadsRelativeToRepo(t *testing.T) {
 	}
 }
 
+func TestRunBaselineWritesReport(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repo, "x.go"), []byte("package sample\n\nfunc Run() {}\n"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	output := filepath.Join(t.TempDir(), "baseline.json")
+
+	var stdout bytes.Buffer
+	code := run([]string{"baseline", "--repo", repo, "--language", "go", "--output", output, "--name", "sample"}, &stdout, &bytes.Buffer{})
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
+	}
+	content, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatalf("read baseline: %v", err)
+	}
+	if !strings.Contains(string(content), `"repository": "sample"`) {
+		t.Fatalf("baseline report = %s, want repository name", content)
+	}
+}
+
 func TestRunServeStopsOnSIGTERM(t *testing.T) {
 	testRunServeStopsOnSignal(t, syscall.SIGTERM)
 }
