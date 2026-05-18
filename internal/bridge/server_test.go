@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/poconnor/calm-poc/internal/calm"
 )
 
 func TestHandlerHealthReturnsOK(t *testing.T) {
@@ -26,10 +28,15 @@ func TestHandlerHealthReturnsOK(t *testing.T) {
 }
 
 func TestHandlerCheckAcceptsSchemaAndReturnsPass(t *testing.T) {
-	server := httptest.NewServer(NewHandler(nil))
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true, Output: `{"hasErrors":false}`}, nil
+		}),
+	}, nil))
 	defer server.Close()
 
-	body := []byte(`{"repo":"/tmp/repo","file":"internal/parser/parser.go","proposed_content":"package parser\n","language":"go"}`)
+	body := []byte(`{"repo":"/tmp/repo","file":"internal/parser/parser.go","proposed_content":"package parser\n\nfunc Parse() error {\n\treturn nil\n}\n","language":"go"}`)
 	response, err := http.Post(server.URL+"/check", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("POST /check failed: %v", err)

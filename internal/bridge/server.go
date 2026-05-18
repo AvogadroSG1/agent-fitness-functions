@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -13,6 +14,8 @@ import (
 const (
 	// StatusPass indicates that no active fitness function blocked the change.
 	StatusPass = "pass"
+	// StatusBlock indicates that an active fitness function rejected the change.
+	StatusBlock = "block"
 
 	maxCheckRequestBytes = 10 << 20
 )
@@ -34,16 +37,21 @@ type CheckResponse struct {
 
 // Violation describes one architectural fitness function failure.
 type Violation struct {
-	FitnessFunction string `json:"fitness_function"`
-	CALMNode        string `json:"calm_node"`
-	Function        string `json:"function,omitempty"`
-	Value           int    `json:"value"`
-	Limit           int    `json:"limit"`
-	Message         string `json:"message"`
+	FitnessFunction string  `json:"fitness_function"`
+	CALMNode        string  `json:"calm_node"`
+	Function        string  `json:"function,omitempty"`
+	Value           float64 `json:"value"`
+	Limit           float64 `json:"limit"`
+	Message         string  `json:"message"`
 }
 
 // NewHandler builds the calm-bridge HTTP daemon routes.
 func NewHandler(shutdown func()) http.Handler {
+	return NewHandlerWithChecker(Checker{}, shutdown)
+}
+
+// NewHandlerWithChecker builds the calm-bridge HTTP daemon routes with injected check dependencies.
+func NewHandlerWithChecker(checker Checker, shutdown func()) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -60,7 +68,12 @@ func NewHandler(shutdown func()) http.Handler {
 			http.Error(w, "invalid check request", http.StatusBadRequest)
 			return
 		}
-		writeJSON(w, CheckResponse{Status: StatusPass})
+		response, err := checker.Check(r.Context(), request)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("check failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, response)
 	})
 	mux.HandleFunc("/state", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
