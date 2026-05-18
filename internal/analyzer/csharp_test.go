@@ -35,9 +35,9 @@ func TestAnalyzeCSharpFileWithRealRoslynAnalyzer(t *testing.T) {
 	cli := buildRoslynAnalyzer(t)
 	dir := t.TempDir()
 	sourcePath := filepath.Join(dir, "Example.cs")
-	source := `using ConsoleAlias = System.Console;
-using BuilderAlias = System.Text.StringBuilder;
-using UnusedAlias = System.Linq.Enumerable;
+	source := `using System;
+using System.Linq;
+using System.Text;
 
 namespace Sample.App;
 
@@ -69,15 +69,24 @@ public class Example
 
     public void Execute()
     {
-        var builder = new BuilderAlias();
-        ConsoleAlias.WriteLine(builder.ToString());
+        var builder = new StringBuilder();
+        Console.WriteLine(builder.ToString());
     }
 
     public int Run(bool enabled, bool forced)
     {
+        int LocalScore(int score)
+        {
+            if (score > 0)
+            {
+                return score;
+            }
+            return 0;
+        }
+
         if (enabled && forced)
         {
-            return Count;
+            return LocalScore(Count);
         }
         return 0;
     }
@@ -100,6 +109,7 @@ public class Example
 	assertFunction(t, result.Functions, "Count.get", 2, true)
 	assertFunction(t, result.Functions, "Execute", 1, true)
 	assertFunction(t, result.Functions, "InterfaceOnly", 1, true)
+	assertFunction(t, result.Functions, "LocalScore", 2, false)
 	if result.FileMetric.PublicMethods != 5 {
 		t.Fatalf("public methods = %d, want constructor, property accessor, interface member, and two public methods", result.FileMetric.PublicMethods)
 	}
