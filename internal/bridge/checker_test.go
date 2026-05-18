@@ -703,6 +703,35 @@ func TestCheckerDirectUsageInitializesStateOnceForConcurrentCalls(t *testing.T) 
 	}
 }
 
+func TestCheckerCheckRespectsCancellationWhileWaitingForRepoLock(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	checker := Checker{
+		PatternPath: writeTestPattern(t),
+		State:       NewState(),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true, Output: `{"hasErrors":false}`}, nil
+		}),
+	}
+	unlock, err := checker.State.LockRepo(context.Background(), repo)
+	if err != nil {
+		t.Fatalf("lock repo: %v", err)
+	}
+	defer unlock()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = checker.Check(ctx, CheckRequest{
+		Repo:            repo,
+		File:            "internal/parser/parser.go",
+		Language:        "go",
+		ProposedContent: cleanGoSource(),
+	})
+	if err == nil || !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context canceled while waiting for repo lock", err)
+	}
+}
+
 func TestHandlerStateReturnsOutstandingViolationsForRepo(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})

@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"context"
 	"sort"
 	"sync"
 )
@@ -9,34 +10,41 @@ import (
 type State struct {
 	mu         sync.RWMutex
 	violations map[string]map[string][]Violation
-	repoLocks  map[string]*sync.Mutex
+	repoLocks  map[string]chan struct{}
 }
 
 // NewState creates an empty outstanding violation store.
 func NewState() *State {
 	return &State{
 		violations: map[string]map[string][]Violation{},
-		repoLocks:  map[string]*sync.Mutex{},
+		repoLocks:  map[string]chan struct{}{},
 	}
 }
 
 // LockRepo serializes a check lifecycle for one repository.
-func (s *State) LockRepo(repo string) func() {
+func (s *State) LockRepo(ctx context.Context, repo string) (func(), error) {
 	if s == nil {
-		return func() {}
+		return func() {}, nil
 	}
 	s.mu.Lock()
 	if s.repoLocks == nil {
-		s.repoLocks = map[string]*sync.Mutex{}
+		s.repoLocks = map[string]chan struct{}{}
 	}
 	lock := s.repoLocks[repo]
 	if lock == nil {
-		lock = &sync.Mutex{}
+		lock = make(chan struct{}, 1)
+		lock <- struct{}{}
 		s.repoLocks[repo] = lock
 	}
 	s.mu.Unlock()
-	lock.Lock()
-	return lock.Unlock
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-lock:
+		return func() {
+			lock <- struct{}{}
+		}, nil
+	}
 }
 
 // ReplaceFile replaces the outstanding violations for one repository file.

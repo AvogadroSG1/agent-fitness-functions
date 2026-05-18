@@ -92,7 +92,10 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 		return CheckResponse{}, err
 	}
 	state := c.state()
-	unlockRepo := state.LockRepo(repo)
+	unlockRepo, err := state.LockRepo(ctx, repo)
+	if err != nil {
+		return CheckResponse{}, infrastructureError("check canceled while waiting for repository lock", err)
+	}
 	defer unlockRepo()
 	if config.EnforcementMode == EnforcementOff {
 		state.ClearRepo(repo)
