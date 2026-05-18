@@ -22,8 +22,9 @@ type radonCCItem struct {
 }
 
 type radonRawItem struct {
-	LOC  int `json:"loc"`
-	LLOC int `json:"lloc"`
+	Error string `json:"error"`
+	LOC   int    `json:"loc"`
+	LLOC  int    `json:"lloc"`
 }
 
 // AnalyzePythonFile analyzes one Python source file using radon.
@@ -53,6 +54,7 @@ func AnalyzePythonFile(ctx context.Context, file, radonPath string) (AnalysisRes
 		return AnalysisResult{}, err
 	}
 	fileMetric.LDR = ratio(fileMetric.LogicLOC, fileMetric.TotalLOC)
+	fileMetric.PublicMethods = publicFunctionCount(functions)
 
 	return AnalysisResult{
 		CALMNode:   strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
@@ -113,6 +115,9 @@ func parseRadonRaw(file string, output []byte) (FileMetric, error) {
 	if !ok {
 		return FileMetric{}, fmt.Errorf("radon raw did not include %s", file)
 	}
+	if item.Error != "" {
+		return FileMetric{}, fmt.Errorf("radon raw error for %s: %s", file, item.Error)
+	}
 	return FileMetric{TotalLOC: item.LOC, LogicLOC: item.LLOC}, nil
 }
 
@@ -124,6 +129,9 @@ func AnalyzePythonRepository(ctx context.Context, root, radonPath string) ([]Ana
 	files, err := discoverFiles(root, "python")
 	if err != nil {
 		return nil, err
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no Python files found under %s", root)
 	}
 	ccArgs := append([]string{"cc", "-j"}, files...)
 	ccOutput, err := runTool(ctx, radonPath, ccArgs...)
@@ -137,11 +145,11 @@ func AnalyzePythonRepository(ctx context.Context, root, radonPath string) ([]Ana
 	}
 	var ccPayload map[string][]radonCCItem
 	if err := json.Unmarshal(ccOutput, &ccPayload); err != nil {
-		return nil, fmt.Errorf("parsing radon cc: %w", err)
+		return nil, fmt.Errorf("parsing radon cc: %w: %s", err, trimOutput(ccOutput))
 	}
 	var rawPayload map[string]radonRawItem
 	if err := json.Unmarshal(rawOutput, &rawPayload); err != nil {
-		return nil, fmt.Errorf("parsing radon raw: %w", err)
+		return nil, fmt.Errorf("parsing radon raw: %w: %s", err, trimOutput(rawOutput))
 	}
 	files = make([]string, 0, len(rawPayload))
 	for file := range rawPayload {
@@ -150,20 +158,18 @@ func AnalyzePythonRepository(ctx context.Context, root, radonPath string) ([]Ana
 	sort.Strings(files)
 	results := make([]AnalysisResult, 0, len(files))
 	for _, file := range files {
+		rawItem := rawPayload[file]
+		if rawItem.Error != "" {
+			return nil, fmt.Errorf("radon raw error for %s: %s", file, rawItem.Error)
+		}
 		source, err := os.ReadFile(file)
 		if err != nil {
 			return nil, err
 		}
-		fileMetric := FileMetric{TotalLOC: rawPayload[file].LOC, LogicLOC: rawPayload[file].LLOC}
+		fileMetric := FileMetric{TotalLOC: rawItem.LOC, LogicLOC: rawItem.LLOC}
 		fileMetric.LDR = ratio(fileMetric.LogicLOC, fileMetric.TotalLOC)
 		functions := pythonFunctions(ccPayload[file])
-		publicMethods := 0
-		for _, fn := range functions {
-			if fn.IsPublic {
-				publicMethods++
-			}
-		}
-		fileMetric.PublicMethods = publicMethods
+		fileMetric.PublicMethods = publicFunctionCount(functions)
 		results = append(results, AnalysisResult{
 			CALMNode:   strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
 			Language:   "python",
@@ -177,19 +183,21 @@ func AnalyzePythonRepository(ctx context.Context, root, radonPath string) ([]Ana
 }
 
 func pythonImportMetric(source string) ImportMetric {
-	importPattern := regexp.MustCompile(`(?m)^\s*(?:import\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?|from\s+[A-Za-z0-9_.]+\s+import\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?)`)
-	matches := importPattern.FindAllStringSubmatch(source, -1)
-	names := make([]string, 0, len(matches))
-	for _, match := range matches {
-		name := firstNonEmpty(match[2], match[1], match[4], match[3])
-		if name != "" {
-			names = append(names, name)
-		}
-	}
+	names := pythonImportNames(source)
 	bodyLines := make([]string, 0)
+	inImportBlock := false
 	for _, line := range strings.Split(source, "\n") {
 		trimmed := strings.TrimSpace(line)
+		if inImportBlock {
+			if strings.Contains(trimmed, ")") {
+				inImportBlock = false
+			}
+			continue
+		}
 		if strings.HasPrefix(trimmed, "import ") || strings.HasPrefix(trimmed, "from ") {
+			if strings.HasSuffix(trimmed, "(") || strings.Contains(trimmed, " import (") {
+				inImportBlock = true
+			}
 			continue
 		}
 		bodyLines = append(bodyLines, line)
@@ -207,6 +215,91 @@ func pythonImportMetric(source string) ImportMetric {
 	return ImportMetric{Total: len(names), Used: used, Unused: unused, DDC: ratio(used, len(names))}
 }
 
+func publicFunctionCount(functions []FunctionMetric) int {
+	count := 0
+	for _, fn := range functions {
+		if fn.IsPublic {
+			count++
+		}
+	}
+	return count
+}
+
+func pythonImportNames(source string) []string {
+	names := make([]string, 0)
+	collectingFrom := false
+	for _, line := range strings.Split(source, "\n") {
+		trimmed := stripPythonComment(strings.TrimSpace(line))
+		if trimmed == "" {
+			continue
+		}
+		if collectingFrom {
+			if strings.HasPrefix(trimmed, ")") {
+				collectingFrom = false
+				continue
+			}
+			if strings.Contains(trimmed, ")") {
+				collectingFrom = false
+				trimmed = strings.TrimSpace(strings.TrimSuffix(strings.Split(trimmed, ")")[0], ","))
+			}
+			names = append(names, parsePythonImportList("from", trimmed)...)
+			continue
+		}
+		if strings.HasPrefix(trimmed, "import ") {
+			names = append(names, parsePythonImportList("import", strings.TrimSpace(strings.TrimPrefix(trimmed, "import ")))...)
+			continue
+		}
+		if strings.HasPrefix(trimmed, "from ") {
+			importIndex := strings.Index(trimmed, " import ")
+			if importIndex < 0 {
+				continue
+			}
+			rest := strings.TrimSpace(trimmed[importIndex+len(" import "):])
+			if rest == "(" {
+				collectingFrom = true
+				continue
+			}
+			if strings.HasPrefix(rest, "(") {
+				rest = strings.TrimPrefix(rest, "(")
+				if strings.Contains(rest, ")") {
+					rest = strings.Split(rest, ")")[0]
+				} else {
+					collectingFrom = true
+				}
+			}
+			names = append(names, parsePythonImportList("from", rest)...)
+		}
+	}
+	return names
+}
+
+func parsePythonImportList(kind, list string) []string {
+	list = strings.TrimSpace(strings.Trim(list, "()"))
+	names := make([]string, 0)
+	for _, part := range strings.Split(list, ",") {
+		part = stripPythonComment(strings.TrimSpace(part))
+		if part == "" || part == "*" || part == "(" || part == ")" {
+			continue
+		}
+		fields := strings.Fields(part)
+		name := fields[0]
+		if len(fields) >= 3 && fields[len(fields)-2] == "as" {
+			name = fields[len(fields)-1]
+		} else if dot := strings.Index(name, "."); dot >= 0 && kind == "import" {
+			name = name[:dot]
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
+func stripPythonComment(value string) string {
+	if index := strings.Index(value, "#"); index >= 0 {
+		return strings.TrimSpace(value[:index])
+	}
+	return value
+}
+
 func runTool(ctx context.Context, name string, args ...string) ([]byte, error) {
 	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -216,6 +309,15 @@ func runTool(ctx context.Context, name string, args ...string) ([]byte, error) {
 		return nil, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
 	}
 	return output, nil
+}
+
+func trimOutput(output []byte) string {
+	const limit = 512
+	text := strings.TrimSpace(string(output))
+	if len(text) > limit {
+		return text[:limit] + "..."
+	}
+	return text
 }
 
 func firstNonEmpty(values ...string) string {

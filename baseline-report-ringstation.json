@@ -1,7 +1,7 @@
 {
   "repository": "ringstation",
   "language": "python",
-  "generated": "2026-05-18T19:27:39.501193Z",
+  "generated": "2026-05-18T20:08:42.786717Z",
   "summary": {
     "file_count": 453,
     "function_count": 3626,
@@ -9,7 +9,7 @@
     "p90_public_methods": 18,
     "p10_avg_loc_per_public_method": 5.4,
     "p10_logic_density_ratio": 0.34818941504178275,
-    "p10_dependency_discipline": 0.5
+    "p10_dependency_discipline": 0.6666666666666666
   },
   "results": [
     {
@@ -217,12 +217,12 @@
         "ldr": 0.625
       },
       "import_metrics": {
-        "total": 10,
-        "used": 9,
+        "total": 13,
+        "used": 12,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9
+        "ddc": 0.9230769230769231
       }
     },
     {
@@ -391,12 +391,12 @@
         "ldr": 0.5696969696969697
       },
       "import_metrics": {
-        "total": 6,
-        "used": 5,
+        "total": 8,
+        "used": 7,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8333333333333334
+        "ddc": 0.875
       }
     },
     {
@@ -760,12 +760,12 @@
         "ldr": 0.4498069498069498
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 8,
+        "used": 7,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.875
       }
     },
     {
@@ -1045,12 +1045,12 @@
         "ldr": 0.42452830188679247
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -1393,12 +1393,12 @@
         "ldr": 0.6160714285714286
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 6,
+        "used": 5,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8333333333333334
       }
     },
     {
@@ -1630,8 +1630,8 @@
         "ldr": 0.21428571428571427
       },
       "import_metrics": {
-        "total": 4,
-        "used": 4,
+        "total": 5,
+        "used": 5,
         "ddc": 1
       }
     },
@@ -1707,12 +1707,12 @@
         "ldr": 0.49411764705882355
       },
       "import_metrics": {
-        "total": 11,
-        "used": 10,
+        "total": 14,
+        "used": 13,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9090909090909091
+        "ddc": 0.9285714285714286
       }
     },
     {
@@ -1776,12 +1776,12 @@
         "ldr": 0.3712574850299401
       },
       "import_metrics": {
-        "total": 7,
-        "used": 6,
+        "total": 19,
+        "used": 18,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8571428571428571
+        "ddc": 0.9473684210526315
       }
     },
     {
@@ -1943,8 +1943,8 @@
         "ldr": 0.1323529411764706
       },
       "import_metrics": {
-        "total": 3,
-        "used": 3,
+        "total": 4,
+        "used": 4,
         "ddc": 1
       }
     },
@@ -2020,12 +2020,12 @@
         "ldr": 0.4307116104868914
       },
       "import_metrics": {
-        "total": 9,
-        "used": 8,
+        "total": 14,
+        "used": 13,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8888888888888888
+        "ddc": 0.9285714285714286
       }
     },
     {
@@ -2065,12 +2065,12 @@
         "ldr": 0.5643564356435643
       },
       "import_metrics": {
-        "total": 10,
-        "used": 9,
+        "total": 14,
+        "used": 13,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9
+        "ddc": 0.9285714285714286
       }
     },
     {
@@ -2163,13 +2163,13 @@
         "ldr": 0.4227053140096618
       },
       "import_metrics": {
-        "total": 10,
-        "used": 8,
+        "total": 26,
+        "used": 24,
         "unused": [
           "annotations",
           "Path"
         ],
-        "ddc": 0.8
+        "ddc": 0.9230769230769231
       }
     },
     {
@@ -2625,9 +2625,12 @@
         "ldr": 0.1891891891891892
       },
       "import_metrics": {
-        "total": 2,
+        "total": 3,
         "used": 2,
-        "ddc": 1
+        "unused": [
+          "("
+        ],
+        "ddc": 0.6666666666666666
       }
     },
     {
@@ -2684,12 +2687,12 @@
         "ldr": 0.632183908045977
       },
       "import_metrics": {
-        "total": 10,
-        "used": 9,
+        "total": 14,
+        "used": 13,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9
+        "ddc": 0.9285714285714286
       }
     },
     {
@@ -2746,12 +2749,12 @@
         "ldr": 0.524390243902439
       },
       "import_metrics": {
-        "total": 9,
-        "used": 8,
+        "total": 14,
+        "used": 13,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8888888888888888
+        "ddc": 0.9285714285714286
       }
     },
     {
@@ -2808,12 +2811,12 @@
         "ldr": 0.44545454545454544
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -2919,12 +2922,12 @@
         "ldr": 0.450920245398773
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -2988,12 +2991,12 @@
         "ldr": 0.5617977528089888
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 6,
+        "used": 5,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8333333333333334
       }
     },
     {
@@ -3015,8 +3018,8 @@
         "ldr": 0.1956521739130435
       },
       "import_metrics": {
-        "total": 3,
-        "used": 3,
+        "total": 4,
+        "used": 4,
         "ddc": 1
       }
     },
@@ -3128,12 +3131,12 @@
         "ldr": 0.4790996784565916
       },
       "import_metrics": {
-        "total": 13,
-        "used": 12,
+        "total": 17,
+        "used": 16,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9230769230769231
+        "ddc": 0.9411764705882353
       }
     },
     {
@@ -3179,12 +3182,12 @@
         "ldr": 0.4666666666666667
       },
       "import_metrics": {
-        "total": 8,
-        "used": 7,
+        "total": 18,
+        "used": 17,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.875
+        "ddc": 0.9444444444444444
       }
     },
     {
@@ -3307,8 +3310,8 @@
         "ldr": 0.5146198830409356
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 6,
+        "used": 6,
         "ddc": 1
       }
     },
@@ -3367,12 +3370,12 @@
         "ldr": 0.5658536585365853
       },
       "import_metrics": {
-        "total": 6,
-        "used": 5,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8333333333333334
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -3394,12 +3397,12 @@
         "ldr": 0.46296296296296297
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -3433,8 +3436,8 @@
         "ldr": 0.38095238095238093
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 6,
+        "used": 6,
         "ddc": 1
       }
     },
@@ -3499,8 +3502,8 @@
         "ldr": 0.490272373540856
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 6,
+        "used": 6,
         "ddc": 1
       }
     },
@@ -3577,8 +3580,8 @@
         "ldr": 0.2
       },
       "import_metrics": {
-        "total": 3,
-        "used": 3,
+        "total": 4,
+        "used": 4,
         "ddc": 1
       }
     },
@@ -3648,12 +3651,12 @@
         "ldr": 0.45925925925925926
       },
       "import_metrics": {
-        "total": 11,
-        "used": 10,
+        "total": 14,
+        "used": 13,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9090909090909091
+        "ddc": 0.9285714285714286
       }
     },
     {
@@ -3710,12 +3713,12 @@
         "ldr": 0.46048109965635736
       },
       "import_metrics": {
-        "total": 9,
-        "used": 8,
+        "total": 24,
+        "used": 23,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8888888888888888
+        "ddc": 0.9583333333333334
       }
     },
     {
@@ -3760,8 +3763,8 @@
         "ldr": 0.4423076923076923
       },
       "import_metrics": {
-        "total": 2,
-        "used": 2,
+        "total": 3,
+        "used": 3,
         "ddc": 1
       }
     },
@@ -3802,8 +3805,8 @@
         "ldr": 0.5232558139534884
       },
       "import_metrics": {
-        "total": 4,
-        "used": 4,
+        "total": 5,
+        "used": 5,
         "ddc": 1
       }
     },
@@ -4147,8 +4150,8 @@
         "ldr": 0.5515151515151515
       },
       "import_metrics": {
-        "total": 3,
-        "used": 3,
+        "total": 4,
+        "used": 4,
         "ddc": 1
       }
     },
@@ -4406,12 +4409,12 @@
         "ldr": 0.6382978723404256
       },
       "import_metrics": {
-        "total": 2,
-        "used": 1,
+        "total": 3,
+        "used": 2,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.5
+        "ddc": 0.6666666666666666
       }
     },
     {
@@ -4550,8 +4553,8 @@
         "ldr": 0.1891891891891892
       },
       "import_metrics": {
-        "total": 3,
-        "used": 3,
+        "total": 4,
+        "used": 4,
         "ddc": 1
       }
     },
@@ -4615,12 +4618,12 @@
         "ldr": 0.66
       },
       "import_metrics": {
-        "total": 6,
-        "used": 5,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8333333333333334
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -4702,12 +4705,12 @@
         "ldr": 0.6596858638743456
       },
       "import_metrics": {
-        "total": 6,
-        "used": 5,
+        "total": 10,
+        "used": 9,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8333333333333334
+        "ddc": 0.9
       }
     },
     {
@@ -4753,12 +4756,12 @@
         "ldr": 0.4158415841584158
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 8,
+        "used": 7,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.875
       }
     },
     {
@@ -4843,12 +4846,12 @@
         "ldr": 0.463768115942029
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 9,
+        "used": 8,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8888888888888888
       }
     },
     {
@@ -4912,12 +4915,12 @@
         "ldr": 0.5097276264591439
       },
       "import_metrics": {
-        "total": 9,
-        "used": 8,
+        "total": 11,
+        "used": 10,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8888888888888888
+        "ddc": 0.9090909090909091
       }
     },
     {
@@ -5052,12 +5055,12 @@
         "ldr": 0.6346666666666667
       },
       "import_metrics": {
-        "total": 22,
-        "used": 21,
+        "total": 27,
+        "used": 26,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9545454545454546
+        "ddc": 0.9629629629629629
       }
     },
     {
@@ -5120,8 +5123,8 @@
         "ldr": 0.34146341463414637
       },
       "import_metrics": {
-        "total": 2,
-        "used": 2,
+        "total": 3,
+        "used": 3,
         "ddc": 1
       }
     },
@@ -5264,8 +5267,8 @@
         "ldr": 0.4444444444444444
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 6,
+        "used": 6,
         "ddc": 1
       }
     },
@@ -5294,12 +5297,12 @@
         "ldr": 0.36666666666666664
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 6,
+        "used": 5,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8333333333333334
       }
     },
     {
@@ -5369,12 +5372,12 @@
         "ldr": 0.5913978494623656
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -5444,8 +5447,8 @@
         "ldr": 0.4166666666666667
       },
       "import_metrics": {
-        "total": 3,
-        "used": 3,
+        "total": 4,
+        "used": 4,
         "ddc": 1
       }
     },
@@ -5522,8 +5525,8 @@
         "ldr": 0.34818941504178275
       },
       "import_metrics": {
-        "total": 4,
-        "used": 4,
+        "total": 5,
+        "used": 5,
         "ddc": 1
       }
     },
@@ -5588,8 +5591,8 @@
         "ldr": 0.3521594684385382
       },
       "import_metrics": {
-        "total": 4,
-        "used": 4,
+        "total": 5,
+        "used": 5,
         "ddc": 1
       }
     },
@@ -5642,8 +5645,8 @@
         "ldr": 0.4444444444444444
       },
       "import_metrics": {
-        "total": 4,
-        "used": 4,
+        "total": 5,
+        "used": 5,
         "ddc": 1
       }
     },
@@ -5690,8 +5693,8 @@
         "ldr": 0.37872340425531914
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 6,
+        "used": 6,
         "ddc": 1
       }
     },
@@ -5800,8 +5803,8 @@
         "ldr": 0.20930232558139536
       },
       "import_metrics": {
-        "total": 3,
-        "used": 3,
+        "total": 4,
+        "used": 4,
         "ddc": 1
       }
     },
@@ -5901,12 +5904,12 @@
         "ldr": 0.6909090909090909
       },
       "import_metrics": {
-        "total": 11,
-        "used": 10,
+        "total": 15,
+        "used": 14,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9090909090909091
+        "ddc": 0.9333333333333333
       }
     },
     {
@@ -5963,13 +5966,13 @@
         "ldr": 0.559322033898305
       },
       "import_metrics": {
-        "total": 11,
-        "used": 9,
+        "total": 14,
+        "used": 12,
         "unused": [
           "annotations",
           "Path"
         ],
-        "ddc": 0.8181818181818182
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -6026,12 +6029,12 @@
         "ldr": 0.6086956521739131
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 6,
+        "used": 5,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8333333333333334
       }
     },
     {
@@ -6089,12 +6092,12 @@
         "ldr": 0.6476683937823834
       },
       "import_metrics": {
-        "total": 7,
-        "used": 6,
+        "total": 8,
+        "used": 7,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8571428571428571
+        "ddc": 0.875
       }
     },
     {
@@ -6188,12 +6191,12 @@
         "ldr": 0.6536458333333334
       },
       "import_metrics": {
-        "total": 8,
-        "used": 7,
+        "total": 9,
+        "used": 8,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.875
+        "ddc": 0.8888888888888888
       }
     },
     {
@@ -6307,12 +6310,12 @@
         "ldr": 0.5408163265306123
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -6445,12 +6448,12 @@
         "ldr": 0.66
       },
       "import_metrics": {
-        "total": 6,
-        "used": 5,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8333333333333334
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -6472,12 +6475,12 @@
         "ldr": 0.45454545454545453
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -6579,12 +6582,12 @@
         "ldr": 0.6352941176470588
       },
       "import_metrics": {
-        "total": 11,
-        "used": 10,
+        "total": 12,
+        "used": 11,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9090909090909091
+        "ddc": 0.9166666666666666
       }
     },
     {
@@ -6672,12 +6675,12 @@
         "ldr": 0.5857740585774058
       },
       "import_metrics": {
-        "total": 23,
-        "used": 22,
+        "total": 25,
+        "used": 24,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9565217391304348
+        "ddc": 0.96
       }
     },
     {
@@ -6761,12 +6764,12 @@
         "ldr": 0.5444444444444444
       },
       "import_metrics": {
-        "total": 9,
-        "used": 8,
+        "total": 10,
+        "used": 9,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8888888888888888
+        "ddc": 0.9
       }
     },
     {
@@ -6794,12 +6797,12 @@
         "ldr": 0.6777777777777778
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 6,
+        "used": 5,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8333333333333334
       }
     },
     {
@@ -6857,12 +6860,12 @@
         "ldr": 0.4781021897810219
       },
       "import_metrics": {
-        "total": 16,
-        "used": 15,
+        "total": 23,
+        "used": 22,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9375
+        "ddc": 0.9565217391304348
       }
     },
     {
@@ -6914,12 +6917,12 @@
         "ldr": 0.7829457364341085
       },
       "import_metrics": {
-        "total": 14,
-        "used": 13,
+        "total": 16,
+        "used": 15,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9285714285714286
+        "ddc": 0.9375
       }
     },
     {
@@ -7073,12 +7076,12 @@
         "ldr": 1.148936170212766
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -7129,12 +7132,12 @@
         "ldr": 0.5789473684210527
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -7196,12 +7199,12 @@
         "ldr": 0.7
       },
       "import_metrics": {
-        "total": 3,
-        "used": 2,
+        "total": 4,
+        "used": 3,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.6666666666666666
+        "ddc": 0.75
       }
     },
     {
@@ -7223,12 +7226,12 @@
         "ldr": 0.8518518518518519
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 6,
+        "used": 5,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8333333333333334
       }
     },
     {
@@ -7256,12 +7259,12 @@
         "ldr": 0.4166666666666667
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -7289,12 +7292,12 @@
         "ldr": 0.6842105263157895
       },
       "import_metrics": {
-        "total": 2,
-        "used": 1,
+        "total": 3,
+        "used": 2,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.5
+        "ddc": 0.6666666666666666
       }
     },
     {
@@ -7358,12 +7361,12 @@
         "ldr": 0.6290322580645161
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -7391,12 +7394,12 @@
         "ldr": 0.3684210526315789
       },
       "import_metrics": {
-        "total": 3,
-        "used": 2,
+        "total": 4,
+        "used": 3,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.6666666666666666
+        "ddc": 0.75
       }
     },
     {
@@ -7447,12 +7450,12 @@
         "ldr": 0.7142857142857143
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -7474,12 +7477,12 @@
         "ldr": 0.625
       },
       "import_metrics": {
-        "total": 3,
-        "used": 2,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.6666666666666666
+        "ddc": 0.8
       }
     },
     {
@@ -7593,12 +7596,12 @@
         "ldr": 0.5408163265306123
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -7656,12 +7659,12 @@
         "ldr": 0.4307116104868914
       },
       "import_metrics": {
-        "total": 9,
-        "used": 8,
+        "total": 14,
+        "used": 13,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8888888888888888
+        "ddc": 0.9285714285714286
       }
     },
     {
@@ -7701,12 +7704,12 @@
         "ldr": 0.5643564356435643
       },
       "import_metrics": {
-        "total": 10,
-        "used": 9,
+        "total": 14,
+        "used": 13,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9
+        "ddc": 0.9285714285714286
       }
     },
     {
@@ -7746,12 +7749,12 @@
         "ldr": 0.632183908045977
       },
       "import_metrics": {
-        "total": 10,
-        "used": 9,
+        "total": 14,
+        "used": 13,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9
+        "ddc": 0.9285714285714286
       }
     },
     {
@@ -7803,12 +7806,12 @@
         "ldr": 0.5321100917431193
       },
       "import_metrics": {
-        "total": 10,
-        "used": 9,
+        "total": 13,
+        "used": 12,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9
+        "ddc": 0.9230769230769231
       }
     },
     {
@@ -7941,12 +7944,12 @@
         "ldr": 0.66
       },
       "import_metrics": {
-        "total": 6,
-        "used": 5,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8333333333333334
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -8028,12 +8031,12 @@
         "ldr": 0.6596858638743456
       },
       "import_metrics": {
-        "total": 6,
-        "used": 5,
+        "total": 10,
+        "used": 9,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8333333333333334
+        "ddc": 0.9
       }
     },
     {
@@ -8079,12 +8082,12 @@
         "ldr": 0.4158415841584158
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 8,
+        "used": 7,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.875
       }
     },
     {
@@ -8169,12 +8172,12 @@
         "ldr": 0.463768115942029
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 9,
+        "used": 8,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8888888888888888
       }
     },
     {
@@ -8238,12 +8241,12 @@
         "ldr": 0.5097276264591439
       },
       "import_metrics": {
-        "total": 9,
-        "used": 8,
+        "total": 11,
+        "used": 10,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8888888888888888
+        "ddc": 0.9090909090909091
       }
     },
     {
@@ -8265,12 +8268,12 @@
         "ldr": 0.45454545454545453
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -8424,12 +8427,12 @@
         "ldr": 0.6909090909090909
       },
       "import_metrics": {
-        "total": 11,
-        "used": 10,
+        "total": 15,
+        "used": 14,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9090909090909091
+        "ddc": 0.9333333333333333
       }
     },
     {
@@ -8498,12 +8501,12 @@
         "ldr": 0.6352941176470588
       },
       "import_metrics": {
-        "total": 11,
-        "used": 10,
+        "total": 12,
+        "used": 11,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9090909090909091
+        "ddc": 0.9166666666666666
       }
     },
     {
@@ -8591,12 +8594,12 @@
         "ldr": 0.5857740585774058
       },
       "import_metrics": {
-        "total": 23,
-        "used": 22,
+        "total": 25,
+        "used": 24,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9565217391304348
+        "ddc": 0.96
       }
     },
     {
@@ -8680,12 +8683,12 @@
         "ldr": 0.5444444444444444
       },
       "import_metrics": {
-        "total": 9,
-        "used": 8,
+        "total": 10,
+        "used": 9,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8888888888888888
+        "ddc": 0.9
       }
     },
     {
@@ -8713,12 +8716,12 @@
         "ldr": 0.6777777777777778
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 6,
+        "used": 5,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8333333333333334
       }
     },
     {
@@ -8848,12 +8851,12 @@
         "ldr": 0.5121746431570109
       },
       "import_metrics": {
-        "total": 30,
-        "used": 29,
+        "total": 61,
+        "used": 60,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9666666666666667
+        "ddc": 0.9836065573770492
       }
     },
     {
@@ -8905,12 +8908,12 @@
         "ldr": 0.7829457364341085
       },
       "import_metrics": {
-        "total": 14,
-        "used": 13,
+        "total": 16,
+        "used": 15,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9285714285714286
+        "ddc": 0.9375
       }
     },
     {
@@ -9045,12 +9048,12 @@
         "ldr": 0.11274060494958753
       },
       "import_metrics": {
-        "total": 14,
-        "used": 13,
+        "total": 17,
+        "used": 16,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9285714285714286
+        "ddc": 0.9411764705882353
       }
     },
     {
@@ -9387,12 +9390,12 @@
         "ldr": 1.148936170212766
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -9407,9 +9410,13 @@
         "ldr": 0.3157894736842105
       },
       "import_metrics": {
-        "total": 1,
-        "used": 1,
-        "ddc": 1
+        "total": 4,
+        "used": 2,
+        "unused": [
+          "(",
+          "F401"
+        ],
+        "ddc": 0.5
       }
     },
     {
@@ -9431,12 +9438,12 @@
         "ldr": 0.4166666666666667
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -9488,12 +9495,12 @@
         "ldr": 0.4742268041237113
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -9515,12 +9522,12 @@
         "ldr": 0.572463768115942
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -9548,12 +9555,12 @@
         "ldr": 0.5679012345679012
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 6,
+        "used": 5,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8333333333333334
       }
     },
     {
@@ -9581,12 +9588,12 @@
         "ldr": 0.5392156862745098
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -9614,12 +9621,12 @@
         "ldr": 0.5
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -9641,12 +9648,12 @@
         "ldr": 0.4868421052631579
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -9674,12 +9681,12 @@
         "ldr": 0.5113636363636364
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -9701,12 +9708,12 @@
         "ldr": 0.45544554455445546
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -10180,12 +10187,12 @@
         "ldr": 0.44545454545454544
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -10291,12 +10298,12 @@
         "ldr": 0.450920245398773
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -10360,12 +10367,12 @@
         "ldr": 0.5617977528089888
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 6,
+        "used": 5,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8333333333333334
       }
     },
     {
@@ -10399,12 +10406,12 @@
         "ldr": 0.5789473684210527
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -10450,8 +10457,8 @@
         "ldr": 0.34146341463414637
       },
       "import_metrics": {
-        "total": 2,
-        "used": 2,
+        "total": 3,
+        "used": 3,
         "ddc": 1
       }
     },
@@ -10600,8 +10607,8 @@
         "ldr": 0.43134328358208956
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 6,
+        "used": 6,
         "ddc": 1
       }
     },
@@ -10630,12 +10637,12 @@
         "ldr": 0.36666666666666664
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 6,
+        "used": 5,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8333333333333334
       }
     },
     {
@@ -10705,12 +10712,12 @@
         "ldr": 0.5913978494623656
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -10738,8 +10745,8 @@
         "ldr": 0.46938775510204084
       },
       "import_metrics": {
-        "total": 2,
-        "used": 2,
+        "total": 3,
+        "used": 3,
         "ddc": 1
       }
     },
@@ -10780,8 +10787,8 @@
         "ldr": 0.5232558139534884
       },
       "import_metrics": {
-        "total": 4,
-        "used": 4,
+        "total": 5,
+        "used": 5,
         "ddc": 1
       }
     },
@@ -10996,8 +11003,8 @@
         "ldr": 0.5515151515151515
       },
       "import_metrics": {
-        "total": 3,
-        "used": 3,
+        "total": 4,
+        "used": 4,
         "ddc": 1
       }
     },
@@ -11068,8 +11075,8 @@
         "ldr": 0.4166666666666667
       },
       "import_metrics": {
-        "total": 3,
-        "used": 3,
+        "total": 4,
+        "used": 4,
         "ddc": 1
       }
     },
@@ -11146,8 +11153,8 @@
         "ldr": 0.34054054054054056
       },
       "import_metrics": {
-        "total": 4,
-        "used": 4,
+        "total": 5,
+        "used": 5,
         "ddc": 1
       }
     },
@@ -11212,8 +11219,8 @@
         "ldr": 0.34294871794871795
       },
       "import_metrics": {
-        "total": 4,
-        "used": 4,
+        "total": 5,
+        "used": 5,
         "ddc": 1
       }
     },
@@ -11266,8 +11273,8 @@
         "ldr": 0.4444444444444444
       },
       "import_metrics": {
-        "total": 4,
-        "used": 4,
+        "total": 5,
+        "used": 5,
         "ddc": 1
       }
     },
@@ -11320,8 +11327,8 @@
         "ldr": 0.2857142857142857
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 6,
+        "used": 6,
         "ddc": 1
       }
     },
@@ -11362,12 +11369,12 @@
         "ldr": 0.6086956521739131
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 6,
+        "used": 5,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8333333333333334
       }
     },
     {
@@ -11425,12 +11432,12 @@
         "ldr": 0.6476683937823834
       },
       "import_metrics": {
-        "total": 7,
-        "used": 6,
+        "total": 8,
+        "used": 7,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8571428571428571
+        "ddc": 0.875
       }
     },
     {
@@ -11518,12 +11525,12 @@
         "ldr": 0.6577540106951871
       },
       "import_metrics": {
-        "total": 8,
-        "used": 7,
+        "total": 9,
+        "used": 8,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.875
+        "ddc": 0.8888888888888888
       }
     },
     {
@@ -11555,8 +11562,8 @@
         "ldr": 0.4375
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 6,
+        "used": 6,
         "ddc": 1
       }
     },
@@ -11585,12 +11592,12 @@
         "ldr": 0.7
       },
       "import_metrics": {
-        "total": 3,
-        "used": 2,
+        "total": 4,
+        "used": 3,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.6666666666666666
+        "ddc": 0.75
       }
     },
     {
@@ -11612,12 +11619,12 @@
         "ldr": 0.8518518518518519
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 6,
+        "used": 5,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8333333333333334
       }
     },
     {
@@ -11645,12 +11652,12 @@
         "ldr": 0.4166666666666667
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -11678,12 +11685,12 @@
         "ldr": 0.6842105263157895
       },
       "import_metrics": {
-        "total": 2,
-        "used": 1,
+        "total": 3,
+        "used": 2,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.5
+        "ddc": 0.6666666666666666
       }
     },
     {
@@ -11747,12 +11754,12 @@
         "ldr": 0.6290322580645161
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -11780,12 +11787,12 @@
         "ldr": 0.3684210526315789
       },
       "import_metrics": {
-        "total": 3,
-        "used": 2,
+        "total": 4,
+        "used": 3,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.6666666666666666
+        "ddc": 0.75
       }
     },
     {
@@ -11836,12 +11843,12 @@
         "ldr": 0.7142857142857143
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -11863,12 +11870,12 @@
         "ldr": 0.625
       },
       "import_metrics": {
-        "total": 3,
-        "used": 2,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.6666666666666666
+        "ddc": 0.8
       }
     },
     {
@@ -12098,8 +12105,8 @@
         "ldr": 0.5857142857142857
       },
       "import_metrics": {
-        "total": 2,
-        "used": 2,
+        "total": 3,
+        "used": 3,
         "ddc": 1
       }
     },
@@ -12152,8 +12159,8 @@
         "ldr": 0.5858585858585859
       },
       "import_metrics": {
-        "total": 6,
-        "used": 6,
+        "total": 8,
+        "used": 8,
         "ddc": 1
       }
     },
@@ -12338,12 +12345,12 @@
         "ldr": 0.527536231884058
       },
       "import_metrics": {
-        "total": 10,
-        "used": 9,
+        "total": 13,
+        "used": 12,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9
+        "ddc": 0.9230769230769231
       }
     },
     {
@@ -12383,12 +12390,12 @@
         "ldr": 0.6301369863013698
       },
       "import_metrics": {
-        "total": 7,
-        "used": 6,
+        "total": 8,
+        "used": 7,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8571428571428571
+        "ddc": 0.875
       }
     },
     {
@@ -12440,8 +12447,8 @@
         "ldr": 0.6288659793814433
       },
       "import_metrics": {
-        "total": 4,
-        "used": 4,
+        "total": 6,
+        "used": 6,
         "ddc": 1
       }
     },
@@ -12572,12 +12579,12 @@
         "ldr": 0.448
       },
       "import_metrics": {
-        "total": 14,
-        "used": 13,
+        "total": 15,
+        "used": 14,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9285714285714286
+        "ddc": 0.9333333333333333
       }
     },
     {
@@ -12665,8 +12672,8 @@
         "ldr": 0.5475113122171946
       },
       "import_metrics": {
-        "total": 8,
-        "used": 8,
+        "total": 11,
+        "used": 11,
         "ddc": 1
       }
     },
@@ -12947,8 +12954,8 @@
         "ldr": 0.7485714285714286
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 7,
+        "used": 7,
         "ddc": 1
       }
     },
@@ -12989,8 +12996,8 @@
         "ldr": 0.3673469387755102
       },
       "import_metrics": {
-        "total": 0,
-        "used": 0,
+        "total": 1,
+        "used": 1,
         "ddc": 1
       }
     },
@@ -13313,12 +13320,12 @@
         "ldr": 0.6265822784810127
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 6,
+        "used": 5,
         "unused": [
           "Path"
         ],
-        "ddc": 0.75
+        "ddc": 0.8333333333333334
       }
     },
     {
@@ -13412,12 +13419,12 @@
         "ldr": 0.6545454545454545
       },
       "import_metrics": {
-        "total": 15,
-        "used": 14,
+        "total": 16,
+        "used": 15,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9333333333333333
+        "ddc": 0.9375
       }
     },
     {
@@ -13529,8 +13536,8 @@
         "ldr": 0.7543859649122807
       },
       "import_metrics": {
-        "total": 3,
-        "used": 3,
+        "total": 4,
+        "used": 4,
         "ddc": 1
       }
     },
@@ -13655,8 +13662,8 @@
         "ldr": 0.6538461538461539
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 8,
+        "used": 8,
         "ddc": 1
       }
     },
@@ -13777,8 +13784,8 @@
         "ldr": 0.42990654205607476
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 7,
+        "used": 7,
         "ddc": 1
       }
     },
@@ -14077,12 +14084,12 @@
         "ldr": 0.6045197740112994
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 6,
+        "used": 5,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8333333333333334
       }
     },
     {
@@ -14258,12 +14265,12 @@
         "ldr": 0.4763636363636364
       },
       "import_metrics": {
-        "total": 9,
-        "used": 8,
+        "total": 12,
+        "used": 11,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8888888888888888
+        "ddc": 0.9166666666666666
       }
     },
     {
@@ -14381,13 +14388,13 @@
         "ldr": 0.5867507886435331
       },
       "import_metrics": {
-        "total": 8,
-        "used": 6,
+        "total": 23,
+        "used": 21,
         "unused": [
           "annotations",
           "tempfile"
         ],
-        "ddc": 0.75
+        "ddc": 0.9130434782608695
       }
     },
     {
@@ -14409,13 +14416,13 @@
         "ldr": 0.43609022556390975
       },
       "import_metrics": {
-        "total": 13,
-        "used": 11,
+        "total": 15,
+        "used": 13,
         "unused": [
           "pytest",
           "PipelineDefinition"
         ],
-        "ddc": 0.8461538461538461
+        "ddc": 0.8666666666666667
       }
     },
     {
@@ -14587,13 +14594,14 @@
         "ldr": 0.5356125356125356
       },
       "import_metrics": {
-        "total": 18,
-        "used": 16,
+        "total": 20,
+        "used": 17,
         "unused": [
           "annotations",
+          "call",
           "pytest"
         ],
-        "ddc": 0.8888888888888888
+        "ddc": 0.85
       }
     },
     {
@@ -14681,13 +14689,13 @@
         "ldr": 0.3542319749216301
       },
       "import_metrics": {
-        "total": 6,
-        "used": 4,
+        "total": 17,
+        "used": 15,
         "unused": [
           "annotations",
           "Any"
         ],
-        "ddc": 0.6666666666666666
+        "ddc": 0.8823529411764706
       }
     },
     {
@@ -14739,13 +14747,13 @@
         "ldr": 0.5045871559633027
       },
       "import_metrics": {
-        "total": 4,
-        "used": 2,
+        "total": 10,
+        "used": 8,
         "unused": [
           "annotations",
           "Path"
         ],
-        "ddc": 0.5
+        "ddc": 0.8
       }
     },
     {
@@ -14961,8 +14969,8 @@
         "ldr": 0.4067796610169492
       },
       "import_metrics": {
-        "total": 6,
-        "used": 6,
+        "total": 7,
+        "used": 7,
         "ddc": 1
       }
     },
@@ -15153,8 +15161,8 @@
         "ldr": 0.44656488549618323
       },
       "import_metrics": {
-        "total": 2,
-        "used": 2,
+        "total": 3,
+        "used": 3,
         "ddc": 1
       }
     },
@@ -15225,12 +15233,12 @@
         "ldr": 0.4158878504672897
       },
       "import_metrics": {
-        "total": 1,
-        "used": 0,
+        "total": 2,
+        "used": 1,
         "unused": [
           "annotations"
         ],
-        "ddc": 0
+        "ddc": 0.5
       }
     },
     {
@@ -15300,8 +15308,8 @@
         "ldr": 0.5076923076923077
       },
       "import_metrics": {
-        "total": 1,
-        "used": 1,
+        "total": 2,
+        "used": 2,
         "ddc": 1
       }
     },
@@ -15462,12 +15470,12 @@
         "ldr": 0.5339233038348082
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -15591,12 +15599,12 @@
         "ldr": 0.5201612903225806
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -15894,12 +15902,12 @@
         "ldr": 0.312984496124031
       },
       "import_metrics": {
-        "total": 2,
-        "used": 1,
+        "total": 3,
+        "used": 2,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.5
+        "ddc": 0.6666666666666666
       }
     },
     {
@@ -15987,8 +15995,8 @@
         "ldr": 0.3319838056680162
       },
       "import_metrics": {
-        "total": 2,
-        "used": 2,
+        "total": 3,
+        "used": 3,
         "ddc": 1
       }
     },
@@ -16047,8 +16055,8 @@
         "ldr": 0.29245283018867924
       },
       "import_metrics": {
-        "total": 1,
-        "used": 1,
+        "total": 2,
+        "used": 2,
         "ddc": 1
       }
     },
@@ -16095,8 +16103,8 @@
         "ldr": 0.5315315315315315
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 6,
+        "used": 6,
         "ddc": 1
       }
     },
@@ -16137,8 +16145,8 @@
         "ldr": 0.3793103448275862
       },
       "import_metrics": {
-        "total": 0,
-        "used": 0,
+        "total": 1,
+        "used": 1,
         "ddc": 1
       }
     },
@@ -16179,8 +16187,8 @@
         "ldr": 0.38095238095238093
       },
       "import_metrics": {
-        "total": 0,
-        "used": 0,
+        "total": 1,
+        "used": 1,
         "ddc": 1
       }
     },
@@ -16227,8 +16235,8 @@
         "ldr": 0.4153846153846154
       },
       "import_metrics": {
-        "total": 0,
-        "used": 0,
+        "total": 1,
+        "used": 1,
         "ddc": 1
       }
     },
@@ -17011,8 +17019,8 @@
         "ldr": 0.44874715261959
       },
       "import_metrics": {
-        "total": 1,
-        "used": 1,
+        "total": 2,
+        "used": 2,
         "ddc": 1
       }
     },
@@ -17413,8 +17421,8 @@
         "ldr": 0.26823793490460157
       },
       "import_metrics": {
-        "total": 2,
-        "used": 2,
+        "total": 3,
+        "used": 3,
         "ddc": 1
       }
     },
@@ -17515,8 +17523,8 @@
         "ldr": 0.5
       },
       "import_metrics": {
-        "total": 1,
-        "used": 1,
+        "total": 2,
+        "used": 2,
         "ddc": 1
       }
     },
@@ -17683,8 +17691,8 @@
         "ldr": 0.6017699115044248
       },
       "import_metrics": {
-        "total": 2,
-        "used": 2,
+        "total": 3,
+        "used": 3,
         "ddc": 1
       }
     },
@@ -17803,8 +17811,8 @@
         "ldr": 0.2813765182186235
       },
       "import_metrics": {
-        "total": 2,
-        "used": 2,
+        "total": 3,
+        "used": 3,
         "ddc": 1
       }
     },
@@ -17929,8 +17937,8 @@
         "ldr": 0.4599406528189911
       },
       "import_metrics": {
-        "total": 2,
-        "used": 2,
+        "total": 3,
+        "used": 3,
         "ddc": 1
       }
     },
@@ -18127,12 +18135,12 @@
         "ldr": 0.42657342657342656
       },
       "import_metrics": {
-        "total": 12,
-        "used": 11,
+        "total": 14,
+        "used": 13,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9166666666666666
+        "ddc": 0.9285714285714286
       }
     },
     {
@@ -18340,12 +18348,12 @@
         "ldr": 0.5853018372703412
       },
       "import_metrics": {
-        "total": 24,
-        "used": 23,
+        "total": 25,
+        "used": 24,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9583333333333334
+        "ddc": 0.96
       }
     },
     {
@@ -18438,8 +18446,8 @@
         "ldr": 0.5577689243027888
       },
       "import_metrics": {
-        "total": 10,
-        "used": 10,
+        "total": 12,
+        "used": 12,
         "ddc": 1
       }
     },
@@ -18786,12 +18794,12 @@
         "ldr": 0.49852507374631266
       },
       "import_metrics": {
-        "total": 2,
-        "used": 1,
+        "total": 3,
+        "used": 2,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.5
+        "ddc": 0.6666666666666666
       }
     },
     {
@@ -18939,12 +18947,12 @@
         "ldr": 0.44200626959247646
       },
       "import_metrics": {
-        "total": 2,
-        "used": 1,
+        "total": 3,
+        "used": 2,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.5
+        "ddc": 0.6666666666666666
       }
     },
     {
@@ -18990,12 +18998,12 @@
         "ldr": 0.609375
       },
       "import_metrics": {
-        "total": 2,
-        "used": 1,
+        "total": 3,
+        "used": 2,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.5
+        "ddc": 0.6666666666666666
       }
     },
     {
@@ -19161,12 +19169,12 @@
         "ldr": 0.40380047505938244
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -19320,12 +19328,12 @@
         "ldr": 0.45646437994722955
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -19365,12 +19373,12 @@
         "ldr": 0.6451612903225806
       },
       "import_metrics": {
-        "total": 2,
-        "used": 1,
+        "total": 3,
+        "used": 2,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.5
+        "ddc": 0.6666666666666666
       }
     },
     {
@@ -19572,12 +19580,12 @@
         "ldr": 0.6818181818181818
       },
       "import_metrics": {
-        "total": 1,
-        "used": 0,
+        "total": 2,
+        "used": 1,
         "unused": [
           "annotations"
         ],
-        "ddc": 0
+        "ddc": 0.5
       }
     },
     {
@@ -20312,12 +20320,12 @@
         "ldr": 0.39344262295081966
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -20495,8 +20503,8 @@
         "ldr": 0.5601659751037344
       },
       "import_metrics": {
-        "total": 1,
-        "used": 1,
+        "total": 2,
+        "used": 2,
         "ddc": 1
       }
     },
@@ -20645,8 +20653,8 @@
         "ldr": 0.4225
       },
       "import_metrics": {
-        "total": 0,
-        "used": 0,
+        "total": 1,
+        "used": 1,
         "ddc": 1
       }
     },
@@ -20837,8 +20845,8 @@
         "ldr": 0.4005167958656331
       },
       "import_metrics": {
-        "total": 1,
-        "used": 1,
+        "total": 2,
+        "used": 2,
         "ddc": 1
       }
     },
@@ -20879,12 +20887,12 @@
         "ldr": 0.6176470588235294
       },
       "import_metrics": {
-        "total": 6,
-        "used": 5,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8333333333333334
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -21062,12 +21070,12 @@
         "ldr": 0.4782608695652174
       },
       "import_metrics": {
-        "total": 6,
-        "used": 5,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8333333333333334
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -21107,12 +21115,12 @@
         "ldr": 0.59375
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -22233,8 +22241,8 @@
         "ldr": 0.5599369085173501
       },
       "import_metrics": {
-        "total": 6,
-        "used": 6,
+        "total": 7,
+        "used": 7,
         "ddc": 1
       }
     },
@@ -22373,12 +22381,12 @@
         "ldr": 0.5
       },
       "import_metrics": {
-        "total": 6,
-        "used": 5,
+        "total": 8,
+        "used": 7,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8333333333333334
+        "ddc": 0.875
       }
     },
     {
@@ -22577,8 +22585,8 @@
         "ldr": 0.4067796610169492
       },
       "import_metrics": {
-        "total": 6,
-        "used": 6,
+        "total": 7,
+        "used": 7,
         "ddc": 1
       }
     },
@@ -22769,8 +22777,8 @@
         "ldr": 0.44656488549618323
       },
       "import_metrics": {
-        "total": 2,
-        "used": 2,
+        "total": 3,
+        "used": 3,
         "ddc": 1
       }
     },
@@ -22841,12 +22849,12 @@
         "ldr": 0.4158878504672897
       },
       "import_metrics": {
-        "total": 1,
-        "used": 0,
+        "total": 2,
+        "used": 1,
         "unused": [
           "annotations"
         ],
-        "ddc": 0
+        "ddc": 0.5
       }
     },
     {
@@ -22916,8 +22924,8 @@
         "ldr": 0.5076923076923077
       },
       "import_metrics": {
-        "total": 1,
-        "used": 1,
+        "total": 2,
+        "used": 2,
         "ddc": 1
       }
     },
@@ -23078,12 +23086,12 @@
         "ldr": 0.5339233038348082
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -23207,12 +23215,12 @@
         "ldr": 0.5201612903225806
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -23480,12 +23488,12 @@
         "ldr": 0.3155505107832009
       },
       "import_metrics": {
-        "total": 2,
-        "used": 1,
+        "total": 3,
+        "used": 2,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.5
+        "ddc": 0.6666666666666666
       }
     },
     {
@@ -23573,8 +23581,8 @@
         "ldr": 0.3319838056680162
       },
       "import_metrics": {
-        "total": 2,
-        "used": 2,
+        "total": 3,
+        "used": 3,
         "ddc": 1
       }
     },
@@ -23633,8 +23641,8 @@
         "ldr": 0.29245283018867924
       },
       "import_metrics": {
-        "total": 1,
-        "used": 1,
+        "total": 2,
+        "used": 2,
         "ddc": 1
       }
     },
@@ -23933,8 +23941,8 @@
         "ldr": 0.4988558352402746
       },
       "import_metrics": {
-        "total": 1,
-        "used": 1,
+        "total": 2,
+        "used": 2,
         "ddc": 1
       }
     },
@@ -23981,8 +23989,8 @@
         "ldr": 0.5315315315315315
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 6,
+        "used": 6,
         "ddc": 1
       }
     },
@@ -24023,8 +24031,8 @@
         "ldr": 0.3793103448275862
       },
       "import_metrics": {
-        "total": 0,
-        "used": 0,
+        "total": 1,
+        "used": 1,
         "ddc": 1
       }
     },
@@ -24065,8 +24073,8 @@
         "ldr": 0.38095238095238093
       },
       "import_metrics": {
-        "total": 0,
-        "used": 0,
+        "total": 1,
+        "used": 1,
         "ddc": 1
       }
     },
@@ -24113,8 +24121,8 @@
         "ldr": 0.4153846153846154
       },
       "import_metrics": {
-        "total": 0,
-        "used": 0,
+        "total": 1,
+        "used": 1,
         "ddc": 1
       }
     },
@@ -24593,8 +24601,8 @@
         "ldr": 0.5857142857142857
       },
       "import_metrics": {
-        "total": 2,
-        "used": 2,
+        "total": 3,
+        "used": 3,
         "ddc": 1
       }
     },
@@ -24671,8 +24679,8 @@
         "ldr": 0.5807860262008734
       },
       "import_metrics": {
-        "total": 10,
-        "used": 10,
+        "total": 12,
+        "used": 12,
         "ddc": 1
       }
     },
@@ -25268,12 +25276,12 @@
         "ldr": 0.527536231884058
       },
       "import_metrics": {
-        "total": 10,
-        "used": 9,
+        "total": 13,
+        "used": 12,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9
+        "ddc": 0.9230769230769231
       }
     },
     {
@@ -25325,8 +25333,8 @@
         "ldr": 0.6288659793814433
       },
       "import_metrics": {
-        "total": 4,
-        "used": 4,
+        "total": 6,
+        "used": 6,
         "ddc": 1
       }
     },
@@ -25928,12 +25936,12 @@
         "ldr": 0.5728542914171657
       },
       "import_metrics": {
-        "total": 9,
-        "used": 8,
+        "total": 11,
+        "used": 10,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8888888888888888
+        "ddc": 0.9090909090909091
       }
     },
     {
@@ -26102,12 +26110,12 @@
         "ldr": 0.448
       },
       "import_metrics": {
-        "total": 14,
-        "used": 13,
+        "total": 15,
+        "used": 14,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9285714285714286
+        "ddc": 0.9333333333333333
       }
     },
     {
@@ -26375,8 +26383,8 @@
         "ldr": 0.5475113122171946
       },
       "import_metrics": {
-        "total": 8,
-        "used": 8,
+        "total": 11,
+        "used": 11,
         "ddc": 1
       }
     },
@@ -26981,12 +26989,12 @@
         "ldr": 0.49852507374631266
       },
       "import_metrics": {
-        "total": 2,
-        "used": 1,
+        "total": 3,
+        "used": 2,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.5
+        "ddc": 0.6666666666666666
       }
     },
     {
@@ -27116,12 +27124,12 @@
         "ldr": 0.46360153256704983
       },
       "import_metrics": {
-        "total": 2,
-        "used": 1,
+        "total": 3,
+        "used": 2,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.5
+        "ddc": 0.6666666666666666
       }
     },
     {
@@ -27287,12 +27295,12 @@
         "ldr": 0.40380047505938244
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -27446,12 +27454,12 @@
         "ldr": 0.45646437994722955
       },
       "import_metrics": {
-        "total": 4,
-        "used": 3,
+        "total": 5,
+        "used": 4,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.75
+        "ddc": 0.8
       }
     },
     {
@@ -27593,12 +27601,12 @@
         "ldr": 0.39344262295081966
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -27776,8 +27784,8 @@
         "ldr": 0.5601659751037344
       },
       "import_metrics": {
-        "total": 1,
-        "used": 1,
+        "total": 2,
+        "used": 2,
         "ddc": 1
       }
     },
@@ -27926,8 +27934,8 @@
         "ldr": 0.4225
       },
       "import_metrics": {
-        "total": 0,
-        "used": 0,
+        "total": 1,
+        "used": 1,
         "ddc": 1
       }
     },
@@ -28118,8 +28126,8 @@
         "ldr": 0.4005167958656331
       },
       "import_metrics": {
-        "total": 1,
-        "used": 1,
+        "total": 2,
+        "used": 2,
         "ddc": 1
       }
     },
@@ -28160,12 +28168,12 @@
         "ldr": 0.6176470588235294
       },
       "import_metrics": {
-        "total": 6,
-        "used": 5,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8333333333333334
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -28427,12 +28435,12 @@
         "ldr": 0.4782608695652174
       },
       "import_metrics": {
-        "total": 6,
-        "used": 5,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8333333333333334
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -28472,12 +28480,12 @@
         "ldr": 0.59375
       },
       "import_metrics": {
-        "total": 5,
-        "used": 4,
+        "total": 7,
+        "used": 6,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8
+        "ddc": 0.8571428571428571
       }
     },
     {
@@ -28760,8 +28768,8 @@
         "ldr": 0.7485714285714286
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 7,
+        "used": 7,
         "ddc": 1
       }
     },
@@ -28802,8 +28810,8 @@
         "ldr": 0.3673469387755102
       },
       "import_metrics": {
-        "total": 0,
-        "used": 0,
+        "total": 1,
+        "used": 1,
         "ddc": 1
       }
     },
@@ -29219,12 +29227,12 @@
         "ldr": 0.44144144144144143
       },
       "import_metrics": {
-        "total": 7,
-        "used": 6,
+        "total": 8,
+        "used": 7,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8571428571428571
+        "ddc": 0.875
       }
     },
     {
@@ -29318,12 +29326,12 @@
         "ldr": 0.6545454545454545
       },
       "import_metrics": {
-        "total": 15,
-        "used": 14,
+        "total": 16,
+        "used": 15,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.9333333333333333
+        "ddc": 0.9375
       }
     },
     {
@@ -29534,12 +29542,12 @@
         "ldr": 0.582089552238806
       },
       "import_metrics": {
-        "total": 7,
-        "used": 6,
+        "total": 8,
+        "used": 7,
         "unused": [
           "annotations"
         ],
-        "ddc": 0.8571428571428571
+        "ddc": 0.875
       }
     },
     {
@@ -29651,8 +29659,8 @@
         "ldr": 0.7543859649122807
       },
       "import_metrics": {
-        "total": 3,
-        "used": 3,
+        "total": 4,
+        "used": 4,
         "ddc": 1
       }
     },
@@ -30521,8 +30529,8 @@
         "ldr": 0.5599369085173501
       },
       "import_metrics": {
-        "total": 6,
-        "used": 6,
+        "total": 7,
+        "used": 7,
         "ddc": 1
       }
     },
@@ -30557,8 +30565,8 @@
         "ldr": 0.6538461538461539
       },
       "import_metrics": {
-        "total": 5,
-        "used": 5,
+        "total": 8,
+        "used": 8,
         "ddc": 1
       }
     },

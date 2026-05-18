@@ -7,5 +7,5 @@ See [docs/spec/why-and-what.md](docs/spec/why-and-what.md) and [docs/spec/engine
 ## Tool Requirements
 
 - Go 1.22 or newer for `calm-bridge`
-- `radon` on `PATH`, or pass `--radon <path>`, for Python baseline analysis
+- `radon` 6.0.1 on `PATH`, or pass `--radon <path>`, for Python baseline analysis
 - .NET 8 SDK for `tools/roslyn-analyzer`
