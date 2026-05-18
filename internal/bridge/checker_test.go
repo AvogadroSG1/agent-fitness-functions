@@ -416,6 +416,38 @@ func TestHandlerCheckPassesCleanPythonContent(t *testing.T) {
 	}
 }
 
+func TestHandlerCheckReturnsServiceUnavailableForMissingRadon(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Analyzers: map[string]SourceAnalyzer{
+			"python": AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
+				return analyzer.AnalyzePythonFile(ctx, request.TempPath, filepath.Join(t.TempDir(), "missing-radon"))
+			}),
+		},
+	}, nil))
+	defer server.Close()
+
+	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
+		"repo": `+jsonString(repo)+`,
+		"file": "src/setup/clean.py",
+		"language": "python",
+		"proposed_content": `+jsonString(cleanPythonSource())+`
+	}`))
+	if err != nil {
+		t.Fatalf("POST /check: %v", err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read response: %v", err)
+	}
+	if response.StatusCode != http.StatusServiceUnavailable || !strings.Contains(string(body), "running python analyzer") {
+		t.Fatalf("status = %d body = %q, want python analyzer infrastructure failure", response.StatusCode, body)
+	}
+}
+
 func TestHandlerCheckRoutesViolationsByEnforcementMode(t *testing.T) {
 	tests := []struct {
 		name string
@@ -590,6 +622,7 @@ func TestCheckerDirectUsagePreservesStateAcrossCalls(t *testing.T) {
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	checker := Checker{
 		PatternPath: writeTestPattern(t),
+		State:       NewState(),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
 		}),
@@ -618,6 +651,22 @@ func TestCheckerDirectUsagePreservesStateAcrossCalls(t *testing.T) {
 	}
 	if second.Status != StatusBlock || len(second.Violations) != 1 || second.Violations[0].File != "internal/parser/parser.go" {
 		t.Fatalf("second response = %+v, want preserved parser violation", second)
+	}
+}
+
+func TestCheckerDirectUsageRequiresConfiguredState(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	checker := Checker{PatternPath: writeTestPattern(t)}
+
+	_, err := checker.Check(context.Background(), CheckRequest{
+		Repo:            repo,
+		File:            "internal/parser/parser.go",
+		Language:        "go",
+		ProposedContent: cleanGoSource(),
+	})
+	if err == nil || !strings.Contains(err.Error(), "checker state is not configured") {
+		t.Fatalf("error = %v, want configured-state error", err)
 	}
 }
 

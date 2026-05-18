@@ -46,6 +46,9 @@ func AnalyzePythonFile(ctx context.Context, file, radonPath string) (AnalysisRes
 	if err != nil {
 		return AnalysisResult{}, fmt.Errorf("running radon raw: %w", err)
 	}
+	if err := ctx.Err(); err != nil {
+		return AnalysisResult{}, err
+	}
 
 	functions, err := parseRadonCC(file, ccOutput)
 	if err != nil {
@@ -53,6 +56,9 @@ func AnalyzePythonFile(ctx context.Context, file, radonPath string) (AnalysisRes
 	}
 	fileMetric, err := parseRadonRaw(file, rawOutput)
 	if err != nil {
+		return AnalysisResult{}, err
+	}
+	if err := ctx.Err(); err != nil {
 		return AnalysisResult{}, err
 	}
 	source, err := os.ReadFile(file)

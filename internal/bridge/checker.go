@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -83,6 +84,9 @@ func (e *CheckError) Unwrap() error {
 
 // Check runs the synchronous check path for one proposed file.
 func (c *Checker) Check(ctx context.Context, request CheckRequest) (response CheckResponse, err error) {
+	if c.State == nil {
+		return CheckResponse{}, infrastructureError("checker state is not configured", nil)
+	}
 	config, repo, err := loadConfig(request.Repo)
 	if err != nil {
 		return CheckResponse{}, err
@@ -132,6 +136,9 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return CheckResponse{}, infrastructureError("check canceled during analysis", err)
+		}
+		if isAnalyzerInfrastructureError(err) {
+			return CheckResponse{}, infrastructureError(fmt.Sprintf("running %s analyzer", request.Language), err)
 		}
 		return CheckResponse{}, inputError(fmt.Sprintf("analyzing %s file", request.Language), err)
 	}
@@ -186,10 +193,15 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 }
 
 func (c *Checker) state() *State {
-	if c.State == nil {
-		c.State = NewState()
-	}
 	return c.State
+}
+
+func isAnalyzerInfrastructureError(err error) bool {
+	if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist) || errors.Is(err, os.ErrPermission) {
+		return true
+	}
+	var pathErr *os.PathError
+	return errors.As(err, &pathErr)
 }
 
 func (c Checker) writeProposedContent(request CheckRequest) (string, func() error, error) {
