@@ -43,10 +43,10 @@ namespace Sample.App;
 
 public interface IRunner
 {
-    void Execute();
+    void InterfaceOnly();
 }
 
-public class Example : IRunner
+public class Example
 {
     private readonly int _count;
 
@@ -99,8 +99,9 @@ public class Example : IRunner
 	assertFunction(t, result.Functions, "Example", 1, true)
 	assertFunction(t, result.Functions, "Count.get", 2, true)
 	assertFunction(t, result.Functions, "Execute", 1, true)
-	if result.FileMetric.PublicMethods < 4 {
-		t.Fatalf("public methods = %d, want at least constructor, property accessor, interface method, and public methods", result.FileMetric.PublicMethods)
+	assertFunction(t, result.Functions, "InterfaceOnly", 1, true)
+	if result.FileMetric.PublicMethods != 5 {
+		t.Fatalf("public methods = %d, want constructor, property accessor, interface member, and two public methods", result.FileMetric.PublicMethods)
 	}
 	if result.FileMetric.TotalLOC == 0 || result.FileMetric.LogicLOC == 0 || result.FileMetric.LDR == 0 {
 		t.Fatalf("file metrics = %+v, want non-zero LOC and LDR", result.FileMetric)
