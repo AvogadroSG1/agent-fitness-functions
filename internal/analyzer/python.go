@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -326,17 +327,27 @@ func stripPythonComment(value string) string {
 }
 
 func runTool(ctx context.Context, name string, args ...string) ([]byte, error) {
+	stdout, _, err := runToolOutput(ctx, name, args...)
+	return stdout, err
+}
+
+func runToolOutput(ctx context.Context, name string, args ...string) ([]byte, string, error) {
 	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	command := exec.CommandContext(runCtx, name, args...)
-	output, err := command.CombinedOutput()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	err := command.Run()
 	if err != nil {
+		detail := strings.TrimSpace(firstNonEmpty(stderr.String(), stdout.String()))
 		if runCtx.Err() != nil {
-			return nil, errors.Join(runCtx.Err(), fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output))))
+			return nil, stderr.String(), errors.Join(runCtx.Err(), fmt.Errorf("%w: %s", err, detail))
 		}
-		return nil, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
+		return nil, stderr.String(), fmt.Errorf("%w: %s", err, detail)
 	}
-	return output, nil
+	return stdout.Bytes(), stderr.String(), nil
 }
 
 func trimOutput(output []byte) string {

@@ -138,6 +138,37 @@ func TestAnalyzeCSharpFileReturnsInvalidJSONErrors(t *testing.T) {
 	}
 }
 
+func TestAnalyzeCSharpFileIgnoresSuccessfulStderrDiagnostics(t *testing.T) {
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "Example.cs")
+	if err := os.WriteFile(sourcePath, []byte("public class Example {}"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	cli := fakeStderrRoslyn(t, dir)
+
+	result, err := AnalyzeCSharpFile(context.Background(), sourcePath, cli)
+	if err != nil {
+		t.Fatalf("AnalyzeCSharpFile returned error: %v", err)
+	}
+	if result.Language != "csharp" || result.CALMNode != "Example" {
+		t.Fatalf("result = %+v, want valid JSON parsed despite stderr", result)
+	}
+}
+
+func TestAnalyzeCSharpFileIncludesStderrOnInvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "Example.cs")
+	if err := os.WriteFile(sourcePath, []byte("public class Example {}"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	cli := fakeInvalidJSONWithStderrRoslyn(t, dir)
+
+	_, err := AnalyzeCSharpFile(context.Background(), sourcePath, cli)
+	if err == nil || !strings.Contains(err.Error(), "parsing Roslyn analyzer output") || !strings.Contains(err.Error(), "host warning") {
+		t.Fatalf("error = %v, want JSON parse error with stderr context", err)
+	}
+}
+
 func TestAnalyzeCSharpFileReturnsMissingExecutableErrors(t *testing.T) {
 	dir := t.TempDir()
 	sourcePath := filepath.Join(dir, "Example.cs")
@@ -220,6 +251,31 @@ exit 3
 func fakeInvalidJSONRoslyn(t *testing.T, dir string) string {
 	t.Helper()
 	return writeFakeRoslyn(t, dir, "invalid-json-roslyn", `#!/usr/bin/env bash
+echo not-json
+`)
+}
+
+func fakeStderrRoslyn(t *testing.T, dir string) string {
+	t.Helper()
+	return writeFakeRoslyn(t, dir, "stderr-roslyn", `#!/usr/bin/env bash
+echo "host warning" >&2
+cat <<JSON
+{
+  "calm_node": "Example",
+  "language": "csharp",
+  "file": "$1",
+  "functions": [],
+  "file_metrics": {"total_loc": 1, "logic_loc": 1, "public_methods": 0, "ldr": 1},
+  "import_metrics": {"total": 0, "used": 0, "ddc": 1}
+}
+JSON
+`)
+}
+
+func fakeInvalidJSONWithStderrRoslyn(t *testing.T, dir string) string {
+	t.Helper()
+	return writeFakeRoslyn(t, dir, "invalid-json-stderr-roslyn", `#!/usr/bin/env bash
+echo "host warning" >&2
 echo not-json
 `)
 }

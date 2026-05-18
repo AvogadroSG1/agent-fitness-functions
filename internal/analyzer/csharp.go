@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // AnalyzeCSharpFile analyzes one C# file through the Roslyn analyzer CLI.
@@ -13,12 +14,15 @@ func AnalyzeCSharpFile(ctx context.Context, file, cliPath string) (AnalysisResul
 	if cliPath == "" {
 		cliPath = defaultRoslynCLI()
 	}
-	output, err := runTool(ctx, cliPath, file)
+	output, stderr, err := runToolOutput(ctx, cliPath, file)
 	if err != nil {
 		return AnalysisResult{}, fmt.Errorf("running Roslyn analyzer: %w", err)
 	}
 	var result AnalysisResult
 	if err := json.Unmarshal(output, &result); err != nil {
+		if strings.TrimSpace(stderr) != "" {
+			return AnalysisResult{}, fmt.Errorf("parsing Roslyn analyzer output: %w: stderr: %s", err, strings.TrimSpace(stderr))
+		}
 		return AnalysisResult{}, fmt.Errorf("parsing Roslyn analyzer output: %w", err)
 	}
 	if result.Language == "" {

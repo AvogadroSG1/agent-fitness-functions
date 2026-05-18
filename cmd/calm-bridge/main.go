@@ -272,9 +272,16 @@ func ensureLocalRoslynAnalyzer() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, "dotnet", "build", project)
-	output, err := command.CombinedOutput()
+	var output bytes.Buffer
+	command.Stdout = &output
+	command.Stderr = &output
+	err = command.Run()
 	if err != nil {
-		return "", fmt.Errorf("building local Roslyn analyzer: %w: %s", err, strings.TrimSpace(string(output)))
+		detail := strings.TrimSpace(output.String())
+		if ctx.Err() != nil {
+			return "", errors.Join(ctx.Err(), fmt.Errorf("building local Roslyn analyzer: %w: %s", err, detail))
+		}
+		return "", fmt.Errorf("building local Roslyn analyzer: %w: %s", err, detail)
 	}
 	return executable, nil
 }

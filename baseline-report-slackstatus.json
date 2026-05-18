@@ -1,26 +1,758 @@
 {
   "repository": "SlackStatus",
   "language": "csharp",
-  "generated": "2026-05-18T19:16:14.127968Z",
+  "generated": "2026-05-18T20:41:09.598569Z",
   "summary": {
     "file_count": 77,
-    "function_count": 273,
+    "function_count": 416,
     "p90_cyclomatic_complexity": 3,
-    "p90_public_methods": 8,
-    "p10_avg_loc_per_public_method": 6.5,
+    "p90_public_methods": 10,
+    "p10_avg_loc_per_public_method": 0.7222222222222222,
     "p10_logic_density_ratio": 0.2857142857142857,
-    "p10_dependency_discipline": 1
+    "p10_dependency_discipline": 0
+  },
+  "distributions": {
+    "cyclomatic_complexity": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      5,
+      5,
+      5,
+      6,
+      6,
+      7,
+      7,
+      8,
+      8,
+      9,
+      10,
+      12
+    ],
+    "public_methods": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      4,
+      4,
+      4,
+      4,
+      5,
+      5,
+      5,
+      5,
+      6,
+      6,
+      6,
+      6,
+      8,
+      8,
+      8,
+      8,
+      8,
+      9,
+      9,
+      9,
+      10,
+      11,
+      11,
+      11,
+      16,
+      18,
+      20,
+      20,
+      36
+    ],
+    "avg_loc_per_public_method": [
+      0.6,
+      0.625,
+      0.65,
+      0.6666666666666666,
+      0.6666666666666666,
+      0.6666666666666666,
+      0.7222222222222222,
+      1,
+      1,
+      1,
+      1,
+      1.3333333333333333,
+      1.5,
+      1.5,
+      1.5,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      3,
+      4.666666666666667,
+      5.4375,
+      5.5,
+      5.5,
+      6.222222222222222,
+      6.5,
+      6.666666666666667,
+      6.666666666666667,
+      7,
+      7,
+      7.25,
+      7.25,
+      7.25,
+      7.5,
+      7.5,
+      8,
+      8,
+      8.055555555555555,
+      8.2,
+      8.777777777777779,
+      8.8,
+      9,
+      9,
+      10,
+      10.125,
+      11,
+      11.4,
+      12.333333333333334,
+      12.5,
+      12.666666666666666,
+      13.2,
+      14.454545454545455,
+      16,
+      16.333333333333332,
+      16.5,
+      17.545454545454547,
+      23.5,
+      24.333333333333332,
+      25,
+      26,
+      26.333333333333332,
+      38.3,
+      48,
+      58,
+      61.5,
+      121
+    ],
+    "logic_density_ratio": [
+      0.2,
+      0.2222222222222222,
+      0.2222222222222222,
+      0.2222222222222222,
+      0.2222222222222222,
+      0.25,
+      0.2857142857142857,
+      0.2857142857142857,
+      0.2857142857142857,
+      0.2857142857142857,
+      0.2857142857142857,
+      0.3,
+      0.3333333333333333,
+      0.375,
+      0.375,
+      0.4230769230769231,
+      0.42857142857142855,
+      0.42857142857142855,
+      0.43103448275862066,
+      0.44,
+      0.4444444444444444,
+      0.4444444444444444,
+      0.4444444444444444,
+      0.4444444444444444,
+      0.4444444444444444,
+      0.4583333333333333,
+      0.46511627906976744,
+      0.47058823529411764,
+      0.4716981132075472,
+      0.4727272727272727,
+      0.47540983606557374,
+      0.48,
+      0.4827586206896552,
+      0.4852941176470588,
+      0.4878048780487805,
+      0.49230769230769234,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5094339622641509,
+      0.5172413793103449,
+      0.5178571428571429,
+      0.5185185185185185,
+      0.5222222222222223,
+      0.5289256198347108,
+      0.5370370370370371,
+      0.5405405405405406,
+      0.5416666666666666,
+      0.5416666666666666,
+      0.5439560439560439,
+      0.5454545454545454,
+      0.5454545454545454,
+      0.5522388059701493,
+      0.5534351145038168,
+      0.5576923076923077,
+      0.5616438356164384,
+      0.5642857142857143,
+      0.5714285714285714,
+      0.5909090909090909,
+      0.59375,
+      0.6076923076923076,
+      0.6083333333333333,
+      0.615,
+      0.6195652173913043,
+      0.6226415094339622,
+      0.6269430051813472,
+      0.6530612244897959,
+      0.6597510373443983,
+      0.6666666666666666,
+      0.6681818181818182,
+      0.6925858951175407,
+      0.706959706959707,
+      0.7204968944099379,
+      0.7407407407407407,
+      0.75
+    ],
+    "dependency_discipline": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.125,
+      0.125,
+      0.14285714285714285,
+      0.14285714285714285,
+      0.14285714285714285,
+      0.16666666666666666,
+      0.2,
+      0.2,
+      0.2222222222222222,
+      0.25,
+      0.3333333333333333,
+      0.3333333333333333,
+      0.3333333333333333,
+      0.3333333333333333,
+      0.3333333333333333,
+      0.36363636363636365,
+      0.4,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.6666666666666666,
+      0.6666666666666666,
+      1
+    ]
   },
   "results": [
     {
       "calm_node": "SlackStatus.Domain.Models",
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Domain/Models/NowPlayingInfo.cs",
-      "functions": [],
+      "functions": [
+        {
+          "name": "Song.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Song.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Artist.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Artist.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        }
+      ],
       "file_metrics": {
         "total_loc": 9,
         "logic_loc": 4,
-        "public_methods": 0,
+        "public_methods": 4,
         "ldr": 0.4444444444444444
       },
       "import_metrics": {
@@ -33,11 +765,60 @@
       "calm_node": "SlackStatus.Domain.Models",
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Domain/Models/SlackUserStatus.cs",
-      "functions": [],
+      "functions": [
+        {
+          "name": "Emoji.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Emoji.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "DisplayEmoji.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "DisplayEmoji.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Text.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Text.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "ExpirationMinutes.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "ExpirationMinutes.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        }
+      ],
       "file_metrics": {
         "total_loc": 10,
         "logic_loc": 5,
-        "public_methods": 0,
+        "public_methods": 8,
         "ldr": 0.5
       },
       "import_metrics": {
@@ -50,11 +831,132 @@
       "calm_node": "SlackStatus.Domain.Models",
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Domain/Models/StatusConfig.cs",
-      "functions": [],
+      "functions": [
+        {
+          "name": "OutsideHours.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "OutsideHours.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "InMeeting.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "InMeeting.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "MusicPlaying.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "MusicPlaying.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Default.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Default.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Emoji.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Emoji.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "DisplayEmoji.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "DisplayEmoji.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Text.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Text.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Emoji.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Emoji.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "DisplayEmoji.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "DisplayEmoji.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "TextTemplate.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "TextTemplate.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        }
+      ],
       "file_metrics": {
         "total_loc": 24,
         "logic_loc": 13,
-        "public_methods": 0,
+        "public_methods": 20,
         "ldr": 0.5416666666666666
       },
       "import_metrics": {
@@ -67,11 +969,48 @@
       "calm_node": "SlackStatus.Domain.Models",
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Domain/Models/SystemState.cs",
-      "functions": [],
+      "functions": [
+        {
+          "name": "IsWorkHours.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "IsWorkHours.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "InMeeting.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "InMeeting.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "NowPlaying.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "NowPlaying.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        }
+      ],
       "file_metrics": {
         "total_loc": 9,
         "logic_loc": 4,
-        "public_methods": 0,
+        "public_methods": 6,
         "ldr": 0.4444444444444444
       },
       "import_metrics": {
@@ -88,8 +1027,14 @@
         {
           "name": "Resolve",
           "cyclomatic_complexity": 1,
-          "is_public": false,
+          "is_public": true,
           "loc": 2
+        },
+        {
+          "name": "StatusResolver",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 6
         },
         {
           "name": "Resolve",
@@ -101,13 +1046,16 @@
       "file_metrics": {
         "total_loc": 67,
         "logic_loc": 37,
-        "public_methods": 1,
+        "public_methods": 3,
         "ldr": 0.5522388059701493
       },
       "import_metrics": {
         "total": 1,
-        "used": 1,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Models"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -115,6 +1063,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/AppleMusicDetector.cs",
       "functions": [
+        {
+          "name": "AppleMusicDetector",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 7
+        },
         {
           "name": "DetectAsync",
           "cyclomatic_complexity": 3,
@@ -125,13 +1079,18 @@
       "file_metrics": {
         "total_loc": 42,
         "logic_loc": 18,
-        "public_methods": 1,
+        "public_methods": 2,
         "ldr": 0.42857142857142855
       },
       "import_metrics": {
         "total": 3,
-        "used": 3,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Options",
+          "Models",
+          "Process"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -139,6 +1098,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/DebouncedMeetingDetector.cs",
       "functions": [
+        {
+          "name": "DebouncedMeetingDetector",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
         {
           "name": "IsInMeetingAsync",
           "cyclomatic_complexity": 5,
@@ -149,13 +1114,17 @@
       "file_metrics": {
         "total_loc": 65,
         "logic_loc": 32,
-        "public_methods": 1,
+        "public_methods": 2,
         "ldr": 0.49230769230769234
       },
       "import_metrics": {
         "total": 2,
-        "used": 2,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Logging",
+          "Options"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -166,14 +1135,14 @@
         {
           "name": "IsInMeetingAsync",
           "cyclomatic_complexity": 1,
-          "is_public": false,
+          "is_public": true,
           "loc": 2
         }
       ],
       "file_metrics": {
         "total_loc": 7,
         "logic_loc": 2,
-        "public_methods": 0,
+        "public_methods": 1,
         "ldr": 0.2857142857142857
       },
       "import_metrics": {
@@ -190,20 +1159,23 @@
         {
           "name": "DetectAsync",
           "cyclomatic_complexity": 1,
-          "is_public": false,
+          "is_public": true,
           "loc": 2
         }
       ],
       "file_metrics": {
         "total_loc": 9,
         "logic_loc": 2,
-        "public_methods": 0,
+        "public_methods": 1,
         "ldr": 0.2222222222222222
       },
       "import_metrics": {
         "total": 1,
-        "used": 1,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Models"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -214,20 +1186,20 @@
         {
           "name": "IsWorkHours",
           "cyclomatic_complexity": 1,
-          "is_public": false,
+          "is_public": true,
           "loc": 2
         },
         {
           "name": "GetNextWorkHourStart",
           "cyclomatic_complexity": 1,
-          "is_public": false,
+          "is_public": true,
           "loc": 2
         }
       ],
       "file_metrics": {
         "total_loc": 8,
         "logic_loc": 3,
-        "public_methods": 0,
+        "public_methods": 2,
         "ldr": 0.375
       },
       "import_metrics": {
@@ -240,11 +1212,48 @@
       "calm_node": "SlackStatus.Infrastructure.Detectors",
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/MeetingDetectionConfig.cs",
-      "functions": [],
+      "functions": [
+        {
+          "name": "Command.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Command.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Arguments.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Arguments.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "DebounceCount.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "DebounceCount.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        }
+      ],
       "file_metrics": {
         "total_loc": 9,
         "logic_loc": 4,
-        "public_methods": 0,
+        "public_methods": 6,
         "ldr": 0.4444444444444444
       },
       "import_metrics": {
@@ -259,6 +1268,12 @@
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/MeetingDetector.cs",
       "functions": [
         {
+          "name": "MeetingDetector",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 8
+        },
+        {
           "name": "IsInMeetingAsync",
           "cyclomatic_complexity": 1,
           "is_public": true,
@@ -268,24 +1283,41 @@
       "file_metrics": {
         "total_loc": 25,
         "logic_loc": 11,
-        "public_methods": 1,
+        "public_methods": 2,
         "ldr": 0.44
       },
       "import_metrics": {
         "total": 2,
-        "used": 2,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Options",
+          "Process"
+        ],
+        "ddc": 0
       }
     },
     {
       "calm_node": "SlackStatus.Infrastructure.Detectors",
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/MusicDetectionConfig.cs",
-      "functions": [],
+      "functions": [
+        {
+          "name": "Command.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Command.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        }
+      ],
       "file_metrics": {
         "total_loc": 7,
         "logic_loc": 2,
-        "public_methods": 0,
+        "public_methods": 2,
         "ldr": 0.2857142857142857
       },
       "import_metrics": {
@@ -298,11 +1330,48 @@
       "calm_node": "SlackStatus.Infrastructure.Detectors",
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/WorkHoursConfig.cs",
-      "functions": [],
+      "functions": [
+        {
+          "name": "Start.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Start.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "End.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "End.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Timezone.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Timezone.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        }
+      ],
       "file_metrics": {
         "total_loc": 9,
         "logic_loc": 4,
-        "public_methods": 0,
+        "public_methods": 6,
         "ldr": 0.4444444444444444
       },
       "import_metrics": {
@@ -316,6 +1385,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/WorkHoursDetector.cs",
       "functions": [
+        {
+          "name": "WorkHoursDetector",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
         {
           "name": "IsWorkHours",
           "cyclomatic_complexity": 2,
@@ -332,13 +1407,16 @@
       "file_metrics": {
         "total_loc": 41,
         "logic_loc": 20,
-        "public_methods": 2,
+        "public_methods": 3,
         "ldr": 0.4878048780487805
       },
       "import_metrics": {
         "total": 1,
-        "used": 1,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Options"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -349,14 +1427,14 @@
         {
           "name": "ResolveUrlAsync",
           "cyclomatic_complexity": 1,
-          "is_public": false,
+          "is_public": true,
           "loc": 2
         }
       ],
       "file_metrics": {
         "total_loc": 7,
         "logic_loc": 2,
-        "public_methods": 0,
+        "public_methods": 1,
         "ldr": 0.2857142857142857
       },
       "import_metrics": {
@@ -371,6 +1449,12 @@
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Music/ItunesSearchUrlResolver.cs",
       "functions": [
         {
+          "name": "ItunesSearchUrlResolver",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 7
+        },
+        {
           "name": "ResolveUrlAsync",
           "cyclomatic_complexity": 4,
           "is_public": true,
@@ -380,13 +1464,17 @@
       "file_metrics": {
         "total_loc": 48,
         "logic_loc": 22,
-        "public_methods": 1,
+        "public_methods": 2,
         "ldr": 0.4583333333333333
       },
       "import_metrics": {
         "total": 2,
-        "used": 2,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Json",
+          "Logging"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -397,20 +1485,23 @@
         {
           "name": "RunAsync",
           "cyclomatic_complexity": 1,
-          "is_public": false,
+          "is_public": true,
           "loc": 2
         }
       ],
       "file_metrics": {
         "total_loc": 9,
         "logic_loc": 2,
-        "public_methods": 0,
+        "public_methods": 1,
         "ldr": 0.2222222222222222
       },
       "import_metrics": {
         "total": 1,
-        "used": 1,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "ErrorOr"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -418,6 +1509,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Process/ProcessRunner.cs",
       "functions": [
+        {
+          "name": "ProcessRunner",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 6
+        },
         {
           "name": "RunAsync",
           "cyclomatic_complexity": 2,
@@ -428,13 +1525,17 @@
       "file_metrics": {
         "total_loc": 53,
         "logic_loc": 25,
-        "public_methods": 1,
+        "public_methods": 2,
         "ldr": 0.4716981132075472
       },
       "import_metrics": {
         "total": 4,
-        "used": 4,
-        "ddc": 1
+        "used": 2,
+        "unused": [
+          "ErrorOr",
+          "Logging"
+        ],
+        "ddc": 0.5
       }
     },
     {
@@ -445,20 +1546,20 @@
         {
           "name": "SearchChannelsAsync",
           "cyclomatic_complexity": 1,
-          "is_public": false,
+          "is_public": true,
           "loc": 2
         },
         {
           "name": "WarmCacheAsync",
           "cyclomatic_complexity": 1,
-          "is_public": false,
+          "is_public": true,
           "loc": 2
         }
       ],
       "file_metrics": {
         "total_loc": 8,
         "logic_loc": 3,
-        "public_methods": 0,
+        "public_methods": 2,
         "ldr": 0.375
       },
       "import_metrics": {
@@ -475,20 +1576,23 @@
         {
           "name": "PostMessageAsync",
           "cyclomatic_complexity": 1,
-          "is_public": false,
+          "is_public": true,
           "loc": 2
         }
       ],
       "file_metrics": {
         "total_loc": 9,
         "logic_loc": 2,
-        "public_methods": 0,
+        "public_methods": 1,
         "ldr": 0.2222222222222222
       },
       "import_metrics": {
         "total": 1,
-        "used": 1,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "ErrorOr"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -499,20 +1603,23 @@
         {
           "name": "ListEmojiAsync",
           "cyclomatic_complexity": 1,
-          "is_public": false,
+          "is_public": true,
           "loc": 2
         }
       ],
       "file_metrics": {
         "total_loc": 9,
         "logic_loc": 2,
-        "public_methods": 0,
+        "public_methods": 1,
         "ldr": 0.2222222222222222
       },
       "import_metrics": {
         "total": 1,
-        "used": 1,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "ErrorOr"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -523,20 +1630,24 @@
         {
           "name": "SetStatusAsync",
           "cyclomatic_complexity": 1,
-          "is_public": false,
+          "is_public": true,
           "loc": 2
         }
       ],
       "file_metrics": {
         "total_loc": 10,
         "logic_loc": 2,
-        "public_methods": 0,
+        "public_methods": 1,
         "ldr": 0.2
       },
       "import_metrics": {
         "total": 2,
-        "used": 2,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "ErrorOr",
+          "Models"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -562,6 +1673,12 @@
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/SlackChannelCache.cs",
       "functions": [
         {
+          "name": "Lock.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
           "name": "TryGet",
           "cyclomatic_complexity": 3,
           "is_public": true,
@@ -577,7 +1694,7 @@
       "file_metrics": {
         "total_loc": 29,
         "logic_loc": 14,
-        "public_methods": 2,
+        "public_methods": 3,
         "ldr": 0.4827586206896552
       },
       "import_metrics": {
@@ -591,6 +1708,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/SlackChannelClient.cs",
       "functions": [
+        {
+          "name": "SlackChannelClient",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 14
+        },
         {
           "name": "WarmCacheAsync",
           "cyclomatic_complexity": 1,
@@ -619,13 +1742,18 @@
       "file_metrics": {
         "total_loc": 130,
         "logic_loc": 79,
-        "public_methods": 2,
+        "public_methods": 3,
         "ldr": 0.6076923076923076
       },
       "import_metrics": {
         "total": 4,
-        "used": 4,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "Json",
+          "Logging",
+          "Options"
+        ],
+        "ddc": 0.25
       }
     },
     {
@@ -633,6 +1761,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/SlackChatClient.cs",
       "functions": [
+        {
+          "name": "SlackChatClient",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
         {
           "name": "PostMessageAsync",
           "cyclomatic_complexity": 4,
@@ -643,24 +1777,44 @@
       "file_metrics": {
         "total_loc": 68,
         "logic_loc": 33,
-        "public_methods": 1,
+        "public_methods": 2,
         "ldr": 0.4852941176470588
       },
       "import_metrics": {
         "total": 6,
-        "used": 6,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "Text",
+          "Json",
+          "ErrorOr",
+          "Logging",
+          "Options"
+        ],
+        "ddc": 0.16666666666666666
       }
     },
     {
       "calm_node": "SlackStatus.Infrastructure.Slack",
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/SlackConfig.cs",
-      "functions": [],
+      "functions": [
+        {
+          "name": "TokenEnvVar.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "TokenEnvVar.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        }
+      ],
       "file_metrics": {
         "total_loc": 7,
         "logic_loc": 2,
-        "public_methods": 0,
+        "public_methods": 2,
         "ldr": 0.2857142857142857
       },
       "import_metrics": {
@@ -674,6 +1828,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/SlackEmojiClient.cs",
       "functions": [
+        {
+          "name": "SlackEmojiClient",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
         {
           "name": "ListEmojiAsync",
           "cyclomatic_complexity": 3,
@@ -696,13 +1856,19 @@
       "file_metrics": {
         "total_loc": 110,
         "logic_loc": 52,
-        "public_methods": 1,
+        "public_methods": 2,
         "ldr": 0.4727272727272727
       },
       "import_metrics": {
         "total": 5,
-        "used": 5,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "Json",
+          "ErrorOr",
+          "Logging",
+          "Options"
+        ],
+        "ddc": 0.2
       }
     },
     {
@@ -710,6 +1876,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/SlackProfileClient.cs",
       "functions": [
+        {
+          "name": "SlackProfileClient",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        },
         {
           "name": "SetStatusAsync",
           "cyclomatic_complexity": 4,
@@ -720,13 +1892,21 @@
       "file_metrics": {
         "total_loc": 90,
         "logic_loc": 47,
-        "public_methods": 1,
+        "public_methods": 2,
         "ldr": 0.5222222222222223
       },
       "import_metrics": {
         "total": 7,
-        "used": 7,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "Json",
+          "Serialization",
+          "ErrorOr",
+          "Logging",
+          "Options",
+          "Models"
+        ],
+        "ddc": 0.14285714285714285
       }
     },
     {
@@ -755,25 +1935,156 @@
       },
       "import_metrics": {
         "total": 3,
-        "used": 3,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Models",
+          "Serialization",
+          "NamingConventions"
+        ],
+        "ddc": 0
       }
     },
     {
       "calm_node": "SlackStatus.Web.Configuration",
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Configuration/SlackStatusSettings.cs",
-      "functions": [],
+      "functions": [
+        {
+          "name": "Slack.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Slack.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "PollIntervalSeconds.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "PollIntervalSeconds.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "WorkHours.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "WorkHours.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Statuses.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Statuses.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "MeetingDetection.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "MeetingDetection.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "MusicDetection.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "MusicDetection.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "OutsideHours.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "OutsideHours.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "InMeeting.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "InMeeting.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "MusicPlaying.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "MusicPlaying.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Default.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Default.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        }
+      ],
       "file_metrics": {
         "total_loc": 24,
         "logic_loc": 12,
-        "public_methods": 0,
+        "public_methods": 20,
         "ldr": 0.5
       },
       "import_metrics": {
         "total": 3,
-        "used": 3,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Models",
+          "Detectors",
+          "Slack"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -797,11 +2108,228 @@
       "calm_node": "SlackStatus.Web.Models",
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Models/BroadcastSettings.cs",
-      "functions": [],
+      "functions": [
+        {
+          "name": "Template.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Template.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Channels.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Channels.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Presets.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Presets.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "LastBroadcastAt.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "LastBroadcastAt.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Id.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Id.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Name.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Name.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Template.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Template.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "ChannelIds.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "ChannelIds.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "LastSentAt.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "LastSentAt.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Schedule.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Schedule.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Kind.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Kind.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "FireAt.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "FireAt.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "DaysOfWeek.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "DaysOfWeek.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "FireOnce.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "FireOnce.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Id.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Id.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Name.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Name.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "AddedAt.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "AddedAt.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "LastBroadcastAt.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "LastBroadcastAt.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        }
+      ],
       "file_metrics": {
         "total_loc": 44,
         "logic_loc": 26,
-        "public_methods": 0,
+        "public_methods": 36,
         "ldr": 0.5909090909090909
       },
       "import_metrics": {
@@ -884,7 +2412,20 @@
       "calm_node": "Program",
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Program.cs",
-      "functions": [],
+      "functions": [
+        {
+          "name": "EnsureLoopbackUrls",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 12
+        },
+        {
+          "name": "IsLoopbackHost",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 7
+        }
+      ],
       "file_metrics": {
         "total_loc": 147,
         "logic_loc": 96,
@@ -893,8 +2434,17 @@
       },
       "import_metrics": {
         "total": 11,
-        "used": 11,
-        "ddc": 1
+        "used": 4,
+        "unused": [
+          "AspNetCore",
+          "Server",
+          "Detectors",
+          "Music",
+          "Process",
+          "Components",
+          "Configuration"
+        ],
+        "ddc": 0.36363636363636365
       }
     },
     {
@@ -923,19 +2473,35 @@
       },
       "import_metrics": {
         "total": 1,
-        "used": 1,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Models"
+        ],
+        "ddc": 0
       }
     },
     {
       "calm_node": "SlackStatus.Web.Services",
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/BroadcastSettingsOptions.cs",
-      "functions": [],
+      "functions": [
+        {
+          "name": "Path.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Path.init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        }
+      ],
       "file_metrics": {
         "total_loc": 7,
         "logic_loc": 2,
-        "public_methods": 0,
+        "public_methods": 2,
         "ldr": 0.2857142857142857
       },
       "import_metrics": {
@@ -949,6 +2515,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/ChannelCacheWarmService.cs",
       "functions": [
+        {
+          "name": "ChannelCacheWarmService",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
         {
           "name": "ExecuteAsync",
           "cyclomatic_complexity": 2,
@@ -971,13 +2543,17 @@
       "file_metrics": {
         "total_loc": 88,
         "logic_loc": 48,
-        "public_methods": 0,
+        "public_methods": 1,
         "ldr": 0.5454545454545454
       },
       "import_metrics": {
         "total": 2,
-        "used": 2,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Json",
+          "Slack"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -985,6 +2561,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/CockpitStateService.cs",
       "functions": [
+        {
+          "name": "CockpitStateService",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 6
+        },
         {
           "name": "GetSnapshot",
           "cyclomatic_complexity": 1,
@@ -1049,13 +2631,17 @@
       "file_metrics": {
         "total_loc": 159,
         "logic_loc": 81,
-        "public_methods": 7,
+        "public_methods": 8,
         "ldr": 0.5094339622641509
       },
       "import_metrics": {
         "total": 2,
-        "used": 2,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Models",
+          "Models"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -1063,6 +2649,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/EmojiCatalogRefreshService.cs",
       "functions": [
+        {
+          "name": "EmojiCatalogRefreshService",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 7
+        },
         {
           "name": "ExecuteAsync",
           "cyclomatic_complexity": 2,
@@ -1085,7 +2677,7 @@
       "file_metrics": {
         "total_loc": 58,
         "logic_loc": 25,
-        "public_methods": 0,
+        "public_methods": 1,
         "ldr": 0.43103448275862066
       },
       "import_metrics": {
@@ -1132,26 +2724,29 @@
         {
           "name": "GetBroadcast",
           "cyclomatic_complexity": 1,
-          "is_public": false,
+          "is_public": true,
           "loc": 2
         },
         {
           "name": "SaveBroadcastAsync",
           "cyclomatic_complexity": 1,
-          "is_public": false,
+          "is_public": true,
           "loc": 2
         }
       ],
       "file_metrics": {
         "total_loc": 10,
         "logic_loc": 3,
-        "public_methods": 0,
+        "public_methods": 2,
         "ldr": 0.3
       },
       "import_metrics": {
         "total": 1,
-        "used": 1,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Models"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -1159,6 +2754,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/MorningBroadcastService.cs",
       "functions": [
+        {
+          "name": "MorningBroadcastService",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 15
+        },
         {
           "name": "SendAsync",
           "cyclomatic_complexity": 3,
@@ -1187,13 +2788,20 @@
       "file_metrics": {
         "total_loc": 120,
         "logic_loc": 73,
-        "public_methods": 2,
+        "public_methods": 3,
         "ldr": 0.6083333333333333
       },
       "import_metrics": {
         "total": 5,
-        "used": 5,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "RegularExpressions",
+          "Detectors",
+          "Music",
+          "Slack",
+          "Models"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -1201,6 +2809,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/ScheduledBroadcastService.cs",
       "functions": [
+        {
+          "name": "ScheduledBroadcastService",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 13
+        },
         {
           "name": "RunDueSchedulesAsync",
           "cyclomatic_complexity": 8,
@@ -1265,13 +2879,16 @@
       "file_metrics": {
         "total_loc": 200,
         "logic_loc": 123,
-        "public_methods": 1,
+        "public_methods": 2,
         "ldr": 0.615
       },
       "import_metrics": {
         "total": 1,
-        "used": 1,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Models"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -1468,8 +3085,15 @@
       },
       "import_metrics": {
         "total": 5,
-        "used": 5,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "ComponentModel",
+          "RegularExpressions",
+          "Server",
+          "Models",
+          "Models"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -1477,6 +3101,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/StatusWorker.cs",
       "functions": [
+        {
+          "name": "StatusWorker",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 23
+        },
         {
           "name": "ExecuteAsync",
           "cyclomatic_complexity": 2,
@@ -1511,13 +3141,21 @@
       "file_metrics": {
         "total_loc": 193,
         "logic_loc": 121,
-        "public_methods": 0,
+        "public_methods": 1,
         "ldr": 0.6269430051813472
       },
       "import_metrics": {
         "total": 7,
-        "used": 7,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "Options",
+          "Models",
+          "Detectors",
+          "Slack",
+          "Configuration",
+          "Models"
+        ],
+        "ddc": 0.14285714285714285
       }
     },
     {
@@ -1525,6 +3163,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/StatusWorkerHealthCheck.cs",
       "functions": [
+        {
+          "name": "StatusWorkerHealthCheck",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 7
+        },
         {
           "name": "CheckHealthAsync",
           "cyclomatic_complexity": 3,
@@ -1535,13 +3179,16 @@
       "file_metrics": {
         "total_loc": 32,
         "logic_loc": 16,
-        "public_methods": 1,
+        "public_methods": 2,
         "ldr": 0.5
       },
       "import_metrics": {
         "total": 1,
-        "used": 1,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "HealthChecks"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -1549,6 +3196,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/WorkspaceEmojiCatalog.cs",
       "functions": [
+        {
+          "name": "WorkspaceEmojiCatalog",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 7
+        },
         {
           "name": "TryGetImageUrl",
           "cyclomatic_complexity": 2,
@@ -1565,13 +3218,17 @@
       "file_metrics": {
         "total_loc": 43,
         "logic_loc": 20,
-        "public_methods": 2,
+        "public_methods": 3,
         "ldr": 0.46511627906976744
       },
       "import_metrics": {
         "total": 2,
-        "used": 2,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "ErrorOr",
+          "Slack"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -1579,6 +3236,12 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/YamlSettingsRepository.cs",
       "functions": [
+        {
+          "name": "YamlSettingsRepository",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 19
+        },
         {
           "name": "GetBroadcast",
           "cyclomatic_complexity": 1,
@@ -1643,13 +3306,22 @@
       "file_metrics": {
         "total_loc": 140,
         "logic_loc": 79,
-        "public_methods": 8,
+        "public_methods": 9,
         "ldr": 0.5642857142857143
       },
       "import_metrics": {
         "total": 7,
-        "used": 7,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Logging",
+          "Options",
+          "Models",
+          "Core",
+          "Events",
+          "Serialization",
+          "NamingConventions"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -1665,8 +3337,11 @@
       },
       "import_metrics": {
         "total": 1,
-        "used": 1,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Framework"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -1695,8 +3370,11 @@
       },
       "import_metrics": {
         "total": 2,
-        "used": 2,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "FluentAssertions"
+        ],
+        "ddc": 0.5
       }
     },
     {
@@ -1737,8 +3415,11 @@
       },
       "import_metrics": {
         "total": 2,
-        "used": 2,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "FluentAssertions"
+        ],
+        "ddc": 0.5
       }
     },
     {
@@ -1767,8 +3448,11 @@
       },
       "import_metrics": {
         "total": 2,
-        "used": 2,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "FluentAssertions"
+        ],
+        "ddc": 0.5
       }
     },
     {
@@ -1893,8 +3577,12 @@
       },
       "import_metrics": {
         "total": 3,
-        "used": 3,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "FluentAssertions",
+          "Models"
+        ],
+        "ddc": 0.3333333333333333
       }
     },
     {
@@ -1947,8 +3635,14 @@
       },
       "import_metrics": {
         "total": 6,
-        "used": 6,
-        "ddc": 1
+        "used": 2,
+        "unused": [
+          "ErrorOr",
+          "FluentAssertions",
+          "NSubstitute",
+          "Process"
+        ],
+        "ddc": 0.3333333333333333
       }
     },
     {
@@ -2037,8 +3731,13 @@
       },
       "import_metrics": {
         "total": 5,
-        "used": 5,
-        "ddc": 1
+        "used": 2,
+        "unused": [
+          "FluentAssertions",
+          "Logging",
+          "NSubstitute"
+        ],
+        "ddc": 0.4
       }
     },
     {
@@ -2079,8 +3778,14 @@
       },
       "import_metrics": {
         "total": 6,
-        "used": 6,
-        "ddc": 1
+        "used": 2,
+        "unused": [
+          "ErrorOr",
+          "FluentAssertions",
+          "NSubstitute",
+          "Process"
+        ],
+        "ddc": 0.3333333333333333
       }
     },
     {
@@ -2151,8 +3856,11 @@
       },
       "import_metrics": {
         "total": 3,
-        "used": 3,
-        "ddc": 1
+        "used": 2,
+        "unused": [
+          "FluentAssertions"
+        ],
+        "ddc": 0.6666666666666666
       }
     },
     {
@@ -2168,8 +3876,12 @@
       },
       "import_metrics": {
         "total": 2,
-        "used": 2,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "FluentAssertions",
+          "Framework"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -2198,8 +3910,12 @@
       },
       "import_metrics": {
         "total": 3,
-        "used": 3,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "Abstractions",
+          "TestUtilities"
+        ],
+        "ddc": 0.3333333333333333
       }
     },
     {
@@ -2246,8 +3962,12 @@
       },
       "import_metrics": {
         "total": 4,
-        "used": 4,
-        "ddc": 1
+        "used": 2,
+        "unused": [
+          "Abstractions",
+          "TestUtilities"
+        ],
+        "ddc": 0.5
       }
     },
     {
@@ -2288,8 +4008,12 @@
       },
       "import_metrics": {
         "total": 4,
-        "used": 4,
-        "ddc": 1
+        "used": 2,
+        "unused": [
+          "Abstractions",
+          "TestUtilities"
+        ],
+        "ddc": 0.5
       }
     },
     {
@@ -2354,8 +4078,12 @@
       },
       "import_metrics": {
         "total": 4,
-        "used": 4,
-        "ddc": 1
+        "used": 2,
+        "unused": [
+          "Abstractions",
+          "TestUtilities"
+        ],
+        "ddc": 0.5
       }
     },
     {
@@ -2420,8 +4148,17 @@
       },
       "import_metrics": {
         "total": 9,
-        "used": 9,
-        "ddc": 1
+        "used": 2,
+        "unused": [
+          "Net",
+          "Json",
+          "ErrorOr",
+          "FluentAssertions",
+          "Abstractions",
+          "Models",
+          "TestUtilities"
+        ],
+        "ddc": 0.2222222222222222
       }
     },
     {
@@ -2429,6 +4166,48 @@
       "language": "csharp",
       "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/TestUtilities/MockHttpMessageHandler.cs",
       "functions": [
+        {
+          "name": "CapturedRequestBody.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "CapturedRequestBody.set",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "CapturedAuthorizationHeader.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "CapturedAuthorizationHeader.set",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "CapturedUris.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "ShouldThrow.get",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "ShouldThrow.set",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
         {
           "name": "EnqueueJson",
           "cyclomatic_complexity": 1,
@@ -2445,13 +4224,16 @@
       "file_metrics": {
         "total_loc": 50,
         "logic_loc": 24,
-        "public_methods": 1,
+        "public_methods": 8,
         "ldr": 0.48
       },
       "import_metrics": {
         "total": 1,
-        "used": 1,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "Net"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -2467,8 +4249,13 @@
       },
       "import_metrics": {
         "total": 3,
-        "used": 3,
-        "ddc": 1
+        "used": 0,
+        "unused": [
+          "FluentAssertions",
+          "NSubstitute",
+          "Framework"
+        ],
+        "ddc": 0
       }
     },
     {
@@ -2503,8 +4290,11 @@
       },
       "import_metrics": {
         "total": 2,
-        "used": 2,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "Models"
+        ],
+        "ddc": 0.5
       }
     },
     {
@@ -2551,8 +4341,12 @@
       },
       "import_metrics": {
         "total": 3,
-        "used": 3,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "Models",
+          "Models"
+        ],
+        "ddc": 0.3333333333333333
       }
     },
     {
@@ -2665,8 +4459,11 @@
       },
       "import_metrics": {
         "total": 3,
-        "used": 3,
-        "ddc": 1
+        "used": 2,
+        "unused": [
+          "FluentAssertions"
+        ],
+        "ddc": 0.6666666666666666
       }
     },
     {
@@ -2713,8 +4510,16 @@
       },
       "import_metrics": {
         "total": 7,
-        "used": 7,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "ErrorOr",
+          "Models",
+          "Detectors",
+          "Music",
+          "Slack",
+          "Models"
+        ],
+        "ddc": 0.14285714285714285
       }
     },
     {
@@ -2791,8 +4596,17 @@
       },
       "import_metrics": {
         "total": 8,
-        "used": 8,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "ErrorOr",
+          "Abstractions",
+          "Models",
+          "Detectors",
+          "Music",
+          "Slack",
+          "Models"
+        ],
+        "ddc": 0.125
       }
     },
     {
@@ -2855,6 +4669,12 @@
           "loc": 25
         },
         {
+          "name": "WaitForReleaseAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 7
+        },
+        {
           "name": "CreatePreset_UnknownChannelIds_FiltersAndWarns",
           "cyclomatic_complexity": 1,
           "is_public": true,
@@ -2875,8 +4695,17 @@
       },
       "import_metrics": {
         "total": 8,
-        "used": 8,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "ErrorOr",
+          "Server",
+          "Models",
+          "Detectors",
+          "Music",
+          "Slack",
+          "Models"
+        ],
+        "ddc": 0.125
       }
     },
     {
@@ -2923,8 +4752,14 @@
       },
       "import_metrics": {
         "total": 5,
-        "used": 5,
-        "ddc": 1
+        "used": 1,
+        "unused": [
+          "ErrorOr",
+          "Abstractions",
+          "NSubstitute",
+          "Slack"
+        ],
+        "ddc": 0.2
       }
     },
     {
@@ -3013,8 +4848,12 @@
       },
       "import_metrics": {
         "total": 4,
-        "used": 4,
-        "ddc": 1
+        "used": 2,
+        "unused": [
+          "Abstractions",
+          "Models"
+        ],
+        "ddc": 0.5
       }
     }
   ]
