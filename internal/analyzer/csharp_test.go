@@ -213,23 +213,17 @@ func buildRoslynAnalyzer(t *testing.T) string {
 	}
 	repoRoot := filepath.Clean(filepath.Join("..", ".."))
 	project := filepath.Join(repoRoot, "tools", "roslyn-analyzer", "CalmRoslynAnalyzer.csproj")
-	outputDir := filepath.Join(t.TempDir(), "roslyn-out")
-	objDir := filepath.Join(t.TempDir(), "roslyn-obj")
-	command := exec.Command(
-		"dotnet",
-		"build",
-		project,
-		"--output",
-		outputDir,
-		"-p:BaseIntermediateOutputPath="+objDir+string(os.PathSeparator),
-	)
+	exe := filepath.Join(repoRoot, "tools", "roslyn-analyzer", "bin", "Release", "net8.0", "CalmRoslynAnalyzer")
+	if runtime.GOOS == "windows" {
+		exe += ".exe"
+	}
+	if info, err := os.Stat(exe); err == nil && !info.IsDir() {
+		return exe
+	}
+	command := exec.Command("dotnet", "build", "-c", "Release", project)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("dotnet build failed: %v\n%s", err, output)
-	}
-	exe := filepath.Join(outputDir, "CalmRoslynAnalyzer")
-	if runtime.GOOS == "windows" {
-		exe += ".exe"
 	}
 	return exe
 }
