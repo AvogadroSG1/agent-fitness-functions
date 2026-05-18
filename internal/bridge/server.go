@@ -104,7 +104,12 @@ func NewHandlerWithChecker(checker Checker, shutdown func()) http.Handler {
 			http.Error(w, "state requires repo", http.StatusBadRequest)
 			return
 		}
-		writeJSON(w, StateResponse{Repo: repo, Violations: checker.State.Violations(repo)})
+		canonicalRepo, err := validateRepoPath(repo)
+		if err != nil {
+			writeCheckError(w, err)
+			return
+		}
+		writeJSON(w, StateResponse{Repo: canonicalRepo, Violations: checker.State.Violations(canonicalRepo)})
 	})
 	mux.HandleFunc("/shutdown", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
