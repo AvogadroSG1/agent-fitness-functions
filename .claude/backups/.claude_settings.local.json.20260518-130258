@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(*)",
+      "Bash(bd)",
+      "Bash(rtk *)",
+      "Bash(git *)",
+      "Bash(bd *)",
+      "Skill(elements-of-style:writing-clearly-and-concisely)",
+      "WebFetch(domain:the-language.prod.int.stackoverflow.net)"
+    ]
+  }
+}
