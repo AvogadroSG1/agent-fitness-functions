@@ -20,20 +20,28 @@ type Validator interface {
 	Validate(context.Context, string, string) (calm.ValidationResult, error)
 }
 
+// AnalysisRequest describes one temporary source analysis job.
+type AnalysisRequest struct {
+	Repo     string
+	File     string
+	Language string
+	TempPath string
+}
+
 // SourceAnalyzer analyzes one temporary source file for a language.
 type SourceAnalyzer interface {
-	Analyze(context.Context, string) (analyzer.AnalysisResult, error)
+	Analyze(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error)
 }
 
 // AnalyzerFunc adapts a function to SourceAnalyzer.
-type AnalyzerFunc func(context.Context, string) (analyzer.AnalysisResult, error)
+type AnalyzerFunc func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error)
 
 // Analyze implements SourceAnalyzer.
-func (f AnalyzerFunc) Analyze(ctx context.Context, path string) (analyzer.AnalysisResult, error) {
+func (f AnalyzerFunc) Analyze(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
 	if f == nil {
 		return analyzer.AnalysisResult{}, infrastructureError("source analyzer is not configured", nil)
 	}
-	return f(ctx, path)
+	return f(ctx, request)
 }
 
 // Checker coordinates source analysis, CALM architecture generation, and validation.
@@ -111,7 +119,12 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 	if err := ctx.Err(); err != nil {
 		return CheckResponse{}, infrastructureError("check canceled before analysis", err)
 	}
-	result, err := sourceAnalyzer.Analyze(ctx, sourcePath)
+	result, err := sourceAnalyzer.Analyze(ctx, AnalysisRequest{
+		Repo:     repo,
+		File:     request.File,
+		Language: request.Language,
+		TempPath: sourcePath,
+	})
 	if err != nil {
 		var checkErr *CheckError
 		if errors.As(err, &checkErr) {
@@ -126,6 +139,7 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 		return CheckResponse{}, infrastructureError("check canceled after analysis", err)
 	}
 	result.File = request.File
+	result.CALMNode = calmNodeForRequest(request.File, result.CALMNode)
 
 	architecturePath, cleanupArchitecture, err := c.writeArchitecture(report.BuildArchitecture(result))
 	if err != nil {
@@ -276,11 +290,11 @@ func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
 		return sourceAnalyzer, true
 	}
 	if language == "go" {
-		return AnalyzerFunc(func(ctx context.Context, path string) (analyzer.AnalysisResult, error) {
+		return AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
 			if err := ctx.Err(); err != nil {
 				return analyzer.AnalysisResult{}, err
 			}
-			result, err := analyzer.AnalyzeGoFile(path)
+			result, err := analyzer.AnalyzeGoFile(request.TempPath)
 			if err != nil {
 				return analyzer.AnalysisResult{}, err
 			}
@@ -291,11 +305,19 @@ func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
 		}), true
 	}
 	if language == "python" {
-		return AnalyzerFunc(func(ctx context.Context, path string) (analyzer.AnalysisResult, error) {
-			return analyzer.AnalyzePythonFile(ctx, path, "")
+		return AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
+			return analyzer.AnalyzePythonFile(ctx, request.TempPath, "")
 		}), true
 	}
 	return nil, false
+}
+
+func calmNodeForRequest(file, fallback string) string {
+	base := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
+	if base == "" {
+		return fallback
+	}
+	return base
 }
 
 func isNilSourceAnalyzer(sourceAnalyzer SourceAnalyzer) bool {

@@ -297,7 +297,7 @@ func TestHandlerCheckReturnsServiceUnavailableForAnalyzerCancellation(t *testing
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
-			"go": AnalyzerFunc(func(context.Context, string) (analyzer.AnalysisResult, error) {
+			"go": AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
 				return analyzer.AnalysisResult{}, context.Canceled
 			}),
 		},
@@ -394,6 +394,9 @@ func TestHandlerCheckRunsPythonAnalyzerAndRoutesAdvisoryViolation(t *testing.T) 
 	if violation.FitnessFunction != "cyclomatic_complexity" || violation.Function != "build_config" || violation.Value <= 9 || violation.Limit != 9 {
 		t.Fatalf("violation = %+v, want Python build_config CC violation", violation)
 	}
+	if violation.CALMNode != "dd_stage_bronze" {
+		t.Fatalf("calm node = %q, want logical Python module node", violation.CALMNode)
+	}
 }
 
 func TestHandlerCheckPassesCleanPythonContent(t *testing.T) {
@@ -449,7 +452,7 @@ func TestHandlerCheckOffModeSkipsAnalysis(t *testing.T) {
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		PatternPath: "/does/not/exist.json",
 		Analyzers: map[string]SourceAnalyzer{
-			"go": AnalyzerFunc(func(context.Context, string) (analyzer.AnalysisResult, error) {
+			"go": AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
 				called = true
 				return analyzer.AnalysisResult{}, nil
 			}),
@@ -924,7 +927,7 @@ func (f validatorFunc) Validate(ctx context.Context, architecturePath, patternPa
 
 type typedNilAnalyzer struct{}
 
-func (*typedNilAnalyzer) Analyze(context.Context, string) (analyzer.AnalysisResult, error) {
+func (*typedNilAnalyzer) Analyze(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
 	panic("typed nil analyzer should be rejected before Analyze")
 }
 
