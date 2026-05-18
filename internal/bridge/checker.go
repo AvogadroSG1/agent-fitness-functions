@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/poconnor/calm-poc/internal/analyzer"
 	"github.com/poconnor/calm-poc/internal/calm"
@@ -92,15 +93,25 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 		return CheckResponse{}, err
 	}
 	state := c.state()
+	if config.EnforcementMode == EnforcementOff {
+		state.ClearRepo(repo)
+		return CheckResponse{Status: StatusPass}, nil
+	}
+	if request.Language == "csharp" && !state.IsWarm("csharp") {
+		if state.BeginWarmup("csharp") {
+			c.startDeferredCheck(request)
+		}
+		return CheckResponse{Status: StatusPass, Warming: true}, nil
+	}
+	return c.checkSynchronous(ctx, request, repo, config, state)
+}
+
+func (c *Checker) checkSynchronous(ctx context.Context, request CheckRequest, repo string, config Config, state *State) (response CheckResponse, err error) {
 	unlockRepo, err := state.LockRepo(ctx, repo)
 	if err != nil {
 		return CheckResponse{}, infrastructureError("check canceled while waiting for repository lock", err)
 	}
 	defer unlockRepo()
-	if config.EnforcementMode == EnforcementOff {
-		state.ClearRepo(repo)
-		return CheckResponse{Status: StatusPass}, nil
-	}
 	patternPath := c.PatternPath
 	if patternPath == "" {
 		patternPath = filepath.Join("patterns", "governance.json")
@@ -197,6 +208,24 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 
 func (c *Checker) state() *State {
 	return c.State
+}
+
+func (c *Checker) startDeferredCheck(request CheckRequest) {
+	checker := *c
+	go func() {
+		defer checker.State.CompleteWarmup("csharp")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		config, repo, err := loadConfig(request.Repo)
+		if err != nil {
+			return
+		}
+		if config.EnforcementMode == EnforcementOff {
+			checker.State.ClearRepo(repo)
+			return
+		}
+		_, _ = checker.checkSynchronous(ctx, request, repo, config, checker.State)
+	}()
 }
 
 func isAnalyzerInfrastructureError(err error) bool {
@@ -322,6 +351,11 @@ func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
 	if language == "python" {
 		return AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
 			return analyzer.AnalyzePythonFile(ctx, request.TempPath, "")
+		}), true
+	}
+	if language == "csharp" {
+		return AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
+			return analyzer.AnalyzeCSharpFile(ctx, request.TempPath, "")
 		}), true
 	}
 	return nil, false

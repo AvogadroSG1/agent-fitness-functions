@@ -12,7 +12,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/poconnor/calm-poc/internal/analyzer"
 	"github.com/poconnor/calm-poc/internal/calm"
@@ -451,6 +453,128 @@ func TestHandlerCheckReturnsServiceUnavailableForMissingRadon(t *testing.T) {
 	}
 	if response.StatusCode != http.StatusServiceUnavailable || !strings.Contains(string(body), "running python analyzer") {
 		t.Fatalf("status = %d body = %q, want python analyzer infrastructure failure", response.StatusCode, body)
+	}
+}
+
+func TestHandlerCheckCSharpColdDefersAnalysisAndBlocksNextCall(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	started := make(chan AnalysisRequest, 1)
+	release := make(chan struct{})
+	var calls atomic.Int32
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
+				call := calls.Add(1)
+				if call == 1 {
+					started <- request
+					select {
+					case <-release:
+					case <-ctx.Done():
+						return analyzer.AnalysisResult{}, ctx.Err()
+					}
+					return csharpAnalysisWithComplexFunction("Render", 10), nil
+				}
+				return analyzer.AnalysisResult{Language: "csharp"}, nil
+			}),
+		},
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	start := time.Now()
+	first := postCheckForLanguage(t, server.URL, repo, "src/Widget.cs", "csharp", complexCSharpSource())
+	t.Logf("deferred C# cold response latency: %s", time.Since(start))
+	if first.Status != StatusPass || !first.Warming || len(first.Violations) != 0 {
+		t.Fatalf("first response = %+v, want pass with warming", first)
+	}
+	select {
+	case request := <-started:
+		if request.File != "src/Widget.cs" || request.Language != "csharp" {
+			t.Fatalf("analysis request = %+v, want deferred C# request", request)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("deferred C# analyzer did not start")
+	}
+	close(release)
+	violations := waitForStateViolations(t, server.URL, repo, 1)
+	if violations[0].Function != "Render" || violations[0].CALMNode != "Widget" {
+		t.Fatalf("violations = %+v, want deferred Widget.Render violation", violations)
+	}
+
+	second := postCheckForLanguage(t, server.URL, repo, "src/Other.cs", "csharp", cleanCSharpSource())
+	if second.Status != StatusBlock || second.Warming || len(second.Violations) != 1 || second.Violations[0].File != "src/Widget.cs" {
+		t.Fatalf("second response = %+v, want block from outstanding deferred violation", second)
+	}
+	if calls.Load() < 2 {
+		t.Fatalf("analyzer calls = %d, want warm synchronous second analysis", calls.Load())
+	}
+}
+
+func TestHandlerCheckCSharpWarmPathIsSynchronous(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	state := NewState()
+	firstAnalyzed := make(chan struct{})
+	secondStarted := make(chan struct{})
+	releaseSecond := make(chan struct{})
+	var calls atomic.Int32
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		State:       state,
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
+				call := calls.Add(1)
+				switch call {
+				case 1:
+					close(firstAnalyzed)
+					return analyzer.AnalysisResult{Language: "csharp"}, nil
+				case 2:
+					close(secondStarted)
+					select {
+					case <-releaseSecond:
+					case <-ctx.Done():
+						return analyzer.AnalysisResult{}, ctx.Err()
+					}
+					return csharpAnalysisWithComplexFunction("Render", 10), nil
+				default:
+					return analyzer.AnalysisResult{Language: "csharp"}, nil
+				}
+			}),
+		},
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	first := postCheckForLanguage(t, server.URL, repo, "src/Warmup.cs", "csharp", cleanCSharpSource())
+	if first.Status != StatusPass || !first.Warming {
+		t.Fatalf("first response = %+v, want deferred warming pass", first)
+	}
+	select {
+	case <-firstAnalyzed:
+	case <-time.After(time.Second):
+		t.Fatal("first C# analysis did not run")
+	}
+	waitForWarmLanguage(t, state, "csharp")
+
+	responseCh := make(chan CheckResponse, 1)
+	go func() {
+		responseCh <- postCheckForLanguage(t, server.URL, repo, "src/Widget.cs", "csharp", complexCSharpSource())
+	}()
+	select {
+	case response := <-responseCh:
+		t.Fatalf("warm C# path returned before analyzer completed: %+v", response)
+	case <-secondStarted:
+	}
+	close(releaseSecond)
+	response := <-responseCh
+	if response.Status != StatusBlock || response.Warming || len(response.Violations) != 1 || response.Violations[0].Function != "Render" {
+		t.Fatalf("warm response = %+v, want synchronous block", response)
 	}
 }
 
@@ -944,6 +1068,33 @@ func getState(t *testing.T, serverURL, repo string) StateResponse {
 	return state
 }
 
+func waitForStateViolations(t *testing.T, serverURL, repo string, count int) []Violation {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		state := getState(t, serverURL, repo)
+		if len(state.Violations) == count {
+			return state.Violations
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	state := getState(t, serverURL, repo)
+	t.Fatalf("state violations = %+v, want %d violations", state.Violations, count)
+	return nil
+}
+
+func waitForWarmLanguage(t *testing.T, state *State, language string) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if state.IsWarm(language) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("language %q did not become warm", language)
+}
+
 func complexGoSource() string {
 	return `package parser
 
@@ -1021,6 +1172,38 @@ func cleanPythonSource() string {
 `
 }
 
+func complexCSharpSource() string {
+	return `namespace Sample;
+
+public class Widget
+{
+    public string Render(int value)
+    {
+        if (value == 0) return "zero";
+        if (value == 1) return "one";
+        if (value == 2) return "two";
+        if (value == 3) return "three";
+        if (value == 4) return "four";
+        if (value == 5) return "five";
+        if (value == 6) return "six";
+        if (value == 7) return "seven";
+        if (value == 8) return "eight";
+        return "many";
+    }
+}
+`
+}
+
+func cleanCSharpSource() string {
+	return `namespace Sample;
+
+public class Widget
+{
+    public string Render() => "ok";
+}
+`
+}
+
 func fakePythonAnalyzer(result analyzer.AnalysisResult) SourceAnalyzer {
 	return AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
 		return result, nil
@@ -1030,6 +1213,29 @@ func fakePythonAnalyzer(result analyzer.AnalysisResult) SourceAnalyzer {
 func pythonAnalysisWithComplexFunction(name string, complexity int) analyzer.AnalysisResult {
 	return analyzer.AnalysisResult{
 		Language: "python",
+		Functions: []analyzer.FunctionMetric{{
+			Name:                 name,
+			CyclomaticComplexity: complexity,
+			IsPublic:             true,
+			LOC:                  20,
+		}},
+		FileMetric: analyzer.FileMetric{
+			TotalLOC:      20,
+			LogicLOC:      12,
+			PublicMethods: 1,
+			LDR:           0.6,
+		},
+		Imports: analyzer.ImportMetric{
+			Total: 1,
+			Used:  1,
+			DDC:   1,
+		},
+	}
+}
+
+func csharpAnalysisWithComplexFunction(name string, complexity int) analyzer.AnalysisResult {
+	return analyzer.AnalysisResult{
+		Language: "csharp",
 		Functions: []analyzer.FunctionMetric{{
 			Name:                 name,
 			CyclomaticComplexity: complexity,

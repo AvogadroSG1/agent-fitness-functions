@@ -11,6 +11,7 @@ type State struct {
 	mu         sync.RWMutex
 	violations map[string]map[string][]Violation
 	repoLocks  map[string]*repoLock
+	warmups    map[string]warmupStatus
 }
 
 type repoLock struct {
@@ -18,11 +19,20 @@ type repoLock struct {
 	refs    int
 }
 
+type warmupStatus int
+
+const (
+	warmupCold warmupStatus = iota
+	warmupRunning
+	warmupComplete
+)
+
 // NewState creates an empty outstanding violation store.
 func NewState() *State {
 	return &State{
 		violations: map[string]map[string][]Violation{},
 		repoLocks:  map[string]*repoLock{},
+		warmups:    map[string]warmupStatus{},
 	}
 }
 
@@ -72,6 +82,46 @@ func (s *State) releaseRepoLock(repo string, lock *repoLock) {
 	if lock.refs == 0 && s.repoLocks[repo] == lock {
 		delete(s.repoLocks, repo)
 	}
+}
+
+// BeginWarmup claims the one background warm-up slot for a language.
+func (s *State) BeginWarmup(language string) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.warmups == nil {
+		s.warmups = map[string]warmupStatus{}
+	}
+	if s.warmups[language] != warmupCold {
+		return false
+	}
+	s.warmups[language] = warmupRunning
+	return true
+}
+
+// CompleteWarmup marks a language as ready for synchronous checks.
+func (s *State) CompleteWarmup(language string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.warmups == nil {
+		s.warmups = map[string]warmupStatus{}
+	}
+	s.warmups[language] = warmupComplete
+}
+
+// IsWarm reports whether a language should use the synchronous check path.
+func (s *State) IsWarm(language string) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.warmups[language] == warmupComplete
 }
 
 // ReplaceFile replaces the outstanding violations for one repository file.
