@@ -268,3 +268,5 @@ sealed class ImportMetric
     public List<string> Unused { get; set; } = [];
     public double DDC { get; set; }
 }
+
+sealed record ImportEntry(string DisplayName, string NamespaceOrType, string Alias);
