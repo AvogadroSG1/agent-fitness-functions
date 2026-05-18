@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "calm_poc",
+  "project_id": "526531f7-f82d-489a-adf5-4fbd72be42a8"
+}

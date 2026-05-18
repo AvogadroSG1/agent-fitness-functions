@@ -1,0 +1,8 @@
+# instill — managed symlinks, do not commit
+.claude/skills/
+.claude/settings.local.json
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
