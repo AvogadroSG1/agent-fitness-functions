@@ -29,6 +29,9 @@ type AnalyzerFunc func(context.Context, string) (analyzer.AnalysisResult, error)
 
 // Analyze implements SourceAnalyzer.
 func (f AnalyzerFunc) Analyze(ctx context.Context, path string) (analyzer.AnalysisResult, error) {
+	if f == nil {
+		return analyzer.AnalysisResult{}, infrastructureError("source analyzer is not configured", nil)
+	}
 	return f(ctx, path)
 }
 
@@ -97,6 +100,10 @@ func (c Checker) Check(ctx context.Context, request CheckRequest) (response Chec
 	}
 	result, err := sourceAnalyzer.Analyze(ctx, sourcePath)
 	if err != nil {
+		var checkErr *CheckError
+		if errors.As(err, &checkErr) {
+			return CheckResponse{}, checkErr
+		}
 		return CheckResponse{}, inputError(fmt.Sprintf("analyzing %s file", request.Language), err)
 	}
 	if err := ctx.Err(); err != nil {
@@ -133,6 +140,9 @@ func (c Checker) writeProposedContent(request CheckRequest) (string, func() erro
 	extension := filepath.Ext(request.File)
 	if extension == "" {
 		extension = ".go"
+	}
+	if !validSourceExtension(extension) {
+		return "", func() error { return nil }, inputError("invalid source file extension", nil)
 	}
 	file, err := os.CreateTemp(c.TempDir, "calm-check-*"+extension)
 	if err != nil {
@@ -205,8 +215,11 @@ func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm
 }
 
 func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
-	if analyzer, ok := c.Analyzers[language]; ok {
-		return analyzer, true
+	if sourceAnalyzer, ok := c.Analyzers[language]; ok {
+		if sourceAnalyzer == nil {
+			return nil, false
+		}
+		return sourceAnalyzer, true
 	}
 	if language == "go" {
 		return AnalyzerFunc(func(ctx context.Context, path string) (analyzer.AnalysisResult, error) {
@@ -224,6 +237,19 @@ func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
 		}), true
 	}
 	return nil, false
+}
+
+func validSourceExtension(extension string) bool {
+	if len(extension) > 16 || strings.ContainsRune(extension, 0) {
+		return false
+	}
+	for _, char := range extension {
+		if char == '.' || char == '_' || char == '-' || char >= '0' && char <= '9' || char >= 'A' && char <= 'Z' || char >= 'a' && char <= 'z' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func isValidationFailure(result calm.ValidationResult) bool {

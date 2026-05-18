@@ -66,7 +66,12 @@ func NewHandlerWithChecker(checker Checker, shutdown func()) http.Handler {
 		var request CheckRequest
 		body := http.MaxBytesReader(w, r.Body, maxCheckRequestBytes)
 		defer body.Close()
-		if err := json.NewDecoder(body).Decode(&request); err != nil {
+		decoder := json.NewDecoder(body)
+		if err := decoder.Decode(&request); err != nil {
+			http.Error(w, "invalid check request", http.StatusBadRequest)
+			return
+		}
+		if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 			http.Error(w, "invalid check request", http.StatusBadRequest)
 			return
 		}
