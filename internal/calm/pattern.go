@@ -25,10 +25,10 @@ type FitnessRule struct {
 
 type patternSchema struct {
 	Schema      string `json:"$schema"`
-	ID         string `json:"$id"`
-	Title      string `json:"title"`
+	ID          string `json:"$id"`
+	Title       string `json:"title"`
 	Description string `json:"description"`
-	Properties struct {
+	Properties  struct {
 		Nodes struct {
 			Items struct {
 				Properties struct {

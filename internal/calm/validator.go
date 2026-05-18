@@ -54,7 +54,7 @@ func (v Validator) Validate(ctx context.Context, architecturePath, patternPath s
 	if err == nil {
 		return result, nil
 	}
-	detail := strings.TrimSpace(firstNonEmpty(stderr.String(), stdout.String()))
+	detail := firstNonBlank(stderr.String(), stdout.String())
 	wrapped := fmt.Errorf("calm validate failed: %w: %s", err, detail)
 	if runCtx.Err() != nil {
 		wrapped = errors.Join(runCtx.Err(), wrapped)
@@ -62,10 +62,11 @@ func (v Validator) Validate(ctx context.Context, architecturePath, patternPath s
 	return result, wrapped
 }
 
-func firstNonEmpty(values ...string) string {
+func firstNonBlank(values ...string) string {
 	for _, value := range values {
-		if value != "" {
-			return value
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed
 		}
 	}
 	return ""

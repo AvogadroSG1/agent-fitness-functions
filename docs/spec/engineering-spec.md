@@ -524,7 +524,7 @@ This design prevents the agent from accumulating unresolved debt before addressi
 
 **Actions:**
 
-1. Install FINOS `calm` CLI: `npm install -g @finos/calm`.
+1. Install FINOS `calm` CLI: `npm install -g @finos/calm-cli@1.40.0`.
 2. Author `governance.json` with only `cyclomatic-complexity` enabled.
 3. Hand-craft a `current-architecture.json` that passes and one that fails the rule.
 4. Run `calm validate` against both. Confirm expected outcomes.
