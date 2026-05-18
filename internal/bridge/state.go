@@ -72,7 +72,6 @@ func (s *State) ClearRepo(repo string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.violations, repo)
-	delete(s.repoLocks, repo)
 }
 
 // HasFile reports whether a repository file has outstanding violations.

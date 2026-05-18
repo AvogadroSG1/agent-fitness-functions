@@ -87,7 +87,7 @@ func NewHandlerWithChecker(checker Checker, shutdown func()) http.Handler {
 			http.Error(w, "invalid check request", http.StatusBadRequest)
 			return
 		}
-		response, err := checker.Check(r.Context(), request)
+		response, err := (&checker).Check(r.Context(), request)
 		if err != nil {
 			writeCheckError(w, err)
 			return

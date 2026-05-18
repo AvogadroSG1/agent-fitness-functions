@@ -74,19 +74,19 @@ func (e *CheckError) Unwrap() error {
 }
 
 // Check runs the synchronous check path for one proposed file.
-func (c Checker) Check(ctx context.Context, request CheckRequest) (response CheckResponse, err error) {
-	config, err := loadConfig(request.Repo)
+func (c *Checker) Check(ctx context.Context, request CheckRequest) (response CheckResponse, err error) {
+	config, repo, err := loadConfig(request.Repo)
 	if err != nil {
 		return CheckResponse{}, err
 	}
-	state := c.State
-	if state == nil {
-		state = NewState()
+	if c.State == nil {
+		c.State = NewState()
 	}
-	unlockRepo := state.LockRepo(request.Repo)
+	state := c.State
+	unlockRepo := state.LockRepo(repo)
 	defer unlockRepo()
 	if config.EnforcementMode == EnforcementOff {
-		state.ClearRepo(request.Repo)
+		state.ClearRepo(repo)
 		return CheckResponse{Status: StatusPass}, nil
 	}
 	patternPath := c.PatternPath
@@ -154,23 +154,23 @@ func (c Checker) Check(ctx context.Context, request CheckRequest) (response Chec
 	violations := filterViolations(cyclomaticComplexityViolations(result, pattern), config)
 	if len(violations) == 0 {
 		if config.EnforcementMode == EnforcementBlock {
-			state.ReplaceFile(request.Repo, request.File, nil)
-			outstanding := state.Violations(request.Repo)
+			state.ReplaceFile(repo, request.File, nil)
+			outstanding := state.Violations(repo)
 			if len(outstanding) > 0 {
 				return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
 			}
 		} else {
-			state.ClearRepo(request.Repo)
+			state.ClearRepo(repo)
 		}
 		return CheckResponse{Status: StatusPass}, nil
 	}
 	switch config.EnforcementMode {
 	case EnforcementAdvisory:
-		state.ClearRepo(request.Repo)
+		state.ClearRepo(repo)
 		return CheckResponse{Status: StatusAdvisory, Violations: violations}, nil
 	default:
-		state.ReplaceFile(request.Repo, request.File, violations)
-		return CheckResponse{Status: StatusBlock, Violations: state.Violations(request.Repo)}, nil
+		state.ReplaceFile(repo, request.File, violations)
+		return CheckResponse{Status: StatusBlock, Violations: state.Violations(repo)}, nil
 	}
 }
 

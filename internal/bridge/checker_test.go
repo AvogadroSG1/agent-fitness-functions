@@ -518,6 +518,64 @@ func TestHandlerCheckClearsBlockStateWhenModeChangesToAdvisoryOrOff(t *testing.T
 	}
 }
 
+func TestHandlerCheckUsesCanonicalRepoPathForOutstandingState(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	dirtyRepoPath := filepath.Join(repo, ".")
+	first := postCheck(t, server.URL, dirtyRepoPath, "internal/parser/parser.go", complexGoSource())
+	if first.Status != StatusBlock || len(first.Violations) != 1 {
+		t.Fatalf("first response = %+v, want block", first)
+	}
+	second := postCheck(t, server.URL, repo, "internal/other/other.go", cleanGoSource())
+	if second.Status != StatusBlock || len(second.Violations) != 1 || second.Violations[0].File != "internal/parser/parser.go" {
+		t.Fatalf("second response = %+v, want canonical outstanding parser violation", second)
+	}
+}
+
+func TestCheckerDirectUsagePreservesStateAcrossCalls(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	checker := Checker{
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}
+
+	first, err := checker.Check(context.Background(), CheckRequest{
+		Repo:            repo,
+		File:            "internal/parser/parser.go",
+		Language:        "go",
+		ProposedContent: complexGoSource(),
+	})
+	if err != nil {
+		t.Fatalf("first check: %v", err)
+	}
+	if first.Status != StatusBlock || len(first.Violations) != 1 {
+		t.Fatalf("first response = %+v, want one violation", first)
+	}
+	second, err := checker.Check(context.Background(), CheckRequest{
+		Repo:            repo,
+		File:            "internal/other/other.go",
+		Language:        "go",
+		ProposedContent: cleanGoSource(),
+	})
+	if err != nil {
+		t.Fatalf("second check: %v", err)
+	}
+	if second.Status != StatusBlock || len(second.Violations) != 1 || second.Violations[0].File != "internal/parser/parser.go" {
+		t.Fatalf("second response = %+v, want preserved parser violation", second)
+	}
+}
+
 func TestHandlerStateReturnsOutstandingViolationsForRepo(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
