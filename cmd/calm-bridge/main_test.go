@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -210,6 +211,13 @@ func TestRunBaselineBuildsLocalRoslynWhenPathOmitted(t *testing.T) {
 	if _, err := exec.LookPath("dotnet"); err != nil {
 		t.Skip("dotnet not installed")
 	}
+	roslynExecutable := filepath.Clean(filepath.Join("..", "..", "tools", "roslyn-analyzer", "bin", "Debug", "net8.0", "CalmRoslynAnalyzer"))
+	if runtime.GOOS == "windows" {
+		roslynExecutable += ".exe"
+	}
+	restoreRoslyn := temporarilyMoveFile(t, roslynExecutable)
+	defer restoreRoslyn()
+
 	repo := t.TempDir()
 	if err := os.WriteFile(filepath.Join(repo, "Example.cs"), []byte("public class Example { public void Run() {} }"), 0o644); err != nil {
 		t.Fatalf("write fixture: %v", err)
@@ -227,6 +235,25 @@ func TestRunBaselineBuildsLocalRoslynWhenPathOmitted(t *testing.T) {
 	}
 	if !strings.Contains(string(content), `"language": "csharp"`) {
 		t.Fatalf("baseline report = %s, want csharp report", content)
+	}
+}
+
+func temporarilyMoveFile(t *testing.T, path string) func() {
+	t.Helper()
+	backup := path + ".testbak"
+	if err := os.Rename(path, backup); err != nil {
+		if os.IsNotExist(err) {
+			return func() {}
+		}
+		t.Fatalf("move %s aside: %v", path, err)
+	}
+	return func() {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			t.Fatalf("remove rebuilt %s: %v", path, err)
+		}
+		if err := os.Rename(backup, path); err != nil {
+			t.Fatalf("restore %s: %v", path, err)
+		}
 	}
 }
 
