@@ -378,11 +378,14 @@ func TestHandlerCheckPassesCleanGoContent(t *testing.T) {
 func TestHandlerCheckRunsPythonAnalyzerAndRoutesAdvisoryViolation(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
-	server := httptest.NewServer(NewHandlerWithChecker(Checker{
-		PatternPath: writeTestPattern(t),
-		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
-			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
-		}),
+		server := httptest.NewServer(NewHandlerWithChecker(Checker{
+			PatternPath: writeTestPattern(t),
+			Analyzers: map[string]SourceAnalyzer{
+				"python": fakePythonAnalyzer(pythonAnalysisWithComplexFunction("build_config", 10)),
+			},
+			Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+				return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+			}),
 	}, nil))
 	defer server.Close()
 
@@ -402,11 +405,14 @@ func TestHandlerCheckRunsPythonAnalyzerAndRoutesAdvisoryViolation(t *testing.T) 
 func TestHandlerCheckPassesCleanPythonContent(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
-	server := httptest.NewServer(NewHandlerWithChecker(Checker{
-		PatternPath: writeTestPattern(t),
-		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
-			return calm.ValidationResult{Valid: true, Output: `{"hasErrors":false}`}, nil
-		}),
+		server := httptest.NewServer(NewHandlerWithChecker(Checker{
+			PatternPath: writeTestPattern(t),
+			Analyzers: map[string]SourceAnalyzer{
+				"python": fakePythonAnalyzer(analyzer.AnalysisResult{Language: "python"}),
+			},
+			Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+				return calm.ValidationResult{Valid: true, Output: `{"hasErrors":false}`}, nil
+			}),
 	}, nil))
 	defer server.Close()
 
@@ -732,6 +738,24 @@ func TestCheckerCheckRespectsCancellationWhileWaitingForRepoLock(t *testing.T) {
 	}
 }
 
+func TestStateLockRepoReleasesUnusedLockEntries(t *testing.T) {
+	state := NewState()
+	repo := t.TempDir()
+
+	unlock, err := state.LockRepo(context.Background(), repo)
+	if err != nil {
+		t.Fatalf("lock repo: %v", err)
+	}
+	unlock()
+
+	state.mu.RLock()
+	lockCount := len(state.repoLocks)
+	state.mu.RUnlock()
+	if lockCount != 0 {
+		t.Fatalf("repo lock count = %d, want released lock removed", lockCount)
+	}
+}
+
 func TestHandlerStateReturnsOutstandingViolationsForRepo(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
@@ -995,6 +1019,35 @@ func cleanPythonSource() string {
 	return `def build_config():
     return {"status": "ok"}
 `
+}
+
+func fakePythonAnalyzer(result analyzer.AnalysisResult) SourceAnalyzer {
+	return AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
+		return result, nil
+	})
+}
+
+func pythonAnalysisWithComplexFunction(name string, complexity int) analyzer.AnalysisResult {
+	return analyzer.AnalysisResult{
+		Language: "python",
+		Functions: []analyzer.FunctionMetric{{
+			Name:                 name,
+			CyclomaticComplexity: complexity,
+			IsPublic:             true,
+			LOC:                  20,
+		}},
+		FileMetric: analyzer.FileMetric{
+			TotalLOC:      20,
+			LogicLOC:      12,
+			PublicMethods: 1,
+			LDR:           0.6,
+		},
+		Imports: analyzer.ImportMetric{
+			Total: 1,
+			Used:  1,
+			DDC:   1,
+		},
+	}
 }
 
 type validatorFunc func(context.Context, string, string) (calm.ValidationResult, error)

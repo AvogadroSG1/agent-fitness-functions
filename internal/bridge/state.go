@@ -10,14 +10,19 @@ import (
 type State struct {
 	mu         sync.RWMutex
 	violations map[string]map[string][]Violation
-	repoLocks  map[string]chan struct{}
+	repoLocks  map[string]*repoLock
+}
+
+type repoLock struct {
+	permits chan struct{}
+	refs    int
 }
 
 // NewState creates an empty outstanding violation store.
 func NewState() *State {
 	return &State{
 		violations: map[string]map[string][]Violation{},
-		repoLocks:  map[string]chan struct{}{},
+		repoLocks:  map[string]*repoLock{},
 	}
 }
 
@@ -26,24 +31,46 @@ func (s *State) LockRepo(ctx context.Context, repo string) (func(), error) {
 	if s == nil {
 		return func() {}, nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	s.mu.Lock()
 	if s.repoLocks == nil {
-		s.repoLocks = map[string]chan struct{}{}
+		s.repoLocks = map[string]*repoLock{}
 	}
 	lock := s.repoLocks[repo]
 	if lock == nil {
-		lock = make(chan struct{}, 1)
-		lock <- struct{}{}
+		lock = &repoLock{permits: make(chan struct{}, 1)}
+		lock.permits <- struct{}{}
 		s.repoLocks[repo] = lock
 	}
+	lock.refs++
 	s.mu.Unlock()
 	select {
 	case <-ctx.Done():
+		s.releaseRepoLock(repo, lock)
 		return nil, ctx.Err()
-	case <-lock:
+	case <-lock.permits:
+		released := false
 		return func() {
-			lock <- struct{}{}
+			if released {
+				return
+			}
+			released = true
+			lock.permits <- struct{}{}
+			s.releaseRepoLock(repo, lock)
 		}, nil
+	}
+}
+
+func (s *State) releaseRepoLock(repo string, lock *repoLock) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if lock.refs > 0 {
+		lock.refs--
+	}
+	if lock.refs == 0 && s.repoLocks[repo] == lock {
+		delete(s.repoLocks, repo)
 	}
 }
 

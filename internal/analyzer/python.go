@@ -9,10 +9,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 )
 
 type radonCCItem struct {
@@ -235,16 +235,47 @@ func pythonImportMetric(source string) ImportMetric {
 		bodyLines = append(bodyLines, line)
 	}
 	body := strings.Join(bodyLines, "\n")
+	identifiers := pythonIdentifiers(body)
 	used := 0
 	unused := make([]string, 0)
 	for _, name := range names {
-		if regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\b`).MatchString(body) {
+		if _, ok := identifiers[name]; ok {
 			used++
 			continue
 		}
 		unused = append(unused, name)
 	}
 	return ImportMetric{Total: len(names), Used: used, Unused: unused, DDC: ratio(used, len(names))}
+}
+
+func pythonIdentifiers(source string) map[string]struct{} {
+	identifiers := make(map[string]struct{})
+	start := -1
+	for index, value := range source {
+		if start == -1 {
+			if isPythonIdentifierStart(value) {
+				start = index
+			}
+			continue
+		}
+		if isPythonIdentifierPart(value) {
+			continue
+		}
+		identifiers[source[start:index]] = struct{}{}
+		start = -1
+	}
+	if start != -1 {
+		identifiers[source[start:]] = struct{}{}
+	}
+	return identifiers
+}
+
+func isPythonIdentifierStart(value rune) bool {
+	return value == '_' || unicode.IsLetter(value)
+}
+
+func isPythonIdentifierPart(value rune) bool {
+	return isPythonIdentifierStart(value) || unicode.IsDigit(value)
 }
 
 func publicFunctionCount(functions []FunctionMetric) int {
