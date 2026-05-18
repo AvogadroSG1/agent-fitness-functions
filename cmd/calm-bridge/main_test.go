@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -163,6 +164,69 @@ func TestRunBaselineWritesReport(t *testing.T) {
 	}
 	if !strings.Contains(string(content), `"repository": "sample"`) {
 		t.Fatalf("baseline report = %s, want repository name", content)
+	}
+}
+
+func TestRunBaselineWritesCSharpReport(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repo, "Example.cs"), []byte("public class Example {}"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	roslyn := filepath.Join(t.TempDir(), "roslyn")
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+cat <<JSON
+{
+  "calm_node": "Example",
+  "language": "csharp",
+  "file": "$1",
+  "functions": [{"name":"Run","cyclomatic_complexity":1,"is_public":true,"loc":1}],
+  "file_metrics": {"total_loc": 1, "logic_loc": 1, "public_methods": 1, "ldr": 1},
+  "import_metrics": {"total": 0, "used": 0, "ddc": 1}
+}
+JSON
+`
+	if err := os.WriteFile(roslyn, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake roslyn: %v", err)
+	}
+	output := filepath.Join(t.TempDir(), "baseline.json")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run([]string{"baseline", "--repo", repo, "--language", "csharp", "--output", output, "--name", "sample-csharp", "--roslyn", roslyn}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	content, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatalf("read baseline: %v", err)
+	}
+	if !strings.Contains(string(content), `"language": "csharp"`) || !strings.Contains(string(content), `"distributions": {`) {
+		t.Fatalf("baseline report = %s, want csharp report with distributions", content)
+	}
+}
+
+func TestRunBaselineBuildsLocalRoslynWhenPathOmitted(t *testing.T) {
+	if _, err := exec.LookPath("dotnet"); err != nil {
+		t.Skip("dotnet not installed")
+	}
+	repo := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repo, "Example.cs"), []byte("public class Example { public void Run() {} }"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	output := filepath.Join(t.TempDir(), "baseline.json")
+
+	var stderr bytes.Buffer
+	code := run([]string{"baseline", "--repo", repo, "--language", "csharp", "--output", output, "--name", "sample-csharp"}, &bytes.Buffer{}, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	content, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatalf("read baseline: %v", err)
+	}
+	if !strings.Contains(string(content), `"language": "csharp"`) {
+		t.Fatalf("baseline report = %s, want csharp report", content)
 	}
 }
 

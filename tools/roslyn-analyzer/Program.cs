@@ -19,19 +19,23 @@ var usingDirectives = root.DescendantNodes().OfType<UsingDirectiveSyntax>().ToLi
 var publicMethods = 0;
 var functions = new List<FunctionMetric>();
 
-foreach (var method in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
+var functionNodes = root.DescendantNodes()
+    .Where(node => node is BaseMethodDeclarationSyntax or LocalFunctionStatementSyntax or AccessorDeclarationSyntax)
+    .ToList();
+
+foreach (var functionNode in functionNodes)
 {
-    var isPublic = method.Modifiers.Any(SyntaxKind.PublicKeyword);
+    var isPublic = IsPublicFunction(functionNode);
     if (isPublic)
     {
         publicMethods++;
     }
 
-    var span = tree.GetLineSpan(method.FullSpan);
+    var span = tree.GetLineSpan(functionNode.FullSpan);
     functions.Add(new FunctionMetric
     {
-        Name = method.Identifier.ValueText,
-        CyclomaticComplexity = Complexity(method),
+        Name = FunctionName(functionNode),
+        CyclomaticComplexity = Complexity(functionNode),
         IsPublic = isPublic,
         LOC = span.EndLinePosition.Line - span.StartLinePosition.Line + 1,
     });
@@ -64,10 +68,10 @@ var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
 Console.WriteLine(json);
 return 0;
 
-static int Complexity(MethodDeclarationSyntax method)
+static int Complexity(SyntaxNode functionNode)
 {
     var complexity = 1;
-    foreach (var node in method.DescendantNodes())
+    foreach (var node in functionNode.DescendantNodes())
     {
         complexity += node switch
         {
@@ -83,6 +87,58 @@ static int Complexity(MethodDeclarationSyntax method)
         };
     }
     return complexity;
+}
+
+static string FunctionName(SyntaxNode functionNode) => functionNode switch
+{
+    MethodDeclarationSyntax method => method.Identifier.ValueText,
+    ConstructorDeclarationSyntax constructor => constructor.Identifier.ValueText,
+    DestructorDeclarationSyntax destructor => "~" + destructor.Identifier.ValueText,
+    OperatorDeclarationSyntax operatorDeclaration => "operator " + operatorDeclaration.OperatorToken.ValueText,
+    ConversionOperatorDeclarationSyntax conversion => "operator " + conversion.Type,
+    LocalFunctionStatementSyntax localFunction => localFunction.Identifier.ValueText,
+    AccessorDeclarationSyntax accessor => AccessorName(accessor),
+    _ => functionNode.Kind().ToString(),
+};
+
+static string AccessorName(AccessorDeclarationSyntax accessor)
+{
+    var memberName = accessor.Parent?.Parent switch
+    {
+        PropertyDeclarationSyntax property => property.Identifier.ValueText,
+        IndexerDeclarationSyntax => "this[]",
+        EventDeclarationSyntax eventDeclaration => eventDeclaration.Identifier.ValueText,
+        _ => "accessor",
+    };
+    return memberName + "." + accessor.Keyword.ValueText;
+}
+
+static bool IsPublicFunction(SyntaxNode functionNode)
+{
+    if (functionNode.FirstAncestorOrSelf<InterfaceDeclarationSyntax>() is not null)
+    {
+        return true;
+    }
+    return functionNode switch
+    {
+        BaseMethodDeclarationSyntax method => method.Modifiers.Any(SyntaxKind.PublicKeyword),
+        LocalFunctionStatementSyntax localFunction => localFunction.Modifiers.Any(SyntaxKind.PublicKeyword),
+        AccessorDeclarationSyntax accessor => IsPublicAccessor(accessor),
+        _ => false,
+    };
+}
+
+static bool IsPublicAccessor(AccessorDeclarationSyntax accessor)
+{
+    if (accessor.Modifiers.Any(SyntaxKind.PublicKeyword))
+    {
+        return true;
+    }
+    return accessor.Parent?.Parent switch
+    {
+        BasePropertyDeclarationSyntax property => property.Modifiers.Any(SyntaxKind.PublicKeyword),
+        _ => false,
+    };
 }
 
 static string CALMNode(SyntaxNode root, string file)
@@ -102,7 +158,11 @@ static ImportMetric ImportMetric(IReadOnlyCollection<UsingDirectiveSyntax> using
         .Select(u => u.Alias?.Name.Identifier.ValueText ?? u.Name?.ToString().Split('.').LastOrDefault() ?? "")
         .Where(name => name.Length > 0)
         .ToList();
-    var identifiers = root.DescendantNodes().OfType<IdentifierNameSyntax>().Select(i => i.Identifier.ValueText).ToHashSet();
+    var identifiers = root.DescendantNodes()
+        .OfType<IdentifierNameSyntax>()
+        .Where(identifier => !usingDirectives.Any(usingDirective => usingDirective.Span.Contains(identifier.SpanStart)))
+        .Select(i => i.Identifier.ValueText)
+        .ToHashSet();
     var used = names.Count(identifiers.Contains);
     var unused = names.Where(name => !identifiers.Contains(name)).ToList();
     return new ImportMetric

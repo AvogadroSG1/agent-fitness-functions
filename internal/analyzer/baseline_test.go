@@ -26,7 +26,17 @@ func TestWriteBaselineReportSummarizesResults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read report: %v", err)
 	}
-	if !containsAll(string(content), `"repository": "graft"`, `"cyclomatic_complexity": 7`, `"p90_cyclomatic_complexity": 7`) {
+	if !containsAll(
+		string(content),
+		`"repository": "graft"`,
+		`"p90_cyclomatic_complexity": 7`,
+		`"distributions": {`,
+		`"cyclomatic_complexity": [`,
+		`"public_methods": [`,
+		`"avg_loc_per_public_method": [`,
+		`"logic_density_ratio": [`,
+		`"dependency_discipline": [`,
+	) {
 		t.Fatalf("report content missing expected fields:\n%s", content)
 	}
 }

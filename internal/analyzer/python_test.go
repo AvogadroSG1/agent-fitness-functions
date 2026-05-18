@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -46,6 +47,18 @@ def public_choice(value):
 	}
 	if result.Imports.Total != 4 || result.Imports.Used != 2 || len(result.Imports.Unused) != 2 {
 		t.Fatalf("imports = %+v, want two unused imports from four imported names", result.Imports)
+	}
+}
+
+func TestPythonImportMetricCountsSingleLineParenthesizedImportUsage(t *testing.T) {
+	source := `from pathlib import (Path, PurePath)
+
+def public_choice(value):
+    return str(Path(value))
+`
+	imports := pythonImportMetric(source)
+	if imports.Total != 2 || imports.Used != 1 || len(imports.Unused) != 1 || imports.Unused[0] != "PurePath" {
+		t.Fatalf("imports = %+v, want Path used and PurePath unused", imports)
 	}
 }
 
@@ -100,6 +113,46 @@ func TestParseRadonCCPayloadReturnsAnalysisErrors(t *testing.T) {
 	_, err := parseRadonCCPayload([]byte(`{"broken.py":{"error":"invalid syntax"}}`))
 	if err == nil || !strings.Contains(err.Error(), "radon cc error for broken.py: invalid syntax") {
 		t.Fatalf("error = %v, want radon cc analysis error", err)
+	}
+}
+
+func TestParseRadonRawReturnsAnalysisErrors(t *testing.T) {
+	_, err := parseRadonRaw("broken.py", []byte(`{"broken.py":{"error":"invalid syntax"}}`))
+	if err == nil || !strings.Contains(err.Error(), "radon raw error for broken.py: invalid syntax") {
+		t.Fatalf("error = %v, want radon raw analysis error", err)
+	}
+}
+
+func TestParseRadonRawIncludesMalformedOutputContext(t *testing.T) {
+	_, err := parseRadonRaw("broken.py", []byte(`not-json`))
+	if err == nil || !strings.Contains(err.Error(), "parsing radon raw") || !strings.Contains(err.Error(), "not-json") {
+		t.Fatalf("error = %v, want malformed radon raw output context", err)
+	}
+}
+
+func TestAnalyzePythonRepositoryReturnsRadonRawErrors(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "broken.py")
+	if err := os.WriteFile(file, []byte("def broken(:\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	radon := fakeRawErrorRadon(t, dir, file)
+
+	_, err := AnalyzePythonRepository(context.Background(), dir, radon)
+	if err == nil || !strings.Contains(err.Error(), "radon raw error for "+file+": invalid syntax") {
+		t.Fatalf("error = %v, want repository radon raw analysis error", err)
+	}
+}
+
+func TestRunToolPreservesCancellationSemantics(t *testing.T) {
+	dir := t.TempDir()
+	tool := fakeSleepTool(t, dir)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := runTool(ctx, tool)
+	if err == nil || !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
 	}
 }
 
@@ -178,6 +231,37 @@ fi
 `, logPath, first, second)
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake repo radon: %v", err)
+	}
+	return path
+}
+
+func fakeRawErrorRadon(t *testing.T, dir, file string) string {
+	t.Helper()
+	path := filepath.Join(dir, "raw-error-radon")
+	script := fmt.Sprintf(`#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = "cc" ]; then
+  printf '{"%[1]s":[]}'
+elif [ "$1" = "raw" ]; then
+  printf '{"%[1]s":{"error":"invalid syntax"}}'
+else
+  exit 2
+fi
+`, file)
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake raw-error radon: %v", err)
+	}
+	return path
+}
+
+func fakeSleepTool(t *testing.T, dir string) string {
+	t.Helper()
+	path := filepath.Join(dir, "sleep-tool")
+	script := `#!/usr/bin/env bash
+sleep 5
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake sleep tool: %v", err)
 	}
 	return path
 }

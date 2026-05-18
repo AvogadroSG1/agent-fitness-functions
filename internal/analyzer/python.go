@@ -3,6 +3,7 @@ package analyzer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -127,7 +128,7 @@ func pythonFunctions(items []radonCCItem) []FunctionMetric {
 func parseRadonRaw(file string, output []byte) (FileMetric, error) {
 	var payload map[string]radonRawItem
 	if err := json.Unmarshal(output, &payload); err != nil {
-		return FileMetric{}, fmt.Errorf("parsing radon raw: %w", err)
+		return FileMetric{}, fmt.Errorf("parsing radon raw: %w: %s", err, trimOutput(output))
 	}
 	item, ok := payload[file]
 	if !ok && len(payload) == 1 {
@@ -219,7 +220,7 @@ func pythonImportMetric(source string) ImportMetric {
 			continue
 		}
 		if strings.HasPrefix(trimmed, "import ") || strings.HasPrefix(trimmed, "from ") {
-			if strings.HasSuffix(trimmed, "(") || strings.Contains(trimmed, " import (") {
+			if strings.HasSuffix(trimmed, "(") || (strings.Contains(trimmed, " import (") && !strings.Contains(trimmed, ")")) {
 				inImportBlock = true
 			}
 			continue
@@ -330,6 +331,9 @@ func runTool(ctx context.Context, name string, args ...string) ([]byte, error) {
 	command := exec.CommandContext(runCtx, name, args...)
 	output, err := command.CombinedOutput()
 	if err != nil {
+		if runCtx.Err() != nil {
+			return nil, errors.Join(runCtx.Err(), fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output))))
+		}
 		return nil, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
 	}
 	return output, nil

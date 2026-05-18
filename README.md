@@ -8,4 +8,20 @@ See [docs/spec/why-and-what.md](docs/spec/why-and-what.md) and [docs/spec/engine
 
 - Go 1.22 or newer for `calm-bridge`
 - `radon` 6.0.1 on `PATH`, or pass `--radon <path>`, for Python baseline analysis
-- .NET 8 SDK for `tools/roslyn-analyzer`
+- .NET 8 SDK for `tools/roslyn-analyzer`; `calm-bridge baseline --language csharp` builds the local analyzer automatically when `--roslyn <path>` is omitted
+
+## Baseline Analysis
+
+Generate a C# baseline from a fresh checkout with:
+
+```bash
+go run ./cmd/calm-bridge baseline --repo /path/to/repo --language csharp --output baseline-report.json
+```
+
+The Roslyn analyzer is also packageable as a local .NET tool:
+
+```bash
+dotnet pack tools/roslyn-analyzer/CalmRoslynAnalyzer.csproj
+```
+
+Measured cold start for the Debug Roslyn analyzer on 2026-05-18 was 0.12 seconds for a one-file C# fixture.

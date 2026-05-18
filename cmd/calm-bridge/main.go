@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -233,9 +234,17 @@ func runBaseline(args []string, stdout io.Writer) error {
 	if repositoryName == "" {
 		repositoryName = filepath.Base(*repo)
 	}
+	roslynPath := *roslyn
+	if *language == "csharp" && roslynPath == "" {
+		var err error
+		roslynPath, err = ensureLocalRoslynAnalyzer()
+		if err != nil {
+			return err
+		}
+	}
 	results, err := analyzer.AnalyzeRepository(context.Background(), *repo, *language, analyzer.RepositoryOptions{
 		RadonPath:  *radon,
-		RoslynPath: *roslyn,
+		RoslynPath: roslynPath,
 	})
 	if err != nil {
 		return err
@@ -245,6 +254,45 @@ func runBaseline(args []string, stdout io.Writer) error {
 	}
 	_, err = fmt.Fprintf(stdout, "wrote %s (%d files)\n", *output, len(results))
 	return err
+}
+
+func ensureLocalRoslynAnalyzer() (string, error) {
+	root, err := projectRoot()
+	if err != nil {
+		return "", err
+	}
+	project := filepath.Join(root, "tools", "roslyn-analyzer", "CalmRoslynAnalyzer.csproj")
+	executable := filepath.Join(root, "tools", "roslyn-analyzer", "bin", "Debug", "net8.0", "CalmRoslynAnalyzer")
+	if runtime.GOOS == "windows" {
+		executable += ".exe"
+	}
+	if info, err := os.Stat(executable); err == nil && !info.IsDir() {
+		return executable, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, "dotnet", "build", project)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("building local Roslyn analyzer: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return executable, nil
+}
+
+func projectRoot() (string, error) {
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for current := workingDir; ; current = filepath.Dir(current) {
+		if _, err := os.Stat(filepath.Join(current, "go.mod")); err == nil {
+			return current, nil
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", fmt.Errorf("could not find project root from %s", workingDir)
+		}
+	}
 }
 
 type usageError struct {

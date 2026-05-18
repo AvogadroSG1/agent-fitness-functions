@@ -3,8 +3,10 @@ package analyzer
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -29,6 +31,158 @@ func TestAnalyzeCSharpFileParsesRoslynCLIOutput(t *testing.T) {
 	}
 }
 
+func TestAnalyzeCSharpFileWithRealRoslynAnalyzer(t *testing.T) {
+	cli := buildRoslynAnalyzer(t)
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "Example.cs")
+	source := `using ConsoleAlias = System.Console;
+using BuilderAlias = System.Text.StringBuilder;
+using UnusedAlias = System.Linq.Enumerable;
+
+namespace Sample.App;
+
+public interface IRunner
+{
+    void Execute();
+}
+
+public class Example : IRunner
+{
+    private readonly int _count;
+
+    public Example(int count)
+    {
+        _count = count;
+    }
+
+    public int Count
+    {
+        get
+        {
+            if (_count > 0)
+            {
+                return _count;
+            }
+            return 0;
+        }
+    }
+
+    public void Execute()
+    {
+        var builder = new BuilderAlias();
+        ConsoleAlias.WriteLine(builder.ToString());
+    }
+
+    public int Run(bool enabled, bool forced)
+    {
+        if (enabled && forced)
+        {
+            return Count;
+        }
+        return 0;
+    }
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	result, err := AnalyzeCSharpFile(context.Background(), sourcePath, cli)
+	if err != nil {
+		t.Fatalf("AnalyzeCSharpFile returned error: %v", err)
+	}
+
+	if result.Language != "csharp" || result.CALMNode != "Sample.App" || result.File != sourcePath {
+		t.Fatalf("result identity = %+v, want csharp Sample.App", result)
+	}
+	assertFunction(t, result.Functions, "Run", 3, true)
+	assertFunction(t, result.Functions, "Example", 1, true)
+	assertFunction(t, result.Functions, "Count.get", 2, true)
+	assertFunction(t, result.Functions, "Execute", 1, true)
+	if result.FileMetric.PublicMethods < 4 {
+		t.Fatalf("public methods = %d, want at least constructor, property accessor, interface method, and public methods", result.FileMetric.PublicMethods)
+	}
+	if result.FileMetric.TotalLOC == 0 || result.FileMetric.LogicLOC == 0 || result.FileMetric.LDR == 0 {
+		t.Fatalf("file metrics = %+v, want non-zero LOC and LDR", result.FileMetric)
+	}
+	if result.Imports.Total != 3 || result.Imports.Used != 2 || result.Imports.DDC != float64(2)/float64(3) {
+		t.Fatalf("imports = %+v, want two used imports from three using directives", result.Imports)
+	}
+}
+
+func TestAnalyzeCSharpFileReturnsRoslynFailures(t *testing.T) {
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "Example.cs")
+	if err := os.WriteFile(sourcePath, []byte("public class Example {}"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	cli := fakeFailingRoslyn(t, dir)
+
+	_, err := AnalyzeCSharpFile(context.Background(), sourcePath, cli)
+	if err == nil || !strings.Contains(err.Error(), "running Roslyn analyzer") || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("error = %v, want Roslyn failure with stderr", err)
+	}
+}
+
+func TestAnalyzeCSharpFileReturnsInvalidJSONErrors(t *testing.T) {
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "Example.cs")
+	if err := os.WriteFile(sourcePath, []byte("public class Example {}"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	cli := fakeInvalidJSONRoslyn(t, dir)
+
+	_, err := AnalyzeCSharpFile(context.Background(), sourcePath, cli)
+	if err == nil || !strings.Contains(err.Error(), "parsing Roslyn analyzer output") {
+		t.Fatalf("error = %v, want JSON parse error", err)
+	}
+}
+
+func TestAnalyzeCSharpFileReturnsMissingExecutableErrors(t *testing.T) {
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "Example.cs")
+	if err := os.WriteFile(sourcePath, []byte("public class Example {}"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	_, err := AnalyzeCSharpFile(context.Background(), sourcePath, filepath.Join(dir, "missing-roslyn"))
+	if err == nil || !strings.Contains(err.Error(), "running Roslyn analyzer") {
+		t.Fatalf("error = %v, want missing executable error", err)
+	}
+}
+
+func assertFunction(t *testing.T, functions []FunctionMetric, name string, complexity int, isPublic bool) {
+	t.Helper()
+	for _, fn := range functions {
+		if fn.Name == name {
+			if fn.CyclomaticComplexity != complexity || fn.IsPublic != isPublic || fn.LOC == 0 {
+				t.Fatalf("%s = %+v, want complexity %d public %v with LOC", name, fn, complexity, isPublic)
+			}
+			return
+		}
+	}
+	t.Fatalf("function %q not found in %+v", name, functions)
+}
+
+func buildRoslynAnalyzer(t *testing.T) string {
+	t.Helper()
+	if _, err := exec.LookPath("dotnet"); err != nil {
+		t.Skip("dotnet not installed")
+	}
+	repoRoot := filepath.Clean(filepath.Join("..", ".."))
+	project := filepath.Join(repoRoot, "tools", "roslyn-analyzer", "CalmRoslynAnalyzer.csproj")
+	command := exec.Command("dotnet", "build", project)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("dotnet build failed: %v\n%s", err, output)
+	}
+	exe := filepath.Join(repoRoot, "tools", "roslyn-analyzer", "bin", "Debug", "net8.0", "CalmRoslynAnalyzer")
+	if runtime.GOOS == "windows" {
+		exe += ".exe"
+	}
+	return exe
+}
+
 func fakeRoslyn(t *testing.T, dir string) string {
 	t.Helper()
 	name := "roslyn"
@@ -49,6 +203,33 @@ cat <<JSON
 }
 JSON
 `
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake roslyn: %v", err)
+	}
+	return path
+}
+
+func fakeFailingRoslyn(t *testing.T, dir string) string {
+	t.Helper()
+	return writeFakeRoslyn(t, dir, "failing-roslyn", `#!/usr/bin/env bash
+echo boom >&2
+exit 3
+`)
+}
+
+func fakeInvalidJSONRoslyn(t *testing.T, dir string) string {
+	t.Helper()
+	return writeFakeRoslyn(t, dir, "invalid-json-roslyn", `#!/usr/bin/env bash
+echo not-json
+`)
+}
+
+func writeFakeRoslyn(t *testing.T, dir, name, script string) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		name += ".bat"
+	}
+	path := filepath.Join(dir, name)
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake roslyn: %v", err)
 	}

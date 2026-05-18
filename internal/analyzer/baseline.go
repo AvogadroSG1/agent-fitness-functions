@@ -9,11 +9,12 @@ import (
 
 // BaselineReport summarizes analyzer results for one repository.
 type BaselineReport struct {
-	Repository string           `json:"repository"`
-	Language   string           `json:"language"`
-	Generated  time.Time        `json:"generated"`
-	Summary    BaselineSummary  `json:"summary"`
-	Results    []AnalysisResult `json:"results"`
+	Repository    string                `json:"repository"`
+	Language      string                `json:"language"`
+	Generated     time.Time             `json:"generated"`
+	Summary       BaselineSummary       `json:"summary"`
+	Distributions BaselineDistributions `json:"distributions"`
+	Results       []AnalysisResult      `json:"results"`
 }
 
 // BaselineSummary contains distributions used for threshold calibration.
@@ -27,14 +28,25 @@ type BaselineSummary struct {
 	P10DependencyDiscipline   float64 `json:"p10_dependency_discipline"`
 }
 
+// BaselineDistributions contains raw sorted metric values used to set thresholds.
+type BaselineDistributions struct {
+	CyclomaticComplexity      []int     `json:"cyclomatic_complexity"`
+	PublicMethods             []int     `json:"public_methods"`
+	AverageLOCPerPublicMethod []float64 `json:"avg_loc_per_public_method"`
+	LogicDensityRatio         []float64 `json:"logic_density_ratio"`
+	DependencyDiscipline      []float64 `json:"dependency_discipline"`
+}
+
 // WriteBaselineReport writes a JSON baseline report for threshold calibration.
 func WriteBaselineReport(path, repository, language string, results []AnalysisResult) error {
+	distributions := distributions(results)
 	report := BaselineReport{
-		Repository: repository,
-		Language:   language,
-		Generated:  time.Now().UTC(),
-		Summary:    summarize(results),
-		Results:    results,
+		Repository:    repository,
+		Language:      language,
+		Generated:     time.Now().UTC(),
+		Summary:       summarize(distributions, len(results)),
+		Distributions: distributions,
+		Results:       results,
 	}
 	content, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
@@ -44,7 +56,7 @@ func WriteBaselineReport(path, repository, language string, results []AnalysisRe
 	return os.WriteFile(path, content, 0o644)
 }
 
-func summarize(results []AnalysisResult) BaselineSummary {
+func distributions(results []AnalysisResult) BaselineDistributions {
 	cc := make([]int, 0)
 	publicMethods := make([]int, 0, len(results))
 	avgLOCPerPublic := make([]float64, 0, len(results))
@@ -65,14 +77,29 @@ func summarize(results []AnalysisResult) BaselineSummary {
 			cc = append(cc, fn.CyclomaticComplexity)
 		}
 	}
+	sort.Ints(cc)
+	sort.Ints(publicMethods)
+	sort.Float64s(avgLOCPerPublic)
+	sort.Float64s(ldr)
+	sort.Float64s(ddc)
+	return BaselineDistributions{
+		CyclomaticComplexity:      cc,
+		PublicMethods:             publicMethods,
+		AverageLOCPerPublicMethod: avgLOCPerPublic,
+		LogicDensityRatio:         ldr,
+		DependencyDiscipline:      ddc,
+	}
+}
+
+func summarize(distributions BaselineDistributions, fileCount int) BaselineSummary {
 	return BaselineSummary{
-		FileCount:                 len(results),
-		FunctionCount:             len(cc),
-		P90CyclomaticComplexity:   percentileInt(cc, 0.90),
-		P90PublicMethods:          percentileInt(publicMethods, 0.90),
-		P10AverageLOCPerPublicAPI: percentileFloat(avgLOCPerPublic, 0.10),
-		P10LogicDensityRatio:      percentileFloat(ldr, 0.10),
-		P10DependencyDiscipline:   percentileFloat(ddc, 0.10),
+		FileCount:                 fileCount,
+		FunctionCount:             len(distributions.CyclomaticComplexity),
+		P90CyclomaticComplexity:   percentileInt(distributions.CyclomaticComplexity, 0.90),
+		P90PublicMethods:          percentileInt(distributions.PublicMethods, 0.90),
+		P10AverageLOCPerPublicAPI: percentileFloat(distributions.AverageLOCPerPublicMethod, 0.10),
+		P10LogicDensityRatio:      percentileFloat(distributions.LogicDensityRatio, 0.10),
+		P10DependencyDiscipline:   percentileFloat(distributions.DependencyDiscipline, 0.10),
 	}
 }
 
