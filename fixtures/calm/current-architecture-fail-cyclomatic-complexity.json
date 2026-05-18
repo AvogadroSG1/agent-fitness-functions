@@ -1,0 +1,49 @@
+{
+  "$schema": "https://calm.finos.org/release/1.2/meta/calm.json",
+  "nodes": [
+    {
+      "unique-id": "sample-actor",
+      "node-type": "actor",
+      "name": "Sample Actor",
+      "description": "Actor that references the sample service for fixture validation.",
+      "metadata": {
+        "fitness": {
+          "cyclomatic-complexity": 1,
+          "interface-width": 1,
+          "implementation-depth": 1,
+          "logic-density": 1,
+          "dependency-discipline": 1
+        }
+      }
+    },
+    {
+      "unique-id": "sample-service",
+      "node-type": "service",
+      "name": "Sample Service",
+      "description": "Hand-crafted failing architecture fixture for CALM CLI validation.",
+      "metadata": {
+        "fitness": {
+          "cyclomatic-complexity": 10,
+          "interface-width": 20,
+          "implementation-depth": 0.722,
+          "logic-density": 0.255,
+          "dependency-discipline": 0.001
+        }
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "unique-id": "sample-actor-to-service",
+      "description": "Sample actor uses the sample service.",
+      "relationship-type": {
+        "interacts": {
+          "actor": "sample-actor",
+          "nodes": [
+            "sample-service"
+          ]
+        }
+      }
+    }
+  ]
+}

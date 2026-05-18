@@ -1,0 +1,73 @@
+{
+  "$schema": "https://calm.finos.org/release/1.2/meta/calm.json",
+  "$id": "https://stackoverflow.com/calm-poc/patterns/governance.json",
+  "title": "CALM PoC Fitness Functions",
+  "description": "CALM JSON Schema pattern enforcing the PoC architecture fitness functions.",
+  "type": "object",
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/node",
+        "type": "object",
+        "properties": {
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "fitness": {
+                "type": "object",
+                "properties": {
+                  "cyclomatic-complexity": {
+                    "description": "Maximum cyclomatic complexity per function",
+                    "type": "number",
+                    "maximum": 9
+                  },
+                  "interface-width": {
+                    "description": "Maximum public method count per CALM node",
+                    "type": "number",
+                    "maximum": 20
+                  },
+                  "implementation-depth": {
+                    "description": "Minimum average implementation LOC per public method",
+                    "type": "number",
+                    "minimum": 0.722
+                  },
+                  "logic-density": {
+                    "description": "Minimum logic density ratio per file",
+                    "type": "number",
+                    "minimum": 0.255
+                  },
+                  "dependency-discipline": {
+                    "description": "Minimum used-import ratio per file",
+                    "type": "number",
+                    "minimum": 0.001
+                  }
+                },
+                "required": [
+                  "cyclomatic-complexity",
+                  "interface-width",
+                  "implementation-depth",
+                  "logic-density",
+                  "dependency-discipline"
+                ]
+              }
+            },
+            "required": [
+              "fitness"
+            ]
+          }
+        },
+        "required": [
+          "metadata"
+        ]
+      }
+    },
+    "relationships": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "nodes",
+    "relationships"
+  ]
+}
