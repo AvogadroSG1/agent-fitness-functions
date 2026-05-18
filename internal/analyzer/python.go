@@ -27,6 +27,10 @@ type radonRawItem struct {
 	LLOC  int    `json:"lloc"`
 }
 
+type radonErrorItem struct {
+	Error string `json:"error"`
+}
+
 // AnalyzePythonFile analyzes one Python source file using radon.
 func AnalyzePythonFile(ctx context.Context, file, radonPath string) (AnalysisResult, error) {
 	if radonPath == "" {
@@ -67,9 +71,9 @@ func AnalyzePythonFile(ctx context.Context, file, radonPath string) (AnalysisRes
 }
 
 func parseRadonCC(file string, output []byte) ([]FunctionMetric, error) {
-	var payload map[string][]radonCCItem
-	if err := json.Unmarshal(output, &payload); err != nil {
-		return nil, fmt.Errorf("parsing radon cc: %w", err)
+	payload, err := parseRadonCCPayload(output)
+	if err != nil {
+		return nil, err
 	}
 	items := payload[file]
 	if items == nil && len(payload) == 1 {
@@ -78,6 +82,26 @@ func parseRadonCC(file string, output []byte) ([]FunctionMetric, error) {
 		}
 	}
 	return pythonFunctions(items), nil
+}
+
+func parseRadonCCPayload(output []byte) (map[string][]radonCCItem, error) {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(output, &raw); err != nil {
+		return nil, fmt.Errorf("parsing radon cc: %w: %s", err, trimOutput(output))
+	}
+	payload := make(map[string][]radonCCItem, len(raw))
+	for file, message := range raw {
+		var errorItem radonErrorItem
+		if err := json.Unmarshal(message, &errorItem); err == nil && errorItem.Error != "" {
+			return nil, fmt.Errorf("radon cc error for %s: %s", file, errorItem.Error)
+		}
+		var items []radonCCItem
+		if err := json.Unmarshal(message, &items); err != nil {
+			return nil, fmt.Errorf("parsing radon cc for %s: %w", file, err)
+		}
+		payload[file] = items
+	}
+	return payload, nil
 }
 
 func pythonFunctions(items []radonCCItem) []FunctionMetric {
@@ -143,9 +167,9 @@ func AnalyzePythonRepository(ctx context.Context, root, radonPath string) ([]Ana
 	if err != nil {
 		return nil, fmt.Errorf("running radon raw: %w", err)
 	}
-	var ccPayload map[string][]radonCCItem
-	if err := json.Unmarshal(ccOutput, &ccPayload); err != nil {
-		return nil, fmt.Errorf("parsing radon cc: %w: %s", err, trimOutput(ccOutput))
+	ccPayload, err := parseRadonCCPayload(ccOutput)
+	if err != nil {
+		return nil, err
 	}
 	var rawPayload map[string]radonRawItem
 	if err := json.Unmarshal(rawOutput, &rawPayload); err != nil {

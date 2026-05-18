@@ -69,6 +69,20 @@ func TestAnalyzePythonRepositoryBatchesRadonCalls(t *testing.T) {
 	if len(results) != 2 {
 		t.Fatalf("results = %d, want 2", len(results))
 	}
+	firstResult := findResult(t, results, first)
+	if len(firstResult.Functions) != 1 || firstResult.Functions[0].Name != "one" || firstResult.Functions[0].CyclomaticComplexity != 1 {
+		t.Fatalf("first result functions = %+v, want one complexity-1 function", firstResult.Functions)
+	}
+	if firstResult.FileMetric.TotalLOC != 2 || firstResult.FileMetric.LogicLOC != 1 || firstResult.FileMetric.PublicMethods != 1 {
+		t.Fatalf("first result file metrics = %+v, want LOC 2, LLOC 1, public methods 1", firstResult.FileMetric)
+	}
+	secondResult := findResult(t, results, second)
+	if len(secondResult.Functions) != 1 || secondResult.Functions[0].Name != "two" || secondResult.Functions[0].CyclomaticComplexity != 1 {
+		t.Fatalf("second result functions = %+v, want two complexity-1 function", secondResult.Functions)
+	}
+	if secondResult.FileMetric.TotalLOC != 2 || secondResult.FileMetric.LogicLOC != 1 || secondResult.FileMetric.PublicMethods != 1 {
+		t.Fatalf("second result file metrics = %+v, want LOC 2, LLOC 1, public methods 1", secondResult.FileMetric)
+	}
 	logContent, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("read log: %v", err)
@@ -80,6 +94,24 @@ func TestAnalyzePythonRepositoryBatchesRadonCalls(t *testing.T) {
 	if !strings.Contains(logText, first) || !strings.Contains(logText, second) {
 		t.Fatalf("radon log = %q, want both files in batched invocations", logText)
 	}
+}
+
+func TestParseRadonCCPayloadReturnsAnalysisErrors(t *testing.T) {
+	_, err := parseRadonCCPayload([]byte(`{"broken.py":{"error":"invalid syntax"}}`))
+	if err == nil || !strings.Contains(err.Error(), "radon cc error for broken.py: invalid syntax") {
+		t.Fatalf("error = %v, want radon cc analysis error", err)
+	}
+}
+
+func findResult(t *testing.T, results []AnalysisResult, file string) AnalysisResult {
+	t.Helper()
+	for _, result := range results {
+		if result.File == file {
+			return result
+		}
+	}
+	t.Fatalf("result for %s not found in %+v", file, results)
+	return AnalysisResult{}
 }
 
 func TestAnalyzePythonFileWithRealRadonWhenAvailable(t *testing.T) {
