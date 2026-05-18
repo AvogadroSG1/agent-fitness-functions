@@ -1,0 +1,6 @@
+{
+  "$schema": "https://raw.githubusercontent.com/finos/architecture-as-code/main/calm/draft/2024-04/meta/pattern.json",
+  "title": "CALM PoC Fitness Functions",
+  "version": "0.1.0",
+  "fitness-functions": {}
+}
