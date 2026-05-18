@@ -1,0 +1,3021 @@
+{
+  "repository": "SlackStatus",
+  "language": "csharp",
+  "generated": "2026-05-18T19:16:14.127968Z",
+  "summary": {
+    "file_count": 77,
+    "function_count": 273,
+    "p90_cyclomatic_complexity": 3,
+    "p90_public_methods": 8,
+    "p10_avg_loc_per_public_method": 6.5,
+    "p10_logic_density_ratio": 0.2857142857142857,
+    "p10_dependency_discipline": 1
+  },
+  "results": [
+    {
+      "calm_node": "SlackStatus.Domain.Models",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Domain/Models/NowPlayingInfo.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 9,
+        "logic_loc": 4,
+        "public_methods": 0,
+        "ldr": 0.4444444444444444
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Domain.Models",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Domain/Models/SlackUserStatus.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 10,
+        "logic_loc": 5,
+        "public_methods": 0,
+        "ldr": 0.5
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Domain.Models",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Domain/Models/StatusConfig.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 24,
+        "logic_loc": 13,
+        "public_methods": 0,
+        "ldr": 0.5416666666666666
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Domain.Models",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Domain/Models/SystemState.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 9,
+        "logic_loc": 4,
+        "public_methods": 0,
+        "ldr": 0.4444444444444444
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Domain.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Domain/Services/StatusResolver.cs",
+      "functions": [
+        {
+          "name": "Resolve",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 2
+        },
+        {
+          "name": "Resolve",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 49
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 67,
+        "logic_loc": 37,
+        "public_methods": 1,
+        "ldr": 0.5522388059701493
+      },
+      "import_metrics": {
+        "total": 1,
+        "used": 1,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Detectors",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/AppleMusicDetector.cs",
+      "functions": [
+        {
+          "name": "DetectAsync",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 23
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 42,
+        "logic_loc": 18,
+        "public_methods": 1,
+        "ldr": 0.42857142857142855
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Detectors",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/DebouncedMeetingDetector.cs",
+      "functions": [
+        {
+          "name": "IsInMeetingAsync",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 36
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 65,
+        "logic_loc": 32,
+        "public_methods": 1,
+        "ldr": 0.49230769230769234
+      },
+      "import_metrics": {
+        "total": 2,
+        "used": 2,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Detectors",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/IMeetingDetector.cs",
+      "functions": [
+        {
+          "name": "IsInMeetingAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 2
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 7,
+        "logic_loc": 2,
+        "public_methods": 0,
+        "ldr": 0.2857142857142857
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Detectors",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/IMusicDetector.cs",
+      "functions": [
+        {
+          "name": "DetectAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 2
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 9,
+        "logic_loc": 2,
+        "public_methods": 0,
+        "ldr": 0.2222222222222222
+      },
+      "import_metrics": {
+        "total": 1,
+        "used": 1,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Detectors",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/IWorkHoursDetector.cs",
+      "functions": [
+        {
+          "name": "IsWorkHours",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 2
+        },
+        {
+          "name": "GetNextWorkHourStart",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 2
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 8,
+        "logic_loc": 3,
+        "public_methods": 0,
+        "ldr": 0.375
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Detectors",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/MeetingDetectionConfig.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 9,
+        "logic_loc": 4,
+        "public_methods": 0,
+        "ldr": 0.4444444444444444
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Detectors",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/MeetingDetector.cs",
+      "functions": [
+        {
+          "name": "IsInMeetingAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 7
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 25,
+        "logic_loc": 11,
+        "public_methods": 1,
+        "ldr": 0.44
+      },
+      "import_metrics": {
+        "total": 2,
+        "used": 2,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Detectors",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/MusicDetectionConfig.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 7,
+        "logic_loc": 2,
+        "public_methods": 0,
+        "ldr": 0.2857142857142857
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Detectors",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/WorkHoursConfig.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 9,
+        "logic_loc": 4,
+        "public_methods": 0,
+        "ldr": 0.4444444444444444
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Detectors",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Detectors/WorkHoursDetector.cs",
+      "functions": [
+        {
+          "name": "IsWorkHours",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "GetNextWorkHourStart",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 16
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 41,
+        "logic_loc": 20,
+        "public_methods": 2,
+        "ldr": 0.4878048780487805
+      },
+      "import_metrics": {
+        "total": 1,
+        "used": 1,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Music",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Music/ITrackUrlResolver.cs",
+      "functions": [
+        {
+          "name": "ResolveUrlAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 2
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 7,
+        "logic_loc": 2,
+        "public_methods": 0,
+        "ldr": 0.2857142857142857
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Music",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Music/ItunesSearchUrlResolver.cs",
+      "functions": [
+        {
+          "name": "ResolveUrlAsync",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 32
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 48,
+        "logic_loc": 22,
+        "public_methods": 1,
+        "ldr": 0.4583333333333333
+      },
+      "import_metrics": {
+        "total": 2,
+        "used": 2,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Process",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Process/IProcessRunner.cs",
+      "functions": [
+        {
+          "name": "RunAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 2
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 9,
+        "logic_loc": 2,
+        "public_methods": 0,
+        "ldr": 0.2222222222222222
+      },
+      "import_metrics": {
+        "total": 1,
+        "used": 1,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Process",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Process/ProcessRunner.cs",
+      "functions": [
+        {
+          "name": "RunAsync",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 37
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 53,
+        "logic_loc": 25,
+        "public_methods": 1,
+        "ldr": 0.4716981132075472
+      },
+      "import_metrics": {
+        "total": 4,
+        "used": 4,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/ISlackChannelClient.cs",
+      "functions": [
+        {
+          "name": "SearchChannelsAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 2
+        },
+        {
+          "name": "WarmCacheAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 2
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 8,
+        "logic_loc": 3,
+        "public_methods": 0,
+        "ldr": 0.375
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/ISlackChatClient.cs",
+      "functions": [
+        {
+          "name": "PostMessageAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 2
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 9,
+        "logic_loc": 2,
+        "public_methods": 0,
+        "ldr": 0.2222222222222222
+      },
+      "import_metrics": {
+        "total": 1,
+        "used": 1,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/ISlackEmojiClient.cs",
+      "functions": [
+        {
+          "name": "ListEmojiAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 2
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 9,
+        "logic_loc": 2,
+        "public_methods": 0,
+        "ldr": 0.2222222222222222
+      },
+      "import_metrics": {
+        "total": 1,
+        "used": 1,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/ISlackProfileClient.cs",
+      "functions": [
+        {
+          "name": "SetStatusAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 2
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 10,
+        "logic_loc": 2,
+        "public_methods": 0,
+        "ldr": 0.2
+      },
+      "import_metrics": {
+        "total": 2,
+        "used": 2,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/SlackChannel.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 4,
+        "logic_loc": 1,
+        "public_methods": 0,
+        "ldr": 0.25
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/SlackChannelCache.cs",
+      "functions": [
+        {
+          "name": "TryGet",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "Set",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 7
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 29,
+        "logic_loc": 14,
+        "public_methods": 2,
+        "ldr": 0.4827586206896552
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/SlackChannelClient.cs",
+      "functions": [
+        {
+          "name": "WarmCacheAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "SearchChannelsAsync",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "GetAllChannelsAsync",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 23
+        },
+        {
+          "name": "FetchAllChannelsAsync",
+          "cyclomatic_complexity": 12,
+          "is_public": false,
+          "loc": 66
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 130,
+        "logic_loc": 79,
+        "public_methods": 2,
+        "ldr": 0.6076923076923076
+      },
+      "import_metrics": {
+        "total": 4,
+        "used": 4,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/SlackChatClient.cs",
+      "functions": [
+        {
+          "name": "PostMessageAsync",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 40
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 68,
+        "logic_loc": 33,
+        "public_methods": 1,
+        "ldr": 0.4852941176470588
+      },
+      "import_metrics": {
+        "total": 6,
+        "used": 6,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/SlackConfig.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 7,
+        "logic_loc": 2,
+        "public_methods": 0,
+        "ldr": 0.2857142857142857
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/SlackEmojiClient.cs",
+      "functions": [
+        {
+          "name": "ListEmojiAsync",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 40
+        },
+        {
+          "name": "ResolveAliases",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 18
+        },
+        {
+          "name": "ResolveEntry",
+          "cyclomatic_complexity": 6,
+          "is_public": false,
+          "loc": 23
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 110,
+        "logic_loc": 52,
+        "public_methods": 1,
+        "ldr": 0.4727272727272727
+      },
+      "import_metrics": {
+        "total": 5,
+        "used": 5,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Infrastructure/Slack/SlackProfileClient.cs",
+      "functions": [
+        {
+          "name": "SetStatusAsync",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 57
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 90,
+        "logic_loc": 47,
+        "public_methods": 1,
+        "ldr": 0.5222222222222223
+      },
+      "import_metrics": {
+        "total": 7,
+        "used": 7,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Configuration",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Configuration/ConfigurationLoader.cs",
+      "functions": [
+        {
+          "name": "LoadFromYaml",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "ToStatusConfig",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 10
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 28,
+        "logic_loc": 14,
+        "public_methods": 2,
+        "ldr": 0.5
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Configuration",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Configuration/SlackStatusSettings.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 24,
+        "logic_loc": 12,
+        "public_methods": 0,
+        "ldr": 0.5
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Models",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Models/BroadcastResult.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 9,
+        "logic_loc": 3,
+        "public_methods": 0,
+        "ldr": 0.3333333333333333
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Models",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Models/BroadcastSettings.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 44,
+        "logic_loc": 26,
+        "public_methods": 0,
+        "ldr": 0.5909090909090909
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Models",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Models/CockpitSnapshot.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 27,
+        "logic_loc": 20,
+        "public_methods": 0,
+        "ldr": 0.7407407407407407
+      },
+      "import_metrics": {
+        "total": 1,
+        "used": 1,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Models",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Models/OverrideState.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 11,
+        "logic_loc": 6,
+        "public_methods": 0,
+        "ldr": 0.5454545454545454
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Models",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Models/WorkerNotice.cs",
+      "functions": [
+        {
+          "name": "Info",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 2
+        },
+        {
+          "name": "Warning",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 2
+        },
+        {
+          "name": "Error",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 2
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 9,
+        "logic_loc": 4,
+        "public_methods": 3,
+        "ldr": 0.4444444444444444
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "Program",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Program.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 147,
+        "logic_loc": 96,
+        "public_methods": 0,
+        "ldr": 0.6530612244897959
+      },
+      "import_metrics": {
+        "total": 11,
+        "used": 11,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/BroadcastPresetChannelResolver.cs",
+      "functions": [
+        {
+          "name": "Resolve",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "UsesChannelOverrides",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 24,
+        "logic_loc": 13,
+        "public_methods": 2,
+        "ldr": 0.5416666666666666
+      },
+      "import_metrics": {
+        "total": 1,
+        "used": 1,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/BroadcastSettingsOptions.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 7,
+        "logic_loc": 2,
+        "public_methods": 0,
+        "ldr": 0.2857142857142857
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/ChannelCacheWarmService.cs",
+      "functions": [
+        {
+          "name": "ExecuteAsync",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 29
+        },
+        {
+          "name": "TrySeedFromSlackCliAsync",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 26
+        },
+        {
+          "name": "TimeUntilNext1Am",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 10
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 88,
+        "logic_loc": 48,
+        "public_methods": 0,
+        "ldr": 0.5454545454545454
+      },
+      "import_metrics": {
+        "total": 2,
+        "used": 2,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/CockpitStateService.cs",
+      "functions": [
+        {
+          "name": "GetSnapshot",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Publish",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 29
+        },
+        {
+          "name": "MarkApplyInProgress",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "SetOverride",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "ClearOverride",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "RequestImmediatePoll",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "WaitForImmediatePollAsync",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 28
+        },
+        {
+          "name": "SignalImmediatePollInsideLock",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "NotifyChanged",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 22
+        },
+        {
+          "name": "NewSignal",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 159,
+        "logic_loc": 81,
+        "public_methods": 7,
+        "ldr": 0.5094339622641509
+      },
+      "import_metrics": {
+        "total": 2,
+        "used": 2,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/EmojiCatalogRefreshService.cs",
+      "functions": [
+        {
+          "name": "ExecuteAsync",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 12
+        },
+        {
+          "name": "RefreshWithTimeoutAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 15
+        },
+        {
+          "name": "RefreshSafelyAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 17
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 58,
+        "logic_loc": 25,
+        "public_methods": 0,
+        "ldr": 0.43103448275862066
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/EmojiMapper.cs",
+      "functions": [
+        {
+          "name": "Resolve",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "Resolve",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 19
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 161,
+        "logic_loc": 116,
+        "public_methods": 2,
+        "ldr": 0.7204968944099379
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/ISettingsRepository.cs",
+      "functions": [
+        {
+          "name": "GetBroadcast",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 2
+        },
+        {
+          "name": "SaveBroadcastAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 2
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 10,
+        "logic_loc": 3,
+        "public_methods": 0,
+        "ldr": 0.3
+      },
+      "import_metrics": {
+        "total": 1,
+        "used": 1,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/MorningBroadcastService.cs",
+      "functions": [
+        {
+          "name": "SendAsync",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 39
+        },
+        {
+          "name": "ResolveMessageAsync",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "PostToChannelSafe",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 28
+        },
+        {
+          "name": "EscapeSlack",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 10
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 120,
+        "logic_loc": 73,
+        "public_methods": 2,
+        "ldr": 0.6083333333333333
+      },
+      "import_metrics": {
+        "total": 5,
+        "used": 5,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/ScheduledBroadcastService.cs",
+      "functions": [
+        {
+          "name": "RunDueSchedulesAsync",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 51
+        },
+        {
+          "name": "ExecuteAsync",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 23
+        },
+        {
+          "name": "ComputeDelayUntilNextSchedule",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 21
+        },
+        {
+          "name": "NextOccurrence",
+          "cyclomatic_complexity": 8,
+          "is_public": false,
+          "loc": 33
+        },
+        {
+          "name": "ShouldFire",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 10
+        },
+        {
+          "name": "AlreadyFiredThisMinute",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 7
+        },
+        {
+          "name": "RecurringIsDue",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "TruncateToMinute",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "ApplyUpdate",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 9
+        },
+        {
+          "name": "SameSchedule",
+          "cyclomatic_complexity": 7,
+          "is_public": false,
+          "loc": 14
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 200,
+        "logic_loc": 123,
+        "public_methods": 1,
+        "ldr": 0.615
+      },
+      "import_metrics": {
+        "total": 1,
+        "used": 1,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/SlackStatusMcpTools.cs",
+      "functions": [
+        {
+          "name": "GetStatus",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "ListPresets",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "ListChannels",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "SetOverride",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 25
+        },
+        {
+          "name": "ClearOverride",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "SendBroadcast",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 63
+        },
+        {
+          "name": "CreatePreset",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 38
+        },
+        {
+          "name": "DeletePreset",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 23
+        },
+        {
+          "name": "SetPresetSchedule",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 35
+        },
+        {
+          "name": "ClearPresetSchedule",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 26
+        },
+        {
+          "name": "Ok",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "Fail",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "FindPreset",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "ResolveAllConfiguredChannels",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "ValidatePresetInput",
+          "cyclomatic_complexity": 5,
+          "is_public": false,
+          "loc": 16
+        },
+        {
+          "name": "FilterConfiguredChannelIds",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 10
+        },
+        {
+          "name": "ChannelWarnings",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 11
+        },
+        {
+          "name": "TryBuildSchedule",
+          "cyclomatic_complexity": 10,
+          "is_public": false,
+          "loc": 71
+        },
+        {
+          "name": "TryParseDays",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 24
+        },
+        {
+          "name": "ToPresetDto",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 19
+        },
+        {
+          "name": "ToScheduleDto",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 10
+        },
+        {
+          "name": "ScheduleSummary",
+          "cyclomatic_complexity": 5,
+          "is_public": false,
+          "loc": 21
+        },
+        {
+          "name": "ToStatus",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "ToOverride",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "ToSignals",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "ToNowPlaying",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "ToChannelDto",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "Plural",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "EmojiRegex",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "PresetIdRegex",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 553,
+        "logic_loc": 383,
+        "public_methods": 10,
+        "ldr": 0.6925858951175407
+      },
+      "import_metrics": {
+        "total": 5,
+        "used": 5,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/StatusWorker.cs",
+      "functions": [
+        {
+          "name": "ExecuteAsync",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 27
+        },
+        {
+          "name": "PollAsync",
+          "cyclomatic_complexity": 9,
+          "is_public": false,
+          "loc": 76
+        },
+        {
+          "name": "TryDetectWorkHours",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 15
+        },
+        {
+          "name": "TryDetectMeetingAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 15
+        },
+        {
+          "name": "TryDetectMusicAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 15
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 193,
+        "logic_loc": 121,
+        "public_methods": 0,
+        "ldr": 0.6269430051813472
+      },
+      "import_metrics": {
+        "total": 7,
+        "used": 7,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/StatusWorkerHealthCheck.cs",
+      "functions": [
+        {
+          "name": "CheckHealthAsync",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 17
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 32,
+        "logic_loc": 16,
+        "public_methods": 1,
+        "ldr": 0.5
+      },
+      "import_metrics": {
+        "total": 1,
+        "used": 1,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/WorkspaceEmojiCatalog.cs",
+      "functions": [
+        {
+          "name": "TryGetImageUrl",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "RefreshAsync",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 14
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 43,
+        "logic_loc": 20,
+        "public_methods": 2,
+        "ldr": 0.46511627906976744
+      },
+      "import_metrics": {
+        "total": 2,
+        "used": 2,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/src/SlackStatus.Web/Services/YamlSettingsRepository.cs",
+      "functions": [
+        {
+          "name": "GetBroadcast",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "SaveBroadcastAsync",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 19
+        },
+        {
+          "name": "ReadFromDisk",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 20
+        },
+        {
+          "name": "ProjectLegacyTemplate",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 22
+        },
+        {
+          "name": "Accepts",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 2
+        },
+        {
+          "name": "ReadYaml",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "WriteYaml",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Accepts",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 2
+        },
+        {
+          "name": "ReadYaml",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "WriteYaml",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 9
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 140,
+        "logic_loc": 79,
+        "public_methods": 8,
+        "ldr": 0.5642857142857143
+      },
+      "import_metrics": {
+        "total": 7,
+        "used": 7,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "GlobalUsings",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Domain.Tests/GlobalUsings.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 2,
+        "logic_loc": 1,
+        "public_methods": 0,
+        "ldr": 0.5
+      },
+      "import_metrics": {
+        "total": 1,
+        "used": 1,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Domain.Tests.Models",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Domain.Tests/Models/NowPlayingInfoTests.cs",
+      "functions": [
+        {
+          "name": "Create_WithSongAndArtist_SetsValues",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "DisplayText_ReturnsSongByArtist",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 26,
+        "logic_loc": 11,
+        "public_methods": 2,
+        "ldr": 0.4230769230769231
+      },
+      "import_metrics": {
+        "total": 2,
+        "used": 2,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Domain.Tests.Models",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Domain.Tests/Models/SlackUserStatusTests.cs",
+      "functions": [
+        {
+          "name": "Create_WithRequiredProperties_SetsValues",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "Create_WithExpiration_SetsExpirationMinutes",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "Equals_SameValues_ReturnsTrue",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "Equals_DifferentValues_ReturnsFalse",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 10
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 54,
+        "logic_loc": 29,
+        "public_methods": 4,
+        "ldr": 0.5370370370370371
+      },
+      "import_metrics": {
+        "total": 2,
+        "used": 2,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Domain.Tests.Models",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Domain.Tests/Models/SystemStateTests.cs",
+      "functions": [
+        {
+          "name": "Create_WithAllProperties_SetsValues",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "Create_WithoutNowPlaying_DefaultsToNull",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 13
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 37,
+        "logic_loc": 20,
+        "public_methods": 2,
+        "ldr": 0.5405405405405406
+      },
+      "import_metrics": {
+        "total": 2,
+        "used": 2,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Domain.Tests.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Domain.Tests/Services/StatusResolverTests.cs",
+      "functions": [
+        {
+          "name": "SetUp",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "Resolve_OutsideWorkHours_ReturnsOutsideHoursStatus",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "Resolve_OutsideWorkHours_IgnoresMeeting",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "Resolve_OutsideWorkHours_IgnoresMusic",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "Resolve_OutsideHours_HasNoExpiration",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "Resolve_InMeeting_ReturnsMeetingStatus",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "Resolve_InMeeting_IgnoresMusic",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "Resolve_InMeeting_HasNoExpiration",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "Resolve_MusicPlaying_ReturnsMusicStatus_WithInterpolatedText",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 21
+        },
+        {
+          "name": "Resolve_MusicPlaying_IncludesSongAndArtist",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "Resolve_MusicPlaying_HasNoExpiration",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "Resolve_NoConditionsMet_ReturnsDefaultStatus",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "Resolve_DefaultDuringWorkHours_HasNoExpiration",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "Resolve_OutsideWorkHours_PassesThroughDisplayEmoji",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "Resolve_InMeeting_PassesThroughDisplayEmoji",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "Resolve_MusicPlaying_PassesThroughDisplayEmoji",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "Resolve_Default_PassesThroughDisplayEmoji",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "Resolve_NoDisplayEmojiConfigured_DisplayEmojiIsNull",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 18
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 262,
+        "logic_loc": 145,
+        "public_methods": 18,
+        "ldr": 0.5534351145038168
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Tests.Detectors",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Detectors/AppleMusicDetectorTests.cs",
+      "functions": [
+        {
+          "name": "SetUp",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "DetectAsync_MusicPlaying_ReturnsNowPlayingInfo",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "DetectAsync_MusicNotPlaying_ReturnsNull",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "DetectAsync_InvalidOutput_ReturnsNull",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "DetectAsync_ProcessError_ReturnsNull",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "DetectAsync_ParsesTrackAndArtist_Correctly",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 14
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 87,
+        "logic_loc": 45,
+        "public_methods": 6,
+        "ldr": 0.5172413793103449
+      },
+      "import_metrics": {
+        "total": 6,
+        "used": 6,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Tests.Detectors",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Detectors/DebouncedMeetingDetectorTests.cs",
+      "functions": [
+        {
+          "name": "CreateSut",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 11
+        },
+        {
+          "name": "SetUp",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "IsInMeetingAsync_FirstPoll_ReturnsFalse",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "IsInMeetingAsync_SingleTrueResult_StaysFalse",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "IsInMeetingAsync_ConsecutiveTruesBelowThreshold_StaysFalse",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "IsInMeetingAsync_ConsecutiveTruesAtThreshold_TransitionsToTrue",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "IsInMeetingAsync_AlternatingResults_NeverTransitions",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "IsInMeetingAsync_TrueInterruptedByFalse_ResetsCounter",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 21
+        },
+        {
+          "name": "IsInMeetingAsync_TransitionsToTrue_ThenStaysTrue",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "IsInMeetingAsync_TransitionsToTrue_ThenRequiresDebounceToGoFalse",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "IsInMeetingAsync_FullRoundTrip_TransitionsBothWays",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 19
+        },
+        {
+          "name": "IsInMeetingAsync_DebounceCountOfOne_TransitionsImmediately",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 182,
+        "logic_loc": 99,
+        "public_methods": 11,
+        "ldr": 0.5439560439560439
+      },
+      "import_metrics": {
+        "total": 5,
+        "used": 5,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Tests.Detectors",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Detectors/MeetingDetectorTests.cs",
+      "functions": [
+        {
+          "name": "SetUp",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "IsInMeetingAsync_CameraStreaming_ReturnsTrue",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "IsInMeetingAsync_NoCameraStreaming_ReturnsFalse",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "IsInMeetingAsync_ProcessRunnerFails_ReturnsFalse",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 61,
+        "logic_loc": 29,
+        "public_methods": 4,
+        "ldr": 0.47540983606557374
+      },
+      "import_metrics": {
+        "total": 6,
+        "used": 6,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Tests.Detectors",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Detectors/WorkHoursDetectorTests.cs",
+      "functions": [
+        {
+          "name": "SetUp",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "IsWorkHours_DuringWorkHours_ReturnsTrue",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "IsWorkHours_BeforeWorkHours_ReturnsFalse",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "IsWorkHours_AfterWorkHours_ReturnsFalse",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "IsWorkHours_AtExactStartTime_ReturnsTrue",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "IsWorkHours_AtExactEndTime_ReturnsFalse",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "IsWorkHours_DifferentTimezone_ConvertsCorrectly",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "GetNextWorkHourStart_WhenAfterHours_ReturnsNextDayStart",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 19
+        },
+        {
+          "name": "GetNextWorkHourStart_WhenBeforeHours_ReturnsTodayStart",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 15
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 119,
+        "logic_loc": 56,
+        "public_methods": 9,
+        "ldr": 0.47058823529411764
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "GlobalUsings",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/GlobalUsings.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 3,
+        "logic_loc": 2,
+        "public_methods": 0,
+        "ldr": 0.6666666666666666
+      },
+      "import_metrics": {
+        "total": 2,
+        "used": 2,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Tests.Music",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Music/ItunesSearchUrlResolverTests.cs",
+      "functions": [
+        {
+          "name": "ResolveUrlAsync_ResultContainsTrackUrl_ReturnsUrl",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "ResolveUrlAsync_BadResponse_ReturnsNull",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 13
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 35,
+        "logic_loc": 15,
+        "public_methods": 2,
+        "ldr": 0.42857142857142855
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Tests.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Slack/SlackChannelClientTests.cs",
+      "functions": [
+        {
+          "name": "SetUp",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "TearDown",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "SearchChannelsAsync_PagedResponse_ReturnsPrefixMatches",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 19
+        },
+        {
+          "name": "SearchChannelsAsync_ApiReturnsError_ReturnsEmptyList",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "SearchChannelsAsync_CacheWarm_FiltersInMemoryWithNoApiCalls",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 15
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 73,
+        "logic_loc": 41,
+        "public_methods": 5,
+        "ldr": 0.5616438356164384
+      },
+      "import_metrics": {
+        "total": 4,
+        "used": 4,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Tests.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Slack/SlackChatClientTests.cs",
+      "functions": [
+        {
+          "name": "SetUp",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "TearDown",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "PostMessageAsync_ApiReturnsOk_SendsPayloadAndReturnsSuccess",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "PostMessageAsync_ApiReturnsError_ReturnsFailure",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 54,
+        "logic_loc": 28,
+        "public_methods": 4,
+        "ldr": 0.5185185185185185
+      },
+      "import_metrics": {
+        "total": 4,
+        "used": 4,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Tests.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Slack/SlackEmojiClientTests.cs",
+      "functions": [
+        {
+          "name": "SetUp",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "TearDown",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "ListEmojiAsync_ImageEntries_ReturnsUrlDictionary",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "ListEmojiAsync_SingleHopAlias_ResolvesToTargetUrl",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "ListEmojiAsync_MultiHopAlias_ResolvesToFinalUrl",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "ListEmojiAsync_CircularAlias_SkipsEntry",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "ListEmojiAsync_MissingScope_ReturnsEmptyDictionary",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "ListEmojiAsync_HttpError_ReturnsFailure",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 104,
+        "logic_loc": 58,
+        "public_methods": 8,
+        "ldr": 0.5576923076923077
+      },
+      "import_metrics": {
+        "total": 4,
+        "used": 4,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Tests.Slack",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/Slack/SlackProfileClientTests.cs",
+      "functions": [
+        {
+          "name": "SetUp",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "TearDown",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "SetStatusAsync_ValidStatus_SendsCorrectPayload",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "SetStatusAsync_ValidStatus_SetsAuthorizationHeader",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "SetStatusAsync_ApiReturnsOk_ReturnsSuccess",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "SetStatusAsync_ApiReturnsError_ReturnsError",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "SetStatusAsync_HttpFailure_ReturnsError",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "SetStatusAsync_ZeroExpiration_SetsExpirationToZero",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 15
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 121,
+        "logic_loc": 64,
+        "public_methods": 8,
+        "ldr": 0.5289256198347108
+      },
+      "import_metrics": {
+        "total": 9,
+        "used": 9,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Infrastructure.Tests.TestUtilities",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Infrastructure.Tests/TestUtilities/MockHttpMessageHandler.cs",
+      "functions": [
+        {
+          "name": "EnqueueJson",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "SendAsync",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 29
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 50,
+        "logic_loc": 24,
+        "public_methods": 1,
+        "ldr": 0.48
+      },
+      "import_metrics": {
+        "total": 1,
+        "used": 1,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "GlobalUsings",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/GlobalUsings.cs",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 4,
+        "logic_loc": 3,
+        "public_methods": 0,
+        "ldr": 0.75
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Tests.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/BroadcastPresetChannelResolverTests.cs",
+      "functions": [
+        {
+          "name": "Resolve_NoPresetOverrides_ReturnsSelectedConfiguredChannels",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "Resolve_PresetOverrides_ReturnsOnlyConfiguredOverrideChannels",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 22
+        },
+        {
+          "name": "UsesChannelOverrides_PresetWithChannelIds_ReturnsTrue",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 15
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 64,
+        "logic_loc": 38,
+        "public_methods": 3,
+        "ldr": 0.59375
+      },
+      "import_metrics": {
+        "total": 2,
+        "used": 2,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Tests.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/CockpitStateServiceTests.cs",
+      "functions": [
+        {
+          "name": "GetSnapshot_ReturnsEmptySnapshot_WhenNoStatePublished",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "SetOverride_ValidInput_ActivatesOverrideAndSignalsImmediatePoll",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "ClearOverride_ActiveOverride_ResumesAutoMode",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "Publish_ActiveOverride_PreservesOverride",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 25
+        },
+        {
+          "name": "Publish_ConcurrentWriters_ReturnsConsistentSnapshot",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 18
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 92,
+        "logic_loc": 57,
+        "public_methods": 5,
+        "ldr": 0.6195652173913043
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Tests.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/EmojiMapperTests.cs",
+      "functions": [
+        {
+          "name": "Resolve_PreferredDisplayProvided_ReturnsThat",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "Resolve_PreferredDisplayProvidedWithStandardCode_PreferredWins",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Resolve_PreferredDisplayIsWhitespace_SkipsToMap",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Resolve_PreferredDisplayIsEmpty_SkipsToMap",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Resolve_KnownStandardCode_ReturnsUnicode",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "Resolve_KnownCode_CaseInsensitive",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Resolve_CoffeeCode_ReturnsUnicode",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Resolve_MusicNote_ReturnsUnicode",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Resolve_TheHorns_ReturnsUnicode",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Resolve_CustomSlackEmoji_ReturnsFallback",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "Resolve_CatalogHit_ReturnsImageUrl",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "Resolve_CatalogMiss_FallsThroughToFallback",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "Resolve_PreferredDisplay_WinsOverCatalog",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "Resolve_UnknownCode_ReturnsFallback",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Resolve_EmptyCode_ReturnsFallback",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Resolve_CustomFallbackUsed_WhenNoMatch",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 168,
+        "logic_loc": 87,
+        "public_methods": 16,
+        "ldr": 0.5178571428571429
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Tests.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/MorningBroadcastServiceTests.cs",
+      "functions": [
+        {
+          "name": "SetUp",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 24
+        },
+        {
+          "name": "ResolveMessageAsync_MusicPlayingAndUrlResolved_UsesSlackLink",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "ResolveMessageAsync_MusicPlayingAndUrlFails_UsesPlainText",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "ResolveMessageAsync_NoMusic_UsesFallback",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "SendAsync_PartialFailure_ReturnsMixedResultsAndStreams",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 27
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 106,
+        "logic_loc": 66,
+        "public_methods": 5,
+        "ldr": 0.6226415094339622
+      },
+      "import_metrics": {
+        "total": 7,
+        "used": 7,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Tests.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/ScheduledBroadcastServiceTests.cs",
+      "functions": [
+        {
+          "name": "SetUp",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 28
+        },
+        {
+          "name": "TearDown",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 7
+        },
+        {
+          "name": "RunDueSchedulesAsync_RecurringPresetOnMatchingDay_Fires",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 19
+        },
+        {
+          "name": "RunDueSchedulesAsync_RecurringPresetWithEmptyDays_FiresEveryDay",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "RunDueSchedulesAsync_OneShotPreset_FiresAndClearsSchedule",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "RunDueSchedulesAsync_RecurringPresetOnWrongDay_Skips",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "RunDueSchedulesAsync_PresetWithoutSchedule_Skips",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "RunDueSchedulesAsync_RecurringPresetAlreadySentThisMinute_Skips",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 19
+        },
+        {
+          "name": "RunDueSchedulesAsync_SettingsChangeDuringSend_PreservesCurrentPresetFields",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 53
+        },
+        {
+          "name": "SettingsWithPreset",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 18
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 220,
+        "logic_loc": 147,
+        "public_methods": 9,
+        "ldr": 0.6681818181818182
+      },
+      "import_metrics": {
+        "total": 8,
+        "used": 8,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Tests.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/SlackStatusMcpToolsTests.cs",
+      "functions": [
+        {
+          "name": "SetUp",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 38
+        },
+        {
+          "name": "ListPresets_ReturnsScheduleSummaryAndConfiguredChannelSemantics",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 29
+        },
+        {
+          "name": "CreatePreset_DuplicateId_ReturnsErrorAndDoesNotSave",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "SetPresetSchedule_OneShotTooSoon_ReturnsErrorAndPreservesPreset",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "SetPresetSchedule_InvalidDay_ReturnsErrorAndDoesNotSave",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "SetPresetSchedule_Recurring_PreservesPresetFields",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 34
+        },
+        {
+          "name": "ClearPresetSchedule_ExistingSchedule_PreservesOtherPresetFields",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 26
+        },
+        {
+          "name": "SendBroadcast_ConfiguredChannels_SendsAndStampsPreset",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "SendBroadcast_BroadcastAlreadyRunning_ReturnsBusyResponse",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 25
+        },
+        {
+          "name": "CreatePreset_UnknownChannelIds_FiltersAndWarns",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "ToolAttributes_ExposeExpectedToolNames",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 33
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 273,
+        "logic_loc": 193,
+        "public_methods": 11,
+        "ldr": 0.706959706959707
+      },
+      "import_metrics": {
+        "total": 8,
+        "used": 8,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Tests.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/WorkspaceEmojiCatalogTests.cs",
+      "functions": [
+        {
+          "name": "SetUp",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "TryGetImageUrl_StripsColonsBeforeLookup",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "TryGetImageUrl_UnknownEmoji_ReturnsFalse",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "RefreshAsync_Success_ReplacesCatalogAtomically",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "RefreshAsync_Failure_KeepsPreviousCatalog",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 16
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 77,
+        "logic_loc": 44,
+        "public_methods": 5,
+        "ldr": 0.5714285714285714
+      },
+      "import_metrics": {
+        "total": 5,
+        "used": 5,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "SlackStatus.Web.Tests.Services",
+      "language": "csharp",
+      "file": "/Users/poconnor/peter_code/SlackStatus/tests/SlackStatus.Web.Tests/Services/YamlSettingsRepositoryTests.cs",
+      "functions": [
+        {
+          "name": "SetUp",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "TearDown",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "SaveBroadcastAsync_SettingsProvided_RoundTripsFromDisk",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 36
+        },
+        {
+          "name": "GetBroadcast_MissingPresetsKeyAndBlankTemplate_ReturnsEmptyPresets",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "GetBroadcast_MissingPresetsKeyWithLegacyTemplate_ProjectsDefaultPreset",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "GetBroadcast_PresetWithoutChannelIds_ReturnsEmptyChannelIds",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "SaveBroadcastAsync_RecurringSchedule_RoundTripsFromDisk",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 34
+        },
+        {
+          "name": "SaveBroadcastAsync_OneShotSchedule_RoundTripsFromDisk",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 32
+        },
+        {
+          "name": "GetBroadcast_PresetWithoutSchedule_ReturnsNullSchedule",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "SaveBroadcastAsync_RecurringScheduleWithEmptyDays_RoundTripsEmptyDays",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 31
+        },
+        {
+          "name": "GetBroadcast_MalformedYaml_ReturnsDefaults",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "CreateRepository",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 6
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 241,
+        "logic_loc": 159,
+        "public_methods": 11,
+        "ldr": 0.6597510373443983
+      },
+      "import_metrics": {
+        "total": 4,
+        "used": 4,
+        "ddc": 1
+      }
+    }
+  ]
+}

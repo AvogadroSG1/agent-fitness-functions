@@ -1,0 +1,4005 @@
+{
+  "repository": "graft",
+  "language": "go",
+  "generated": "2026-05-18T19:44:38.33745Z",
+  "summary": {
+    "file_count": 42,
+    "function_count": 539,
+    "p90_cyclomatic_complexity": 9,
+    "p90_public_methods": 14,
+    "p10_avg_loc_per_public_method": 5,
+    "p10_logic_density_ratio": 0.5285714285714286,
+    "p10_dependency_discipline": 1
+  },
+  "results": [
+    {
+      "calm_node": "cmd",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/cmd/hooks_command_test.go",
+      "functions": [
+        {
+          "name": "TestInstallHooksCommandInstallsAndUninstalls",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 31
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 38,
+        "logic_loc": 28,
+        "public_methods": 1,
+        "ldr": 0.7368421052631579
+      },
+      "import_metrics": {
+        "total": 6,
+        "used": 6,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "cmd",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/cmd/library_command_test.go",
+      "functions": [
+        {
+          "name": "TestLibraryAddRegistersClonesAndSetsFirstAsDefault",
+          "cyclomatic_complexity": 12,
+          "is_public": true,
+          "loc": 31
+        },
+        {
+          "name": "TestLibraryListIncludesLastPulledAndDefaultMarker",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 28
+        },
+        {
+          "name": "TestLibraryPullNamedUpdatesLastPulledTimestamp",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 38
+        },
+        {
+          "name": "TestLibraryShowListFiltersPlainAndJSONOutput",
+          "cyclomatic_complexity": 9,
+          "is_public": true,
+          "loc": 40
+        },
+        {
+          "name": "TestLibraryShowDetailRendersDefinitionSchema",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 35
+        },
+        {
+          "name": "TestLibraryAddRejectsDuplicateWithoutMutatingConfig",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 23
+        },
+        {
+          "name": "TestLibraryAddRejectsUnsafeNamesAndURLsBeforeClone",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 34
+        },
+        {
+          "name": "TestLibraryAddFailureLeavesConfigUntouched",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 21
+        },
+        {
+          "name": "TestLibraryPullAllUpdatesAllLibraries",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 38
+        },
+        {
+          "name": "TestLibraryPullAllPersistsEarlierSuccessWhenLaterPullFails",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 39
+        },
+        {
+          "name": "TestLibraryShowNamedListUsesRequestedLibrary",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 24
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 355,
+        "logic_loc": 284,
+        "public_methods": 11,
+        "ldr": 0.8
+      },
+      "import_metrics": {
+        "total": 12,
+        "used": 12,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "cmd",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/cmd/mcp_authoring_test.go",
+      "functions": [
+        {
+          "name": "TestMCPImportPromptsForCollisionUseNew",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 29
+        },
+        {
+          "name": "TestMCPAddPromptsForFields",
+          "cyclomatic_complexity": 11,
+          "is_public": true,
+          "loc": 23
+        },
+        {
+          "name": "TestMCPEditRunsEditorAndReindexes",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 26
+        },
+        {
+          "name": "TestMCPImportCollisionKeepAndSkip",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 34
+        },
+        {
+          "name": "TestMCPImportEditorCollisionPreservesExistingOnInvalidEdit",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 27
+        },
+        {
+          "name": "TestMCPImportEditorCollisionValidEditReplacesAfterValidation",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 27
+        },
+        {
+          "name": "TestMCPImportAuthPromptDeclineSkipsDefinition",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 19
+        },
+        {
+          "name": "TestMCPAddFlagsRunNonInteractively",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "TestMCPEditRejectsInvalidJSONAndNameMismatch",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 28
+        },
+        {
+          "name": "TestMCPPushYesCommitsAndPushes",
+          "cyclomatic_complexity": 12,
+          "is_public": true,
+          "loc": 51
+        },
+        {
+          "name": "testAuthoringLibrary",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "writeAuthoringConfig",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "readAuthoringDefinition",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 12
+        },
+        {
+          "name": "runGit",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "runGitOutput",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 9
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 335,
+        "logic_loc": 264,
+        "public_methods": 10,
+        "ldr": 0.7880597014925373
+      },
+      "import_metrics": {
+        "total": 11,
+        "used": 11,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "cmd",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/cmd/migrate_from_claude_test.go",
+      "functions": [
+        {
+          "name": "TestLibraryMigrateFromClaudeDryRunDoesNotWriteOrPrompt",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 35
+        },
+        {
+          "name": "TestLibraryMigrateFromClaudeCreatesLibraryAndRegistersIt",
+          "cyclomatic_complexity": 15,
+          "is_public": true,
+          "loc": 79
+        },
+        {
+          "name": "TestLibraryMigrateFromClaudeForceWipesExistingCache",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 35
+        },
+        {
+          "name": "TestLibraryMigrateFromClaudeRejectsUnsafeLibraryNameBeforeForceDelete",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 26
+        },
+        {
+          "name": "TestLibraryMigrateFromClaudePreservesExistingDefault",
+          "cyclomatic_complexity": 9,
+          "is_public": true,
+          "loc": 38
+        },
+        {
+          "name": "TestLibraryMigrateFromClaudeDuplicateWarnsOnStderrAndKeepsGlobal",
+          "cyclomatic_complexity": 9,
+          "is_public": true,
+          "loc": 39
+        },
+        {
+          "name": "TestLibraryMigrateFromClaudeProjectPromptApproveAllOnStderr",
+          "cyclomatic_complexity": 9,
+          "is_public": true,
+          "loc": 38
+        },
+        {
+          "name": "TestLibraryMigrateFromClaudeIncludesRemoteMCPsInApprovalFlow",
+          "cyclomatic_complexity": 11,
+          "is_public": true,
+          "loc": 61
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 352,
+        "logic_loc": 269,
+        "public_methods": 8,
+        "ldr": 0.7642045454545454
+      },
+      "import_metrics": {
+        "total": 9,
+        "used": 9,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "cmd",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/cmd/pick_command_test.go",
+      "functions": [
+        {
+          "name": "TestPickCommandWritesConfirmedSelectionToLock",
+          "cyclomatic_complexity": 13,
+          "is_public": true,
+          "loc": 42
+        },
+        {
+          "name": "TestPickCommandCancelLeavesLockUnchanged",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 33
+        },
+        {
+          "name": "TestPickCommandPrintsDuplicateWarnings",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 26
+        },
+        {
+          "name": "TestPickCommandErrorsWhenNoLibrariesConfigured",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "TestPickCommandDefaultTargetsApplyToEverySelectedMCP",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 34
+        },
+        {
+          "name": "TestPickCommandRemovesUncheckedMCPs",
+          "cyclomatic_complexity": 11,
+          "is_public": true,
+          "loc": 47
+        },
+        {
+          "name": "TestPickCommandConfirmedUnchangedSelectionDoesNotFetchDefinition",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 36
+        },
+        {
+          "name": "TestPickCommandRollsBackRenderedFilesOnLockSaveFailure",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 32
+        },
+        {
+          "name": "TestPickCommandRollsBackRenderedFilesOnSideEffectFailure",
+          "cyclomatic_complexity": 9,
+          "is_public": true,
+          "loc": 47
+        },
+        {
+          "name": "TestPickCommandRejectsAuthSensitiveDefinitionWithoutRendering",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 34
+        },
+        {
+          "name": "TestPickCommandUsesConfiguredLibrariesWhenLockHasNone",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 28
+        },
+        {
+          "name": "TestPickCommandUsesConfiguredLibrariesMissingFromNonEmptyLock",
+          "cyclomatic_complexity": 9,
+          "is_public": true,
+          "loc": 34
+        },
+        {
+          "name": "TestPickCommandRejectsUnknownTargets",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "writePickConfig",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "writePickLock",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 6
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 430,
+        "logic_loc": 346,
+        "public_methods": 13,
+        "ldr": 0.8046511627906977
+      },
+      "import_metrics": {
+        "total": 14,
+        "used": 14,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "cmd",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/cmd/pick_helpers_test.go",
+      "functions": [
+        {
+          "name": "TestBuildPickListFlattensAllLibraries",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "TestBuildPickListWrapsIndexErrorWithLibraryName",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "TestBuildPickListWarnsForDuplicateNamesFromDifferentLibraries",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 21
+        },
+        {
+          "name": "TestApplyPickResultWritesSelectedMCPsAndEmptySlice",
+          "cyclomatic_complexity": 11,
+          "is_public": true,
+          "loc": 29
+        },
+        {
+          "name": "TestApplyPickResultErrorsForUnknownLibrary",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "TestApplyPickResultRejectsDuplicateRenderedNames",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 14
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 109,
+        "logic_loc": 85,
+        "public_methods": 6,
+        "ldr": 0.7798165137614679
+      },
+      "import_metrics": {
+        "total": 9,
+        "used": 9,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "cmd",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/cmd/root.go",
+      "functions": [
+        {
+          "name": "Execute",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        },
+        {
+          "name": "ExitCode",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "NewRootCommand",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 22
+        },
+        {
+          "name": "newInitCommand",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "newInitCommandWithDeps",
+          "cyclomatic_complexity": 18,
+          "is_public": false,
+          "loc": 75
+        },
+        {
+          "name": "newLibraryCommand",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "newLibraryCommandWithDeps",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 11
+        },
+        {
+          "name": "newLibraryAddCommand",
+          "cyclomatic_complexity": 8,
+          "is_public": false,
+          "loc": 38
+        },
+        {
+          "name": "newLibraryListCommand",
+          "cyclomatic_complexity": 6,
+          "is_public": false,
+          "loc": 27
+        },
+        {
+          "name": "newLibraryPullCommand",
+          "cyclomatic_complexity": 9,
+          "is_public": false,
+          "loc": 41
+        },
+        {
+          "name": "newLibraryShowCommand",
+          "cyclomatic_complexity": 10,
+          "is_public": false,
+          "loc": 53
+        },
+        {
+          "name": "filterLibraryIndex",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 12
+        },
+        {
+          "name": "newLibraryMigrateFromClaudeCommand",
+          "cyclomatic_complexity": 15,
+          "is_public": false,
+          "loc": 65
+        },
+        {
+          "name": "printClaudeMigrationDryRun",
+          "cyclomatic_complexity": 5,
+          "is_public": false,
+          "loc": 14
+        },
+        {
+          "name": "prepareLocalLibraryConfig",
+          "cyclomatic_complexity": 10,
+          "is_public": false,
+          "loc": 40
+        },
+        {
+          "name": "approveClaudeMCPs",
+          "cyclomatic_complexity": 9,
+          "is_public": false,
+          "loc": 32
+        },
+        {
+          "name": "promptApproval",
+          "cyclomatic_complexity": 10,
+          "is_public": false,
+          "loc": 18
+        },
+        {
+          "name": "newMCPCommand",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 5
+        },
+        {
+          "name": "newMCPImportCommand",
+          "cyclomatic_complexity": 14,
+          "is_public": false,
+          "loc": 53
+        },
+        {
+          "name": "writeImportedDefinition",
+          "cyclomatic_complexity": 10,
+          "is_public": false,
+          "loc": 29
+        },
+        {
+          "name": "editDefinitionCandidate",
+          "cyclomatic_complexity": 8,
+          "is_public": false,
+          "loc": 30
+        },
+        {
+          "name": "readDefinitionFile",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 11
+        },
+        {
+          "name": "hasAuthFields",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "promptLine",
+          "cyclomatic_complexity": 6,
+          "is_public": false,
+          "loc": 13
+        },
+        {
+          "name": "splitCSV",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 11
+        },
+        {
+          "name": "runEditor",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 14
+        },
+        {
+          "name": "newMCPAddCommand",
+          "cyclomatic_complexity": 18,
+          "is_public": false,
+          "loc": 78
+        },
+        {
+          "name": "mcpAddFlagChanged",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "newMCPEditCommand",
+          "cyclomatic_complexity": 7,
+          "is_public": false,
+          "loc": 33
+        },
+        {
+          "name": "newMCPPushCommand",
+          "cyclomatic_complexity": 9,
+          "is_public": false,
+          "loc": 41
+        },
+        {
+          "name": "newStatusCommand",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "newStatusCommandWithDeps",
+          "cyclomatic_complexity": 11,
+          "is_public": false,
+          "loc": 51
+        },
+        {
+          "name": "newSyncCommand",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "newSyncCommandWithDeps",
+          "cyclomatic_complexity": 15,
+          "is_public": false,
+          "loc": 80
+        },
+        {
+          "name": "writeStatusPlain",
+          "cyclomatic_complexity": 7,
+          "is_public": false,
+          "loc": 21
+        },
+        {
+          "name": "writeStatusDetails",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 11
+        },
+        {
+          "name": "statusRowState",
+          "cyclomatic_complexity": 10,
+          "is_public": false,
+          "loc": 20
+        },
+        {
+          "name": "statusDetailMatchesMCP",
+          "cyclomatic_complexity": 5,
+          "is_public": false,
+          "loc": 12
+        },
+        {
+          "name": "statusDefinitionDrifted",
+          "cyclomatic_complexity": 5,
+          "is_public": false,
+          "loc": 12
+        },
+        {
+          "name": "statusLibraryVersion",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 12
+        },
+        {
+          "name": "statusValue",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "statusIcon",
+          "cyclomatic_complexity": 5,
+          "is_public": false,
+          "loc": 14
+        },
+        {
+          "name": "statusHint",
+          "cyclomatic_complexity": 6,
+          "is_public": false,
+          "loc": 16
+        },
+        {
+          "name": "statusIndexes",
+          "cyclomatic_complexity": 5,
+          "is_public": false,
+          "loc": 20
+        },
+        {
+          "name": "statusDefinitions",
+          "cyclomatic_complexity": 7,
+          "is_public": false,
+          "loc": 27
+        },
+        {
+          "name": "statusHasRenderedTarget",
+          "cyclomatic_complexity": 6,
+          "is_public": false,
+          "loc": 17
+        },
+        {
+          "name": "syncSecurityError",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "ensureLockLibrariesRegistered",
+          "cyclomatic_complexity": 12,
+          "is_public": false,
+          "loc": 40
+        },
+        {
+          "name": "readPromptAnswer",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 13
+        },
+        {
+          "name": "acceptRegistration",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 11
+        },
+        {
+          "name": "syncPullLibraries",
+          "cyclomatic_complexity": 9,
+          "is_public": false,
+          "loc": 29
+        },
+        {
+          "name": "newInstallHooksCommand",
+          "cyclomatic_complexity": 7,
+          "is_public": false,
+          "loc": 36
+        },
+        {
+          "name": "newPickCommand",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "newPickCommandWithDeps",
+          "cyclomatic_complexity": 13,
+          "is_public": false,
+          "loc": 57
+        },
+        {
+          "name": "NewPickCommandForTest",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "NewInitCommandForTest",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "NewLibraryCommandForTest",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "NewStatusCommandForTest",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "runBubbleteaPick",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 11
+        },
+        {
+          "name": "lockWithConfiguredLibraries",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 15
+        },
+        {
+          "name": "savePickResultWithSideEffects",
+          "cyclomatic_complexity": 12,
+          "is_public": false,
+          "loc": 38
+        },
+        {
+          "name": "pickSyncNames",
+          "cyclomatic_complexity": 6,
+          "is_public": false,
+          "loc": 14
+        },
+        {
+          "name": "preparePickSyncLock",
+          "cyclomatic_complexity": 6,
+          "is_public": false,
+          "loc": 21
+        },
+        {
+          "name": "pickSyncError",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 11
+        },
+        {
+          "name": "snapshotPickAdapters",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 15
+        },
+        {
+          "name": "rollbackPickSideEffects",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 12
+        },
+        {
+          "name": "pickLockKey",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "removePickTargets",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 12
+        },
+        {
+          "name": "pickAdapter",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "normalizePickTarget",
+          "cyclomatic_complexity": 7,
+          "is_public": false,
+          "loc": 22
+        },
+        {
+          "name": "buildPickList",
+          "cyclomatic_complexity": 5,
+          "is_public": false,
+          "loc": 20
+        },
+        {
+          "name": "applyPickResult",
+          "cyclomatic_complexity": 9,
+          "is_public": false,
+          "loc": 34
+        },
+        {
+          "name": "loadConfig",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "saveConfig",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "parseTargets",
+          "cyclomatic_complexity": 5,
+          "is_public": false,
+          "loc": 18
+        },
+        {
+          "name": "stageInitFiles",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 12
+        },
+        {
+          "name": "createTarget",
+          "cyclomatic_complexity": 8,
+          "is_public": false,
+          "loc": 25
+        },
+        {
+          "name": "writeValue",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "printf",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "eprintf",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "println",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "contains",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 8
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 1716,
+        "logic_loc": 1264,
+        "public_methods": 7,
+        "ldr": 0.7365967365967366
+      },
+      "import_metrics": {
+        "total": 25,
+        "used": 25,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "cmd",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/cmd/root_test.go",
+      "functions": [
+        {
+          "name": "TestInitCommandCreatesLockAndTargets",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "TestInitCommandLaunchesPickForSelectedLibrary",
+          "cyclomatic_complexity": 13,
+          "is_public": true,
+          "loc": 38
+        },
+        {
+          "name": "TestInitCommandStagesCreatedTargetFilesInGit",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "TestInitCommandStagesPostPickLock",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 30
+        },
+        {
+          "name": "TestInitCommandDoesNotStageExistingTargets",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 27
+        },
+        {
+          "name": "mustReadFile",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "TestInitCommandDoesNotOverwriteExistingTargets",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 25
+        },
+        {
+          "name": "TestInitCommandRequiresYesToReinitializeExistingLock",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "TestCommandsRejectUnexpectedArgs",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 23
+        },
+        {
+          "name": "TestSyncCommandSavesPendingInputLock",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 40
+        },
+        {
+          "name": "TestStatusCommandJSONUsesLibraryIndex",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 37
+        },
+        {
+          "name": "TestStatusQuietConfiguredExitsZero",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 28
+        },
+        {
+          "name": "TestStatusCommandPrintsPendingInput",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 28
+        },
+        {
+          "name": "TestStatusCommandPrintsDriftTableWithVersions",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 35
+        },
+        {
+          "name": "TestStatusRowStateMatchesExactMCPName",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "TestStatusCommandPromptsToRegisterUnknownLockLibrary",
+          "cyclomatic_complexity": 12,
+          "is_public": true,
+          "loc": 40
+        },
+        {
+          "name": "TestStatusCommandDeclinesUnknownLockLibraryWithManualCommand",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 22
+        },
+        {
+          "name": "TestStatusCommandEOFDeclinesUnknownLockLibraryWithoutClone",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 29
+        },
+        {
+          "name": "TestStatusCommandUnknownLockLibraryWithoutURLFailsBeforePrompt",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 26
+        },
+        {
+          "name": "TestStatusQuietDoesNotPromptOrCloneUnknownLockLibrary",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 29
+        },
+        {
+          "name": "TestStatusJSONKeepsBootstrapPromptOffStdout",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 37
+        },
+        {
+          "name": "TestExitCodeClassifiesUsageErrors",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "Error",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "writeCommandMigration",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 15
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 591,
+        "logic_loc": 465,
+        "public_methods": 22,
+        "ldr": 0.7868020304568528
+      },
+      "import_metrics": {
+        "total": 16,
+        "used": 16,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "cmd",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/cmd/sync_command_test.go",
+      "functions": [
+        {
+          "name": "TestSyncCommandPullsAndProcessesNamedMCP",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 35
+        },
+        {
+          "name": "TestSyncCommandNoPullSkipsLibraryPull",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "TestSyncCommandForcePinMismatchRequiresPhrase",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 23
+        },
+        {
+          "name": "TestSyncCommandForcePinMismatchWithPhraseRenders",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 21
+        },
+        {
+          "name": "TestSyncCommandRegistersUnknownLockLibraryBeforePull",
+          "cyclomatic_complexity": 11,
+          "is_public": true,
+          "loc": 37
+        },
+        {
+          "name": "TestSyncCommandPullsOnlyLibrariesForSelectedMCPs",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 25
+        },
+        {
+          "name": "TestSyncCommandRejectsUnknownNamedMCPBeforePull",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "TestSyncCommandNoOpDoesNotPullOrWriteMissingLock",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "TestSyncCommandDefaultAdaptersUseConfiguredRoot",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 30
+        },
+        {
+          "name": "writeSyncConfig",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "writeSyncLock",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "Render",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Remove",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "TargetFile",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 249,
+        "logic_loc": 206,
+        "public_methods": 12,
+        "ldr": 0.8273092369477911
+      },
+      "import_metrics": {
+        "total": 14,
+        "used": 14,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "features",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/features/graft_test.go",
+      "functions": [
+        {
+          "name": "TestFeatures",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "InitializeScenario",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 60
+        },
+        {
+          "name": "registeredDefaultLibrary",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 18
+        },
+        {
+          "name": "runInitBothTargets",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 7
+        },
+        {
+          "name": "targetsCreated",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "claudeFile",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "codexFile",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "gitBackedLibraryURL",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 10
+        },
+        {
+          "name": "runLibraryAdd",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 7
+        },
+        {
+          "name": "librarySavedInUserConfig",
+          "cyclomatic_complexity": 6,
+          "is_public": false,
+          "loc": 11
+        },
+        {
+          "name": "registeredLibrary",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 14
+        },
+        {
+          "name": "runLibraryPull",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 7
+        },
+        {
+          "name": "latestCommitSHAReported",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 14
+        },
+        {
+          "name": "registeredLibraryWithIndex",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 14
+        },
+        {
+          "name": "runLibraryShow",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 7
+        },
+        {
+          "name": "mcpSummaryShown",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 9
+        },
+        {
+          "name": "lockReferencesUnregisteredLibrary",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 16
+        },
+        {
+          "name": "graftLoadsLock",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "unknownLibraryAutoRegistrationFlowStarts",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 14
+        },
+        {
+          "name": "libraryIndex",
+          "cyclomatic_complexity": 7,
+          "is_public": false,
+          "loc": 25
+        },
+        {
+          "name": "runPick",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "mcpsGroupedByLibrary",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "lockHasSelectedMCPs",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 23
+        },
+        {
+          "name": "runPickAgain",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 11
+        },
+        {
+          "name": "existingMCPsPreselected",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "confirmSelections",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 23
+        },
+        {
+          "name": "graftWritesLock",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "selectedMCPsIncludeFields",
+          "cyclomatic_complexity": 8,
+          "is_public": false,
+          "loc": 14
+        },
+        {
+          "name": "noop",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "Add",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Pull",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Index",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 1
+        },
+        {
+          "name": "Definition",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Reindex",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 409,
+        "logic_loc": 327,
+        "public_methods": 7,
+        "ldr": 0.7995110024449877
+      },
+      "import_metrics": {
+        "total": 15,
+        "used": 15,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "claudecfg",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/claudecfg/claudecfg.go",
+      "functions": [
+        {
+          "name": "DefaultPath",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "Load",
+          "cyclomatic_complexity": 10,
+          "is_public": true,
+          "loc": 36
+        },
+        {
+          "name": "loadProjectGroup",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 15
+        },
+        {
+          "name": "mcpsFromServers",
+          "cyclomatic_complexity": 6,
+          "is_public": false,
+          "loc": 50
+        },
+        {
+          "name": "placeholderMap",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 7
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 167,
+        "logic_loc": 117,
+        "public_methods": 2,
+        "ldr": 0.7005988023952096
+      },
+      "import_metrics": {
+        "total": 6,
+        "used": 6,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "claudecfg",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/claudecfg/claudecfg_test.go",
+      "functions": [
+        {
+          "name": "TestLoadGroupsGlobalLocalAndProjectStdioMCPs",
+          "cyclomatic_complexity": 18,
+          "is_public": true,
+          "loc": 63
+        },
+        {
+          "name": "TestLoadSkipsCommandlessServersWithoutExplicitRemoteType",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "TestLoadParsesHTTPMCPsAndRedactsHeaders",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 32
+        },
+        {
+          "name": "TestLoadParsesRemoteMCPsAtAllScopes",
+          "cyclomatic_complexity": 13,
+          "is_public": true,
+          "loc": 74
+        },
+        {
+          "name": "TestLoadHTTPRoundTripRendersClaudeAndCodex",
+          "cyclomatic_complexity": 17,
+          "is_public": true,
+          "loc": 58
+        },
+        {
+          "name": "TestDefaultPathUsesClaudeConfigDirBeforeHome",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 12
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 260,
+        "logic_loc": 194,
+        "public_methods": 6,
+        "ldr": 0.7461538461538462
+      },
+      "import_metrics": {
+        "total": 7,
+        "used": 7,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "config",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/config/config.go",
+      "functions": [
+        {
+          "name": "ValidateLibraryName",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "ValidateLibraryURL",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "RedactLibraryURL",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "DefaultPath",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "Load",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 24
+        },
+        {
+          "name": "Save",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "DefaultLibrary",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "Library",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "WithLibrary",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 24
+        },
+        {
+          "name": "defaultCachePath",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 11
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 187,
+        "logic_loc": 110,
+        "public_methods": 9,
+        "ldr": 0.5882352941176471
+      },
+      "import_metrics": {
+        "total": 9,
+        "used": 9,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "config",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/config/config_test.go",
+      "functions": [
+        {
+          "name": "TestFileStore_SaveLoadRoundTrip",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "TestConfig_WithLibrarySetsFirstAsDefault",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "TestDefaultPathUsesXDGConfigHome",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 12
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 43,
+        "logic_loc": 30,
+        "public_methods": 3,
+        "ldr": 0.6976744186046512
+      },
+      "import_metrics": {
+        "total": 2,
+        "used": 2,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "mock",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/config/mock/store.go",
+      "functions": [
+        {
+          "name": "NewMockStore",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 5
+        },
+        {
+          "name": "EXPECT",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Load",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 7
+        },
+        {
+          "name": "Load",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        },
+        {
+          "name": "Save",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "Save",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 59,
+        "logic_loc": 30,
+        "public_methods": 6,
+        "ldr": 0.5084745762711864
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "fileutil",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/fileutil/fileutil.go",
+      "functions": [
+        {
+          "name": "AtomicWriteFile",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 33
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 43,
+        "logic_loc": 28,
+        "public_methods": 1,
+        "ldr": 0.6511627906976745
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "hooks",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/hooks/hooks.go",
+      "functions": [
+        {
+          "name": "DefaultRCPath",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 7
+        },
+        {
+          "name": "defaultRCPathForOS",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "defaultRCPathForShell",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 9
+        },
+        {
+          "name": "shellSnippetForOS",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 16
+        },
+        {
+          "name": "InstallShellHook",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "InstallPostCheckout",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "ownedPostCheckoutContent",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "Uninstall",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 21
+        },
+        {
+          "name": "removeShellBlock",
+          "cyclomatic_complexity": 9,
+          "is_public": false,
+          "loc": 31
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 153,
+        "logic_loc": 103,
+        "public_methods": 4,
+        "ldr": 0.673202614379085
+      },
+      "import_metrics": {
+        "total": 6,
+        "used": 6,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "hooks",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/hooks/hooks_test.go",
+      "functions": [
+        {
+          "name": "TestInstallPostCheckoutRefusesUnmanagedHook",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "TestDefaultRCPathForOS",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "TestDefaultRCPathForShell",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "TestShellSnippetForOS",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "TestInstallShellHookAppendsSnippetIdempotently",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 21
+        },
+        {
+          "name": "TestInstallPostCheckoutWritesExecutableManagedHook",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 22
+        },
+        {
+          "name": "TestInstallPostCheckoutRefusesMixedManagedHook",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "TestUninstallRefusesMixedHook",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "TestUninstallRemovesOwnedShellBlockAndHook",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 25
+        },
+        {
+          "name": "TestUninstallRefusesUnterminatedShellBlock",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 18
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 169,
+        "logic_loc": 120,
+        "public_methods": 10,
+        "ldr": 0.7100591715976331
+      },
+      "import_metrics": {
+        "total": 4,
+        "used": 4,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "library",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/library/library.go",
+      "functions": [
+        {
+          "name": "Add",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 23
+        },
+        {
+          "name": "Pull",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "Index",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "Definition",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "Reindex",
+          "cyclomatic_complexity": 9,
+          "is_public": true,
+          "loc": 40
+        },
+        {
+          "name": "Diff",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "PushAll",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "stageLibraryFiles",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "hasStagedChanges",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 13
+        },
+        {
+          "name": "gitSHA",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 10
+        },
+        {
+          "name": "InitLocal",
+          "cyclomatic_complexity": 9,
+          "is_public": true,
+          "loc": 24
+        },
+        {
+          "name": "CommitAll",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "runGit",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 15
+        },
+        {
+          "name": "gitPath",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "commandContext",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "WriteDefinition",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "WriteDefinitionFile",
+          "cyclomatic_complexity": 10,
+          "is_public": true,
+          "loc": 30
+        },
+        {
+          "name": "ValidateMCPName",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "NormalizeDefinition",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "ImportFile",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "importClaude",
+          "cyclomatic_complexity": 5,
+          "is_public": false,
+          "loc": 48
+        },
+        {
+          "name": "importCodex",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 44
+        },
+        {
+          "name": "placeholderMap",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 11
+        },
+        {
+          "name": "sortDefinitions",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 5
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 457,
+        "logic_loc": 329,
+        "public_methods": 14,
+        "ldr": 0.7199124726477024
+      },
+      "import_metrics": {
+        "total": 16,
+        "used": 16,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "library",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/library/library_test.go",
+      "functions": [
+        {
+          "name": "TestImportFileClaudeJSON",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "TestWriteDefinitionRejectsTraversalAndCollision",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "TestImportFileCodexTOML",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "TestImportFileParsesHTTPTransports",
+          "cyclomatic_complexity": 12,
+          "is_public": true,
+          "loc": 32
+        },
+        {
+          "name": "TestImportFileRedactsLiteralHeaderAndEnvValues",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 21
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 102,
+        "logic_loc": 74,
+        "public_methods": 5,
+        "ldr": 0.7254901960784313
+      },
+      "import_metrics": {
+        "total": 5,
+        "used": 5,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "mock",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/library/mock/client.go",
+      "functions": [
+        {
+          "name": "NewMockClient",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 5
+        },
+        {
+          "name": "EXPECT",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Add",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "Add",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        },
+        {
+          "name": "Definition",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "Definition",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        },
+        {
+          "name": "Index",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 7
+        },
+        {
+          "name": "Index",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        },
+        {
+          "name": "Pull",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 7
+        },
+        {
+          "name": "Pull",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        },
+        {
+          "name": "Reindex",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 7
+        },
+        {
+          "name": "Reindex",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 101,
+        "logic_loc": 60,
+        "public_methods": 12,
+        "ldr": 0.594059405940594
+      },
+      "import_metrics": {
+        "total": 5,
+        "used": 5,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "lock",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/lock/lock.go",
+      "functions": [
+        {
+          "name": "Load",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 21
+        },
+        {
+          "name": "Save",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "HashBytes",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        },
+        {
+          "name": "HashFile",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 7
+        },
+        {
+          "name": "Library",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "MCP",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 8
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 112,
+        "logic_loc": 63,
+        "public_methods": 6,
+        "ldr": 0.5625
+      },
+      "import_metrics": {
+        "total": 8,
+        "used": 8,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "lock",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/lock/lock_test.go",
+      "functions": [
+        {
+          "name": "TestFileStore_SaveLoadRoundTrip",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 25
+        },
+        {
+          "name": "TestHashBytes",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 7
+        },
+        {
+          "name": "TestHashFile",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 14
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 52,
+        "logic_loc": 36,
+        "public_methods": 3,
+        "ldr": 0.6923076923076923
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "mock",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/lock/mock/store.go",
+      "functions": [
+        {
+          "name": "NewMockStore",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 5
+        },
+        {
+          "name": "EXPECT",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Load",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 7
+        },
+        {
+          "name": "Load",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        },
+        {
+          "name": "Save",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "Save",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 59,
+        "logic_loc": 30,
+        "public_methods": 6,
+        "ldr": 0.5084745762711864
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "migrate",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/migrate/migrate.go",
+      "functions": [
+        {
+          "name": "Chain",
+          "cyclomatic_complexity": 24,
+          "is_public": true,
+          "loc": 92
+        },
+        {
+          "name": "Apply",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "ApplyWithInput",
+          "cyclomatic_complexity": 11,
+          "is_public": true,
+          "loc": 35
+        },
+        {
+          "name": "renamePath",
+          "cyclomatic_complexity": 6,
+          "is_public": false,
+          "loc": 20
+        },
+        {
+          "name": "setDefault",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "getPath",
+          "cyclomatic_complexity": 5,
+          "is_public": false,
+          "loc": 19
+        },
+        {
+          "name": "setPath",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 17
+        },
+        {
+          "name": "deletePath",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 12
+        },
+        {
+          "name": "validatePathParents",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 16
+        },
+        {
+          "name": "pathsOverlap",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 3
+        },
+        {
+          "name": "validateMigrationName",
+          "cyclomatic_complexity": 6,
+          "is_public": false,
+          "loc": 9
+        },
+        {
+          "name": "validateMigrationFilename",
+          "cyclomatic_complexity": 6,
+          "is_public": false,
+          "loc": 11
+        },
+        {
+          "name": "rejectSymlink",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 13
+        },
+        {
+          "name": "SortFiles",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 5
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 307,
+        "logic_loc": 206,
+        "public_methods": 4,
+        "ldr": 0.6710097719869706
+      },
+      "import_metrics": {
+        "total": 7,
+        "used": 7,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "migrate",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/migrate/migrate_test.go",
+      "functions": [
+        {
+          "name": "TestApplyReturnsPendingInputWhenRequiredValueMissing",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 22
+        },
+        {
+          "name": "TestChainReturnsEmptyWhenVersionsMatch",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "TestApplyRenamesNestedPathAndRemovesSource",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "TestApplyRejectsRenameTargetCollision",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "TestApplyRejectsRenameOverlappingPaths",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "TestApplySetDefaultKeepsExistingAndCreatesNestedValue",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "TestApplyRejectsScalarParentPath",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "TestApplyWithInputPromptsForRequiredInputWhenAuto",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 24
+        },
+        {
+          "name": "TestApplyWithInputPromptsForRequiredInputWhenNotAuto",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 19
+        },
+        {
+          "name": "TestChainRejectsTraversalNameEvenWhenVersionsMatch",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "TestChainReturnsOrderedMultiHopPath",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "TestChainIgnoresCyclicDeadBranchWhenValidPathExists",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "TestChainPrefersDirectEdgeToRequestedVersion",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "TestChainRejectsBrokenPath",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "TestChainRejectsTraversalName",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "TestChainRejectsSymlinkedMigrationFile",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 23
+        },
+        {
+          "name": "TestChainRejectsSymlinkedMigrationDirectory",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "TestChainRejectsMalformedMigrationFilename",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 19
+        },
+        {
+          "name": "TestChainRejectsMismatchedFilename",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 19
+        },
+        {
+          "name": "TestChainRejectsCycles",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "writeMigration",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 14
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 326,
+        "logic_loc": 246,
+        "public_methods": 20,
+        "ldr": 0.754601226993865
+      },
+      "import_metrics": {
+        "total": 7,
+        "used": 7,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "model",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/model/model.go",
+      "functions": [
+        {
+          "name": "Adapter",
+          "cyclomatic_complexity": 11,
+          "is_public": true,
+          "loc": 42
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 99,
+        "logic_loc": 58,
+        "public_methods": 1,
+        "ldr": 0.5858585858585859
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "model",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/model/model_test.go",
+      "functions": [
+        {
+          "name": "TestDefinitionAdapterMergesTransportOverrides",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 25
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 25,
+        "logic_loc": 19,
+        "public_methods": 1,
+        "ldr": 0.76
+      },
+      "import_metrics": {
+        "total": 1,
+        "used": 1,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "mock",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/pin/mock/handler.go",
+      "functions": [
+        {
+          "name": "NewMockHandler",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 5
+        },
+        {
+          "name": "EXPECT",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Detect",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "Detect",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        },
+        {
+          "name": "Inject",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "Inject",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        },
+        {
+          "name": "Validate",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "Validate",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 70,
+        "logic_loc": 37,
+        "public_methods": 8,
+        "ldr": 0.5285714285714286
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "pin",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/pin/pin.go",
+      "functions": [
+        {
+          "name": "NewRegistry",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "Register",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Handler",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "HandlerForRuntime",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        },
+        {
+          "name": "Enforce",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 19
+        },
+        {
+          "name": "Detect",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Validate",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Inject",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Detect",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Validate",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Inject",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 26
+        },
+        {
+          "name": "looksLikeImage",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "Detect",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Validate",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "Inject",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 9
+        },
+        {
+          "name": "InstalledRuntimeVersion",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "firstPackageArg",
+          "cyclomatic_complexity": 11,
+          "is_public": false,
+          "loc": 36
+        },
+        {
+          "name": "dockerOptionConsumesValue",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "npmPackageVersion",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 12
+        },
+        {
+          "name": "packageWithVersion",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 12
+        },
+        {
+          "name": "uvPackageVersion",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "dockerArgDigest",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "validNPMIntegrity",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "packageWithEqualsVersion",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 6
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 295,
+        "logic_loc": 193,
+        "public_methods": 15,
+        "ldr": 0.6542372881355932
+      },
+      "import_metrics": {
+        "total": 6,
+        "used": 6,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "pin",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/pin/pin_test.go",
+      "functions": [
+        {
+          "name": "TestRegistryDetectsHandlers",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "TestEnforceRequiresConfirmationWhenForced",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "TestDockerInjectDigest",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "TestRegistryZeroValueRegister",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "TestEnforceNilHandler",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "TestDockerInjectSkipsVolumePath",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "TestRegistryReturnsHandlerForRuntimeName",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "TestNPMInjectPinsFirstPackageArgumentAfterFlags",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "TestNPMInjectSkipsRegistryOptionValue",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "TestNPMValidateRejectsMalformedIntegrity",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "TestNPMInjectPinsPackageEqualsOptionValue",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "TestNPMInjectPinsPackageOptionValue",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "TestNPMInjectPreservesScopedPackageName",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 7
+        },
+        {
+          "name": "TestDockerInjectSkipsPortMappingOptionValue",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "TestUVInjectPinsFromPackageValue",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "TestUVInjectPinsFromEqualsPackageValue",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "TestDockerValidateAcceptsDigestAndRejectsTags",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "TestDockerInjectSkipsPlatformOptionValue",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "TestEnforceDoesNotForceInvalidPinMaterial",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 7
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 178,
+        "logic_loc": 128,
+        "public_methods": 19,
+        "ldr": 0.7191011235955056
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "render",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/render/byname.go",
+      "functions": [],
+      "file_metrics": {
+        "total_loc": 6,
+        "logic_loc": 2,
+        "public_methods": 0,
+        "ldr": 0.3333333333333333
+      },
+      "import_metrics": {
+        "total": 0,
+        "used": 0,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "mock",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/render/mock/adapter.go",
+      "functions": [
+        {
+          "name": "NewMockAdapter",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 5
+        },
+        {
+          "name": "EXPECT",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Remove",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "Remove",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        },
+        {
+          "name": "Render",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "Render",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        },
+        {
+          "name": "TargetFile",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "TargetFile",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 4
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 70,
+        "logic_loc": 37,
+        "public_methods": 8,
+        "ldr": 0.5285714285714286
+      },
+      "import_metrics": {
+        "total": 3,
+        "used": 3,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "render",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/render/render.go",
+      "functions": [
+        {
+          "name": "NewClaudeAdapter",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "NewCodexAdapter",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "TargetFile",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Snapshot",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Restore",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Render",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "Remove",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "readClaude",
+          "cyclomatic_complexity": 7,
+          "is_public": false,
+          "loc": 23
+        },
+        {
+          "name": "TargetFile",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Snapshot",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Restore",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Render",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "Remove",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "stdioCommand",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "stdioArgs",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "stdioEnv",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "remoteType",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "remoteURL",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "remoteHeaders",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "readCodex",
+          "cyclomatic_complexity": 5,
+          "is_public": false,
+          "loc": 16
+        },
+        {
+          "name": "writeClaude",
+          "cyclomatic_complexity": 10,
+          "is_public": false,
+          "loc": 31
+        },
+        {
+          "name": "rawManaged",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "claudeServerFields",
+          "cyclomatic_complexity": 8,
+          "is_public": false,
+          "loc": 25
+        },
+        {
+          "name": "writeCodex",
+          "cyclomatic_complexity": 10,
+          "is_public": false,
+          "loc": 31
+        },
+        {
+          "name": "rawCodexServerManaged",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "codexServerFields",
+          "cyclomatic_complexity": 8,
+          "is_public": false,
+          "loc": 25
+        },
+        {
+          "name": "snapshotFile",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 10
+        },
+        {
+          "name": "restoreFile",
+          "cyclomatic_complexity": 6,
+          "is_public": false,
+          "loc": 16
+        },
+        {
+          "name": "Targets",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 14
+        },
+        {
+          "name": "SortedTargetNames",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 5
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 397,
+        "logic_loc": 267,
+        "public_methods": 14,
+        "ldr": 0.672544080604534
+      },
+      "import_metrics": {
+        "total": 9,
+        "used": 9,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "render",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/render/render_test.go",
+      "functions": [
+        {
+          "name": "TestClaudeAdapterRenderAndRemoveManagedEntry",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 26
+        },
+        {
+          "name": "TestCodexAdapterRender",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "TestAdaptersRenderHTTPTransportWithoutStdioFields",
+          "cyclomatic_complexity": 14,
+          "is_public": true,
+          "loc": 45
+        },
+        {
+          "name": "TestCodexAdapterPreservesUnrelatedSettings",
+          "cyclomatic_complexity": 13,
+          "is_public": true,
+          "loc": 42
+        },
+        {
+          "name": "TestClaudeAdapterPreservesUnrelatedMCPFields",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "TestAdaptersUseTargetSpecificOverrides",
+          "cyclomatic_complexity": 9,
+          "is_public": true,
+          "loc": 27
+        },
+        {
+          "name": "TestAdaptersRefuseUnmanagedOverwriteAndPreserveOnRemove",
+          "cyclomatic_complexity": 10,
+          "is_public": true,
+          "loc": 36
+        },
+        {
+          "name": "TestCodexAdapterRemoveManagedEntryPreservesRootSettings",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 19
+        },
+        {
+          "name": "mustReadRenderFile",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 8
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 241,
+        "logic_loc": 178,
+        "public_methods": 8,
+        "ldr": 0.7385892116182573
+      },
+      "import_metrics": {
+        "total": 6,
+        "used": 6,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "status",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/status/status.go",
+      "functions": [
+        {
+          "name": "Resolve",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "ResolveWithDefinitions",
+          "cyclomatic_complexity": 13,
+          "is_public": true,
+          "loc": 34
+        },
+        {
+          "name": "pinMismatchDetail",
+          "cyclomatic_complexity": 10,
+          "is_public": false,
+          "loc": 29
+        },
+        {
+          "name": "externalEditDetail",
+          "cyclomatic_complexity": 9,
+          "is_public": false,
+          "loc": 17
+        },
+        {
+          "name": "targetNewerThanLock",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 11
+        },
+        {
+          "name": "statusTargetFile",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 10
+        },
+        {
+          "name": "renderedConfig",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "renderedConfigWithDetail",
+          "cyclomatic_complexity": 13,
+          "is_public": false,
+          "loc": 40
+        },
+        {
+          "name": "statusTargetNames",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 13
+        },
+        {
+          "name": "JSON",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 227,
+        "logic_loc": 146,
+        "public_methods": 3,
+        "ldr": 0.6431718061674009
+      },
+      "import_metrics": {
+        "total": 10,
+        "used": 10,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "status",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/status/status_test.go",
+      "functions": [
+        {
+          "name": "TestResolveReportsUninitialized",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 7
+        },
+        {
+          "name": "TestResolveReportsInitialized",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 11
+        },
+        {
+          "name": "TestResolveReportsConfigured",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "TestResolveReportsUnknownLibrary",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "TestResolveDetectsDrift",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 19
+        },
+        {
+          "name": "TestResolveReportsPendingInput",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 23
+        },
+        {
+          "name": "TestResolveReportsExternalClaudeEditAsDrift",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 26
+        },
+        {
+          "name": "TestResolveWithDefinitionsReportsPinMismatch",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 24
+        },
+        {
+          "name": "TestResolveWithDefinitionsAcceptsUVDependencyOptions",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 25
+        },
+        {
+          "name": "TestResolveReportsMalformedClaudeConfigAsDrift",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "TestResolveReportsDeletedClaudeConfigAsDrift",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 15
+        },
+        {
+          "name": "TestResolveReportsDeletedClaudeEntryAsDrift",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "TestResolveReportsExternalCodexEditAsDrift",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 21
+        },
+        {
+          "name": "TestResolveReportsManagedClaudeEditNewerThanLockAsDrift",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 23
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 276,
+        "logic_loc": 204,
+        "public_methods": 14,
+        "ldr": 0.7391304347826086
+      },
+      "import_metrics": {
+        "total": 8,
+        "used": 8,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "sync",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/sync/sync.go",
+      "functions": [
+        {
+          "name": "Apply",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "ApplyWithOptions",
+          "cyclomatic_complexity": 16,
+          "is_public": true,
+          "loc": 85
+        },
+        {
+          "name": "migrateDefinition",
+          "cyclomatic_complexity": 12,
+          "is_public": false,
+          "loc": 34
+        },
+        {
+          "name": "AuthWarning",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 6
+        },
+        {
+          "name": "AuthWarningForTarget",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "credentialMapHasSensitiveFields",
+          "cyclomatic_complexity": 10,
+          "is_public": false,
+          "loc": 17
+        },
+        {
+          "name": "enforcePinForTargets",
+          "cyclomatic_complexity": 12,
+          "is_public": false,
+          "loc": 38
+        },
+        {
+          "name": "pinMismatchDiff",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 6
+        },
+        {
+          "name": "renderTarget",
+          "cyclomatic_complexity": 13,
+          "is_public": false,
+          "loc": 46
+        },
+        {
+          "name": "restoreSnapshots",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 9
+        },
+        {
+          "name": "renderTargetList",
+          "cyclomatic_complexity": 5,
+          "is_public": false,
+          "loc": 15
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 322,
+        "logic_loc": 229,
+        "public_methods": 4,
+        "ldr": 0.7111801242236024
+      },
+      "import_metrics": {
+        "total": 11,
+        "used": 11,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "sync",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/sync/sync_test.go",
+      "functions": [
+        {
+          "name": "TestApplyMarksPendingInputWhenMigrationRequiresInput",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 27
+        },
+        {
+          "name": "TestApplyWarnsAndRendersUnknownPinRuntime",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 23
+        },
+        {
+          "name": "TestApplyAllowsDifferentMCPAndRuntimeVersionsWhenArgsAreUnpinned",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "TestApplyFailsPinRuntimeCommandMismatch",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "TestApplyPinsAdapterOverrideArgs",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 27
+        },
+        {
+          "name": "TestApplyHardBlocksPackageEqualsVersionMismatchWithoutForce",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "TestApplyUVVersionInferenceSkipsWithDependency",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "TestApplyHardBlocksUVFromEqualsVersionMismatchWithoutForce",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "TestApplyHardBlocksPinMismatchWithoutForce",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "TestApplyForcePinMismatchWithConfirmation",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "TestApplyFailsDefinitionErrorsInsteadOfSkipping",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 16
+        },
+        {
+          "name": "TestApplySkipsCurrentAndOnlyProcessesNamedDrift",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 28
+        },
+        {
+          "name": "TestApplySkipsAlreadyCurrentMCP",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 17
+        },
+        {
+          "name": "TestApplyReportsSucceededFailedAndSkippedTogether",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 29
+        },
+        {
+          "name": "TestApplyWarnsAndSkipsAuthSensitiveDefinition",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "TestApplyWarnsAndSkipsAdapterOverrideAuthDefinition",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 25
+        },
+        {
+          "name": "TestApplyWarnsWhenMigrationIntroducesCredentials",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 27
+        },
+        {
+          "name": "TestApplyFailsMixedUnknownTargetWithoutRendering",
+          "cyclomatic_complexity": 6,
+          "is_public": true,
+          "loc": 20
+        },
+        {
+          "name": "TestAuthWarningCoversCredentialPatternsAndAdapterOverrides",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 22
+        },
+        {
+          "name": "TestApplyRunsAutomaticMigrationStepsBeforeRender",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 27
+        },
+        {
+          "name": "TestApplyRendersBothTargets",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "TestApplyRollsBackBothTargetsWhenLaterRenderFails",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 21
+        },
+        {
+          "name": "TestApplyReportsRollbackFailure",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 18
+        },
+        {
+          "name": "Add",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Pull",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Index",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Definition",
+          "cyclomatic_complexity": 3,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "Reindex",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Render",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 8
+        },
+        {
+          "name": "Snapshot",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Restore",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 7
+        },
+        {
+          "name": "Remove",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "TargetFile",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "testLibrary",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 4
+        },
+        {
+          "name": "writeMigration",
+          "cyclomatic_complexity": 4,
+          "is_public": false,
+          "loc": 15
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 590,
+        "logic_loc": 458,
+        "public_methods": 33,
+        "ldr": 0.7762711864406779
+      },
+      "import_metrics": {
+        "total": 11,
+        "used": 11,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "tui",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/tui/pick.go",
+      "functions": [
+        {
+          "name": "NewPickModel",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 7
+        },
+        {
+          "name": "Init",
+          "cyclomatic_complexity": 1,
+          "is_public": true,
+          "loc": 3
+        },
+        {
+          "name": "Update",
+          "cyclomatic_complexity": 12,
+          "is_public": true,
+          "loc": 40
+        },
+        {
+          "name": "Results",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 12
+        },
+        {
+          "name": "View",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 32
+        },
+        {
+          "name": "appendWithinLimit",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 8
+        },
+        {
+          "name": "bodyLineLimit",
+          "cyclomatic_complexity": 3,
+          "is_public": false,
+          "loc": 10
+        },
+        {
+          "name": "withCursorVisible",
+          "cyclomatic_complexity": 5,
+          "is_public": false,
+          "loc": 12
+        },
+        {
+          "name": "cursorRendered",
+          "cyclomatic_complexity": 7,
+          "is_public": false,
+          "loc": 26
+        },
+        {
+          "name": "selectionKey",
+          "cyclomatic_complexity": 1,
+          "is_public": false,
+          "loc": 3
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 182,
+        "logic_loc": 128,
+        "public_methods": 5,
+        "ldr": 0.7032967032967034
+      },
+      "import_metrics": {
+        "total": 5,
+        "used": 5,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "tui",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/internal/tui/pick_test.go",
+      "functions": [
+        {
+          "name": "TestPickModelConfirmsAndReturnsCompositeSelectedResults",
+          "cyclomatic_complexity": 5,
+          "is_public": true,
+          "loc": 19
+        },
+        {
+          "name": "TestPickModelQuitDoesNotConfirmOrReturnResults",
+          "cyclomatic_complexity": 4,
+          "is_public": true,
+          "loc": 29
+        },
+        {
+          "name": "TestPickModelUsesLibraryNameInSelectionKey",
+          "cyclomatic_complexity": 7,
+          "is_public": true,
+          "loc": 29
+        },
+        {
+          "name": "TestPickModelToggleInitializesSelectedMap",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 13
+        },
+        {
+          "name": "TestPickModelViewIncludesLibraryPrefix",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "TestPickModelViewHonorsSingleLineHeight",
+          "cyclomatic_complexity": 2,
+          "is_public": true,
+          "loc": 10
+        },
+        {
+          "name": "TestPickModelViewGroupsTagsAndScrolls",
+          "cyclomatic_complexity": 8,
+          "is_public": true,
+          "loc": 33
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 141,
+        "logic_loc": 109,
+        "public_methods": 7,
+        "ldr": 0.7730496453900709
+      },
+      "import_metrics": {
+        "total": 4,
+        "used": 4,
+        "ddc": 1
+      }
+    },
+    {
+      "calm_node": "main",
+      "language": "go",
+      "file": "/Users/poconnor/peter_code/graft/main.go",
+      "functions": [
+        {
+          "name": "main",
+          "cyclomatic_complexity": 2,
+          "is_public": false,
+          "loc": 9
+        }
+      ],
+      "file_metrics": {
+        "total_loc": 17,
+        "logic_loc": 11,
+        "public_methods": 0,
+        "ldr": 0.6470588235294118
+      },
+      "import_metrics": {
+        "total": 5,
+        "used": 5,
+        "ddc": 1
+      }
+    }
+  ]
+}
