@@ -28,6 +28,8 @@ func TestHandlerHealthReturnsOK(t *testing.T) {
 }
 
 func TestHandlerCheckAcceptsSchemaAndReturnsPass(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		PatternPath: writeTestPattern(t),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
@@ -36,7 +38,7 @@ func TestHandlerCheckAcceptsSchemaAndReturnsPass(t *testing.T) {
 	}, nil))
 	defer server.Close()
 
-	body := []byte(`{"repo":"/tmp/repo","file":"internal/parser/parser.go","proposed_content":"package parser\n\nfunc Parse() error {\n\treturn nil\n}\n","language":"go"}`)
+	body := []byte(`{"repo":` + jsonString(repo) + `,"file":"internal/parser/parser.go","proposed_content":"package parser\n\nfunc Parse() error {\n\treturn nil\n}\n","language":"go"}`)
 	response, err := http.Post(server.URL+"/check", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("POST /check failed: %v", err)

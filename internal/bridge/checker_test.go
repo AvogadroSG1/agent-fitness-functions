@@ -165,13 +165,15 @@ func TestHandlerCheckReturnsServiceUnavailableForCALMInfrastructureFailure(t *te
 }
 
 func TestHandlerCheckReturnsBadRequestForUnsupportedLanguage(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		PatternPath: writeTestPattern(t),
 	}, nil))
 	defer server.Close()
 
 	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
-		"repo": "/tmp/repo",
+		"repo": `+jsonString(repo)+`,
 		"file": "index.ts",
 		"language": "typescript",
 		"proposed_content": "const value = 1;\n"
@@ -214,13 +216,15 @@ func TestHandlerCheckReturnsBadRequestForTrailingJSON(t *testing.T) {
 }
 
 func TestHandlerCheckReturnsBadRequestForInvalidFileExtension(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		PatternPath: writeTestPattern(t),
 	}, nil))
 	defer server.Close()
 
 	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
-		"repo": "/tmp/repo",
+		"repo": `+jsonString(repo)+`,
 		"file": "bad.go?cachebuster",
 		"language": "go",
 		"proposed_content": "package parser\n"
@@ -239,6 +243,8 @@ func TestHandlerCheckReturnsBadRequestForInvalidFileExtension(t *testing.T) {
 }
 
 func TestHandlerCheckRejectsNilAnalyzerWithoutPanic(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		PatternPath: writeTestPattern(t),
 		Analyzers:   map[string]SourceAnalyzer{"go": AnalyzerFunc(nil)},
@@ -246,7 +252,7 @@ func TestHandlerCheckRejectsNilAnalyzerWithoutPanic(t *testing.T) {
 	defer server.Close()
 
 	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
-		"repo": "/tmp/repo",
+		"repo": `+jsonString(repo)+`,
 		"file": "internal/parser/parser.go",
 		"language": "go",
 		"proposed_content": "package parser\n"
@@ -261,6 +267,8 @@ func TestHandlerCheckRejectsNilAnalyzerWithoutPanic(t *testing.T) {
 }
 
 func TestHandlerCheckRejectsTypedNilAnalyzerWithoutPanic(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	var typedNil *typedNilAnalyzer
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		PatternPath: writeTestPattern(t),
@@ -269,7 +277,7 @@ func TestHandlerCheckRejectsTypedNilAnalyzerWithoutPanic(t *testing.T) {
 	defer server.Close()
 
 	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
-		"repo": "/tmp/repo",
+		"repo": `+jsonString(repo)+`,
 		"file": "internal/parser/parser.go",
 		"language": "go",
 		"proposed_content": "package parser\n"
@@ -284,6 +292,8 @@ func TestHandlerCheckRejectsTypedNilAnalyzerWithoutPanic(t *testing.T) {
 }
 
 func TestHandlerCheckReturnsServiceUnavailableForAnalyzerCancellation(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
@@ -295,7 +305,7 @@ func TestHandlerCheckReturnsServiceUnavailableForAnalyzerCancellation(t *testing
 	defer server.Close()
 
 	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
-		"repo": "/tmp/repo",
+		"repo": `+jsonString(repo)+`,
 		"file": "internal/parser/parser.go",
 		"language": "go",
 		"proposed_content": "package parser\n"
@@ -310,6 +320,8 @@ func TestHandlerCheckReturnsServiceUnavailableForAnalyzerCancellation(t *testing
 }
 
 func TestHandlerCheckRejectsTypedNilValidatorWithoutPanic(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	var typedNil *typedNilValidator
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		PatternPath: writeTestPattern(t),
@@ -318,7 +330,7 @@ func TestHandlerCheckRejectsTypedNilValidatorWithoutPanic(t *testing.T) {
 	defer server.Close()
 
 	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
-		"repo": "/tmp/repo",
+		"repo": `+jsonString(repo)+`,
 		"file": "internal/parser/parser.go",
 		"language": "go",
 		"proposed_content": "package parser\n\nfunc Parse() error {\n\treturn nil\n}\n"
@@ -366,7 +378,7 @@ func TestHandlerCheckPassesCleanGoContent(t *testing.T) {
 func TestHandlerCheckRoutesViolationsByEnforcementMode(t *testing.T) {
 	tests := []struct {
 		name string
-		mode string
+		mode EnforcementMode
 		want CheckStatus
 	}{
 		{name: "block", mode: EnforcementBlock, want: StatusBlock},
@@ -541,6 +553,81 @@ func TestHandlerCheckRespectsDisabledFitnessFunctions(t *testing.T) {
 	}
 }
 
+func TestHandlerCheckDefaultsMissingFitnessFunctionKeysToEnabled(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	body := postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
+	if body.Status != StatusBlock || len(body.Violations) != 1 {
+		t.Fatalf("response = %+v, want block when fitness map is empty", body)
+	}
+}
+
+func TestHandlerCheckRejectsUnknownFitnessFunctionKeys(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexityy": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+	}, nil))
+	defer server.Close()
+
+	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
+		"repo": `+jsonString(repo)+`,
+		"file": "internal/parser/parser.go",
+		"language": "go",
+		"proposed_content": "package parser\n"
+	}`))
+	if err != nil {
+		t.Fatalf("POST /check: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", response.StatusCode)
+	}
+}
+
+func TestHandlerCheckRejectsInvalidRepositoryPath(t *testing.T) {
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+	}, nil))
+	defer server.Close()
+
+	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
+		"repo": "",
+		"file": "internal/parser/parser.go",
+		"language": "go",
+		"proposed_content": "package parser\n"
+	}`))
+	if err != nil {
+		t.Fatalf("POST /check: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", response.StatusCode)
+	}
+}
+
+func TestHandlerStateRequiresRepo(t *testing.T) {
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{}, nil))
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/state")
+	if err != nil {
+		t.Fatalf("GET /state: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", response.StatusCode)
+	}
+}
+
 func writeTestPattern(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "governance.json")
@@ -559,7 +646,7 @@ func jsonString(value string) string {
 	return string(content)
 }
 
-func writeRepoConfig(t *testing.T, repo, mode string, fitness map[string]bool) {
+func writeRepoConfig(t *testing.T, repo string, mode EnforcementMode, fitness map[string]bool) {
 	t.Helper()
 	dir := filepath.Join(repo, ".calm")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -597,12 +684,7 @@ func postCheck(t *testing.T, serverURL, repo, file, source string) CheckResponse
 	return body
 }
 
-type stateResponse struct {
-	Repo       string      `json:"repo"`
-	Violations []Violation `json:"violations"`
-}
-
-func getState(t *testing.T, serverURL, repo string) stateResponse {
+func getState(t *testing.T, serverURL, repo string) StateResponse {
 	t.Helper()
 	response, err := http.Get(serverURL + "/state?repo=" + url.QueryEscape(repo))
 	if err != nil {
@@ -612,7 +694,7 @@ func getState(t *testing.T, serverURL, repo string) stateResponse {
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.StatusCode)
 	}
-	var state stateResponse
+	var state StateResponse
 	if err := json.NewDecoder(response.Body).Decode(&state); err != nil {
 		t.Fatalf("decode state: %v", err)
 	}

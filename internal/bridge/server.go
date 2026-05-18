@@ -39,6 +39,12 @@ type CheckResponse struct {
 	Violations []Violation `json:"violations,omitempty"`
 }
 
+// StateResponse is the JSON response returned by GET /state for one repository.
+type StateResponse struct {
+	Repo       string      `json:"repo"`
+	Violations []Violation `json:"violations"`
+}
+
 // Violation describes one architectural fitness function failure.
 type Violation struct {
 	FitnessFunction string  `json:"fitness_function"`
@@ -94,11 +100,11 @@ func NewHandlerWithChecker(checker Checker, shutdown func()) http.Handler {
 			return
 		}
 		repo := r.URL.Query().Get("repo")
-		if repo != "" {
-			writeJSON(w, map[string]any{"repo": repo, "violations": checker.State.Violations(repo)})
+		if repo == "" {
+			http.Error(w, "state requires repo", http.StatusBadRequest)
 			return
 		}
-		writeJSON(w, map[string]any{"repositories": checker.State.Snapshot()})
+		writeJSON(w, StateResponse{Repo: repo, Violations: checker.State.Violations(repo)})
 	})
 	mux.HandleFunc("/shutdown", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

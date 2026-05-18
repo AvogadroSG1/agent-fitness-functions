@@ -1,6 +1,9 @@
 package bridge
 
-import "sync"
+import (
+	"sort"
+	"sync"
+)
 
 // State stores outstanding violations by repository and file.
 type State struct {
@@ -69,6 +72,7 @@ func (s *State) ClearRepo(repo string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.violations, repo)
+	delete(s.repoLocks, repo)
 }
 
 // HasFile reports whether a repository file has outstanding violations.
@@ -94,9 +98,16 @@ func (s *State) Violations(repo string) []Violation {
 	defer s.mu.RUnlock()
 	files := s.violations[repo]
 	violations := make([]Violation, 0)
-	for _, fileViolations := range files {
+	fileNames := make([]string, 0, len(files))
+	for file := range files {
+		fileNames = append(fileNames, file)
+	}
+	sort.Strings(fileNames)
+	for _, file := range fileNames {
+		fileViolations := files[file]
 		violations = append(violations, fileViolations...)
 	}
+	sortViolations(violations)
 	return violations
 }
 
@@ -109,9 +120,28 @@ func (s *State) Snapshot() map[string][]Violation {
 	defer s.mu.RUnlock()
 	snapshot := make(map[string][]Violation, len(s.violations))
 	for repo, files := range s.violations {
-		for _, fileViolations := range files {
+		fileNames := make([]string, 0, len(files))
+		for file := range files {
+			fileNames = append(fileNames, file)
+		}
+		sort.Strings(fileNames)
+		for _, file := range fileNames {
+			fileViolations := files[file]
 			snapshot[repo] = append(snapshot[repo], fileViolations...)
 		}
+		sortViolations(snapshot[repo])
 	}
 	return snapshot
+}
+
+func sortViolations(violations []Violation) {
+	sort.SliceStable(violations, func(i, j int) bool {
+		if violations[i].File != violations[j].File {
+			return violations[i].File < violations[j].File
+		}
+		if violations[i].Function != violations[j].Function {
+			return violations[i].Function < violations[j].Function
+		}
+		return violations[i].FitnessFunction < violations[j].FitnessFunction
+	})
 }
