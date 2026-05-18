@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -13,12 +12,15 @@ import (
 
 const (
 	// StatusPass indicates that no active fitness function blocked the change.
-	StatusPass = "pass"
+	StatusPass CheckStatus = "pass"
 	// StatusBlock indicates that an active fitness function rejected the change.
-	StatusBlock = "block"
+	StatusBlock CheckStatus = "block"
 
 	maxCheckRequestBytes = 10 << 20
 )
+
+// CheckStatus is the closed set of check outcomes returned by /check.
+type CheckStatus string
 
 // CheckRequest is the JSON body accepted by POST /check.
 type CheckRequest struct {
@@ -30,7 +32,7 @@ type CheckRequest struct {
 
 // CheckResponse is the JSON response returned by POST /check.
 type CheckResponse struct {
-	Status     string      `json:"status"`
+	Status     CheckStatus `json:"status"`
 	Warming    bool        `json:"warming,omitempty"`
 	Violations []Violation `json:"violations,omitempty"`
 }
@@ -70,7 +72,7 @@ func NewHandlerWithChecker(checker Checker, shutdown func()) http.Handler {
 		}
 		response, err := checker.Check(r.Context(), request)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("check failed: %v", err), http.StatusInternalServerError)
+			writeCheckError(w, err)
 			return
 		}
 		writeJSON(w, response)
@@ -146,4 +148,19 @@ func writeJSON(w http.ResponseWriter, value any) {
 	if err := json.NewEncoder(w).Encode(value); err != nil && !errors.Is(err, io.ErrClosedPipe) {
 		http.Error(w, "encoding response failed", http.StatusInternalServerError)
 	}
+}
+
+func writeCheckError(w http.ResponseWriter, err error) {
+	var checkErr *CheckError
+	if errors.As(err, &checkErr) {
+		switch checkErr.Kind {
+		case ErrorKindInput:
+			http.Error(w, checkErr.Message, http.StatusBadRequest)
+			return
+		case ErrorKindInfrastructure:
+			http.Error(w, checkErr.Message, http.StatusServiceUnavailable)
+			return
+		}
+	}
+	http.Error(w, "check failed", http.StatusInternalServerError)
 }

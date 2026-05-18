@@ -3,6 +3,7 @@ package bridge
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,40 +19,88 @@ type Validator interface {
 	Validate(context.Context, string, string) (calm.ValidationResult, error)
 }
 
+// SourceAnalyzer analyzes one temporary source file for a language.
+type SourceAnalyzer interface {
+	Analyze(context.Context, string) (analyzer.AnalysisResult, error)
+}
+
+// AnalyzerFunc adapts a function to SourceAnalyzer.
+type AnalyzerFunc func(context.Context, string) (analyzer.AnalysisResult, error)
+
+// Analyze implements SourceAnalyzer.
+func (f AnalyzerFunc) Analyze(ctx context.Context, path string) (analyzer.AnalysisResult, error) {
+	return f(ctx, path)
+}
+
 // Checker coordinates source analysis, CALM architecture generation, and validation.
 type Checker struct {
 	PatternPath string
 	TempDir     string
 	Validator   Validator
-	GoAnalyzer  func(string) (analyzer.AnalysisResult, error)
+	Analyzers   map[string]SourceAnalyzer
+}
+
+// ErrorKind classifies checker failures for HTTP clients.
+type ErrorKind string
+
+const (
+	// ErrorKindInput means the request or proposed content is unsupported or invalid.
+	ErrorKindInput ErrorKind = "input"
+	// ErrorKindInfrastructure means an internal dependency failed.
+	ErrorKindInfrastructure ErrorKind = "infrastructure"
+)
+
+// CheckError is a client-safe, typed checker failure.
+type CheckError struct {
+	Kind    ErrorKind
+	Message string
+	Err     error
+}
+
+func (e *CheckError) Error() string {
+	if e.Err == nil {
+		return e.Message
+	}
+	return e.Message + ": " + e.Err.Error()
+}
+
+func (e *CheckError) Unwrap() error {
+	return e.Err
 }
 
 // Check runs the synchronous check path for one proposed file.
-func (c Checker) Check(ctx context.Context, request CheckRequest) (CheckResponse, error) {
-	if request.Language != "go" {
-		return CheckResponse{}, fmt.Errorf("unsupported language %q", request.Language)
-	}
+func (c Checker) Check(ctx context.Context, request CheckRequest) (response CheckResponse, err error) {
 	patternPath := c.PatternPath
 	if patternPath == "" {
 		patternPath = filepath.Join("patterns", "governance.json")
 	}
 	pattern, err := calm.LoadPattern(patternPath)
 	if err != nil {
-		return CheckResponse{}, err
+		return CheckResponse{}, infrastructureError("loading governance pattern", err)
 	}
 	sourcePath, cleanup, err := c.writeProposedContent(request)
 	if err != nil {
 		return CheckResponse{}, err
 	}
-	defer cleanup()
+	defer func() {
+		if cleanupErr := cleanup(); cleanupErr != nil {
+			err = errors.Join(err, infrastructureError("cleaning temporary source file", cleanupErr))
+		}
+	}()
 
-	analyzeGo := c.GoAnalyzer
-	if analyzeGo == nil {
-		analyzeGo = analyzer.AnalyzeGoFile
+	sourceAnalyzer, ok := c.sourceAnalyzer(request.Language)
+	if !ok {
+		return CheckResponse{}, inputError(fmt.Sprintf("unsupported language %q", request.Language), nil)
 	}
-	result, err := analyzeGo(sourcePath)
+	if err := ctx.Err(); err != nil {
+		return CheckResponse{}, infrastructureError("check canceled before analysis", err)
+	}
+	result, err := sourceAnalyzer.Analyze(ctx, sourcePath)
 	if err != nil {
-		return CheckResponse{}, fmt.Errorf("analyzing Go file: %w", err)
+		return CheckResponse{}, inputError(fmt.Sprintf("analyzing %s file", request.Language), err)
+	}
+	if err := ctx.Err(); err != nil {
+		return CheckResponse{}, infrastructureError("check canceled after analysis", err)
 	}
 	result.File = request.File
 
@@ -59,65 +108,69 @@ func (c Checker) Check(ctx context.Context, request CheckRequest) (CheckResponse
 	if err != nil {
 		return CheckResponse{}, err
 	}
-	defer cleanupArchitecture()
+	defer func() {
+		if cleanupErr := cleanupArchitecture(); cleanupErr != nil {
+			err = errors.Join(err, infrastructureError("cleaning temporary architecture file", cleanupErr))
+		}
+	}()
 
 	validator := c.Validator
 	if validator == nil {
 		validator = calm.Validator{}
 	}
 	validation, err := validator.Validate(ctx, architecturePath, patternPath)
-	if err == nil && validation.Valid {
-		return CheckResponse{Status: StatusPass}, nil
+	if err != nil && !isValidationFailure(validation) {
+		return CheckResponse{}, infrastructureError("running CALM validation", err)
 	}
 	violations := cyclomaticComplexityViolations(result, pattern)
-	if len(violations) == 0 && err != nil {
-		return CheckResponse{}, err
+	if len(violations) == 0 {
+		return CheckResponse{Status: StatusPass}, nil
 	}
 	return CheckResponse{Status: StatusBlock, Violations: violations}, nil
 }
 
-func (c Checker) writeProposedContent(request CheckRequest) (string, func(), error) {
+func (c Checker) writeProposedContent(request CheckRequest) (string, func() error, error) {
 	extension := filepath.Ext(request.File)
 	if extension == "" {
 		extension = ".go"
 	}
 	file, err := os.CreateTemp(c.TempDir, "calm-check-*"+extension)
 	if err != nil {
-		return "", func() {}, fmt.Errorf("creating temp source file: %w", err)
+		return "", func() error { return nil }, infrastructureError("creating temp source file", err)
 	}
-	cleanup := func() {
-		_ = os.Remove(file.Name())
+	cleanup := func() error {
+		return os.Remove(file.Name())
 	}
 	if _, err := file.WriteString(request.ProposedContent); err != nil {
 		_ = file.Close()
-		cleanup()
-		return "", func() {}, fmt.Errorf("writing temp source file: %w", err)
+		cleanupErr := cleanup()
+		return "", func() error { return nil }, errors.Join(inputError("writing temp source file", err), cleanupErr)
 	}
 	if err := file.Close(); err != nil {
-		cleanup()
-		return "", func() {}, fmt.Errorf("closing temp source file: %w", err)
+		cleanupErr := cleanup()
+		return "", func() error { return nil }, errors.Join(infrastructureError("closing temp source file", err), cleanupErr)
 	}
 	return file.Name(), cleanup, nil
 }
 
-func (c Checker) writeArchitecture(document report.ArchitectureDocument) (string, func(), error) {
+func (c Checker) writeArchitecture(document report.ArchitectureDocument) (string, func() error, error) {
 	file, err := os.CreateTemp(c.TempDir, "current-architecture-*.json")
 	if err != nil {
-		return "", func() {}, fmt.Errorf("creating temp architecture file: %w", err)
+		return "", func() error { return nil }, infrastructureError("creating temp architecture file", err)
 	}
-	cleanup := func() {
-		_ = os.Remove(file.Name())
+	cleanup := func() error {
+		return os.Remove(file.Name())
 	}
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(document); err != nil {
 		_ = file.Close()
-		cleanup()
-		return "", func() {}, fmt.Errorf("writing architecture file: %w", err)
+		cleanupErr := cleanup()
+		return "", func() error { return nil }, errors.Join(infrastructureError("writing architecture file", err), cleanupErr)
 	}
 	if err := file.Close(); err != nil {
-		cleanup()
-		return "", func() {}, fmt.Errorf("closing architecture file: %w", err)
+		cleanupErr := cleanup()
+		return "", func() error { return nil }, errors.Join(infrastructureError("closing architecture file", err), cleanupErr)
 	}
 	return file.Name(), cleanup, nil
 }
@@ -151,6 +204,36 @@ func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm
 	return violations
 }
 
-func normalizeFitnessFunction(name string) string {
-	return strings.ReplaceAll(name, "-", "_")
+func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
+	if analyzer, ok := c.Analyzers[language]; ok {
+		return analyzer, true
+	}
+	if language == "go" {
+		return AnalyzerFunc(func(ctx context.Context, path string) (analyzer.AnalysisResult, error) {
+			if err := ctx.Err(); err != nil {
+				return analyzer.AnalysisResult{}, err
+			}
+			result, err := analyzer.AnalyzeGoFile(path)
+			if err != nil {
+				return analyzer.AnalysisResult{}, err
+			}
+			if err := ctx.Err(); err != nil {
+				return analyzer.AnalysisResult{}, err
+			}
+			return result, nil
+		}), true
+	}
+	return nil, false
+}
+
+func isValidationFailure(result calm.ValidationResult) bool {
+	return !result.Valid && (strings.Contains(result.Output, `"hasErrors": true`) || strings.Contains(result.Output, `"hasErrors":true`))
+}
+
+func inputError(message string, err error) error {
+	return &CheckError{Kind: ErrorKindInput, Message: message, Err: err}
+}
+
+func infrastructureError(message string, err error) error {
+	return &CheckError{Kind: ErrorKindInfrastructure, Message: message, Err: err}
 }
