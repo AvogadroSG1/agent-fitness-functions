@@ -538,6 +538,10 @@ func TestHandlerCheckUsesCanonicalRepoPathForOutstandingState(t *testing.T) {
 	if second.Status != StatusBlock || len(second.Violations) != 1 || second.Violations[0].File != "internal/parser/parser.go" {
 		t.Fatalf("second response = %+v, want canonical outstanding parser violation", second)
 	}
+	state := getState(t, server.URL, dirtyRepoPath)
+	if state.Repo != repo || len(state.Violations) != 1 || state.Violations[0].File != "internal/parser/parser.go" {
+		t.Fatalf("state = %+v, want canonical parser violation", state)
+	}
 }
 
 func TestCheckerDirectUsagePreservesStateAcrossCalls(t *testing.T) {
@@ -573,6 +577,38 @@ func TestCheckerDirectUsagePreservesStateAcrossCalls(t *testing.T) {
 	}
 	if second.Status != StatusBlock || len(second.Violations) != 1 || second.Violations[0].File != "internal/parser/parser.go" {
 		t.Fatalf("second response = %+v, want preserved parser violation", second)
+	}
+}
+
+func TestCheckerDirectUsageInitializesStateOnceForConcurrentCalls(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	checker := Checker{
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}
+	errs := make(chan error, 2)
+	for _, file := range []string{"internal/parser/parser.go", "internal/other/other.go"} {
+		file := file
+		go func() {
+			_, err := checker.Check(context.Background(), CheckRequest{
+				Repo:            repo,
+				File:            file,
+				Language:        "go",
+				ProposedContent: complexGoSource(),
+			})
+			errs <- err
+		}()
+	}
+	for range 2 {
+		if err := <-errs; err != nil {
+			t.Fatalf("check returned error: %v", err)
+		}
+	}
+	if state := checker.State.Violations(repo); len(state) != 2 {
+		t.Fatalf("state = %+v, want two violations from concurrent checks", state)
 	}
 }
 
