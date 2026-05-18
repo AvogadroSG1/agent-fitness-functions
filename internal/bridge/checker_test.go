@@ -487,7 +487,11 @@ func TestHandlerCheckCSharpColdDefersAnalysisAndBlocksNextCall(t *testing.T) {
 
 	start := time.Now()
 	first := postCheckForLanguage(t, server.URL, repo, "src/Widget.cs", "csharp", complexCSharpSource())
-	t.Logf("deferred C# cold response latency: %s", time.Since(start))
+	coldLatency := time.Since(start)
+	t.Logf("deferred C# cold response latency: %s", coldLatency)
+	if coldLatency > 100*time.Millisecond {
+		t.Fatalf("cold C# response latency = %s, want immediate deferred response under 100ms", coldLatency)
+	}
 	if first.Status != StatusPass || !first.Warming || len(first.Violations) != 0 {
 		t.Fatalf("first response = %+v, want pass with warming", first)
 	}
@@ -511,6 +515,113 @@ func TestHandlerCheckCSharpColdDefersAnalysisAndBlocksNextCall(t *testing.T) {
 	}
 	if calls.Load() < 2 {
 		t.Fatalf("analyzer calls = %d, want warm synchronous second analysis", calls.Load())
+	}
+}
+
+func TestHandlerCheckCSharpColdBlocksExistingOutstandingViolation(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	state := NewState()
+	state.ReplaceFile(repo, "src/Existing.cs", []Violation{{
+		FitnessFunction: "cyclomatic_complexity",
+		CALMNode:        "Existing",
+		File:            "src/Existing.cs",
+		Function:        "Render",
+		Value:           10,
+		Limit:           9,
+		Message:         "existing violation",
+	}})
+	var calls atomic.Int32
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		State:       state,
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
+				calls.Add(1)
+				return analyzer.AnalysisResult{Language: "csharp"}, nil
+			}),
+		},
+	}, nil))
+	defer server.Close()
+
+	body := postCheckForLanguage(t, server.URL, repo, "src/New.cs", "csharp", cleanCSharpSource())
+	if body.Status != StatusBlock || body.Warming || len(body.Violations) != 1 || body.Violations[0].File != "src/Existing.cs" {
+		t.Fatalf("response = %+v, want existing violation block before cold warming", body)
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("analyzer calls = %d, want no cold analyzer while existing block is outstanding", calls.Load())
+	}
+}
+
+func TestHandlerCheckCSharpSecondColdCallAnalyzesSynchronouslyWhileWarmupRuns(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	firstStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	secondStarted := make(chan struct{})
+	releaseSecond := make(chan struct{})
+	var calls atomic.Int32
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
+				call := calls.Add(1)
+				switch call {
+				case 1:
+					close(firstStarted)
+					select {
+					case <-releaseFirst:
+					case <-ctx.Done():
+						return analyzer.AnalysisResult{}, ctx.Err()
+					}
+					return analyzer.AnalysisResult{Language: "csharp"}, nil
+				case 2:
+					close(secondStarted)
+					select {
+					case <-releaseSecond:
+					case <-ctx.Done():
+						return analyzer.AnalysisResult{}, ctx.Err()
+					}
+					return csharpAnalysisWithComplexFunction("Render", 10), nil
+				default:
+					return analyzer.AnalysisResult{Language: "csharp"}, nil
+				}
+			}),
+		},
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	first := postCheckForLanguage(t, server.URL, repo, "src/Warmup.cs", "csharp", cleanCSharpSource())
+	if first.Status != StatusPass || !first.Warming {
+		t.Fatalf("first response = %+v, want deferred warming pass", first)
+	}
+	select {
+	case <-firstStarted:
+	case <-time.After(time.Second):
+		t.Fatal("first deferred C# analysis did not start")
+	}
+	responseCh := make(chan CheckResponse, 1)
+	go func() {
+		responseCh <- postCheckForLanguage(t, server.URL, repo, "src/Widget.cs", "csharp", complexCSharpSource())
+	}()
+	select {
+	case response := <-responseCh:
+		t.Fatalf("second cold C# call returned before analyzer completed: %+v", response)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(releaseFirst)
+	select {
+	case <-secondStarted:
+	case <-time.After(time.Second):
+		t.Fatal("second cold C# call did not enter synchronous analyzer")
+	}
+	close(releaseSecond)
+	response := <-responseCh
+	if response.Status != StatusBlock || response.Warming || len(response.Violations) != 1 || response.Violations[0].Function != "Render" {
+		t.Fatalf("second response = %+v, want synchronous C# block while warmup is running", response)
 	}
 }
 

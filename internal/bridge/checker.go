@@ -98,10 +98,13 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 		return CheckResponse{Status: StatusPass}, nil
 	}
 	if request.Language == "csharp" && !state.IsWarm("csharp") {
+		if outstanding := state.Violations(repo); len(outstanding) > 0 {
+			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
+		}
 		if state.BeginWarmup("csharp") {
 			c.startDeferredCheck(request)
+			return CheckResponse{Status: StatusPass, Warming: true}, nil
 		}
-		return CheckResponse{Status: StatusPass, Warming: true}, nil
 	}
 	return c.checkSynchronous(ctx, request, repo, config, state)
 }
