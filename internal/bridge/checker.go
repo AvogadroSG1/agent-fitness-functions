@@ -83,14 +83,11 @@ func (c Checker) Check(ctx context.Context, request CheckRequest) (response Chec
 	if state == nil {
 		state = NewState()
 	}
+	unlockRepo := state.LockRepo(request.Repo)
+	defer unlockRepo()
 	if config.EnforcementMode == EnforcementOff {
+		state.ClearRepo(request.Repo)
 		return CheckResponse{Status: StatusPass}, nil
-	}
-	if config.EnforcementMode == EnforcementBlock {
-		outstanding := state.Violations(request.Repo)
-		if len(outstanding) > 0 && !state.HasFile(request.Repo, request.File) {
-			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
-		}
 	}
 	patternPath := c.PatternPath
 	if patternPath == "" {
@@ -162,11 +159,14 @@ func (c Checker) Check(ctx context.Context, request CheckRequest) (response Chec
 			if len(outstanding) > 0 {
 				return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
 			}
+		} else {
+			state.ClearRepo(request.Repo)
 		}
 		return CheckResponse{Status: StatusPass}, nil
 	}
 	switch config.EnforcementMode {
 	case EnforcementAdvisory:
+		state.ClearRepo(request.Repo)
 		return CheckResponse{Status: StatusAdvisory, Violations: violations}, nil
 	default:
 		state.ReplaceFile(request.Repo, request.File, violations)

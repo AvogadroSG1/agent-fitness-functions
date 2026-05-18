@@ -442,6 +442,70 @@ func TestHandlerCheckAccumulatesOutstandingViolationsUntilFilePasses(t *testing.
 	}
 }
 
+func TestHandlerCheckAccumulatesMultipleOutstandingViolationsAndClearsIndependently(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	first := postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
+	if first.Status != StatusBlock || len(first.Violations) != 1 {
+		t.Fatalf("first response = %+v, want one violation", first)
+	}
+	second := postCheck(t, server.URL, repo, "internal/other/other.go", complexGoSource())
+	if second.Status != StatusBlock || len(second.Violations) != 2 {
+		t.Fatalf("second response = %+v, want two accumulated violations", second)
+	}
+	state := getState(t, server.URL, repo)
+	if len(state.Violations) != 2 {
+		t.Fatalf("state = %+v, want two outstanding violations", state)
+	}
+	stillBlocked := postCheck(t, server.URL, repo, "internal/parser/parser.go", cleanGoSource())
+	if stillBlocked.Status != StatusBlock || len(stillBlocked.Violations) != 1 || stillBlocked.Violations[0].File != "internal/other/other.go" {
+		t.Fatalf("stillBlocked response = %+v, want remaining other.go violation", stillBlocked)
+	}
+	cleared := postCheck(t, server.URL, repo, "internal/other/other.go", cleanGoSource())
+	if cleared.Status != StatusPass || len(cleared.Violations) != 0 {
+		t.Fatalf("cleared response = %+v, want pass after both files pass", cleared)
+	}
+}
+
+func TestHandlerCheckClearsBlockStateWhenModeChangesToAdvisoryOrOff(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	_ = postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
+	writeRepoConfig(t, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
+	advisory := postCheck(t, server.URL, repo, "internal/parser/parser.go", cleanGoSource())
+	if advisory.Status != StatusPass {
+		t.Fatalf("advisory clean response = %+v, want pass and stale state cleared", advisory)
+	}
+	if state := getState(t, server.URL, repo); len(state.Violations) != 0 {
+		t.Fatalf("state after advisory = %+v, want stale state cleared", state)
+	}
+	_ = postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
+	writeRepoConfig(t, repo, EnforcementOff, map[string]bool{"cyclomatic-complexity": true})
+	off := postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
+	if off.Status != StatusPass {
+		t.Fatalf("off response = %+v, want pass", off)
+	}
+	if state := getState(t, server.URL, repo); len(state.Violations) != 0 {
+		t.Fatalf("state after off = %+v, want stale state cleared", state)
+	}
+}
+
 func TestHandlerStateReturnsOutstandingViolationsForRepo(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})

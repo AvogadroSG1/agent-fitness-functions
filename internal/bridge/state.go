@@ -6,11 +6,34 @@ import "sync"
 type State struct {
 	mu         sync.RWMutex
 	violations map[string]map[string][]Violation
+	repoLocks  map[string]*sync.Mutex
 }
 
 // NewState creates an empty outstanding violation store.
 func NewState() *State {
-	return &State{violations: map[string]map[string][]Violation{}}
+	return &State{
+		violations: map[string]map[string][]Violation{},
+		repoLocks:  map[string]*sync.Mutex{},
+	}
+}
+
+// LockRepo serializes a check lifecycle for one repository.
+func (s *State) LockRepo(repo string) func() {
+	if s == nil {
+		return func() {}
+	}
+	s.mu.Lock()
+	if s.repoLocks == nil {
+		s.repoLocks = map[string]*sync.Mutex{}
+	}
+	lock := s.repoLocks[repo]
+	if lock == nil {
+		lock = &sync.Mutex{}
+		s.repoLocks[repo] = lock
+	}
+	s.mu.Unlock()
+	lock.Lock()
+	return lock.Unlock
 }
 
 // ReplaceFile replaces the outstanding violations for one repository file.
@@ -36,6 +59,16 @@ func (s *State) ReplaceFile(repo, file string, violations []Violation) {
 		s.violations[repo] = map[string][]Violation{}
 	}
 	s.violations[repo][file] = append([]Violation(nil), violations...)
+}
+
+// ClearRepo removes all outstanding violations for one repository.
+func (s *State) ClearRepo(repo string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.violations, repo)
 }
 
 // HasFile reports whether a repository file has outstanding violations.
