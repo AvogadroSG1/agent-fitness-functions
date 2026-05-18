@@ -14,6 +14,7 @@ var file = args[0];
 var source = await File.ReadAllTextAsync(file);
 var tree = CSharpSyntaxTree.ParseText(source, path: file);
 var root = await tree.GetRootAsync();
+var semanticModel = SemanticModel(tree);
 var lineSpan = tree.GetLineSpan(root.FullSpan);
 var usingDirectives = root.DescendantNodes().OfType<UsingDirectiveSyntax>().ToList();
 var publicMethods = 0;
@@ -41,7 +42,7 @@ foreach (var functionNode in functionNodes)
     });
 }
 
-var importMetric = ImportMetric(usingDirectives, root);
+var importMetric = ImportMetric(usingDirectives, root, semanticModel);
 var totalLOC = lineSpan.EndLinePosition.Line - lineSpan.StartLinePosition.Line + 1;
 var logicLOC = source.Split('\n').Count(IsLogicLine);
 var result = new AnalysisResult
@@ -71,7 +72,7 @@ return 0;
 static int Complexity(SyntaxNode functionNode)
 {
     var complexity = 1;
-    foreach (var node in functionNode.DescendantNodes())
+    foreach (var node in functionNode.DescendantNodes(descendIntoChildren: node => node == functionNode || !IsFunctionNode(node)))
     {
         complexity += node switch
         {
@@ -88,6 +89,8 @@ static int Complexity(SyntaxNode functionNode)
     }
     return complexity;
 }
+
+static bool IsFunctionNode(SyntaxNode node) => node is BaseMethodDeclarationSyntax or LocalFunctionStatementSyntax or AccessorDeclarationSyntax;
 
 static string FunctionName(SyntaxNode functionNode) => functionNode switch
 {
@@ -152,26 +155,64 @@ static string CALMNode(SyntaxNode root, string file)
     return classNode?.Identifier.ValueText ?? Path.GetFileNameWithoutExtension(file);
 }
 
-static ImportMetric ImportMetric(IReadOnlyCollection<UsingDirectiveSyntax> usingDirectives, SyntaxNode root)
+static SemanticModel SemanticModel(SyntaxTree tree)
 {
-    var names = usingDirectives
-        .Select(u => u.Alias?.Name.Identifier.ValueText ?? u.Name?.ToString().Split('.').LastOrDefault() ?? "")
-        .Where(name => name.Length > 0)
+    var trustedPlatformAssemblies = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string;
+    var references = (trustedPlatformAssemblies ?? "")
+        .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+        .Select(path => MetadataReference.CreateFromFile(path))
+        .Cast<MetadataReference>()
+        .ToList();
+    var compilation = CSharpCompilation.Create(
+        "CalmRoslynAnalysis",
+        [tree],
+        references,
+        new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+    return compilation.GetSemanticModel(tree);
+}
+
+static ImportMetric ImportMetric(IReadOnlyCollection<UsingDirectiveSyntax> usingDirectives, SyntaxNode root, SemanticModel semanticModel)
+{
+    var imports = usingDirectives
+        .Select(u => new ImportEntry(
+            DisplayName: u.Alias?.Name.Identifier.ValueText ?? u.Name?.ToString().Split('.').LastOrDefault() ?? "",
+            NamespaceOrType: u.Name?.ToString() ?? "",
+            Alias: u.Alias?.Name.Identifier.ValueText ?? ""))
+        .Where(import => import.DisplayName.Length > 0)
         .ToList();
     var identifiers = root.DescendantNodes()
         .OfType<IdentifierNameSyntax>()
         .Where(identifier => !usingDirectives.Any(usingDirective => usingDirective.Span.Contains(identifier.SpanStart)))
-        .Select(i => i.Identifier.ValueText)
+        .ToList();
+    var usedImports = imports
+        .Where(import => IsImportUsed(import, identifiers, semanticModel))
         .ToHashSet();
-    var used = names.Count(identifiers.Contains);
-    var unused = names.Where(name => !identifiers.Contains(name)).ToList();
+    var unused = imports
+        .Where(import => !usedImports.Contains(import))
+        .Select(import => import.DisplayName)
+        .ToList();
     return new ImportMetric
     {
-        Total = names.Count,
-        Used = used,
+        Total = imports.Count,
+        Used = usedImports.Count,
         Unused = unused,
-        DDC = Ratio(used, names.Count),
+        DDC = Ratio(usedImports.Count, imports.Count),
     };
+}
+
+static bool IsImportUsed(ImportEntry import, IReadOnlyCollection<IdentifierNameSyntax> identifiers, SemanticModel semanticModel)
+{
+    if (import.Alias.Length > 0)
+    {
+        return identifiers.Any(identifier => identifier.Identifier.ValueText == import.Alias);
+    }
+    return identifiers.Any(identifier =>
+    {
+        var symbol = semanticModel.GetSymbolInfo(identifier).Symbol;
+        var containingNamespace = symbol?.ContainingNamespace?.ToDisplayString() ?? "";
+        return containingNamespace == import.NamespaceOrType ||
+            containingNamespace.StartsWith(import.NamespaceOrType + ".", StringComparison.Ordinal);
+    });
 }
 
 static bool IsLogicLine(string line)
