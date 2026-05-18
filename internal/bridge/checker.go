@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/poconnor/calm-poc/internal/analyzer"
 	"github.com/poconnor/calm-poc/internal/calm"
@@ -43,6 +44,7 @@ type Checker struct {
 	Validator   Validator
 	Analyzers   map[string]SourceAnalyzer
 	State       *State
+	mu          sync.Mutex
 }
 
 // ErrorKind classifies checker failures for HTTP clients.
@@ -79,10 +81,7 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 	if err != nil {
 		return CheckResponse{}, err
 	}
-	if c.State == nil {
-		c.State = NewState()
-	}
-	state := c.State
+	state := c.state()
 	unlockRepo := state.LockRepo(repo)
 	defer unlockRepo()
 	if config.EnforcementMode == EnforcementOff {
@@ -172,6 +171,15 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 		state.ReplaceFile(repo, request.File, violations)
 		return CheckResponse{Status: StatusBlock, Violations: state.Violations(repo)}, nil
 	}
+}
+
+func (c *Checker) state() *State {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.State == nil {
+		c.State = NewState()
+	}
+	return c.State
 }
 
 func (c Checker) writeProposedContent(request CheckRequest) (string, func() error, error) {
