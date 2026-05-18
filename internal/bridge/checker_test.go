@@ -585,6 +585,7 @@ func TestCheckerDirectUsageInitializesStateOnceForConcurrentCalls(t *testing.T) 
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	checker := Checker{
 		PatternPath: writeTestPattern(t),
+		State:       NewState(),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
 		}),
