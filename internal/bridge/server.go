@@ -15,6 +15,8 @@ const (
 	StatusPass CheckStatus = "pass"
 	// StatusBlock indicates that an active fitness function rejected the change.
 	StatusBlock CheckStatus = "block"
+	// StatusAdvisory indicates that an active fitness function reported guidance without blocking.
+	StatusAdvisory CheckStatus = "advisory"
 
 	maxCheckRequestBytes = 10 << 20
 )
@@ -41,6 +43,7 @@ type CheckResponse struct {
 type Violation struct {
 	FitnessFunction string  `json:"fitness_function"`
 	CALMNode        string  `json:"calm_node"`
+	File            string  `json:"file,omitempty"`
 	Function        string  `json:"function,omitempty"`
 	Value           float64 `json:"value"`
 	Limit           float64 `json:"limit"`
@@ -54,6 +57,9 @@ func NewHandler(shutdown func()) http.Handler {
 
 // NewHandlerWithChecker builds the calm-bridge HTTP daemon routes with injected check dependencies.
 func NewHandlerWithChecker(checker Checker, shutdown func()) http.Handler {
+	if checker.State == nil {
+		checker.State = NewState()
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -87,7 +93,12 @@ func NewHandlerWithChecker(checker Checker, shutdown func()) http.Handler {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		writeJSON(w, map[string]any{"repositories": map[string]any{}})
+		repo := r.URL.Query().Get("repo")
+		if repo != "" {
+			writeJSON(w, map[string]any{"repo": repo, "violations": checker.State.Violations(repo)})
+			return
+		}
+		writeJSON(w, map[string]any{"repositories": checker.State.Snapshot()})
 	})
 	mux.HandleFunc("/shutdown", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

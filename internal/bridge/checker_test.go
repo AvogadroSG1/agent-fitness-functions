@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,7 @@ import (
 
 func TestHandlerCheckRunsGoAnalyzerCALMAndBlocksCyclomaticComplexityViolation(t *testing.T) {
 	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	patternPath := writeTestPattern(t)
 	var called bool
 	validator := validatorFunc(func(_ context.Context, architecturePath, patternPathArg string) (calm.ValidationResult, error) {
@@ -96,6 +98,8 @@ func TestHandlerCheckRunsGoAnalyzerCALMAndBlocksCyclomaticComplexityViolation(t 
 
 func TestHandlerCheckCleansTemporaryFiles(t *testing.T) {
 	tempDir := t.TempDir()
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		PatternPath: writeTestPattern(t),
 		TempDir:     tempDir,
@@ -106,7 +110,7 @@ func TestHandlerCheckCleansTemporaryFiles(t *testing.T) {
 	defer server.Close()
 
 	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
-		"repo": "/tmp/repo",
+		"repo": `+jsonString(repo)+`,
 		"file": "internal/parser/parser.go",
 		"language": "go",
 		"proposed_content": "package parser\n\nfunc Parse() error {\n\treturn nil\n}\n"
@@ -128,6 +132,8 @@ func TestHandlerCheckCleansTemporaryFiles(t *testing.T) {
 }
 
 func TestHandlerCheckReturnsServiceUnavailableForCALMInfrastructureFailure(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		PatternPath: writeTestPattern(t),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
@@ -137,7 +143,7 @@ func TestHandlerCheckReturnsServiceUnavailableForCALMInfrastructureFailure(t *te
 	defer server.Close()
 
 	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
-		"repo": "/tmp/repo",
+		"repo": `+jsonString(repo)+`,
 		"file": "internal/parser/parser.go",
 		"language": "go",
 		"proposed_content": `+jsonString(complexGoSource())+`
@@ -327,6 +333,8 @@ func TestHandlerCheckRejectsTypedNilValidatorWithoutPanic(t *testing.T) {
 }
 
 func TestHandlerCheckPassesCleanGoContent(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	patternPath := writeTestPattern(t)
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		PatternPath: patternPath,
@@ -337,7 +345,7 @@ func TestHandlerCheckPassesCleanGoContent(t *testing.T) {
 	defer server.Close()
 
 	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
-		"repo": "/tmp/repo",
+		"repo": `+jsonString(repo)+`,
 		"file": "internal/parser/parser.go",
 		"language": "go",
 		"proposed_content": "package parser\n\nfunc Parse() error {\n\treturn nil\n}\n"
@@ -352,6 +360,120 @@ func TestHandlerCheckPassesCleanGoContent(t *testing.T) {
 	}
 	if body.Status != StatusPass || len(body.Violations) != 0 {
 		t.Fatalf("response = %+v, want pass without violations", body)
+	}
+}
+
+func TestHandlerCheckRoutesViolationsByEnforcementMode(t *testing.T) {
+	tests := []struct {
+		name string
+		mode string
+		want CheckStatus
+	}{
+		{name: "block", mode: EnforcementBlock, want: StatusBlock},
+		{name: "advisory", mode: EnforcementAdvisory, want: StatusAdvisory},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := t.TempDir()
+			writeRepoConfig(t, repo, tt.mode, map[string]bool{"cyclomatic-complexity": true})
+			server := httptest.NewServer(NewHandlerWithChecker(Checker{
+				PatternPath: writeTestPattern(t),
+				Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+					return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+				}),
+			}, nil))
+			defer server.Close()
+
+			body := postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
+			if body.Status != tt.want || len(body.Violations) != 1 {
+				t.Fatalf("response = %+v, want %s with one violation", body, tt.want)
+			}
+		})
+	}
+}
+
+func TestHandlerCheckOffModeSkipsAnalysis(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementOff, map[string]bool{"cyclomatic-complexity": true})
+	called := false
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: "/does/not/exist.json",
+		Analyzers: map[string]SourceAnalyzer{
+			"go": AnalyzerFunc(func(context.Context, string) (analyzer.AnalysisResult, error) {
+				called = true
+				return analyzer.AnalysisResult{}, nil
+			}),
+		},
+	}, nil))
+	defer server.Close()
+
+	body := postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
+	if body.Status != StatusPass || called {
+		t.Fatalf("response = %+v called = %v, want pass without analysis", body, called)
+	}
+}
+
+func TestHandlerCheckAccumulatesOutstandingViolationsUntilFilePasses(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	first := postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
+	if first.Status != StatusBlock || len(first.Violations) != 1 || first.Violations[0].File != "internal/parser/parser.go" {
+		t.Fatalf("first response = %+v, want stored parser violation", first)
+	}
+	second := postCheck(t, server.URL, repo, "internal/other/other.go", cleanGoSource())
+	if second.Status != StatusBlock || len(second.Violations) != 1 || second.Violations[0].File != "internal/parser/parser.go" {
+		t.Fatalf("second response = %+v, want outstanding parser violation", second)
+	}
+	cleared := postCheck(t, server.URL, repo, "internal/parser/parser.go", cleanGoSource())
+	if cleared.Status != StatusPass || len(cleared.Violations) != 0 {
+		t.Fatalf("cleared response = %+v, want pass after offending file passes", cleared)
+	}
+	state := getState(t, server.URL, repo)
+	if len(state.Violations) != 0 {
+		t.Fatalf("state = %+v, want no outstanding violations", state)
+	}
+}
+
+func TestHandlerStateReturnsOutstandingViolationsForRepo(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	_ = postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
+	state := getState(t, server.URL, repo)
+	if state.Repo != repo || len(state.Violations) != 1 || state.Violations[0].Function != "Parse" {
+		t.Fatalf("state = %+v, want Parse violation for repo", state)
+	}
+}
+
+func TestHandlerCheckRespectsDisabledFitnessFunctions(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": false})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	body := postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
+	if body.Status != StatusPass || len(body.Violations) != 0 {
+		t.Fatalf("response = %+v, want pass when cyclomatic complexity disabled", body)
 	}
 }
 
@@ -371,6 +493,66 @@ func writeTestPattern(t *testing.T) string {
 func jsonString(value string) string {
 	content, _ := json.Marshal(value)
 	return string(content)
+}
+
+func writeRepoConfig(t *testing.T, repo, mode string, fitness map[string]bool) {
+	t.Helper()
+	dir := filepath.Join(repo, ".calm")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	content, err := json.Marshal(Config{EnforcementMode: mode, FitnessFunctions: fitness})
+	if err != nil {
+		t.Fatalf("marshal config: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), content, 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+}
+
+func postCheck(t *testing.T, serverURL, repo, file, source string) CheckResponse {
+	t.Helper()
+	response, err := http.Post(serverURL+"/check", "application/json", strings.NewReader(`{
+		"repo": `+jsonString(repo)+`,
+		"file": `+jsonString(file)+`,
+		"language": "go",
+		"proposed_content": `+jsonString(source)+`
+	}`))
+	if err != nil {
+		t.Fatalf("POST /check: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(response.Body)
+		t.Fatalf("status = %d body = %q, want 200", response.StatusCode, body)
+	}
+	var body CheckResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return body
+}
+
+type stateResponse struct {
+	Repo       string      `json:"repo"`
+	Violations []Violation `json:"violations"`
+}
+
+func getState(t *testing.T, serverURL, repo string) stateResponse {
+	t.Helper()
+	response, err := http.Get(serverURL + "/state?repo=" + url.QueryEscape(repo))
+	if err != nil {
+		t.Fatalf("GET /state: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+	var state stateResponse
+	if err := json.NewDecoder(response.Body).Decode(&state); err != nil {
+		t.Fatalf("decode state: %v", err)
+	}
+	return state
 }
 
 func complexGoSource() string {
@@ -405,6 +587,15 @@ func Parse(value int) string {
 		return "eight"
 	}
 	return "many"
+}
+`
+}
+
+func cleanGoSource() string {
+	return `package parser
+
+func Parse() error {
+	return nil
 }
 `
 }

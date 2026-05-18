@@ -42,6 +42,7 @@ type Checker struct {
 	TempDir     string
 	Validator   Validator
 	Analyzers   map[string]SourceAnalyzer
+	State       *State
 }
 
 // ErrorKind classifies checker failures for HTTP clients.
@@ -74,6 +75,23 @@ func (e *CheckError) Unwrap() error {
 
 // Check runs the synchronous check path for one proposed file.
 func (c Checker) Check(ctx context.Context, request CheckRequest) (response CheckResponse, err error) {
+	config, err := loadConfig(request.Repo)
+	if err != nil {
+		return CheckResponse{}, err
+	}
+	state := c.State
+	if state == nil {
+		state = NewState()
+	}
+	if config.EnforcementMode == EnforcementOff {
+		return CheckResponse{Status: StatusPass}, nil
+	}
+	if config.EnforcementMode == EnforcementBlock {
+		outstanding := state.Violations(request.Repo)
+		if len(outstanding) > 0 && !state.HasFile(request.Repo, request.File) {
+			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
+		}
+	}
 	patternPath := c.PatternPath
 	if patternPath == "" {
 		patternPath = filepath.Join("patterns", "governance.json")
@@ -136,11 +154,24 @@ func (c Checker) Check(ctx context.Context, request CheckRequest) (response Chec
 	if err != nil && !isValidationFailure(validation) {
 		return CheckResponse{}, infrastructureError("running CALM validation", err)
 	}
-	violations := cyclomaticComplexityViolations(result, pattern)
+	violations := filterViolations(cyclomaticComplexityViolations(result, pattern), config)
 	if len(violations) == 0 {
+		if config.EnforcementMode == EnforcementBlock {
+			state.ReplaceFile(request.Repo, request.File, nil)
+			outstanding := state.Violations(request.Repo)
+			if len(outstanding) > 0 {
+				return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
+			}
+		}
 		return CheckResponse{Status: StatusPass}, nil
 	}
-	return CheckResponse{Status: StatusBlock, Violations: violations}, nil
+	switch config.EnforcementMode {
+	case EnforcementAdvisory:
+		return CheckResponse{Status: StatusAdvisory, Violations: violations}, nil
+	default:
+		state.ReplaceFile(request.Repo, request.File, violations)
+		return CheckResponse{Status: StatusBlock, Violations: state.Violations(request.Repo)}, nil
+	}
 }
 
 func (c Checker) writeProposedContent(request CheckRequest) (string, func() error, error) {
@@ -206,6 +237,7 @@ func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm
 		violations = append(violations, Violation{
 			FitnessFunction: "cyclomatic_complexity",
 			CALMNode:        result.CALMNode,
+			File:            result.File,
 			Function:        function.Name,
 			Value:           value,
 			Limit:           rule.Threshold,
@@ -219,6 +251,17 @@ func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm
 		})
 	}
 	return violations
+}
+
+func filterViolations(violations []Violation, config Config) []Violation {
+	filtered := make([]Violation, 0, len(violations))
+	for _, violation := range violations {
+		if !config.enabled(strings.ReplaceAll(violation.FitnessFunction, "_", "-")) {
+			continue
+		}
+		filtered = append(filtered, violation)
+	}
+	return filtered
 }
 
 func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
