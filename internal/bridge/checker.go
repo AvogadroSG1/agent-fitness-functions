@@ -97,7 +97,7 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 		state.ClearRepo(repo)
 		return CheckResponse{Status: StatusPass}, nil
 	}
-	if request.Language == "csharp" && !state.IsWarm("csharp") {
+	if request.Language == "csharp" && config.EnforcementMode == EnforcementBlock && !state.IsWarm("csharp") {
 		if outstanding := state.Violations(repo); len(outstanding) > 0 {
 			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
 		}

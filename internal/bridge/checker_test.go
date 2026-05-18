@@ -553,6 +553,60 @@ func TestHandlerCheckCSharpColdBlocksExistingOutstandingViolation(t *testing.T) 
 	}
 }
 
+func TestHandlerCheckCSharpColdAdvisoryClearsStaleBlockState(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
+	state := NewState()
+	state.ReplaceFile(repo, "src/Existing.cs", []Violation{{
+		FitnessFunction: "cyclomatic_complexity",
+		CALMNode:        "Existing",
+		File:            "src/Existing.cs",
+		Function:        "Render",
+		Value:           10,
+		Limit:           9,
+		Message:         "existing violation",
+	}})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		State:       state,
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": fakeCSharpAnalyzer(analyzer.AnalysisResult{Language: "csharp"}),
+		},
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true, Output: `{"hasErrors":false}`}, nil
+		}),
+	}, nil))
+	defer server.Close()
+
+	body := postCheckForLanguage(t, server.URL, repo, "src/New.cs", "csharp", cleanCSharpSource())
+	if body.Status != StatusPass || body.Warming || len(body.Violations) != 0 {
+		t.Fatalf("response = %+v, want pass without stale block in advisory mode", body)
+	}
+	if state := getState(t, server.URL, repo); len(state.Violations) != 0 {
+		t.Fatalf("state = %+v, want stale block state cleared", state)
+	}
+}
+
+func TestHandlerCheckCSharpColdAdvisoryReturnsGuidanceSynchronously(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": fakeCSharpAnalyzer(csharpAnalysisWithComplexFunction("Render", 10)),
+		},
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	body := postCheckForLanguage(t, server.URL, repo, "src/Widget.cs", "csharp", complexCSharpSource())
+	if body.Status != StatusAdvisory || body.Warming || len(body.Violations) != 1 || body.Violations[0].Function != "Render" {
+		t.Fatalf("response = %+v, want synchronous advisory guidance", body)
+	}
+}
+
 func TestHandlerCheckCSharpSecondColdCallAnalyzesSynchronouslyWhileWarmupRuns(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
@@ -1316,6 +1370,12 @@ public class Widget
 }
 
 func fakePythonAnalyzer(result analyzer.AnalysisResult) SourceAnalyzer {
+	return AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
+		return result, nil
+	})
+}
+
+func fakeCSharpAnalyzer(result analyzer.AnalysisResult) SourceAnalyzer {
 	return AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
 		return result, nil
 	})
