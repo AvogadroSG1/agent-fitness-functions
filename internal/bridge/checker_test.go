@@ -378,14 +378,14 @@ func TestHandlerCheckPassesCleanGoContent(t *testing.T) {
 func TestHandlerCheckRunsPythonAnalyzerAndRoutesAdvisoryViolation(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
-		server := httptest.NewServer(NewHandlerWithChecker(Checker{
-			PatternPath: writeTestPattern(t),
-			Analyzers: map[string]SourceAnalyzer{
-				"python": fakePythonAnalyzer(pythonAnalysisWithComplexFunction("build_config", 10)),
-			},
-			Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
-				return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
-			}),
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Analyzers: map[string]SourceAnalyzer{
+			"python": fakePythonAnalyzer(pythonAnalysisWithComplexFunction("build_config", 10)),
+		},
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
 	}, nil))
 	defer server.Close()
 
@@ -405,14 +405,14 @@ func TestHandlerCheckRunsPythonAnalyzerAndRoutesAdvisoryViolation(t *testing.T) 
 func TestHandlerCheckPassesCleanPythonContent(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
-		server := httptest.NewServer(NewHandlerWithChecker(Checker{
-			PatternPath: writeTestPattern(t),
-			Analyzers: map[string]SourceAnalyzer{
-				"python": fakePythonAnalyzer(analyzer.AnalysisResult{Language: "python"}),
-			},
-			Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
-				return calm.ValidationResult{Valid: true, Output: `{"hasErrors":false}`}, nil
-			}),
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Analyzers: map[string]SourceAnalyzer{
+			"python": fakePythonAnalyzer(analyzer.AnalysisResult{Language: "python"}),
+		},
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true, Output: `{"hasErrors":false}`}, nil
+		}),
 	}, nil))
 	defer server.Close()
 
