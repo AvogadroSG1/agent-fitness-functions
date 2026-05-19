@@ -103,11 +103,6 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 		if message, ok := state.TakeWarmupFailure("csharp"); ok {
 			return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message))
 		}
-	}
-	if request.Language == "csharp" && config.EnforcementMode == EnforcementBlock {
-		if message, ok := state.TakeWarmupFailure("csharp"); ok {
-			return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message))
-		}
 		if outstanding := state.Violations(repo); hasOtherFileViolation(outstanding, request.File) {
 			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
 		}
@@ -220,7 +215,7 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 	if err != nil && !isValidationFailure(validation) {
 		return CheckResponse{}, infrastructureError("running CALM validation", err)
 	}
-	violations := filterViolations(cyclomaticComplexityViolations(result, pattern), config)
+	violations := filterViolations(fitnessViolations(result, pattern), config)
 	if len(violations) == 0 {
 		if config.EnforcementMode == EnforcementBlock {
 			state.ReplaceFile(repo, request.File, nil)
@@ -341,6 +336,14 @@ func (c Checker) writeArchitecture(document report.ArchitectureDocument) (string
 	return file.Name(), cleanup, nil
 }
 
+func fitnessViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
+	violations := make([]Violation, 0)
+	violations = append(violations, cyclomaticComplexityViolations(result, pattern)...)
+	violations = append(violations, logicDensityViolations(result, pattern)...)
+	violations = append(violations, dependencyDisciplineViolations(result, pattern)...)
+	return violations
+}
+
 func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
 	rule, ok := pattern.FitnessFunctions["cyclomatic-complexity"]
 	if !ok || rule.Operator != "lte" {
@@ -369,6 +372,51 @@ func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm
 		})
 	}
 	return violations
+}
+
+func logicDensityViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
+	rule, ok := pattern.FitnessFunctions["logic-density"]
+	if !ok || rule.Operator != "gte" || result.FileMetric.TotalLOC == 0 || result.FileMetric.LDR >= rule.Threshold {
+		return nil
+	}
+	return []Violation{{
+		FitnessFunction: "logic_density",
+		CALMNode:        result.CALMNode,
+		File:            result.File,
+		Value:           result.FileMetric.LDR,
+		Limit:           rule.Threshold,
+		Message: fmt.Sprintf(
+			"File %q has a Logic Density Ratio of %.3f (minimum: %.3f). The file may contain excessive boilerplate relative to functional logic.",
+			result.File,
+			result.FileMetric.LDR,
+			rule.Threshold,
+		),
+	}}
+}
+
+func dependencyDisciplineViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
+	rule, ok := pattern.FitnessFunctions["dependency-discipline"]
+	if !ok || rule.Operator != "gte" || result.Imports.Total == 0 || result.Imports.DDC >= rule.Threshold {
+		return nil
+	}
+	unused := strings.Join(result.Imports.Unused, ", ")
+	if unused == "" {
+		unused = "none reported"
+	}
+	return []Violation{{
+		FitnessFunction: "dependency_discipline",
+		CALMNode:        result.CALMNode,
+		File:            result.File,
+		Value:           result.Imports.DDC,
+		Limit:           rule.Threshold,
+		Message: fmt.Sprintf(
+			"File %q has a Dependency Discipline ratio of %.3f (minimum: %.3f). Unused imports: [%s].",
+			result.File,
+			result.Imports.DDC,
+			rule.Threshold,
+			unused,
+		),
+	}}
 }
 
 func filterViolations(violations []Violation, config Config) []Violation {
