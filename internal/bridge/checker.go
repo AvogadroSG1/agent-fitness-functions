@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -250,6 +251,11 @@ func (c *Checker) startDeferredCheck(request CheckRequest, repo string, config C
 	checker := *c
 	go func() {
 		defer unlockRepo()
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				checker.State.FailWarmup("csharp", fmt.Sprintf("panic during deferred csharp check: %v\n%s", recovered, debug.Stack()))
+			}
+		}()
 		ctx := checker.DeferredContext
 		if ctx == nil {
 			ctx = context.Background()

@@ -535,6 +535,49 @@ func TestHandlerCheckCSharpDeferredAnalyzerFailureSurfacesOnNextCall(t *testing.
 	}
 }
 
+func TestHandlerCheckCSharpDeferredPanicSurfacesOnNextCall(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	started := make(chan struct{})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
+				close(started)
+				panic("roslyn panic")
+			}),
+		},
+	}, nil))
+	defer server.Close()
+
+	first := postCheckForLanguage(t, server.URL, repo, "src/Widget.cs", "csharp", cleanCSharpSource())
+	if first.Status != StatusPass || !first.Warming {
+		t.Fatalf("first response = %+v, want deferred warming pass", first)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("deferred C# analyzer did not start")
+	}
+	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
+		"repo": `+jsonString(repo)+`,
+		"file": "src/Retry.cs",
+		"language": "csharp",
+		"proposed_content": `+jsonString(cleanCSharpSource())+`
+	}`))
+	if err != nil {
+		t.Fatalf("POST /check: %v", err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read response: %v", err)
+	}
+	if response.StatusCode != http.StatusServiceUnavailable || !strings.Contains(string(body), "csharp warm-up failed") {
+		t.Fatalf("status = %d body = %q, want recovered warm-up infrastructure failure", response.StatusCode, body)
+	}
+}
+
 func TestHandlerCheckCSharpWarmupFailurePrecedesOutstandingViolation(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
