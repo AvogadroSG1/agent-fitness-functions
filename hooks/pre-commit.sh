@@ -1,10 +1,22 @@
 #!/usr/bin/env bash
+# CALM pre-commit hook
 set -euo pipefail
 
 repo=$(git rev-parse --show-toplevel)
 calm_bridge=${CALM_BRIDGE_BIN:-calm-bridge}
 addr=${CALM_BRIDGE_ADDR:-}
 blocked=0
+
+if [[ -n "$addr" && "${CALM_ALLOW_REMOTE_BRIDGE:-}" != "1" ]]; then
+  case "$addr" in
+    http://127.0.0.1:*|http://localhost:*|http://[::1]:*)
+      ;;
+    *)
+      echo "CALM_BRIDGE_ADDR must be loopback unless CALM_ALLOW_REMOTE_BRIDGE=1 is set" >&2
+      exit 1
+      ;;
+  esac
+fi
 
 language_for_file() {
   case "$1" in
@@ -55,6 +67,12 @@ while IFS= read -r -d '' file; do
     advisory)
       echo "CALM advisory for $file:" >&2
       printf '%s' "$result" | json_messages >&2
+      ;;
+    pass)
+      ;;
+    *)
+      echo "CALM check returned unknown status for $file: ${status:-<empty>}" >&2
+      blocked=1
       ;;
   esac
 done < <(git diff --cached --name-only --diff-filter=ACM -z)

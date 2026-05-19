@@ -147,6 +147,42 @@ func TestResolveContentReadsRelativeToRepo(t *testing.T) {
 	}
 }
 
+func TestRunCheckStagedReadsIndexInsteadOfWorktree(t *testing.T) {
+	repo := t.TempDir()
+	runGit(t, repo, "init")
+	if err := os.WriteFile(filepath.Join(repo, "x.go"), []byte("package staged\n"), 0o644); err != nil {
+		t.Fatalf("write staged content: %v", err)
+	}
+	runGit(t, repo, "add", "x.go")
+	if err := os.WriteFile(filepath.Join(repo, "x.go"), []byte("package worktree\n"), 0o644); err != nil {
+		t.Fatalf("write worktree content: %v", err)
+	}
+	var received bridge.CheckRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/check":
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(bridge.CheckResponse{Status: bridge.StatusPass})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	var stderr bytes.Buffer
+	code := run([]string{"check", "--addr", server.URL, "--file", "x.go", "--repo", repo, "--staged", "--language", "go"}, &bytes.Buffer{}, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if received.ProposedContent != "package staged\n" {
+		t.Fatalf("proposed content = %q, want staged index content", received.ProposedContent)
+	}
+}
+
 func TestRunBaselineWritesReport(t *testing.T) {
 	repo := t.TempDir()
 	if err := os.WriteFile(filepath.Join(repo, "x.go"), []byte("package sample\n\nfunc Run() {}\n"), 0o644); err != nil {
@@ -165,6 +201,14 @@ func TestRunBaselineWritesReport(t *testing.T) {
 	}
 	if !strings.Contains(string(content), `"repository": "sample"`) {
 		t.Fatalf("baseline report = %s, want repository name", content)
+	}
+}
+
+func runGit(t *testing.T, repo string, args ...string) {
+	t.Helper()
+	command := exec.Command("git", append([]string{"-C", repo}, args...)...)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, output)
 	}
 }
 
