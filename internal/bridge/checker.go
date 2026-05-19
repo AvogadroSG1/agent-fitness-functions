@@ -193,7 +193,7 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 	}
 	result = analyzer.EnsureModuleMetric(result)
 	result.File = request.File
-	result.CALMNode = calmNodeForRequest(request.File, result.CALMNode)
+	result.CALMNode = calmNodeForRequest(request, result.CALMNode)
 
 	architecturePath, cleanupArchitecture, err := c.writeArchitecture(report.BuildArchitecture(result))
 	if err != nil {
@@ -485,17 +485,7 @@ func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
 	}
 	if language == "go" {
 		return AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
-			if err := ctx.Err(); err != nil {
-				return analyzer.AnalysisResult{}, err
-			}
-			result, err := analyzer.AnalyzeGoFile(request.TempPath)
-			if err != nil {
-				return analyzer.AnalysisResult{}, err
-			}
-			if err := ctx.Err(); err != nil {
-				return analyzer.AnalysisResult{}, err
-			}
-			return result, nil
+			return analyzeGoWithModuleContext(ctx, request)
 		}), true
 	}
 	if language == "python" {
@@ -511,12 +501,54 @@ func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
 	return nil, false
 }
 
-func calmNodeForRequest(file, fallback string) string {
-	base := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
+func analyzeGoWithModuleContext(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
+	if err := ctx.Err(); err != nil {
+		return analyzer.AnalysisResult{}, err
+	}
+	proposed, err := analyzer.AnalyzeGoFile(request.TempPath)
+	if err != nil {
+		return analyzer.AnalysisResult{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return analyzer.AnalysisResult{}, err
+	}
+	results := []analyzer.AnalysisResult{proposed}
+	logicalPath := filepath.Join(request.Repo, request.File)
+	dirEntries, err := os.ReadDir(filepath.Dir(logicalPath))
+	if err != nil {
+		return proposed, nil
+	}
+	for _, entry := range dirEntries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_generated.go") {
+			continue
+		}
+		path := filepath.Join(filepath.Dir(logicalPath), entry.Name())
+		if filepath.Clean(path) == filepath.Clean(logicalPath) {
+			continue
+		}
+		existing, err := analyzer.AnalyzeGoFile(path)
+		if err != nil {
+			return analyzer.AnalysisResult{}, err
+		}
+		if existing.CALMNode == proposed.CALMNode {
+			results = append(results, existing)
+		}
+	}
+	return analyzer.AggregateModuleMetrics(results)[0], nil
+}
+
+func calmNodeForRequest(request CheckRequest, fallback string) string {
+	base := strings.TrimSuffix(filepath.Base(request.File), filepath.Ext(request.File))
+	if fallback == "" || strings.HasPrefix(fallback, "calm-check-") || request.Language == "python" {
+		if base == "" {
+			return fallback
+		}
+		return base
+	}
 	if base == "" {
 		return fallback
 	}
-	return base
+	return fallback
 }
 
 func isNilSourceAnalyzer(sourceAnalyzer SourceAnalyzer) bool {
