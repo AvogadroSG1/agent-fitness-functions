@@ -31,7 +31,8 @@ func AnalyzeCSharpFile(ctx context.Context, file, cliPath string) (AnalysisResul
 	if result.File == "" {
 		result.File = file
 	}
-	return EnsureModuleMetric(result), nil
+	result.ModuleMetric = BuildModuleMetric(result.FileMetric, result.Functions)
+	return result, nil
 }
 
 func defaultRoslynCLI() string {
