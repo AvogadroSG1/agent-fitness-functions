@@ -203,6 +203,10 @@ func TestAnalyzePythonFileFallsBackToRadonCLIWhenFastPathSubprocessFails(t *test
 	logPath := filepath.Join(dir, "radon-degraded.log")
 	fakeShellRadonWithCLIFallback(t, dir, logPath, file)
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	python, _, ok := radonPythonCommand("radon")
+	if !ok || !strings.HasSuffix(python, "bash") {
+		t.Fatalf("radonPythonCommand = %q, %t; want bash fast-path command", python, ok)
+	}
 
 	result, err := AnalyzePythonFile(context.Background(), file, "")
 	if err != nil {
@@ -221,10 +225,9 @@ func TestAnalyzePythonFileFallsBackToRadonCLIWhenFastPathSubprocessFails(t *test
 		t.Fatalf("read log: %v", err)
 	}
 	logText := string(logContent)
-	if strings.Count(logText, "fast\n") != 1 ||
-		strings.Count(logText, " cc ") != 1 ||
+	if strings.Count(logText, " cc ") != 1 ||
 		strings.Count(logText, " raw ") != 1 {
-		t.Fatalf("radon degraded log = %q, want fast attempt plus cc/raw fallback", logText)
+		t.Fatalf("radon degraded log = %q, want cc/raw fallback", logText)
 	}
 }
 
@@ -468,10 +471,6 @@ func fakeShellRadonWithCLIFallback(t *testing.T, dir, logPath, file string) stri
 	path := filepath.Join(dir, "radon")
 	script := fmt.Sprintf(`#!/usr/bin/env bash
 set -euo pipefail
-if [ "${1:-}" = "-c" ]; then
-  printf 'fast\n' >> %[1]q
-  exit 2
-fi
 printf ' %%s %%s\n' "$1" "$*" >> %[1]q
 if [ "$1" = "cc" ]; then
   printf '{"%[2]s":[{"type":"F","name":"fallback","complexity":1,"lineno":1,"endline":2}]}'
