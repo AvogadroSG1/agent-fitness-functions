@@ -28,7 +28,15 @@ func TestCheckerWithRealCALMBlocksRingstationPythonCyclomaticComplexityFixture(t
 	}
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
-	source, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "violations", "python", "ringstation-dd-stage-bronze.py"))
+	sourcePath := filepath.Join(
+		"..",
+		"..",
+		"fixtures",
+		"violations",
+		"python",
+		"ringstation-dd-stage-bronze.py",
+	)
+	source, err := os.ReadFile(sourcePath)
 	if err != nil {
 		t.Fatalf("read ringstation fixture: %v", err)
 	}
@@ -94,7 +102,15 @@ func TestPythonSynchronousCheckPhaseProfile(t *testing.T) {
 	}
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
-	source, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "violations", "python", "ringstation-dd-stage-bronze.py"))
+	sourcePath := filepath.Join(
+		"..",
+		"..",
+		"fixtures",
+		"violations",
+		"python",
+		"ringstation-dd-stage-bronze.py",
+	)
+	source, err := os.ReadFile(sourcePath)
 	if err != nil {
 		t.Fatalf("read ringstation fixture: %v", err)
 	}
@@ -175,7 +191,8 @@ func TestPythonSynchronousCheckPhaseProfile(t *testing.T) {
 	if canonicalRepo == "" {
 		t.Fatalf("canonical repo is empty")
 	}
-	t.Logf("python /check phase profile: config=%s pattern=%s temp_write=%s legacy_radon_cc=%s legacy_radon_raw=%s radon_api_analysis=%s architecture=%s calm_validate=%s fitness=%s total=%s violations=%d",
+	t.Logf(
+		"python /check phase profile: config=%s pattern=%s temp_write=%s legacy_radon_cc=%s legacy_radon_raw=%s radon_api_analysis=%s architecture=%s calm_validate=%s fitness=%s total=%s violations=%d",
 		configDuration,
 		patternDuration,
 		tempWriteDuration,
