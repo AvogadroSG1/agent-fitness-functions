@@ -130,6 +130,9 @@ func goImportMetric(file *ast.File) ImportMetric {
 	}
 	usedNames := map[string]bool{}
 	ast.Inspect(file, func(node ast.Node) bool {
+		if importSpec, ok := node.(*ast.ImportSpec); ok {
+			return importSpec.Name == nil
+		}
 		ident, ok := node.(*ast.Ident)
 		if ok {
 			usedNames[ident.Name] = true

@@ -10,11 +10,11 @@ Generated from baseline reports on 2026-05-18. These existing results exceed or 
 | Interface Width | `lte` | 20 |
 | Implementation Depth | `gte` | 0.722 |
 | Logic Density | `gte` | 0.255 |
-| Dependency Discipline | `gte` | 0.001 |
+| Dependency Discipline | `gte` | 0.8 |
 
 ## Exception Counts
 
-| Repository | Language | CC > 9 | Public Methods > 20 | Avg LOC/Public < 0.722 | LDR < 0.255 | DDC < 0.001 |
+| Repository | Language | CC > 9 | Public Methods > 20 | Avg LOC/Public < 0.722 | LDR < 0.255 | DDC < 0.8 |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | graft | go | 49 | 2 | 0 | 0 | 0 |
 | ringstation | python | 137 | 36 | 0 | 18 | 15 |
@@ -738,4 +738,3 @@ No exceptions.
 | `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/QuestionsWriteController.cs` | 0/13 | 0.000 |
 | `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/UsersReadController.cs` | 0/13 | 0.000 |
 | `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Ingestion/IngestionService.cs` | 0/13 | 0.000 |
-

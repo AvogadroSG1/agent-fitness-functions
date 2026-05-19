@@ -86,7 +86,7 @@ func TestLoadPatternParsesRepositoryGovernance(t *testing.T) {
 	assertRule(t, pattern, "interface-width", 20, "lte", "module")
 	assertRule(t, pattern, "implementation-depth", 0.722, "gte", "module")
 	assertRule(t, pattern, "logic-density", 0.255, "gte", "file")
-	assertRule(t, pattern, "dependency-discipline", 0.001, "gte", "file")
+	assertRule(t, pattern, "dependency-discipline", 0.8, "gte", "file")
 }
 
 func assertRule(t *testing.T, pattern Pattern, name string, threshold float64, operator, unit string) {

@@ -116,6 +116,58 @@ func Kept(value string) string {
 	}
 }
 
+func TestAnalyzeGoFileCountsAliasedImportsOnlyWhenUsedInBody(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "imports.go")
+	source := `package sample
+
+import (
+	aliasbytes "bytes"
+	aliasfmt "fmt"
+)
+
+func UseImport() string {
+	return aliasfmt.Sprint("ok")
+}
+`
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	result, err := AnalyzeGoFile(path)
+	if err != nil {
+		t.Fatalf("AnalyzeGoFile returned error: %v", err)
+	}
+
+	if result.Imports.Total != 2 || result.Imports.Used != 1 || result.Imports.DDC != 0.5 {
+		t.Fatalf("imports = %+v, want 1/2 aliased imports used", result.Imports)
+	}
+	if len(result.Imports.Unused) != 1 || result.Imports.Unused[0] != "aliasbytes" {
+		t.Fatalf("unused imports = %+v, want aliasbytes", result.Imports.Unused)
+	}
+}
+
+func TestAnalyzeGoFileReturnsDisciplinedMetricsForNoImports(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty.go")
+	source := `package sample
+
+func Run() string {
+	return "ok"
+}
+`
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	result, err := AnalyzeGoFile(path)
+	if err != nil {
+		t.Fatalf("AnalyzeGoFile returned error: %v", err)
+	}
+
+	if result.Imports.Total != 0 || result.Imports.Used != 0 || result.Imports.DDC != 1 {
+		t.Fatalf("imports = %+v, want no imports with DDC 1", result.Imports)
+	}
+}
+
 func findFunction(t *testing.T, result AnalysisResult, name string) FunctionMetric {
 	t.Helper()
 	for _, fn := range result.Functions {

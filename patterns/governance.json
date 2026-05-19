@@ -40,7 +40,7 @@
                   "dependency-discipline": {
                     "description": "Minimum used-import ratio per file",
                     "type": "number",
-                    "minimum": 0.001
+                    "minimum": 0.8
                   }
                 },
                 "required": [

@@ -8,7 +8,7 @@ The governance file is shared across repositories, so the proposed threshold use
 
 - Upper-bound rules use the maximum repository P90.
 - Lower-bound rules use the minimum repository P10.
-- Dependency Discipline was approved as a temporary no-op threshold, but CALM CLI 1.40.0 rejects zero-valued pattern properties. `governance.json` therefore uses the smallest reviewed floor, `0.001`, and treats existing values below that floor as baseline exceptions until the analyzer gains project-reference awareness.
+- Dependency Discipline now follows the Step 5.3 PoC threshold, `0.8`, so files with excessive unused imports are actionable. C# project-aware import resolution remains tracked as follow-up work before treating C# DDC results as final.
 - Ratio thresholds round down to three decimal places so the concrete governance values are stable and do not become stricter than the measured baseline tail.
 
 This deliberately refines the Step 0 shorthand of setting thresholds at the 90th percentile: ceiling metrics violate when they rise above the upper tail, while floor metrics violate when they fall below the lower tail.
@@ -30,7 +30,7 @@ This deliberately refines the Step 0 shorthand of setting thresholds at the 90th
 | Interface Width | `lte` | 20 | Maximum repository P90 from StackOverflow.Api.V3 |
 | Implementation Depth | `gte` | 0.722 | Minimum repository P10 from SlackStatus |
 | Logic Density | `gte` | 0.255 | Minimum repository P10 from StackOverflow.Api.V3 |
-| Dependency Discipline | `gte` | 0.001 | CLI-compatible advisory floor for C# baselines |
+| Dependency Discipline | `gte` | 0.8 | Step 5.3 PoC threshold |
 
 ## Known Exceptions
 
@@ -38,7 +38,7 @@ The exhaustive exception appendix is [threshold-exceptions.md](threshold-excepti
 
 Exception counts from the appendix:
 
-| Repository | CC > 9 | Public Methods > 20 | Avg LOC/Public < 0.722 | LDR < 0.255 | DDC < 0.001 |
+| Repository | CC > 9 | Public Methods > 20 | Avg LOC/Public < 0.722 | LDR < 0.255 | DDC < 0.8 |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | graft | 49 | 2 | 0 | 0 | 0 |
 | ringstation | 137 | 36 | 0 | 18 | 15 |
@@ -47,7 +47,7 @@ Exception counts from the appendix:
 
 ### Dependency Discipline
 
-The current C# baseline still contains many `0` values because project-local symbols cannot be fully resolved from a single-file Roslyn analysis. Peter approved this as a temporary PoC no-op threshold on 2026-05-18. CALM CLI 1.40.0 rejects `0` in pattern properties, so `patterns/governance.json` uses `0.001` as the CLI-compatible advisory floor and `docs/threshold-exceptions.md` records the existing values below it. Follow-up Bead `calm-poc-oeu` tracks project-aware C# import resolution before Dependency Discipline is made meaningful.
+The current C# baseline still contains many `0` values because project-local symbols cannot be fully resolved from a single-file Roslyn analysis. `patterns/governance.json` now uses the Step 5.3 PoC threshold, `0.8`, so DDC can flag unused-import slop in Go/Python and any C# files the current analyzer can resolve. Follow-up Bead `calm-poc-oeu` tracks project-aware C# import resolution before Dependency Discipline is treated as final for C# repositories.
 
 ## Human Approval
 
@@ -56,7 +56,7 @@ Status: Approved by Peter on 2026-05-18.
 Approved decisions:
 
 1. Use shared thresholds across Go, Python, and C# for the PoC, instead of per-language thresholds.
-2. Use `dependency-discipline` as an advisory/no-op threshold until project-aware C# import resolution exists; implemented as `0.001` because CALM CLI 1.40.0 rejects zero-valued pattern properties.
+2. Use `dependency-discipline` at the Step 5.3 threshold (`0.8`) while tracking project-aware C# import resolution in `calm-poc-oeu`.
 3. Use the exhaustive exception appendix and the policy that existing exceptions block only when worsened by a change.
 4. Use the rounding policy: upper integer thresholds remain exact, lower-bound ratios round down to three decimals.
 

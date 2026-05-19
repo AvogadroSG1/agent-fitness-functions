@@ -460,7 +460,7 @@ func TestHandlerCheckBlocksDependencyDisciplineViolationWithUnusedImports(t *tes
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"dependency-discipline": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
-		PatternPath: writeDependencyDisciplineTestPattern(t),
+		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"go": fakeGoAnalyzer(analyzer.AnalysisResult{
 				Language:   "go",
@@ -494,6 +494,46 @@ func TestHandlerCheckBlocksDependencyDisciplineViolationWithUnusedImports(t *tes
 	}
 }
 
+func TestHandlerCheckBlocksRealGoBoilerplateForLogicDensity(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"logic-density": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+	}, nil))
+	defer server.Close()
+
+	body := postCheckForLanguage(t, server.URL, repo, "internal/hollow/hollow.go", "go", goBoilerplateSource())
+	if body.Status != StatusBlock || len(body.Violations) != 1 {
+		t.Fatalf("response = %+v, want one real Go LDR block", body)
+	}
+	if body.Violations[0].FitnessFunction != "logic_density" || body.Violations[0].Value >= body.Violations[0].Limit {
+		t.Fatalf("violation = %+v, want LDR below threshold", body.Violations[0])
+	}
+}
+
+func TestHandlerCheckBlocksRealGoUnusedImportsForDependencyDiscipline(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"dependency-discipline": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+	}, nil))
+	defer server.Close()
+
+	body := postCheckForLanguage(t, server.URL, repo, "internal/imports/imports.go", "go", goUnusedImportsSource())
+	if body.Status != StatusBlock || len(body.Violations) != 1 {
+		t.Fatalf("response = %+v, want one real Go DDC block", body)
+	}
+	violation := body.Violations[0]
+	if violation.FitnessFunction != "dependency_discipline" || violation.Value != 0.7 || violation.Limit != 0.8 {
+		t.Fatalf("violation = %+v, want DDC 7/10 below 0.8 threshold", violation)
+	}
+	for _, name := range []string{"bytes", "context", "math"} {
+		if !strings.Contains(violation.Message, name) {
+			t.Fatalf("message = %q, want unused import %q", violation.Message, name)
+		}
+	}
+}
+
 func TestHandlerCheckRespectsDisabledAISlopFitnessFunctions(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{
@@ -518,6 +558,74 @@ func TestHandlerCheckRespectsDisabledAISlopFitnessFunctions(t *testing.T) {
 	body := postCheckForLanguage(t, server.URL, repo, "internal/slop/slop.go", "go", cleanGoSource())
 	if body.Status != StatusPass || len(body.Violations) != 0 {
 		t.Fatalf("response = %+v, want pass when AI Slop fitness functions are disabled", body)
+	}
+}
+
+func TestHandlerCheckTogglesAISlopFitnessFunctionsIndependently(t *testing.T) {
+	tests := []struct {
+		name     string
+		fitness  map[string]bool
+		wantOnly string
+	}{
+		{
+			name:     "logic disabled dependency enabled",
+			fitness:  map[string]bool{"logic-density": false, "dependency-discipline": true},
+			wantOnly: "dependency_discipline",
+		},
+		{
+			name:     "dependency disabled logic enabled",
+			fitness:  map[string]bool{"logic-density": true, "dependency-discipline": false},
+			wantOnly: "logic_density",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := t.TempDir()
+			writeRepoConfig(t, repo, EnforcementBlock, tt.fitness)
+			server := httptest.NewServer(NewHandlerWithChecker(Checker{
+				PatternPath: writeTestPattern(t),
+				Analyzers: map[string]SourceAnalyzer{
+					"go": fakeGoAnalyzer(analyzer.AnalysisResult{
+						Language:   "go",
+						FileMetric: analyzer.FileMetric{TotalLOC: 100, LogicLOC: 10, LDR: 0.10},
+						Imports:    analyzer.ImportMetric{Total: 10, Used: 7, Unused: []string{"bytes", "context", "fmt"}, DDC: 0.7},
+					}),
+				},
+				Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+					return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+				}),
+			}, nil))
+			defer server.Close()
+
+			body := postCheckForLanguage(t, server.URL, repo, "internal/slop/slop.go", "go", cleanGoSource())
+			if body.Status != StatusBlock || len(body.Violations) != 1 || body.Violations[0].FitnessFunction != tt.wantOnly {
+				t.Fatalf("response = %+v, want only %s violation", body, tt.wantOnly)
+			}
+		})
+	}
+}
+
+func TestHandlerCheckIgnoresZeroDenominatorAISlopMetrics(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"logic-density": true, "dependency-discipline": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Analyzers: map[string]SourceAnalyzer{
+			"go": fakeGoAnalyzer(analyzer.AnalysisResult{
+				Language:   "go",
+				FileMetric: analyzer.FileMetric{TotalLOC: 0, LogicLOC: 0, LDR: 0},
+				Imports:    analyzer.ImportMetric{Total: 0, Used: 0, DDC: 0},
+			}),
+		},
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	body := postCheckForLanguage(t, server.URL, repo, "internal/empty/empty.go", "go", cleanGoSource())
+	if body.Status != StatusPass || len(body.Violations) != 0 {
+		t.Fatalf("response = %+v, want zero-denominator metrics ignored", body)
 	}
 }
 
@@ -1475,20 +1583,6 @@ func writeTestPattern(t *testing.T) string {
 	return path
 }
 
-func writeDependencyDisciplineTestPattern(t *testing.T) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "governance.json")
-	content, err := os.ReadFile(filepath.Join("..", "..", "patterns", "governance.json"))
-	if err != nil {
-		t.Fatalf("read governance pattern: %v", err)
-	}
-	content = []byte(strings.Replace(string(content), `"minimum": 0.001`, `"minimum": 0.8`, 1))
-	if err := os.WriteFile(path, content, 0o644); err != nil {
-		t.Fatalf("write pattern: %v", err)
-	}
-	return path
-}
-
 func jsonString(value string) string {
 	content, _ := json.Marshal(value)
 	return string(content)
@@ -1639,6 +1733,67 @@ func Parse() error {
 `
 }
 
+func goBoilerplateSource() string {
+	return `package hollow
+
+type A struct{}
+type B struct{}
+type C struct{}
+type D struct{}
+type E struct{}
+type F struct{}
+type G struct{}
+type H struct{}
+type I struct{}
+type J struct{}
+type K struct{}
+type L struct{}
+type M struct{}
+type N struct{}
+type O struct{}
+type P struct{}
+type Q struct{}
+type R struct{}
+type S struct{}
+type T struct{}
+
+func Useful() int {
+	return 1
+}
+`
+}
+
+func goUnusedImportsSource() string {
+	return `package imports
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"math"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+)
+
+func UseImports() string {
+	values := []any{
+		json.Valid([]byte("{}")),
+		fmt.Sprint("ok"),
+		io.EOF,
+		http.MethodGet,
+		os.PathSeparator,
+		strings.TrimSpace(" ok "),
+		time.Now().String(),
+	}
+	return fmt.Sprint(values)
+}
+`
+}
+
 func complexPythonSource() string {
 	return `from datetime import date
 
@@ -1698,7 +1853,13 @@ func cleanCSharpSource() string {
 
 public class Widget
 {
-    public string Render() => "ok";
+    public string Render()
+    {
+        var value = "ok";
+        value = value.Trim();
+        value = value.ToUpperInvariant();
+        return value;
+    }
 }
 `
 }

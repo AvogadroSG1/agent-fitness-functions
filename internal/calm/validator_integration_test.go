@@ -33,7 +33,7 @@ func TestValidatorWithRealCalmCLI(t *testing.T) {
 		{name: "interface width", fixture: "current-architecture-fail-interface-width.json", want: "must be <= 20"},
 		{name: "implementation depth", fixture: "current-architecture-fail-implementation-depth.json", want: "must be >= 0.722"},
 		{name: "logic density", fixture: "current-architecture-fail-logic-density.json", want: "must be >= 0.255"},
-		{name: "dependency discipline", fixture: "current-architecture-fail-dependency-discipline.json", want: "must be >= 0.001"},
+		{name: "dependency discipline", fixture: "current-architecture-fail-dependency-discipline.json", want: "must be >= 0.8"},
 	}
 	for _, tt := range failures {
 		t.Run(tt.name, func(t *testing.T) {
