@@ -190,6 +190,37 @@ func TestAnalyzePythonFileUsesSingleRadonAPISubprocessWhenRadonHasPythonShebang(
 	}
 }
 
+func TestAnalyzePythonFileFallsBackToRadonCLIWhenFastPathUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "fallback.py")
+	if err := os.WriteFile(file, []byte("def fallback():\n    return 1\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	logPath := filepath.Join(dir, "radon-cli.log")
+	fakeRadonCLI(t, dir, logPath, file)
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	result, err := AnalyzePythonFile(context.Background(), file, "")
+	if err != nil {
+		t.Fatalf("AnalyzePythonFile returned error: %v", err)
+	}
+
+	if len(result.Functions) != 1 || result.Functions[0].Name != "fallback" || result.Functions[0].CyclomaticComplexity != 1 {
+		t.Fatalf("functions = %+v, want fallback function from radon CLI output", result.Functions)
+	}
+	if result.FileMetric.TotalLOC != 2 || result.FileMetric.LogicLOC != 1 {
+		t.Fatalf("file metrics = %+v, want LOC 2 and LLOC 1 from radon CLI output", result.FileMetric)
+	}
+	logContent, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	logText := string(logContent)
+	if strings.Count(logText, " cc ") != 1 || strings.Count(logText, " raw ") != 1 {
+		t.Fatalf("radon CLI log = %q, want one cc and one raw fallback invocation", logText)
+	}
+}
+
 func TestRadonPythonCommandParsesEnvShebang(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "radon")
@@ -319,6 +350,26 @@ func fakeRadonWithShebang(t *testing.T, dir, pythonPath string) string {
 	script := fmt.Sprintf("#!%s\n", pythonPath)
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake radon: %v", err)
+	}
+	return path
+}
+
+func fakeRadonCLI(t *testing.T, dir, logPath, file string) string {
+	t.Helper()
+	path := filepath.Join(dir, "radon")
+	script := fmt.Sprintf(`#!/usr/bin/env bash
+set -euo pipefail
+printf ' %%s %%s\n' "$1" "$*" >> %[1]q
+if [ "$1" = "cc" ]; then
+  printf '{"%[2]s":[{"type":"F","name":"fallback","complexity":1,"lineno":1,"endline":2}]}'
+elif [ "$1" = "raw" ]; then
+  printf '{"%[2]s":{"loc":2,"lloc":1}}'
+else
+  exit 2
+fi
+`, logPath, file)
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake radon CLI: %v", err)
 	}
 	return path
 }

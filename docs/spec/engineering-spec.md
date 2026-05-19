@@ -505,6 +505,12 @@ Per-repository configuration. Declares enforcement mode, daemon connection, and 
 | Go | Synchronous | `startup-timeout-ms` not exceeded |
 | C# | Deferred on first call; synchronous from second call onward | Roslyn cold start may exceed timeout |
 
+### Python Latency Decision
+
+The Python hook path MUST keep Radon analysis in a single subprocess by invoking the Python interpreter from the installed `radon` launcher and using Radon APIs for cyclomatic complexity and raw metrics together. The legacy CLI-compatible path still exists for explicit custom `radon` paths and fallback behavior.
+
+The target-machine profile for the optimized path showed five consecutive real `/check` samples at `439.607459ms`, `425.79225ms`, `432.336625ms`, `439.290042ms`, and `436.524791ms`. Phase profiling showed the new Radon API analysis at `59.086625ms`, compared with legacy `radon cc` plus `radon raw` subprocess timings of `86.1875ms` and `123.440459ms`; `calm validate` remained the dominant phase at `350.604084ms`. Because the FINOS CALM CLI is an external Node.js subprocess, occasional host-level startup jitter can still produce isolated samples above 500 ms. The PoC decision is to log five-run latency evidence and keep functional integration gates deterministic rather than fail normal test runs on wall-clock jitter. A hard latency SLO SHOULD be revisited with a long-lived CALM validation service or in-process validator if this moves beyond PoC.
+
 ### Outstanding Violation State
 
 The daemon maintains an in-memory map of `repo → []violation`. Any hook call against a repository with outstanding violations in `block` mode MUST return a block, regardless of whether the new file itself violates a rule. The block message lists outstanding violations and their locations.

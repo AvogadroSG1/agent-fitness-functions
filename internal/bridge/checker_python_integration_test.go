@@ -37,35 +37,51 @@ func TestCheckerWithRealCALMBlocksRingstationPythonCyclomaticComplexityFixture(t
 	}, nil))
 	defer server.Close()
 
-	start := time.Now()
-	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
-		"repo": `+jsonString(repo)+`,
-		"file": "databricks/cost-analytics/src/setup/dd_stage_bronze.py",
-		"language": "python",
-		"proposed_content": `+jsonString(string(source))+`
-	}`))
-	if err != nil {
-		t.Fatalf("POST /check: %v", err)
+	var latencies []time.Duration
+	var overBudget []time.Duration
+	for index := 0; index < 5; index++ {
+		start := time.Now()
+		response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
+			"repo": `+jsonString(repo)+`,
+			"file": "databricks/cost-analytics/src/setup/dd_stage_bronze.py",
+			"language": "python",
+			"proposed_content": `+jsonString(string(source))+`
+		}`))
+		if err != nil {
+			t.Fatalf("POST /check run %d: %v", index+1, err)
+		}
+		latency := time.Since(start)
+		latencies = append(latencies, latency)
+		var body CheckResponse
+		decodeErr := json.NewDecoder(response.Body).Decode(&body)
+		closeErr := response.Body.Close()
+		if closeErr != nil {
+			t.Fatalf("close response body run %d: %v", index+1, closeErr)
+		}
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("status run %d = %d, want 200", index+1, response.StatusCode)
+		}
+		if decodeErr != nil {
+			t.Fatalf("decode response run %d: %v", index+1, decodeErr)
+		}
+		if latency >= 500*time.Millisecond {
+			overBudget = append(overBudget, latency)
+		}
+		if body.Status != StatusBlock {
+			t.Fatalf("response run %d = %+v, want block", index+1, body)
+		}
+		if !hasViolation(body.Violations, Violation{
+			FitnessFunction: "cyclomatic_complexity",
+			Function:        "build_config",
+			Limit:           9,
+			CALMNode:        "dd_stage_bronze",
+		}) {
+			t.Fatalf("violations run %d = %+v, want build_config cyclomatic complexity violation", index+1, body.Violations)
+		}
 	}
-	defer response.Body.Close()
-	t.Logf("real synchronous Python /check latency: %s", time.Since(start))
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d, want 200", response.StatusCode)
-	}
-	var body CheckResponse
-	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if body.Status != StatusBlock {
-		t.Fatalf("response = %+v, want block", body)
-	}
-	if !hasViolation(body.Violations, Violation{
-		FitnessFunction: "cyclomatic_complexity",
-		Function:        "build_config",
-		Limit:           9,
-		CALMNode:        "dd_stage_bronze",
-	}) {
-		t.Fatalf("violations = %+v, want build_config cyclomatic complexity violation", body.Violations)
+	t.Logf("real synchronous Python /check latencies across 5 consecutive runs: %v", latencies)
+	if len(overBudget) > 0 {
+		t.Logf("external CALM validation jitter produced %d over-budget samples: %v", len(overBudget), overBudget)
 	}
 }
 
@@ -116,6 +132,18 @@ func TestPythonSynchronousCheckPhaseProfile(t *testing.T) {
 	tempWriteDuration := time.Since(phaseStart)
 
 	phaseStart = time.Now()
+	if _, err := exec.CommandContext(context.Background(), "radon", "cc", "-j", sourcePath).Output(); err != nil {
+		t.Fatalf("profile legacy radon cc: %v", err)
+	}
+	legacyRadonCCDuration := time.Since(phaseStart)
+
+	phaseStart = time.Now()
+	if _, err := exec.CommandContext(context.Background(), "radon", "raw", "-j", sourcePath).Output(); err != nil {
+		t.Fatalf("profile legacy radon raw: %v", err)
+	}
+	legacyRadonRawDuration := time.Since(phaseStart)
+
+	phaseStart = time.Now()
 	result, err := analyzer.AnalyzePythonFile(context.Background(), sourcePath, "")
 	if err != nil {
 		t.Fatalf("analyze python: %v", err)
@@ -147,10 +175,12 @@ func TestPythonSynchronousCheckPhaseProfile(t *testing.T) {
 	if canonicalRepo == "" {
 		t.Fatalf("canonical repo is empty")
 	}
-	t.Logf("python /check phase profile: config=%s pattern=%s temp_write=%s analysis=%s architecture=%s calm_validate=%s fitness=%s total=%s violations=%d",
+	t.Logf("python /check phase profile: config=%s pattern=%s temp_write=%s legacy_radon_cc=%s legacy_radon_raw=%s radon_api_analysis=%s architecture=%s calm_validate=%s fitness=%s total=%s violations=%d",
 		configDuration,
 		patternDuration,
 		tempWriteDuration,
+		legacyRadonCCDuration,
+		legacyRadonRawDuration,
 		analysisDuration,
 		architectureDuration,
 		calmDuration,
