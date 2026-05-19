@@ -348,7 +348,7 @@ $$LDR = \frac{\text{logic\_lines}}{\text{total\_lines}}$$
 
 - **Logic lines:** lines containing arithmetic, control flow, state mutation, or function calls.
 - **Excluded:** whitespace, comments, imports, type declarations, and structural scaffolding.
-- **Threshold:** LDR ≥ 0.3 (calibrated after baseline). A plummeting LDR in a large generated file signals hollow, boilerplate-heavy output.
+- **Threshold:** LDR ≥ 0.255 (calibrated after baseline). A plummeting LDR in a large generated file signals hollow, boilerplate-heavy output.
 
 **Violation:**
 > `File 'X' has a Logic Density Ratio of N (minimum: T). The file may contain excessive boilerplate relative to functional logic.`
@@ -474,11 +474,11 @@ Per-repository configuration. Declares enforcement mode, daemon connection, and 
     "startup-timeout-ms": 500
   },
   "fitness-functions": {
-    "cyclomatic-complexity": { "enabled": true },
-    "interface-width": { "enabled": false },
-    "implementation-depth": { "enabled": false },
-    "logic-density": { "enabled": false },
-    "dependency-discipline": { "enabled": false }
+    "cyclomatic-complexity": true,
+    "interface-width": false,
+    "implementation-depth": false,
+    "logic-density": false,
+    "dependency-discipline": false
   }
 }
 ```
@@ -682,7 +682,7 @@ The scripted red-green demonstration validates each fitness function independent
    Repeat step 1 with the violation file.
    *Expected:* Pre-commit hook fires. Exit code 0. Advisory message printed to stderr. Commit proceeds.
 
-Run this sequence for: Cyclomatic Complexity, Interface Width, Implementation Depth, LDR, DDC.
+Run this sequence for: Cyclomatic Complexity, Interface Width, Implementation Depth, LDR, DDC. Implementation Depth is demonstrated with C# only under the calibrated `0.722` threshold because the current Go and Python analyzers cannot produce a real source fixture below that threshold without fake analyzer data.
 
 Run in: `graft` (Go, block), `SlackStatus` (C#, block), `ringstation` (Python, advisory).
 
