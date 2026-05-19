@@ -561,7 +561,7 @@ This design prevents the agent from accumulating unresolved debt before addressi
 **Actions:**
 
 1. Scaffold Go module with HTTP daemon and CLI entry point.
-2. Implement Python analyzer (radon subprocess).
+2. Implement Python analyzer (Radon API subprocess with CLI-compatible fallback).
 3. Implement Go analyzer (gocyclo library).
 4. Implement C# analyzer (Roslyn subprocess CLI).
 5. Implement `current-architecture.json` builder.
@@ -632,7 +632,7 @@ calm-poc/
 │       └── main.go              # CLI entry point, daemon auto-start logic
 ├── internal/
 │   ├── analyzer/
-│   │   ├── python.go            # radon subprocess wrapper
+│   │   ├── python.go            # Radon API fast path and CLI fallback
 │   │   ├── golang.go            # gocyclo library integration
 │   │   ├── csharp.go            # Roslyn subprocess wrapper
 │   │   └── analyzer.go          # AnalysisResult types, dispatcher interface
