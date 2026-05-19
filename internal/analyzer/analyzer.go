@@ -101,11 +101,6 @@ func AggregateModuleMetrics(results []AnalysisResult) []AnalysisResult {
 	aggregated := make([]AnalysisResult, len(results))
 	for index, result := range results {
 		current := aggregates[result.CALMNode]
-		current.fileMetric.LDR = AverageLOCPerPublicMethod(FileMetric{
-			TotalLOC: current.fileMetric.LogicLOC,
-			LogicLOC: current.fileMetric.LogicLOC,
-			PublicMethods: 1,
-		})
 		result.ModuleMetric = BuildModuleMetric(current.fileMetric, current.functions)
 		aggregated[index] = result
 	}
