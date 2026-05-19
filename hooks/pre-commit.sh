@@ -7,15 +7,27 @@ calm_bridge=${CALM_BRIDGE_BIN:-calm-bridge}
 addr=${CALM_BRIDGE_ADDR:-}
 blocked=0
 
-if [[ -n "$addr" && "${CALM_ALLOW_REMOTE_BRIDGE:-}" != "1" ]]; then
-  case "$addr" in
-    http://127.0.0.1:*|http://localhost:*|http://[::1]:*)
-      ;;
-    *)
-      echo "CALM_BRIDGE_ADDR must be loopback unless CALM_ALLOW_REMOTE_BRIDGE=1 is set" >&2
-      exit 1
-      ;;
-  esac
+bridge_addr_is_loopback() {
+  python3 - "$1" <<'PY'
+import ipaddress
+import sys
+from urllib.parse import urlparse
+
+parsed = urlparse(sys.argv[1])
+if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+    sys.exit(1)
+if parsed.hostname == "localhost":
+    sys.exit(0)
+try:
+    sys.exit(0 if ipaddress.ip_address(parsed.hostname).is_loopback else 1)
+except ValueError:
+    sys.exit(1)
+PY
+}
+
+if [[ -n "$addr" && "${CALM_ALLOW_REMOTE_BRIDGE:-}" != "1" ]] && ! bridge_addr_is_loopback "$addr"; then
+  echo "CALM_BRIDGE_ADDR must be loopback unless CALM_ALLOW_REMOTE_BRIDGE=1 is set" >&2
+  exit 1
 fi
 
 language_for_file() {
