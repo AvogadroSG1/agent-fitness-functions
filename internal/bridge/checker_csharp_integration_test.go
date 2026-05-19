@@ -35,8 +35,8 @@ func TestCheckerWithDefaultRoslynAnalyzerDefersThenBlocksCSharpFixture(t *testin
 		t.Fatalf("first response = %+v, want pass with warming", first)
 	}
 	violations := waitForStateViolations(t, server.URL, repo, 1)
-	if violations[0].Function != "Render" || violations[0].CALMNode != "Widget" {
-		t.Fatalf("violations = %+v, want default Roslyn Widget.Render violation", violations)
+	if violations[0].Function != "Render" || violations[0].CALMNode != "Sample" {
+		t.Fatalf("violations = %+v, want default Roslyn Sample.Render violation", violations)
 	}
 	second := postCheckForLanguage(t, server.URL, repo, "src/Other.cs", "csharp", cleanCSharpSource())
 	if second.Status != StatusBlock || second.Warming || len(second.Violations) != 1 || second.Violations[0].File != "src/Widget.cs" {

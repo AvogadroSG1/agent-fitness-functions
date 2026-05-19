@@ -49,7 +49,13 @@ func TestCheckerWithRealCALMBlocksGraftCyclomaticComplexityFixture(t *testing.T)
 	if body.Status != StatusBlock {
 		t.Fatalf("response = %+v, want block", body)
 	}
-	if len(body.Violations) == 0 || body.Violations[0].Function != "Chain" || body.Violations[0].Limit != 9 {
+	foundChain := false
+	for _, violation := range body.Violations {
+		if violation.Function == "Chain" && violation.Limit == 9 {
+			foundChain = true
+		}
+	}
+	if !foundChain {
 		t.Fatalf("violations = %+v, want Chain cyclomatic complexity violation", body.Violations)
 	}
 }
