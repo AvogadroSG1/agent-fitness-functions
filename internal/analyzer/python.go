@@ -231,23 +231,58 @@ func pythonImportMetric(source string) ImportMetric {
 
 func pythonUsedIdentifiers(source string) map[string]struct{} {
 	body := stripPythonStringsAndComments(pythonImportBody(source))
-	tokensByLine := pythonTokensByLine(body)
-	bound := pythonBoundIdentifiers(tokensByLine)
 	used := make(map[string]struct{})
-	for _, tokens := range tokensByLine {
+	scopes := []pythonScope{{indent: -1, bound: make(map[string]struct{})}}
+	for _, line := range pythonTokenLines(body) {
+		for len(scopes) > 1 && line.indent <= scopes[len(scopes)-1].indent {
+			scopes = scopes[:len(scopes)-1]
+		}
+		bindings := pythonLineBindings(line.tokens)
+		shadowed := pythonVisibleBindings(scopes, bindings.lineBound)
+		for name := range bindings.outerBound {
+			shadowed[name] = struct{}{}
+		}
+		tokens := line.tokens
 		for index, token := range tokens {
 			if !isPythonIdentifierToken(token) ||
 				pythonKeywords[token] ||
-				isPythonBindingPosition(tokens, index) {
+				bindings.positions[index] {
 				continue
 			}
-			if _, ok := bound[token]; ok {
+			if _, ok := shadowed[token]; ok {
 				continue
 			}
 			used[token] = struct{}{}
 		}
+		for name := range bindings.outerBound {
+			scopes[len(scopes)-1].bound[name] = struct{}{}
+		}
+		for name := range bindings.lineBound {
+			scopes[len(scopes)-1].bound[name] = struct{}{}
+		}
+		if bindings.startsScope {
+			scopes = append(scopes, pythonScope{indent: line.indent, bound: bindings.nextScopeBound})
+		}
 	}
 	return used
+}
+
+type pythonScope struct {
+	indent int
+	bound  map[string]struct{}
+}
+
+type pythonTokenLine struct {
+	indent int
+	tokens []string
+}
+
+type pythonBindings struct {
+	positions      map[int]bool
+	lineBound      map[string]struct{}
+	outerBound     map[string]struct{}
+	nextScopeBound map[string]struct{}
+	startsScope    bool
 }
 
 func pythonImportBody(source string) string {
@@ -372,6 +407,138 @@ func pythonTokensByLine(source string) map[int][]string {
 		index++
 	}
 	return tokens
+}
+
+func pythonTokenLines(source string) []pythonTokenLine {
+	lines := strings.Split(source, "\n")
+	result := make([]pythonTokenLine, 0, len(lines))
+	for _, line := range lines {
+		tokens := pythonTokensByLine(line)[0]
+		if len(tokens) == 0 {
+			continue
+		}
+		result = append(result, pythonTokenLine{
+			indent: pythonIndent(line),
+			tokens: tokens,
+		})
+	}
+	return result
+}
+
+func pythonIndent(line string) int {
+	indent := 0
+	for _, value := range line {
+		switch value {
+		case ' ':
+			indent++
+		case '\t':
+			indent += 4
+		default:
+			return indent
+		}
+	}
+	return indent
+}
+
+func pythonLineBindings(tokens []string) pythonBindings {
+	bindings := pythonBindings{
+		positions:      make(map[int]bool),
+		lineBound:      make(map[string]struct{}),
+		outerBound:     make(map[string]struct{}),
+		nextScopeBound: make(map[string]struct{}),
+	}
+	for index, token := range tokens {
+		if token == "as" {
+			bindNextIdentifierAt(tokens, index+1, bindings.positions, bindings.lineBound)
+		}
+		if token == "for" {
+			bindBeforeTokenAt(tokens, index+1, "in", bindings.positions, bindings.lineBound)
+		}
+	}
+	if len(tokens) == 0 {
+		return bindings
+	}
+	switch tokens[0] {
+	case "def":
+		bindNextIdentifierAt(tokens, 1, bindings.positions, bindings.outerBound)
+		bindFunctionParametersAt(tokens, bindings.positions, bindings.nextScopeBound)
+		bindings.startsScope = true
+	case "class":
+		bindNextIdentifierAt(tokens, 1, bindings.positions, bindings.outerBound)
+		bindings.startsScope = true
+	default:
+		if assignment := firstPythonAssignment(tokens); assignment > 0 {
+			bindIdentifiersAt(tokens[:assignment], 0, bindings.positions, bindings.lineBound)
+		}
+	}
+	return bindings
+}
+
+func pythonVisibleBindings(scopes []pythonScope, extra map[string]struct{}) map[string]struct{} {
+	visible := make(map[string]struct{})
+	for _, scope := range scopes {
+		for name := range scope.bound {
+			visible[name] = struct{}{}
+		}
+	}
+	for name := range extra {
+		visible[name] = struct{}{}
+	}
+	return visible
+}
+
+func bindNextIdentifierAt(tokens []string, start int, positions map[int]bool, bound map[string]struct{}) {
+	for index := start; index < len(tokens); index++ {
+		if isPythonIdentifierToken(tokens[index]) && !pythonKeywords[tokens[index]] {
+			positions[index] = true
+			bound[tokens[index]] = struct{}{}
+			return
+		}
+	}
+}
+
+func bindFunctionParametersAt(tokens []string, positions map[int]bool, bound map[string]struct{}) {
+	depth := 0
+	inParams := false
+	for index, token := range tokens {
+		switch token {
+		case "(":
+			depth++
+			inParams = true
+		case ")":
+			depth--
+			if depth <= 0 {
+				return
+			}
+		default:
+			if inParams && depth == 1 && isPythonIdentifierToken(token) && !pythonKeywords[token] {
+				positions[index] = true
+				bound[token] = struct{}{}
+			}
+		}
+	}
+}
+
+func bindBeforeTokenAt(tokens []string, start int, stop string, positions map[int]bool, bound map[string]struct{}) {
+	for index := start; index < len(tokens); index++ {
+		if tokens[index] == stop {
+			bindIdentifiersAt(tokens[start:index], start, positions, bound)
+			return
+		}
+	}
+}
+
+func bindIdentifiersAt(tokens []string, offset int, positions map[int]bool, bound map[string]struct{}) {
+	for index, token := range tokens {
+		if !isPythonIdentifierToken(token) || pythonKeywords[token] {
+			continue
+		}
+		if index > 0 && tokens[index-1] == "." {
+			continue
+		}
+		positions[offset+index] = true
+		bound[token] = struct{}{}
+	}
 }
 
 func pythonBoundIdentifiers(tokensByLine map[int][]string) map[string]struct{} {

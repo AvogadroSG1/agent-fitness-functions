@@ -82,6 +82,33 @@ def public_choice(unused_module):
 	}
 }
 
+func TestPythonImportMetricKeepsBindingScopeLocal(t *testing.T) {
+	source := `import json
+
+def parse(json):
+    return json
+
+def dump(value):
+    return json.dumps(value)
+`
+	imports := pythonImportMetric(source)
+	if imports.Total != 1 || imports.Used != 1 || len(imports.Unused) != 0 {
+		t.Fatalf("imports = %+v, want json used outside shadowing function scope", imports)
+	}
+}
+
+func TestPythonImportMetricTreatsComprehensionTargetsAsLocal(t *testing.T) {
+	source := `import unused_module
+
+def build(items):
+    return [unused_module for unused_module in items]
+`
+	imports := pythonImportMetric(source)
+	if imports.Total != 1 || imports.Used != 0 || len(imports.Unused) != 1 || imports.Unused[0] != "unused_module" {
+		t.Fatalf("imports = %+v, want comprehension target to shadow unused import", imports)
+	}
+}
+
 func TestAnalyzePythonRepositoryBatchesRadonCalls(t *testing.T) {
 	dir := t.TempDir()
 	first := filepath.Join(dir, "first.py")
