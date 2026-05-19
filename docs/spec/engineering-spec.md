@@ -155,10 +155,11 @@ Each analyzer receives a file path (temp file with proposed content), runs analy
 
 ```go
 type AnalysisResult struct {
-    CALMNode    string          // module / package / namespace
-    Functions   []FunctionMetric
-    FileMetrics FileMetric
-    Imports     ImportMetric
+    CALMNode     string          // module / package / namespace
+    Functions    []FunctionMetric
+    ModuleMetric ModuleMetric
+    FileMetrics  FileMetric
+    Imports      ImportMetric
 }
 
 type FunctionMetric struct {
@@ -172,6 +173,13 @@ type FileMetric struct {
     TotalLOC     int
     LogicLOC     int  // for LDR
     PublicMethods int
+}
+
+type ModuleMetric struct {
+    PublicMethods             int
+    TotalLOC                  int
+    PrivateLOC                int
+    AverageLOCPerPublicMethod float64
 }
 
 type ImportMetric struct {
