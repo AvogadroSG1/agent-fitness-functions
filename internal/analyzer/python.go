@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -37,6 +38,9 @@ type radonErrorItem struct {
 func AnalyzePythonFile(ctx context.Context, file, radonPath string) (AnalysisResult, error) {
 	if radonPath == "" {
 		radonPath = "radon"
+		if result, err := analyzePythonFileWithRadonAPI(ctx, file, radonPath); err == nil {
+			return result, nil
+		}
 	}
 	ccOutput, err := runTool(ctx, radonPath, "cc", "-j", file)
 	if err != nil {
@@ -77,6 +81,127 @@ func AnalyzePythonFile(ctx context.Context, file, radonPath string) (AnalysisRes
 		FileMetric:   fileMetric,
 		Imports:      pythonImportMetric(string(source)),
 	}, nil
+}
+
+type radonAPIOutput struct {
+	CC  map[string]json.RawMessage `json:"cc"`
+	Raw map[string]radonRawItem    `json:"raw"`
+}
+
+const radonAPIScript = `
+import json
+import pathlib
+import sys
+
+from radon.complexity import cc_visit
+from radon.raw import analyze
+
+path = sys.argv[1]
+source = pathlib.Path(path).read_text()
+payload = {"cc": {}, "raw": {}}
+try:
+    payload["cc"][path] = [
+        {
+            "type": getattr(item, "letter", ""),
+            "name": item.name,
+            "complexity": item.complexity,
+            "lineno": item.lineno,
+            "endline": item.endline,
+        }
+        for item in cc_visit(source)
+    ]
+except Exception as exc:
+    payload["cc"][path] = {"error": str(exc)}
+try:
+    raw = analyze(source)
+    payload["raw"][path] = {"loc": raw.loc, "lloc": raw.lloc}
+except Exception as exc:
+    payload["raw"][path] = {"error": str(exc)}
+json.dump(payload, sys.stdout)
+`
+
+func analyzePythonFileWithRadonAPI(ctx context.Context, file, radonPath string) (AnalysisResult, error) {
+	python, args, ok := radonPythonCommand(radonPath)
+	if !ok {
+		return AnalysisResult{}, fmt.Errorf("radon python interpreter unavailable")
+	}
+	args = append(args, "-c", radonAPIScript, file)
+	output, err := runTool(ctx, python, args...)
+	if err != nil {
+		return AnalysisResult{}, fmt.Errorf("running radon python api: %w", err)
+	}
+	var payload radonAPIOutput
+	if err := json.Unmarshal(output, &payload); err != nil {
+		return AnalysisResult{}, fmt.Errorf("parsing radon python api: %w: %s", err, trimOutput(output))
+	}
+	ccPayload := make(map[string][]radonCCItem, len(payload.CC))
+	for path, message := range payload.CC {
+		var errorItem radonErrorItem
+		if err := json.Unmarshal(message, &errorItem); err == nil && errorItem.Error != "" {
+			return AnalysisResult{}, fmt.Errorf("radon cc error for %s: %s", path, errorItem.Error)
+		}
+		var items []radonCCItem
+		if err := json.Unmarshal(message, &items); err != nil {
+			return AnalysisResult{}, fmt.Errorf("parsing radon cc for %s: %w", path, err)
+		}
+		ccPayload[path] = items
+	}
+	functions := pythonFunctions(ccPayload[file])
+	rawOutput, err := json.Marshal(payload.Raw)
+	if err != nil {
+		return AnalysisResult{}, fmt.Errorf("encoding radon raw payload: %w", err)
+	}
+	fileMetric, err := parseRadonRaw(file, rawOutput)
+	if err != nil {
+		return AnalysisResult{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return AnalysisResult{}, err
+	}
+	source, err := os.ReadFile(file)
+	if err != nil {
+		return AnalysisResult{}, err
+	}
+	fileMetric.LDR = ratio(fileMetric.LogicLOC, fileMetric.TotalLOC)
+	fileMetric.PublicMethods = publicFunctionCount(functions)
+
+	return AnalysisResult{
+		CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
+		Language:     "python",
+		File:         file,
+		Functions:    functions,
+		ModuleMetric: BuildModuleMetric(fileMetric, functions),
+		FileMetric:   fileMetric,
+		Imports:      pythonImportMetric(string(source)),
+	}, nil
+}
+
+func radonPythonCommand(radonPath string) (string, []string, bool) {
+	path, err := exec.LookPath(radonPath)
+	if err != nil {
+		return "", nil, false
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return "", nil, false
+	}
+	defer file.Close()
+	line, err := bufio.NewReader(file).ReadString('\n')
+	if err != nil && line == "" {
+		return "", nil, false
+	}
+	line = strings.TrimSpace(line)
+	if !strings.HasPrefix(line, "#!") {
+		return "", nil, false
+	}
+	fields := strings.Fields(strings.TrimPrefix(line, "#!"))
+	if len(fields) == 0 {
+		return "", nil, false
+	}
+	if strings.HasSuffix(fields[0], "/env") && len(fields) > 1 {
+		return fields[1], fields[2:], true
+	}
+	return fields[0], fields[1:], true
 }
 
 func parseRadonCC(file string, output []byte) ([]FunctionMetric, error) {

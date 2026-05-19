@@ -190,7 +190,7 @@ type ImportMetric struct {
 
 | Language | Approach |
 |---|---|
-| **Python** | `radon cc -j` and `radon raw -j` as subprocesses; parse JSON output |
+| **Python** | Default synchronous hook path invokes the Python interpreter from the installed `radon` launcher once and uses Radon APIs for cyclomatic complexity and raw metrics; explicit custom `radon` paths retain CLI-compatible `radon cc -j` and `radon raw -j` subprocess behavior |
 | **Go** | `github.com/fzipp/gocyclo` as library; `go/ast` for public method count, LOC, imports |
 | **C#** | Lightweight Roslyn CLI (built in Step 2) as subprocess; emits JSON matching `AnalysisResult` |
 
@@ -501,7 +501,7 @@ Per-repository configuration. Declares enforcement mode, daemon connection, and 
 
 | Language | First-call behavior | Condition |
 |---|---|---|
-| Python | Synchronous | `startup-timeout-ms` not exceeded |
+| Python | Synchronous | Radon API fast path plus CALM validation stays below 500 ms on the target machine |
 | Go | Synchronous | `startup-timeout-ms` not exceeded |
 | C# | Deferred on first call; synchronous from second call onward | Roslyn cold start may exceed timeout |
 

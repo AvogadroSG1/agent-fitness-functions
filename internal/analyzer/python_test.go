@@ -159,6 +159,54 @@ func TestAnalyzePythonRepositoryBatchesRadonCalls(t *testing.T) {
 	}
 }
 
+func TestAnalyzePythonFileUsesSingleRadonAPISubprocessWhenRadonHasPythonShebang(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "fast.py")
+	if err := os.WriteFile(file, []byte("def one():\n    return 1\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	logPath := filepath.Join(dir, "radon-python.log")
+	fakePython := fakeRadonPython(t, dir, logPath)
+	fakeRadonWithShebang(t, dir, fakePython)
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	result, err := AnalyzePythonFile(context.Background(), file, "")
+	if err != nil {
+		t.Fatalf("AnalyzePythonFile returned error: %v", err)
+	}
+
+	if len(result.Functions) != 1 || result.Functions[0].Name != "one" || result.Functions[0].CyclomaticComplexity != 1 {
+		t.Fatalf("functions = %+v, want one complexity-1 function", result.Functions)
+	}
+	if result.FileMetric.TotalLOC != 2 || result.FileMetric.LogicLOC != 1 {
+		t.Fatalf("file metrics = %+v, want LOC 2 and LLOC 1", result.FileMetric)
+	}
+	logContent, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	if strings.Count(string(logContent), "invoke\n") != 1 {
+		t.Fatalf("radon python log = %q, want one subprocess invocation", string(logContent))
+	}
+}
+
+func TestRadonPythonCommandParsesEnvShebang(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "radon")
+	if err := os.WriteFile(path, []byte("#!/usr/bin/env python3 -I\n"), 0o755); err != nil {
+		t.Fatalf("write fake radon: %v", err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	python, args, ok := radonPythonCommand("radon")
+	if !ok {
+		t.Fatalf("radonPythonCommand did not parse shebang")
+	}
+	if python != "python3" || len(args) != 1 || args[0] != "-I" {
+		t.Fatalf("command = %q %v, want python3 [-I]", python, args)
+	}
+}
+
 func TestParseRadonCCPayloadReturnsAnalysisErrors(t *testing.T) {
 	_, err := parseRadonCCPayload([]byte(`{"broken.py":{"error":"invalid syntax"}}`))
 	if err == nil || !strings.Contains(err.Error(), "radon cc error for broken.py: invalid syntax") {
@@ -261,6 +309,34 @@ fi
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake radon: %v", err)
+	}
+	return path
+}
+
+func fakeRadonWithShebang(t *testing.T, dir, pythonPath string) string {
+	t.Helper()
+	path := filepath.Join(dir, "radon")
+	script := fmt.Sprintf("#!%s\n", pythonPath)
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake radon: %v", err)
+	}
+	return path
+}
+
+func fakeRadonPython(t *testing.T, dir, logPath string) string {
+	t.Helper()
+	path := filepath.Join(dir, "fake-python")
+	script := fmt.Sprintf(`#!/usr/bin/env bash
+set -euo pipefail
+printf 'invoke\n' >> %[1]q
+if [ "$1" != "-c" ]; then
+  exit 2
+fi
+file="${@: -1}"
+printf '{"cc":{"%%s":[{"type":"F","name":"one","complexity":1,"lineno":1,"endline":2}]},"raw":{"%%s":{"loc":2,"lloc":1}}}' "$file" "$file"
+`, logPath)
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake radon python: %v", err)
 	}
 	return path
 }
