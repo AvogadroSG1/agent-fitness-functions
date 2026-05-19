@@ -41,7 +41,7 @@ func AnalyzeRepository(ctx context.Context, root, language string, options Repos
 		}
 		results = append(results, result)
 	}
-	return results, nil
+	return AggregateModuleMetrics(results), nil
 }
 
 func discoverFiles(root, language string) ([]string, error) {
