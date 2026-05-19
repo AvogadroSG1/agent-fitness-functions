@@ -191,8 +191,11 @@ func TestPythonSynchronousCheckPhaseProfile(t *testing.T) {
 	if canonicalRepo == "" {
 		t.Fatalf("canonical repo is empty")
 	}
+	const profileLogFormat = "python /check phase profile: " +
+		"config=%s pattern=%s temp_write=%s legacy_radon_cc=%s legacy_radon_raw=%s " +
+		"radon_api_analysis=%s architecture=%s calm_validate=%s fitness=%s total=%s violations=%d"
 	t.Logf(
-		"python /check phase profile: config=%s pattern=%s temp_write=%s legacy_radon_cc=%s legacy_radon_raw=%s radon_api_analysis=%s architecture=%s calm_validate=%s fitness=%s total=%s violations=%d",
+		profileLogFormat,
 		configDuration,
 		patternDuration,
 		tempWriteDuration,
