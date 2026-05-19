@@ -175,7 +175,11 @@ func TestAnalyzePythonFileUsesSingleRadonAPISubprocessWhenRadonHasPythonShebang(
 		t.Fatalf("AnalyzePythonFile returned error: %v", err)
 	}
 
-	if len(result.Functions) != 1 || result.Functions[0].Name != "one" || result.Functions[0].CyclomaticComplexity != 1 {
+	gotOneFunction := len(result.Functions) == 1
+	gotExpectedFunction := gotOneFunction &&
+		result.Functions[0].Name == "one" &&
+		result.Functions[0].CyclomaticComplexity == 1
+	if !gotExpectedFunction {
 		t.Fatalf("functions = %+v, want one complexity-1 function", result.Functions)
 	}
 	if result.FileMetric.TotalLOC != 2 || result.FileMetric.LogicLOC != 1 {
@@ -187,6 +191,41 @@ func TestAnalyzePythonFileUsesSingleRadonAPISubprocessWhenRadonHasPythonShebang(
 	}
 	if strings.Count(string(logContent), "invoke\n") != 1 {
 		t.Fatalf("radon python log = %q, want one subprocess invocation", string(logContent))
+	}
+}
+
+func TestAnalyzePythonFileFallsBackToRadonCLIWhenFastPathReturnsMalformedOutput(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "fallback_malformed.py")
+	if err := os.WriteFile(file, []byte("def fallback():\n    return 1\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	logPath := filepath.Join(dir, "radon-degraded.log")
+	fakePython := fakeMalformedRadonPythonWithCLIFallback(t, dir, logPath, file)
+	fakeRadonWithShebang(t, dir, fakePython)
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	result, err := AnalyzePythonFile(context.Background(), file, "")
+	if err != nil {
+		t.Fatalf("AnalyzePythonFile returned error: %v", err)
+	}
+
+	gotOneFunction := len(result.Functions) == 1
+	gotFallbackFunction := gotOneFunction &&
+		result.Functions[0].Name == "fallback" &&
+		result.Functions[0].CyclomaticComplexity == 1
+	if !gotFallbackFunction {
+		t.Fatalf("functions = %+v, want fallback function from radon CLI output", result.Functions)
+	}
+	logContent, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	logText := string(logContent)
+	if strings.Count(logText, "fast\n") != 1 ||
+		strings.Count(logText, " cc ") != 1 ||
+		strings.Count(logText, " raw ") != 1 {
+		t.Fatalf("radon degraded log = %q, want fast attempt plus cc/raw fallback", logText)
 	}
 }
 
@@ -205,7 +244,11 @@ func TestAnalyzePythonFileFallsBackToRadonCLIWhenFastPathUnavailable(t *testing.
 		t.Fatalf("AnalyzePythonFile returned error: %v", err)
 	}
 
-	if len(result.Functions) != 1 || result.Functions[0].Name != "fallback" || result.Functions[0].CyclomaticComplexity != 1 {
+	gotOneFunction := len(result.Functions) == 1
+	gotFallbackFunction := gotOneFunction &&
+		result.Functions[0].Name == "fallback" &&
+		result.Functions[0].CyclomaticComplexity == 1
+	if !gotFallbackFunction {
 		t.Fatalf("functions = %+v, want fallback function from radon CLI output", result.Functions)
 	}
 	if result.FileMetric.TotalLOC != 2 || result.FileMetric.LogicLOC != 1 {
@@ -233,7 +276,9 @@ func TestRadonPythonCommandParsesEnvShebang(t *testing.T) {
 	if !ok {
 		t.Fatalf("radonPythonCommand did not parse shebang")
 	}
-	if python != "python3" || len(args) != 1 || args[0] != "-I" {
+	gotExpectedPython := python == "python3"
+	gotExpectedArgs := len(args) == 1 && args[0] == "-I"
+	if !gotExpectedPython || !gotExpectedArgs {
 		t.Fatalf("command = %q %v, want python3 [-I]", python, args)
 	}
 }
@@ -321,6 +366,33 @@ func TestAnalyzePythonFileWithRealRadonWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestAnalyzePythonFileWithRealRadonAPIFastPathWhenAvailable(t *testing.T) {
+	if _, err := exec.LookPath("radon"); err != nil {
+		t.Skip("radon not installed")
+	}
+	file := filepath.Join(t.TempDir(), "known_api_complexity.py")
+	source := `def known(value):
+    if value == "a":
+        return 1
+    if value == "b":
+        return 2
+    return 0
+`
+	if err := os.WriteFile(file, []byte(source), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	result, err := analyzePythonFileWithRadonAPI(context.Background(), file, "radon")
+	if err != nil {
+		t.Fatalf("analyzePythonFileWithRadonAPI returned error: %v", err)
+	}
+	if len(result.Functions) != 1 || result.Functions[0].CyclomaticComplexity != 3 {
+		t.Fatalf("functions = %+v, want known complexity 3", result.Functions)
+	}
+	if result.FileMetric.TotalLOC != 6 || result.FileMetric.LogicLOC != 6 {
+		t.Fatalf("file metrics = %+v, want LOC 6 and LLOC 6", result.FileMetric)
+	}
+}
+
 func fakeRadon(t *testing.T, dir string) string {
 	t.Helper()
 	name := "radon"
@@ -388,6 +460,32 @@ printf '{"cc":{"%%s":[{"type":"F","name":"one","complexity":1,"lineno":1,"endlin
 `, logPath)
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake radon python: %v", err)
+	}
+	return path
+}
+
+func fakeMalformedRadonPythonWithCLIFallback(t *testing.T, dir, logPath, file string) string {
+	t.Helper()
+	path := filepath.Join(dir, "fake-degraded-python")
+	script := fmt.Sprintf(`#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = "-c" ]; then
+  printf 'fast\n' >> %[1]q
+  printf 'not-json'
+  exit 0
+fi
+shift
+printf ' %%s %%s\n' "$1" "$*" >> %[1]q
+if [ "$1" = "cc" ]; then
+  printf '{"%[2]s":[{"type":"F","name":"fallback","complexity":1,"lineno":1,"endline":2}]}'
+elif [ "$1" = "raw" ]; then
+  printf '{"%[2]s":{"loc":2,"lloc":1}}'
+else
+  exit 2
+fi
+`, logPath, file)
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake degraded radon python: %v", err)
 	}
 	return path
 }
