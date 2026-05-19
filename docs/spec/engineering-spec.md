@@ -230,7 +230,7 @@ Configured in `.claude/settings.json` within each test repository:
 }
 ```
 
-The hook receives tool input as JSON on stdin. It extracts `file_path` and proposed content (`new_string` for Edit, `content` for Write) and passes them to `calm-bridge check`. A non-zero exit blocks the tool call; stderr is surfaced to the agent as the reason.
+The hook receives tool input as JSON on stdin. It extracts `file_path` and proposed content (`new_string` for Edit, `content` for Write) and passes them to `calm-bridge check`. Claude Code `PreToolUse` hooks MUST exit `2` to block the tool call; stderr is surfaced to the agent as the reason.
 
 ### 3.5 Git Pre-Commit Hook
 
@@ -493,7 +493,7 @@ Per-repository configuration. Declares enforcement mode, daemon connection, and 
 
 | Mode | Daemon Response | Hook Exit Code | Experience |
 |---|---|---|---|
-| `block` | `{"status":"block","violations":[...]}` | 1 | Write or commit rejected. Violation message shown. Must fix before proceeding. |
+| `block` | `{"status":"block","violations":[...]}` | Git pre-commit: 1; Claude PreToolUse: 2 | Write or commit rejected. Violation message shown. Must fix before proceeding. |
 | `advisory` | `{"status":"advisory","violations":[...]}` | 0 | Write proceeds. Advisory message shown. Agent or developer may self-correct. |
 | `off` | `{"status":"pass"}` | 0 | No check performed. |
 

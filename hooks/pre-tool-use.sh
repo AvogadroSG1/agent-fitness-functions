@@ -142,7 +142,10 @@ if ! result=$("$calm_bridge" "${args[@]}"); then
   exit 2
 fi
 
-status=$(printf '%s' "$result" | json_field status)
+if ! status=$(printf '%s' "$result" | json_field status 2>/dev/null); then
+  echo "CALM check returned invalid JSON for $file" >&2
+  exit 2
+fi
 case "$status" in
   block)
     echo "CALM violation in $file:" >&2
