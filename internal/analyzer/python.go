@@ -213,7 +213,7 @@ func AnalyzePythonRepository(ctx context.Context, root, radonPath string) ([]Ana
 			Imports:      pythonImportMetric(string(source)),
 		})
 	}
-	return results, nil
+	return AggregateModuleMetrics(results), nil
 }
 
 func pythonImportMetric(source string) ImportMetric {
