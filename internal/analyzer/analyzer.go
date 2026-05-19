@@ -82,3 +82,32 @@ func EnsureModuleMetric(result AnalysisResult) AnalysisResult {
 	}
 	return result
 }
+
+// AggregateModuleMetrics applies CALM-node-level module metrics to file results.
+func AggregateModuleMetrics(results []AnalysisResult) []AnalysisResult {
+	type aggregate struct {
+		fileMetric FileMetric
+		functions  []FunctionMetric
+	}
+	aggregates := make(map[string]aggregate)
+	for _, result := range results {
+		current := aggregates[result.CALMNode]
+		current.fileMetric.TotalLOC += result.FileMetric.TotalLOC
+		current.fileMetric.LogicLOC += result.FileMetric.LogicLOC
+		current.fileMetric.PublicMethods += result.FileMetric.PublicMethods
+		current.functions = append(current.functions, result.Functions...)
+		aggregates[result.CALMNode] = current
+	}
+	aggregated := make([]AnalysisResult, len(results))
+	for index, result := range results {
+		current := aggregates[result.CALMNode]
+		current.fileMetric.LDR = AverageLOCPerPublicMethod(FileMetric{
+			TotalLOC: current.fileMetric.LogicLOC,
+			LogicLOC: current.fileMetric.LogicLOC,
+			PublicMethods: 1,
+		})
+		result.ModuleMetric = BuildModuleMetric(current.fileMetric, current.functions)
+		aggregated[index] = result
+	}
+	return aggregated
+}
