@@ -425,6 +425,132 @@ func TestHandlerCheckPassesCleanPythonContent(t *testing.T) {
 	}
 }
 
+func TestHandlerCheckBlocksInterfaceWidthViolation(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"interface-width": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Analyzers: map[string]SourceAnalyzer{
+			"go": fakeGoAnalyzer(deepShallowAnalysis("go", 21, 100)),
+		},
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	body := postCheckForLanguage(t, server.URL, repo, "internal/wide/wide.go", "go", cleanGoSource())
+	if body.Status != StatusBlock || len(body.Violations) != 1 {
+		t.Fatalf("response = %+v, want one interface-width block", body)
+	}
+	violation := body.Violations[0]
+	if violation.FitnessFunction != "interface_width" || violation.CALMNode != "wide" || violation.Value != 21 || violation.Limit != 20 {
+		t.Fatalf("violation = %+v, want interface-width 21 > 20", violation)
+	}
+	if !strings.Contains(violation.Message, "exposes 21 public methods") || !strings.Contains(violation.Message, "reduce the public surface area") {
+		t.Fatalf("message = %q, want spec interface-width guidance", violation.Message)
+	}
+}
+
+func TestHandlerCheckBlocksImplementationDepthViolation(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"implementation-depth": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Analyzers: map[string]SourceAnalyzer{
+			"go": fakeGoAnalyzer(deepShallowAnalysis("go", 4, 2)),
+		},
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	body := postCheckForLanguage(t, server.URL, repo, "internal/shallow/shallow.go", "go", cleanGoSource())
+	if body.Status != StatusBlock || len(body.Violations) != 1 {
+		t.Fatalf("response = %+v, want one implementation-depth block", body)
+	}
+	violation := body.Violations[0]
+	if violation.FitnessFunction != "implementation_depth" || violation.CALMNode != "shallow" || violation.Value != 0.5 || violation.Limit != 0.722 {
+		t.Fatalf("violation = %+v, want implementation depth 0.5 below 0.722", violation)
+	}
+	if !strings.Contains(violation.Message, "averages 0.500 LOC per public method") || !strings.Contains(violation.Message, "unnecessary pass-throughs") {
+		t.Fatalf("message = %q, want spec implementation-depth guidance", violation.Message)
+	}
+}
+
+func TestHandlerCheckTogglesDeepShallowFitnessFunctionsIndependently(t *testing.T) {
+	tests := []struct {
+		name     string
+		fitness  map[string]bool
+		wantOnly string
+	}{
+		{
+			name:     "interface disabled implementation enabled",
+			fitness:  map[string]bool{"interface-width": false, "implementation-depth": true},
+			wantOnly: "implementation_depth",
+		},
+		{
+			name:     "implementation disabled interface enabled",
+			fitness:  map[string]bool{"interface-width": true, "implementation-depth": false},
+			wantOnly: "interface_width",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := t.TempDir()
+			writeRepoConfig(t, repo, EnforcementBlock, tt.fitness)
+			server := httptest.NewServer(NewHandlerWithChecker(Checker{
+				PatternPath: writeTestPattern(t),
+				Analyzers: map[string]SourceAnalyzer{
+					"go": fakeGoAnalyzer(deepShallowAnalysis("go", 21, 10)),
+				},
+				Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+					return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+				}),
+			}, nil))
+			defer server.Close()
+
+			body := postCheckForLanguage(t, server.URL, repo, "internal/deep/deep.go", "go", cleanGoSource())
+			if body.Status != StatusBlock || len(body.Violations) != 1 || body.Violations[0].FitnessFunction != tt.wantOnly {
+				t.Fatalf("response = %+v, want only %s violation", body, tt.wantOnly)
+			}
+		})
+	}
+}
+
+func TestHandlerCheckAppliesDeepShallowRulesAcrossLanguages(t *testing.T) {
+	tests := []struct {
+		name     string
+		language string
+		file     string
+		analyzer SourceAnalyzer
+	}{
+		{name: "go", language: "go", file: "internal/wide/wide.go", analyzer: fakeGoAnalyzer(deepShallowAnalysis("go", 21, 100))},
+		{name: "python", language: "python", file: "src/wide.py", analyzer: fakePythonAnalyzer(deepShallowAnalysis("python", 21, 100))},
+		{name: "csharp", language: "csharp", file: "src/Wide.cs", analyzer: fakeCSharpAnalyzer(deepShallowAnalysis("csharp", 21, 100))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := t.TempDir()
+			writeRepoConfig(t, repo, EnforcementAdvisory, map[string]bool{"interface-width": true})
+			server := httptest.NewServer(NewHandlerWithChecker(Checker{
+				PatternPath: writeTestPattern(t),
+				Analyzers:   map[string]SourceAnalyzer{tt.language: tt.analyzer},
+				Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+					return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+				}),
+			}, nil))
+			defer server.Close()
+
+			body := postCheckForLanguage(t, server.URL, repo, tt.file, tt.language, cleanSourceForLanguage(tt.language))
+			if body.Status != StatusAdvisory || len(body.Violations) != 1 || body.Violations[0].FitnessFunction != "interface_width" {
+				t.Fatalf("response = %+v, want advisory interface-width violation for %s", body, tt.language)
+			}
+		})
+	}
+}
+
 func TestHandlerCheckBlocksLogicDensityViolation(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"logic-density": true})
@@ -1874,6 +2000,17 @@ public class Widget
 `
 }
 
+func cleanSourceForLanguage(language string) string {
+	switch language {
+	case "python":
+		return cleanPythonSource()
+	case "csharp":
+		return cleanCSharpSource()
+	default:
+		return cleanGoSource()
+	}
+}
+
 func fakeGoAnalyzer(result analyzer.AnalysisResult) SourceAnalyzer {
 	return AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
 		return result, nil
@@ -1890,6 +2027,30 @@ func fakeCSharpAnalyzer(result analyzer.AnalysisResult) SourceAnalyzer {
 	return AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
 		return result, nil
 	})
+}
+
+func deepShallowAnalysis(language string, publicMethods, logicLOC int) analyzer.AnalysisResult {
+	return analyzer.AnalysisResult{
+		CALMNode: language + "-module",
+		Language: language,
+		Functions: []analyzer.FunctionMetric{{
+			Name:                 "Run",
+			CyclomaticComplexity: 1,
+			IsPublic:             true,
+			LOC:                  logicLOC,
+		}},
+		FileMetric: analyzer.FileMetric{
+			TotalLOC:      logicLOC + 10,
+			LogicLOC:      logicLOC,
+			PublicMethods: publicMethods,
+			LDR:           0.9,
+		},
+		Imports: analyzer.ImportMetric{
+			Total: 1,
+			Used:  1,
+			DDC:   1,
+		},
+	}
 }
 
 func pythonAnalysisWithComplexFunction(name string, complexity int) analyzer.AnalysisResult {

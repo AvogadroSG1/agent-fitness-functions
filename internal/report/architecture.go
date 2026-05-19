@@ -26,7 +26,10 @@ type Node struct {
 
 // Metadata contains CALM metadata emitted by calm-bridge.
 type Metadata struct {
-	Fitness Fitness `json:"fitness"`
+	Fitness       Fitness        `json:"fitness"`
+	ModuleMetrics *ModuleMetrics `json:"module_metrics,omitempty"`
+	FileMetrics   *FileMetrics   `json:"file_metrics,omitempty"`
+	ImportMetrics *ImportMetrics `json:"import_metrics,omitempty"`
 }
 
 // Fitness contains concrete values for the governance fitness functions.
@@ -36,6 +39,28 @@ type Fitness struct {
 	ImplementationDepth  float64 `json:"implementation-depth"`
 	LogicDensity         float64 `json:"logic-density"`
 	DependencyDiscipline float64 `json:"dependency-discipline"`
+}
+
+// ModuleMetrics contains module-level values used by deep-vs-shallow rules.
+type ModuleMetrics struct {
+	PublicMethodCount     int     `json:"public_method_count"`
+	TotalLOC              int     `json:"total_loc"`
+	PrivateLOC            int     `json:"private_loc"`
+	AverageLOCPublicMethod float64 `json:"avg_loc_per_public_method"`
+}
+
+// FileMetrics contains file-level values used by AI Slop rules.
+type FileMetrics struct {
+	TotalLines int     `json:"total_lines"`
+	LogicLines int     `json:"logic_lines"`
+	LDR        float64 `json:"ldr"`
+}
+
+// ImportMetrics contains dependency usage values used by DDC.
+type ImportMetrics struct {
+	TotalImports int     `json:"total_imports"`
+	UsedImports  int     `json:"used_imports"`
+	DDC          float64 `json:"ddc"`
 }
 
 // Relationship connects the synthetic actor to the analyzed node.
@@ -87,7 +112,24 @@ func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
 					ImplementationDepth:  implementationDepth(result.FileMetric),
 					LogicDensity:         result.FileMetric.LDR,
 					DependencyDiscipline: result.Imports.DDC,
-				}},
+				},
+					ModuleMetrics: &ModuleMetrics{
+						PublicMethodCount:     result.FileMetric.PublicMethods,
+						TotalLOC:              result.FileMetric.TotalLOC,
+						PrivateLOC:            privateLOC(result),
+						AverageLOCPublicMethod: implementationDepth(result.FileMetric),
+					},
+					FileMetrics: &FileMetrics{
+						TotalLines: result.FileMetric.TotalLOC,
+						LogicLines: result.FileMetric.LogicLOC,
+						LDR:        result.FileMetric.LDR,
+					},
+					ImportMetrics: &ImportMetrics{
+						TotalImports: result.Imports.Total,
+						UsedImports:  result.Imports.Used,
+						DDC:          result.Imports.DDC,
+					},
+				},
 			},
 		},
 		Relationships: []Relationship{
@@ -118,6 +160,20 @@ func implementationDepth(metric analyzer.FileMetric) float64 {
 		return 1
 	}
 	return float64(metric.LogicLOC) / float64(metric.PublicMethods)
+}
+
+func privateLOC(result analyzer.AnalysisResult) int {
+	publicLOC := 0
+	for _, function := range result.Functions {
+		if function.IsPublic {
+			publicLOC += function.LOC
+		}
+	}
+	private := result.FileMetric.TotalLOC - publicLOC
+	if private < 0 {
+		return 0
+	}
+	return private
 }
 
 var nonIDCharacters = regexp.MustCompile(`[^A-Za-z0-9_-]+`)

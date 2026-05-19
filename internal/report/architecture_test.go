@@ -52,6 +52,19 @@ func TestBuildArchitectureMapsAnalysisMetricsToCALMNodeFitness(t *testing.T) {
 	if fitness.DependencyDiscipline != 0.5 {
 		t.Fatalf("dependency discipline = %v, want DDC", fitness.DependencyDiscipline)
 	}
+	if node.Metadata.ModuleMetrics == nil {
+		t.Fatal("module_metrics missing from analyzed node metadata")
+	}
+	moduleMetrics := *node.Metadata.ModuleMetrics
+	if moduleMetrics.PublicMethodCount != 1 || moduleMetrics.TotalLOC != 80 || moduleMetrics.PrivateLOC != 56 || moduleMetrics.AverageLOCPublicMethod != 40 {
+		t.Fatalf("module metrics = %+v, want public=1 total=80 private=56 avg=40", moduleMetrics)
+	}
+	if node.Metadata.FileMetrics == nil || node.Metadata.FileMetrics.TotalLines != 80 || node.Metadata.FileMetrics.LogicLines != 40 {
+		t.Fatalf("file metrics = %+v, want total=80 logic=40", node.Metadata.FileMetrics)
+	}
+	if node.Metadata.ImportMetrics == nil || node.Metadata.ImportMetrics.TotalImports != 2 || node.Metadata.ImportMetrics.UsedImports != 1 {
+		t.Fatalf("import metrics = %+v, want total=2 used=1", node.Metadata.ImportMetrics)
+	}
 	if _, err := json.Marshal(document); err != nil {
 		t.Fatalf("marshal architecture document: %v", err)
 	}

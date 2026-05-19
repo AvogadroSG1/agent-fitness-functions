@@ -339,6 +339,8 @@ func (c Checker) writeArchitecture(document report.ArchitectureDocument) (string
 func fitnessViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
 	violations := make([]Violation, 0)
 	violations = append(violations, cyclomaticComplexityViolations(result, pattern)...)
+	violations = append(violations, interfaceWidthViolations(result, pattern)...)
+	violations = append(violations, implementationDepthViolations(result, pattern)...)
 	violations = append(violations, logicDensityViolations(result, pattern)...)
 	violations = append(violations, dependencyDisciplineViolations(result, pattern)...)
 	return violations
@@ -372,6 +374,47 @@ func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm
 		})
 	}
 	return violations
+}
+
+func interfaceWidthViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
+	rule, ok := pattern.FitnessFunctions["interface-width"]
+	if !ok || rule.Operator != "lte" || float64(result.FileMetric.PublicMethods) <= rule.Threshold {
+		return nil
+	}
+	return []Violation{{
+		FitnessFunction: "interface_width",
+		CALMNode:        result.CALMNode,
+		File:            result.File,
+		Value:           float64(result.FileMetric.PublicMethods),
+		Limit:           rule.Threshold,
+		Message: fmt.Sprintf(
+			"Module '%s' exposes %d public methods, exceeding the limit of %.0f. Consolidate related operations or reduce the public surface area.",
+			result.CALMNode,
+			result.FileMetric.PublicMethods,
+			rule.Threshold,
+		),
+	}}
+}
+
+func implementationDepthViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
+	rule, ok := pattern.FitnessFunctions["implementation-depth"]
+	value := implementationDepth(result.FileMetric)
+	if !ok || rule.Operator != "gte" || result.FileMetric.PublicMethods == 0 || value >= rule.Threshold {
+		return nil
+	}
+	return []Violation{{
+		FitnessFunction: "implementation_depth",
+		CALMNode:        result.CALMNode,
+		File:            result.File,
+		Value:           value,
+		Limit:           rule.Threshold,
+		Message: fmt.Sprintf(
+			"Module '%s' averages %.3f LOC per public method, below the minimum of %.3f. Methods with little implementation may be unnecessary pass-throughs.",
+			result.CALMNode,
+			value,
+			rule.Threshold,
+		),
+	}}
 }
 
 func logicDensityViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
@@ -417,6 +460,13 @@ func dependencyDisciplineViolations(result analyzer.AnalysisResult, pattern calm
 			unused,
 		),
 	}}
+}
+
+func implementationDepth(metric analyzer.FileMetric) float64 {
+	if metric.PublicMethods == 0 {
+		return 1
+	}
+	return float64(metric.LogicLOC) / float64(metric.PublicMethods)
 }
 
 func filterViolations(violations []Violation, config Config) []Violation {
