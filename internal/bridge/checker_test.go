@@ -444,7 +444,7 @@ func TestHandlerCheckBlocksInterfaceWidthViolation(t *testing.T) {
 		t.Fatalf("response = %+v, want one interface-width block", body)
 	}
 	violation := body.Violations[0]
-	if violation.FitnessFunction != "interface_width" || violation.CALMNode != "wide" || violation.Value != 21 || violation.Limit != 20 {
+	if violation.FitnessFunction != "interface_width" || violation.CALMNode != "go-module" || violation.Value != 21 || violation.Limit != 20 {
 		t.Fatalf("violation = %+v, want interface-width 21 > 20", violation)
 	}
 	if !strings.Contains(violation.Message, "exposes 21 public methods") || !strings.Contains(violation.Message, "reduce the public surface area") {
@@ -471,7 +471,7 @@ func TestHandlerCheckBlocksImplementationDepthViolation(t *testing.T) {
 		t.Fatalf("response = %+v, want one implementation-depth block", body)
 	}
 	violation := body.Violations[0]
-	if violation.FitnessFunction != "implementation_depth" || violation.CALMNode != "shallow" || violation.Value != 0.5 || violation.Limit != 0.722 {
+	if violation.FitnessFunction != "implementation_depth" || violation.CALMNode != "go-module" || violation.Value != 0.5 || violation.Limit != 0.722 {
 		t.Fatalf("violation = %+v, want implementation depth 0.5 below 0.722", violation)
 	}
 	if !strings.Contains(violation.Message, "averages 0.500 LOC per public method") || !strings.Contains(violation.Message, "unnecessary pass-throughs") {
@@ -496,6 +496,34 @@ func TestHandlerCheckPassesCalibratedImplementationDepthAtTwoLOCPerMethod(t *tes
 	body := postCheckForLanguage(t, server.URL, repo, "internal/shallow/shallow.go", "go", cleanGoSource())
 	if body.Status != StatusPass || len(body.Violations) != 0 {
 		t.Fatalf("response = %+v, want 2 LOC/public method to pass calibrated threshold 0.722", body)
+	}
+}
+
+func TestHandlerCheckAggregatesRealGoPackageForInterfaceWidth(t *testing.T) {
+	repo := t.TempDir()
+	packageDir := filepath.Join(repo, "internal", "wide")
+	if err := os.MkdirAll(packageDir, 0o755); err != nil {
+		t.Fatalf("mkdir package: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(packageDir, "existing.go"), []byte(goExportedFunctionsSource("Existing", 20)), 0o644); err != nil {
+		t.Fatalf("write existing go: %v", err)
+	}
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"interface-width": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+		}),
+	}, nil))
+	defer server.Close()
+
+	body := postCheckForLanguage(t, server.URL, repo, "internal/wide/proposed.go", "go", goExportedFunctionsSource("Proposed", 1))
+	if body.Status != StatusBlock || len(body.Violations) != 1 {
+		t.Fatalf("response = %+v, want aggregate package interface-width block", body)
+	}
+	violation := body.Violations[0]
+	if violation.FitnessFunction != "interface_width" || violation.CALMNode != "wide" || violation.Value != 21 {
+		t.Fatalf("violation = %+v, want package-wide 21 public methods", violation)
 	}
 }
 
@@ -1980,6 +2008,15 @@ func UseImports() string {
 	return fmt.Sprint(values)
 }
 `
+}
+
+func goExportedFunctionsSource(prefix string, count int) string {
+	var builder strings.Builder
+	builder.WriteString("package wide\n\n")
+	for index := 0; index < count; index++ {
+		fmt.Fprintf(&builder, "func %s%d() string {\n\treturn %q\n}\n\n", prefix, index, prefix)
+	}
+	return builder.String()
 }
 
 func complexPythonSource() string {
