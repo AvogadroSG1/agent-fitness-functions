@@ -36,17 +36,17 @@ func AnalyzeCSharpFile(ctx context.Context, file, cliPath string) (AnalysisResul
 
 func defaultRoslynCLI() string {
 	candidates := []string{
-		filepath.Join("tools", "roslyn-analyzer", "bin", "Debug", "net8.0", "CalmRoslynAnalyzer"),
-		filepath.Join("tools", "roslyn-analyzer", "bin", "Debug", "net8.0", "CalmRoslynAnalyzer.exe"),
 		filepath.Join("tools", "roslyn-analyzer", "bin", "Release", "net8.0", "CalmRoslynAnalyzer"),
 		filepath.Join("tools", "roslyn-analyzer", "bin", "Release", "net8.0", "CalmRoslynAnalyzer.exe"),
+		filepath.Join("tools", "roslyn-analyzer", "bin", "Debug", "net8.0", "CalmRoslynAnalyzer"),
+		filepath.Join("tools", "roslyn-analyzer", "bin", "Debug", "net8.0", "CalmRoslynAnalyzer.exe"),
 	}
 	if cwd, err := os.Getwd(); err == nil {
 		candidates = append(candidates,
-			filepath.Join(cwd, "..", "..", "tools", "roslyn-analyzer", "bin", "Debug", "net8.0", "CalmRoslynAnalyzer"),
-			filepath.Join(cwd, "..", "..", "tools", "roslyn-analyzer", "bin", "Debug", "net8.0", "CalmRoslynAnalyzer.exe"),
 			filepath.Join(cwd, "..", "..", "tools", "roslyn-analyzer", "bin", "Release", "net8.0", "CalmRoslynAnalyzer"),
 			filepath.Join(cwd, "..", "..", "tools", "roslyn-analyzer", "bin", "Release", "net8.0", "CalmRoslynAnalyzer.exe"),
+			filepath.Join(cwd, "..", "..", "tools", "roslyn-analyzer", "bin", "Debug", "net8.0", "CalmRoslynAnalyzer"),
+			filepath.Join(cwd, "..", "..", "tools", "roslyn-analyzer", "bin", "Debug", "net8.0", "CalmRoslynAnalyzer.exe"),
 		)
 	}
 	for _, candidate := range candidates {

@@ -48,11 +48,12 @@ func (f AnalyzerFunc) Analyze(ctx context.Context, request AnalysisRequest) (ana
 
 // Checker coordinates source analysis, CALM architecture generation, and validation.
 type Checker struct {
-	PatternPath string
-	TempDir     string
-	Validator   Validator
-	Analyzers   map[string]SourceAnalyzer
-	State       *State
+	PatternPath     string
+	TempDir         string
+	Validator       Validator
+	Analyzers       map[string]SourceAnalyzer
+	State           *State
+	DeferredContext context.Context
 }
 
 // ErrorKind classifies checker failures for HTTP clients.
@@ -97,13 +98,20 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 		state.ClearRepo(repo)
 		return CheckResponse{Status: StatusPass}, nil
 	}
-	if request.Language == "csharp" && config.EnforcementMode == EnforcementBlock && !state.IsWarm("csharp") {
+	if request.Language == "csharp" && config.EnforcementMode == EnforcementBlock {
 		if message, ok := state.TakeWarmupFailure("csharp"); ok {
 			return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message))
 		}
-		if outstanding := state.Violations(repo); len(outstanding) > 0 {
+	}
+	if request.Language == "csharp" && config.EnforcementMode == EnforcementBlock {
+		if message, ok := state.TakeWarmupFailure("csharp"); ok {
+			return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message))
+		}
+		if outstanding := state.Violations(repo); hasOtherFileViolation(outstanding, request.File) {
 			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
 		}
+	}
+	if request.Language == "csharp" && config.EnforcementMode == EnforcementBlock && !state.IsWarm("csharp") {
 		unlockRepo, err := state.LockRepo(ctx, repo)
 		if err != nil {
 			return CheckResponse{}, infrastructureError("check canceled while waiting for repository lock", err)
@@ -116,7 +124,7 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 			unlockRepo()
 			return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message))
 		}
-		if outstanding := state.Violations(repo); len(outstanding) > 0 {
+		if outstanding := state.Violations(repo); hasOtherFileViolation(outstanding, request.File) {
 			unlockRepo()
 			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
 		}
@@ -242,7 +250,11 @@ func (c *Checker) startDeferredCheck(request CheckRequest, repo string, config C
 	checker := *c
 	go func() {
 		defer unlockRepo()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx := checker.DeferredContext
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		_, err := checker.checkSynchronousLocked(ctx, request, repo, config, checker.State)
 		if err != nil {
@@ -251,6 +263,15 @@ func (c *Checker) startDeferredCheck(request CheckRequest, repo string, config C
 		}
 		checker.State.CompleteWarmup("csharp")
 	}()
+}
+
+func hasOtherFileViolation(violations []Violation, file string) bool {
+	for _, violation := range violations {
+		if violation.File != file {
+			return true
+		}
+	}
+	return false
 }
 
 func isAnalyzerInfrastructureError(err error) bool {

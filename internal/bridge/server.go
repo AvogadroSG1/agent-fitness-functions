@@ -66,6 +66,13 @@ func NewHandlerWithChecker(checker Checker, shutdown func()) http.Handler {
 	if checker.State == nil {
 		checker.State = NewState()
 	}
+	deferredCtx, cancelDeferred := context.WithCancel(context.Background())
+	if checker.DeferredContext == nil {
+		checker.DeferredContext = deferredCtx
+	} else {
+		cancelDeferred()
+		cancelDeferred = func() {}
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -117,6 +124,7 @@ func NewHandlerWithChecker(checker Checker, shutdown func()) http.Handler {
 			return
 		}
 		writeJSON(w, map[string]string{"status": "shutting_down"})
+		cancelDeferred()
 		if shutdown != nil {
 			shutdown()
 		}
