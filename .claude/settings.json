@@ -4,7 +4,7 @@
       {
         "hooks": [
           {
-            "command": "hooks/pre-tool-use.sh",
+            "command": "/Users/poconnor/peter_code/calm-poc/hooks/pre-tool-use.sh",
             "type": "command"
           }
         ],

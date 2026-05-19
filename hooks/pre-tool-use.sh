@@ -25,7 +25,7 @@ PY
 
 if [[ -n "$addr" && "${CALM_ALLOW_REMOTE_BRIDGE:-}" != "1" ]] && ! bridge_addr_is_loopback "$addr"; then
   echo "CALM_BRIDGE_ADDR must be loopback unless CALM_ALLOW_REMOTE_BRIDGE=1 is set" >&2
-  exit 1
+  exit 2
 fi
 
 language_for_file() {
@@ -52,38 +52,47 @@ for violation in payload.get("violations", []):
 }
 
 payload=$(cat)
-parsed=$(CALM_HOOK_PAYLOAD="$payload" python3 - <<'PY'
+payload_file=$(mktemp)
+content_file=$(mktemp)
+cleanup() {
+  rm -f "$payload_file" "$content_file"
+}
+trap cleanup EXIT
+printf '%s' "$payload" > "$payload_file"
+
+parsed=$(python3 - "$payload_file" "$content_file" <<'PY'
 import json
-import os
 import sys
 
-payload = json.loads(os.environ["CALM_HOOK_PAYLOAD"])
-tool_input = payload.get("tool_input", payload)
-file_path = tool_input.get("file_path", "")
-content = tool_input.get("new_string", tool_input.get("content", None))
-if not file_path:
-    print(json.dumps({"error": "missing file_path"}))
-elif content is None:
-    print(json.dumps({"error": "missing proposed content"}))
-elif "\x00" in content:
-    print(json.dumps({"skip": "binary", "file_path": file_path}))
-else:
-    print(json.dumps({"file_path": file_path, "content": content}))
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        payload = json.load(handle)
+    tool_input = payload.get("tool_input", payload)
+    file_path = tool_input.get("file_path", "")
+    content = tool_input.get("new_string", tool_input.get("content", None))
+    if not file_path:
+        print(json.dumps({"error": "missing file_path"}))
+    elif content is None:
+        print(json.dumps({"error": "missing proposed content"}))
+    else:
+        binary = "\x00" in content
+        if not binary:
+            with open(sys.argv[2], "w", encoding="utf-8", newline="") as content_file:
+                content_file.write(content)
+        print(json.dumps({"file_path": file_path, "binary": binary}))
+except Exception as exc:
+    print(json.dumps({"error": f"invalid JSON payload: {exc}"}))
 PY
 )
 
 parse_error=$(printf '%s' "$parsed" | json_field error)
 if [[ -n "$parse_error" ]]; then
   echo "Invalid PreToolUse payload: $parse_error" >&2
-  exit 1
+  exit 2
 fi
 
-skip=$(printf '%s' "$parsed" | json_field skip)
 file_path=$(printf '%s' "$parsed" | json_field file_path)
-if [[ "$skip" == "binary" ]]; then
-  echo "Skipping CALM check for binary content in $file_path" >&2
-  exit 0
-fi
+binary=$(printf '%s' "$parsed" | json_field binary)
 
 repo_prefix=$(cd "$repo" && pwd -P)
 absolute_file=$(python3 - "$repo_prefix" "$file_path" <<'PY'
@@ -117,8 +126,12 @@ if ! language=$(language_for_file "$file"); then
   exit 0
 fi
 
-content=$(printf '%s' "$parsed" | json_field content)
-args=(check --file "$file" --repo "$repo" --content "$content" --language "$language")
+if [[ "$binary" == "True" || "$binary" == "true" ]]; then
+  echo "CALM check blocked binary content for supported source file: $file" >&2
+  exit 2
+fi
+
+args=(check --file "$file" --repo "$repo" --content-file "$content_file" --language "$language")
 if [[ -n "$addr" ]]; then
   args+=(--addr "$addr")
 fi
@@ -126,7 +139,7 @@ fi
 if ! result=$("$calm_bridge" "${args[@]}"); then
   echo "CALM check failed for $file" >&2
   printf '%s\n' "$result" >&2
-  exit 1
+  exit 2
 fi
 
 status=$(printf '%s' "$result" | json_field status)
@@ -134,7 +147,7 @@ case "$status" in
   block)
     echo "CALM violation in $file:" >&2
     printf '%s' "$result" | json_messages >&2
-    exit 1
+    exit 2
     ;;
   advisory)
     echo "CALM advisory for $file:" >&2
@@ -144,6 +157,6 @@ case "$status" in
     ;;
   *)
     echo "CALM check returned unknown status for $file: ${status:-<empty>}" >&2
-    exit 1
+    exit 2
     ;;
 esac

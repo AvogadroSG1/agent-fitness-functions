@@ -87,6 +87,7 @@ func runCheck(args []string, stdout io.Writer, client *http.Client, starter func
 	file := flags.String("file", "", "file path being checked")
 	repo := flags.String("repo", "", "repository root")
 	content := flags.String("content", "", "proposed file content")
+	contentFile := flags.String("content-file", "", "path to proposed file content")
 	language := flags.String("language", "", "source language")
 	staged := flags.Bool("staged", false, "read content from git staged state")
 	if err := flags.Parse(args); err != nil {
@@ -105,7 +106,7 @@ func runCheck(args []string, stdout io.Writer, client *http.Client, starter func
 		}
 	}
 
-	proposedContent, err := resolveContent(*repo, *file, *content, *staged)
+	proposedContent, err := resolveContent(*repo, *file, *content, *contentFile, *staged)
 	if err != nil {
 		return err
 	}
@@ -144,7 +145,14 @@ func runCheck(args []string, stdout io.Writer, client *http.Client, starter func
 	return err
 }
 
-func resolveContent(repo, file, explicitContent string, staged bool) (string, error) {
+func resolveContent(repo, file, explicitContent, contentFile string, staged bool) (string, error) {
+	if contentFile != "" {
+		output, err := os.ReadFile(contentFile)
+		if err != nil {
+			return "", fmt.Errorf("reading content file %s: %w", contentFile, err)
+		}
+		return string(output), nil
+	}
 	if explicitContent != "" {
 		return explicitContent, nil
 	}

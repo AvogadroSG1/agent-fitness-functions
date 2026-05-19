@@ -138,12 +138,73 @@ func TestResolveContentReadsRelativeToRepo(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	content, err := resolveContent(repo, "x.go", "", false)
+	content, err := resolveContent(repo, "x.go", "", "", false)
 	if err != nil {
 		t.Fatalf("resolve content: %v", err)
 	}
 	if content != "package main\n" {
 		t.Fatalf("content = %q, want repo-relative file content", content)
+	}
+}
+
+func TestRunCheckPreservesContentFileBytes(t *testing.T) {
+	var received bridge.CheckRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/check":
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(bridge.CheckResponse{Status: bridge.StatusPass})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	contentFile := filepath.Join(t.TempDir(), "content")
+	want := "package sample\n\n"
+	if err := os.WriteFile(contentFile, []byte(want), 0o600); err != nil {
+		t.Fatalf("write content file: %v", err)
+	}
+
+	code := run([]string{"check", "--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content-file", contentFile, "--language", "go"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
+	}
+	if received.ProposedContent != want {
+		t.Fatalf("proposed content = %q, want exact content file bytes", received.ProposedContent)
+	}
+}
+
+func TestRunCheckAllowsEmptyContentFile(t *testing.T) {
+	var received bridge.CheckRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/check":
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(bridge.CheckResponse{Status: bridge.StatusPass})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	contentFile := filepath.Join(t.TempDir(), "empty")
+	if err := os.WriteFile(contentFile, nil, 0o600); err != nil {
+		t.Fatalf("write content file: %v", err)
+	}
+
+	code := run([]string{"check", "--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content-file", contentFile, "--language", "go"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
+	}
+	if received.ProposedContent != "" {
+		t.Fatalf("proposed content = %q, want empty content", received.ProposedContent)
 	}
 }
 
