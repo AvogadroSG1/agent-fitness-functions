@@ -53,19 +53,21 @@ func AnalyzeGoFile(file string) (AnalysisResult, error) {
 	}
 
 	totalLOC, logicLOC := lineMetrics(string(source))
+	fileMetric := FileMetric{
+		TotalLOC:      totalLOC,
+		LogicLOC:      logicLOC,
+		PublicMethods: publicMethods,
+		LDR:           ratio(logicLOC, totalLOC),
+	}
 	importMetric := goImportMetric(parsed)
 	return AnalysisResult{
-		CALMNode:  parsed.Name.Name,
-		Language:  "go",
-		File:      file,
-		Functions: functions,
-		FileMetric: FileMetric{
-			TotalLOC:      totalLOC,
-			LogicLOC:      logicLOC,
-			PublicMethods: publicMethods,
-			LDR:           ratio(logicLOC, totalLOC),
-		},
-		Imports: importMetric,
+		CALMNode:     parsed.Name.Name,
+		Language:     "go",
+		File:         file,
+		Functions:    functions,
+		ModuleMetric: BuildModuleMetric(fileMetric, functions),
+		FileMetric:   fileMetric,
+		Imports:      importMetric,
 	}, nil
 }
 

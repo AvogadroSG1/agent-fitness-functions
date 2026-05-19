@@ -69,12 +69,13 @@ func AnalyzePythonFile(ctx context.Context, file, radonPath string) (AnalysisRes
 	fileMetric.PublicMethods = publicFunctionCount(functions)
 
 	return AnalysisResult{
-		CALMNode:   strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
-		Language:   "python",
-		File:       file,
-		Functions:  functions,
-		FileMetric: fileMetric,
-		Imports:    pythonImportMetric(string(source)),
+		CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
+		Language:     "python",
+		File:         file,
+		Functions:    functions,
+		ModuleMetric: BuildModuleMetric(fileMetric, functions),
+		FileMetric:   fileMetric,
+		Imports:      pythonImportMetric(string(source)),
 	}, nil
 }
 
@@ -203,12 +204,13 @@ func AnalyzePythonRepository(ctx context.Context, root, radonPath string) ([]Ana
 		functions := pythonFunctions(ccPayload[file])
 		fileMetric.PublicMethods = publicFunctionCount(functions)
 		results = append(results, AnalysisResult{
-			CALMNode:   strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
-			Language:   "python",
-			File:       file,
-			Functions:  functions,
-			FileMetric: fileMetric,
-			Imports:    pythonImportMetric(string(source)),
+			CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
+			Language:     "python",
+			File:         file,
+			Functions:    functions,
+			ModuleMetric: BuildModuleMetric(fileMetric, functions),
+			FileMetric:   fileMetric,
+			Imports:      pythonImportMetric(string(source)),
 		})
 	}
 	return results, nil

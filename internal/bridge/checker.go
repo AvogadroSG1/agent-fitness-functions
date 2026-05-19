@@ -191,6 +191,7 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 	if err := ctx.Err(); err != nil {
 		return CheckResponse{}, infrastructureError("check canceled after analysis", err)
 	}
+	result = analyzer.EnsureModuleMetric(result)
 	result.File = request.File
 	result.CALMNode = calmNodeForRequest(request.File, result.CALMNode)
 
@@ -378,19 +379,20 @@ func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm
 
 func interfaceWidthViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
 	rule, ok := pattern.FitnessFunctions["interface-width"]
-	if !ok || rule.Operator != "lte" || float64(result.FileMetric.PublicMethods) <= rule.Threshold {
+	result = analyzer.EnsureModuleMetric(result)
+	if !ok || rule.Operator != "lte" || float64(result.ModuleMetric.PublicMethods) <= rule.Threshold {
 		return nil
 	}
 	return []Violation{{
 		FitnessFunction: "interface_width",
 		CALMNode:        result.CALMNode,
 		File:            result.File,
-		Value:           float64(result.FileMetric.PublicMethods),
+		Value:           float64(result.ModuleMetric.PublicMethods),
 		Limit:           rule.Threshold,
 		Message: fmt.Sprintf(
 			"Module '%s' exposes %d public methods, exceeding the limit of %.0f. Consolidate related operations or reduce the public surface area.",
 			result.CALMNode,
-			result.FileMetric.PublicMethods,
+			result.ModuleMetric.PublicMethods,
 			rule.Threshold,
 		),
 	}}
@@ -398,8 +400,9 @@ func interfaceWidthViolations(result analyzer.AnalysisResult, pattern calm.Patte
 
 func implementationDepthViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
 	rule, ok := pattern.FitnessFunctions["implementation-depth"]
-	value := implementationDepth(result.FileMetric)
-	if !ok || rule.Operator != "gte" || result.FileMetric.PublicMethods == 0 || value >= rule.Threshold {
+	result = analyzer.EnsureModuleMetric(result)
+	value := result.ModuleMetric.AverageLOCPerPublicMethod
+	if !ok || rule.Operator != "gte" || result.ModuleMetric.PublicMethods == 0 || value >= rule.Threshold {
 		return nil
 	}
 	return []Violation{{
@@ -460,13 +463,6 @@ func dependencyDisciplineViolations(result analyzer.AnalysisResult, pattern calm
 			unused,
 		),
 	}}
-}
-
-func implementationDepth(metric analyzer.FileMetric) float64 {
-	if metric.PublicMethods == 0 {
-		return 1
-	}
-	return float64(metric.LogicLOC) / float64(metric.PublicMethods)
 }
 
 func filterViolations(violations []Violation, config Config) []Violation {

@@ -31,7 +31,7 @@ func AnalyzeCSharpFile(ctx context.Context, file, cliPath string) (AnalysisResul
 	if result.File == "" {
 		result.File = file
 	}
-	return result, nil
+	return EnsureModuleMetric(result), nil
 }
 
 func defaultRoslynCLI() string {

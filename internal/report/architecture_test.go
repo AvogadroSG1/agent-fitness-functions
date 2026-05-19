@@ -2,6 +2,7 @@ package report
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/poconnor/calm-poc/internal/analyzer"
@@ -56,7 +57,7 @@ func TestBuildArchitectureMapsAnalysisMetricsToCALMNodeFitness(t *testing.T) {
 		t.Fatal("module_metrics missing from analyzed node metadata")
 	}
 	moduleMetrics := *node.Metadata.ModuleMetrics
-	if moduleMetrics.PublicMethodCount != 1 || moduleMetrics.TotalLOC != 80 || moduleMetrics.PrivateLOC != 56 || moduleMetrics.AverageLOCPublicMethod != 40 {
+	if moduleMetrics.PublicMethods != 1 || moduleMetrics.TotalLOC != 80 || moduleMetrics.PrivateLOC != 56 || moduleMetrics.AverageLOCPerPublicMethod != 40 {
 		t.Fatalf("module metrics = %+v, want public=1 total=80 private=56 avg=40", moduleMetrics)
 	}
 	if node.Metadata.FileMetrics == nil || node.Metadata.FileMetrics.TotalLines != 80 || node.Metadata.FileMetrics.LogicLines != 40 {
@@ -65,7 +66,21 @@ func TestBuildArchitectureMapsAnalysisMetricsToCALMNodeFitness(t *testing.T) {
 	if node.Metadata.ImportMetrics == nil || node.Metadata.ImportMetrics.TotalImports != 2 || node.Metadata.ImportMetrics.UsedImports != 1 {
 		t.Fatalf("import metrics = %+v, want total=2 used=1", node.Metadata.ImportMetrics)
 	}
-	if _, err := json.Marshal(document); err != nil {
+	content, err := json.Marshal(document)
+	if err != nil {
 		t.Fatalf("marshal architecture document: %v", err)
+	}
+	for _, field := range []string{
+		`"interface-width":1`,
+		`"implementation-depth":40`,
+		`"module_metrics"`,
+		`"public_method_count":1`,
+		`"avg_loc_per_public_method":40`,
+		`"file_metrics"`,
+		`"import_metrics"`,
+	} {
+		if !strings.Contains(string(content), field) {
+			t.Fatalf("architecture JSON = %s, want field %s", content, field)
+		}
 	}
 }

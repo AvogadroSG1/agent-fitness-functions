@@ -26,10 +26,10 @@ type Node struct {
 
 // Metadata contains CALM metadata emitted by calm-bridge.
 type Metadata struct {
-	Fitness       Fitness        `json:"fitness"`
-	ModuleMetrics *ModuleMetrics `json:"module_metrics,omitempty"`
-	FileMetrics   *FileMetrics   `json:"file_metrics,omitempty"`
-	ImportMetrics *ImportMetrics `json:"import_metrics,omitempty"`
+	Fitness       Fitness                `json:"fitness"`
+	ModuleMetrics *analyzer.ModuleMetric `json:"module_metrics,omitempty"`
+	FileMetrics   *FileMetrics           `json:"file_metrics,omitempty"`
+	ImportMetrics *ImportMetrics         `json:"import_metrics,omitempty"`
 }
 
 // Fitness contains concrete values for the governance fitness functions.
@@ -39,14 +39,6 @@ type Fitness struct {
 	ImplementationDepth  float64 `json:"implementation-depth"`
 	LogicDensity         float64 `json:"logic-density"`
 	DependencyDiscipline float64 `json:"dependency-discipline"`
-}
-
-// ModuleMetrics contains module-level values used by deep-vs-shallow rules.
-type ModuleMetrics struct {
-	PublicMethodCount     int     `json:"public_method_count"`
-	TotalLOC              int     `json:"total_loc"`
-	PrivateLOC            int     `json:"private_loc"`
-	AverageLOCPublicMethod float64 `json:"avg_loc_per_public_method"`
 }
 
 // FileMetrics contains file-level values used by AI Slop rules.
@@ -83,6 +75,7 @@ type Interacts struct {
 
 // BuildArchitecture converts analyzer metrics into a CALM architecture document.
 func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
+	result = analyzer.EnsureModuleMetric(result)
 	nodeID := calmID(result.CALMNode)
 	actorID := nodeID + "-actor"
 	return ArchitectureDocument{
@@ -108,17 +101,12 @@ func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
 				Description: "Architecture fitness metrics for " + result.File + ".",
 				Metadata: Metadata{Fitness: Fitness{
 					CyclomaticComplexity: float64(maxCyclomaticComplexity(result.Functions)),
-					InterfaceWidth:       float64(result.FileMetric.PublicMethods),
-					ImplementationDepth:  implementationDepth(result.FileMetric),
+					InterfaceWidth:       float64(result.ModuleMetric.PublicMethods),
+					ImplementationDepth:  result.ModuleMetric.AverageLOCPerPublicMethod,
 					LogicDensity:         result.FileMetric.LDR,
 					DependencyDiscipline: result.Imports.DDC,
 				},
-					ModuleMetrics: &ModuleMetrics{
-						PublicMethodCount:     result.FileMetric.PublicMethods,
-						TotalLOC:              result.FileMetric.TotalLOC,
-						PrivateLOC:            privateLOC(result),
-						AverageLOCPublicMethod: implementationDepth(result.FileMetric),
-					},
+					ModuleMetrics: &result.ModuleMetric,
 					FileMetrics: &FileMetrics{
 						TotalLines: result.FileMetric.TotalLOC,
 						LogicLines: result.FileMetric.LogicLOC,
@@ -153,27 +141,6 @@ func maxCyclomaticComplexity(functions []analyzer.FunctionMetric) int {
 		}
 	}
 	return maximum
-}
-
-func implementationDepth(metric analyzer.FileMetric) float64 {
-	if metric.PublicMethods == 0 {
-		return 1
-	}
-	return float64(metric.LogicLOC) / float64(metric.PublicMethods)
-}
-
-func privateLOC(result analyzer.AnalysisResult) int {
-	publicLOC := 0
-	for _, function := range result.Functions {
-		if function.IsPublic {
-			publicLOC += function.LOC
-		}
-	}
-	private := result.FileMetric.TotalLOC - publicLOC
-	if private < 0 {
-		return 0
-	}
-	return private
 }
 
 var nonIDCharacters = regexp.MustCompile(`[^A-Za-z0-9_-]+`)

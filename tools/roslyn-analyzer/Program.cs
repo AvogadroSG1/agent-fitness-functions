@@ -51,6 +51,13 @@ var result = new AnalysisResult
     Language = "csharp",
     File = file,
     Functions = functions,
+    ModuleMetric = new ModuleMetric
+    {
+        PublicMethods = publicMethods,
+        TotalLOC = totalLOC,
+        PrivateLOC = Math.Max(0, totalLOC - functions.Where(function => function.IsPublic).Sum(function => function.LOC)),
+        AverageLOCPerPublicMethod = publicMethods == 0 ? 1 : (double)logicLOC / publicMethods,
+    },
     FileMetric = new FileMetric
     {
         TotalLOC = totalLOC,
@@ -241,6 +248,8 @@ sealed class AnalysisResult
     public List<FunctionMetric> Functions { get; set; } = [];
     [JsonPropertyName("file_metrics")]
     public FileMetric FileMetric { get; set; } = new();
+    [JsonPropertyName("module_metrics")]
+    public ModuleMetric ModuleMetric { get; set; } = new();
     [JsonPropertyName("import_metrics")]
     public ImportMetric Imports { get; set; } = new();
 }
@@ -259,6 +268,18 @@ sealed class FileMetric
     public int LogicLOC { get; set; }
     public int PublicMethods { get; set; }
     public double LDR { get; set; }
+}
+
+sealed class ModuleMetric
+{
+    [JsonPropertyName("public_method_count")]
+    public int PublicMethods { get; set; }
+    [JsonPropertyName("total_loc")]
+    public int TotalLOC { get; set; }
+    [JsonPropertyName("private_loc")]
+    public int PrivateLOC { get; set; }
+    [JsonPropertyName("avg_loc_per_public_method")]
+    public double AverageLOCPerPublicMethod { get; set; }
 }
 
 sealed class ImportMetric

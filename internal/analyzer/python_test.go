@@ -45,6 +45,9 @@ def public_choice(value):
 	if result.FileMetric.TotalLOC != 10 || result.FileMetric.LogicLOC != 4 || result.FileMetric.PublicMethods != 1 {
 		t.Fatalf("file metrics = %+v, want LOC 10, logic LOC 4, public methods 1", result.FileMetric)
 	}
+	if result.ModuleMetric.PublicMethods != 1 || result.ModuleMetric.TotalLOC != 10 || result.ModuleMetric.AverageLOCPerPublicMethod != 4 {
+		t.Fatalf("module metrics = %+v, want public methods 1, total LOC 10, avg LOC/public 4", result.ModuleMetric)
+	}
 	if result.Imports.Total != 4 || result.Imports.Used != 2 || len(result.Imports.Unused) != 2 {
 		t.Fatalf("imports = %+v, want two unused imports from four imported names", result.Imports)
 	}

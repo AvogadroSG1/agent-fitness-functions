@@ -116,6 +116,9 @@ public class Example
 	if result.FileMetric.TotalLOC == 0 || result.FileMetric.LogicLOC == 0 || result.FileMetric.LDR == 0 {
 		t.Fatalf("file metrics = %+v, want non-zero LOC and LDR", result.FileMetric)
 	}
+	if result.ModuleMetric.PublicMethods != 5 || result.ModuleMetric.TotalLOC == 0 || result.ModuleMetric.AverageLOCPerPublicMethod == 0 {
+		t.Fatalf("module metrics = %+v, want non-zero C# module metrics", result.ModuleMetric)
+	}
 	if result.Imports.Total != 3 || result.Imports.Used != 2 || result.Imports.DDC != float64(2)/float64(3) {
 		t.Fatalf("imports = %+v, want two used imports from three using directives", result.Imports)
 	}

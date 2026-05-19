@@ -79,6 +79,9 @@ func privatePassThrough() string {
 	if result.FileMetric.TotalLOC != 27 || result.FileMetric.LogicLOC != 14 || result.FileMetric.LDR != float64(14)/float64(27) {
 		t.Fatalf("file metrics = %+v, want total LOC 27, logic LOC 14, LDR 14/27", result.FileMetric)
 	}
+	if result.ModuleMetric.PublicMethods != 2 || result.ModuleMetric.TotalLOC != 27 || result.ModuleMetric.AverageLOCPerPublicMethod != 7 {
+		t.Fatalf("module metrics = %+v, want public methods 2, total LOC 27, avg LOC/public 7", result.ModuleMetric)
+	}
 	if result.Imports.Total != 2 || result.Imports.Used != 2 {
 		t.Fatalf("imports = %+v, want 2/2 used", result.Imports)
 	}

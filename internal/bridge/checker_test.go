@@ -479,6 +479,26 @@ func TestHandlerCheckBlocksImplementationDepthViolation(t *testing.T) {
 	}
 }
 
+func TestHandlerCheckPassesCalibratedImplementationDepthAtTwoLOCPerMethod(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"implementation-depth": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Analyzers: map[string]SourceAnalyzer{
+			"go": fakeGoAnalyzer(deepShallowAnalysis("go", 4, 8)),
+		},
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true, Output: `{"hasErrors":false}`}, nil
+		}),
+	}, nil))
+	defer server.Close()
+
+	body := postCheckForLanguage(t, server.URL, repo, "internal/shallow/shallow.go", "go", cleanGoSource())
+	if body.Status != StatusPass || len(body.Violations) != 0 {
+		t.Fatalf("response = %+v, want 2 LOC/public method to pass calibrated threshold 0.722", body)
+	}
+}
+
 func TestHandlerCheckTogglesDeepShallowFitnessFunctionsIndependently(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -546,6 +566,38 @@ func TestHandlerCheckAppliesDeepShallowRulesAcrossLanguages(t *testing.T) {
 			body := postCheckForLanguage(t, server.URL, repo, tt.file, tt.language, cleanSourceForLanguage(tt.language))
 			if body.Status != StatusAdvisory || len(body.Violations) != 1 || body.Violations[0].FitnessFunction != "interface_width" {
 				t.Fatalf("response = %+v, want advisory interface-width violation for %s", body, tt.language)
+			}
+		})
+	}
+}
+
+func TestHandlerCheckAppliesImplementationDepthAcrossLanguages(t *testing.T) {
+	tests := []struct {
+		name     string
+		language string
+		file     string
+		analyzer SourceAnalyzer
+	}{
+		{name: "go", language: "go", file: "internal/shallow/shallow.go", analyzer: fakeGoAnalyzer(deepShallowAnalysis("go", 4, 2))},
+		{name: "python", language: "python", file: "src/shallow.py", analyzer: fakePythonAnalyzer(deepShallowAnalysis("python", 4, 2))},
+		{name: "csharp", language: "csharp", file: "src/Shallow.cs", analyzer: fakeCSharpAnalyzer(deepShallowAnalysis("csharp", 4, 2))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := t.TempDir()
+			writeRepoConfig(t, repo, EnforcementAdvisory, map[string]bool{"implementation-depth": true})
+			server := httptest.NewServer(NewHandlerWithChecker(Checker{
+				PatternPath: writeTestPattern(t),
+				Analyzers:   map[string]SourceAnalyzer{tt.language: tt.analyzer},
+				Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+					return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
+				}),
+			}, nil))
+			defer server.Close()
+
+			body := postCheckForLanguage(t, server.URL, repo, tt.file, tt.language, cleanSourceForLanguage(tt.language))
+			if body.Status != StatusAdvisory || len(body.Violations) != 1 || body.Violations[0].FitnessFunction != "implementation_depth" {
+				t.Fatalf("response = %+v, want advisory implementation-depth violation for %s", body, tt.language)
 			}
 		})
 	}
@@ -2030,21 +2082,23 @@ func fakeCSharpAnalyzer(result analyzer.AnalysisResult) SourceAnalyzer {
 }
 
 func deepShallowAnalysis(language string, publicMethods, logicLOC int) analyzer.AnalysisResult {
+	fileMetric := analyzer.FileMetric{
+		TotalLOC:      logicLOC + 10,
+		LogicLOC:      logicLOC,
+		PublicMethods: publicMethods,
+		LDR:           0.9,
+	}
 	return analyzer.AnalysisResult{
-		CALMNode: language + "-module",
-		Language: language,
+		CALMNode:     language + "-module",
+		Language:     language,
+		ModuleMetric: analyzer.BuildModuleMetric(fileMetric, nil),
 		Functions: []analyzer.FunctionMetric{{
 			Name:                 "Run",
 			CyclomaticComplexity: 1,
 			IsPublic:             true,
 			LOC:                  logicLOC,
 		}},
-		FileMetric: analyzer.FileMetric{
-			TotalLOC:      logicLOC + 10,
-			LogicLOC:      logicLOC,
-			PublicMethods: publicMethods,
-			LDR:           0.9,
-		},
+		FileMetric: fileMetric,
 		Imports: analyzer.ImportMetric{
 			Total: 1,
 			Used:  1,
