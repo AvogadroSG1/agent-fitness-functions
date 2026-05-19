@@ -41,6 +41,39 @@ func TestWriteBaselineReportSummarizesResults(t *testing.T) {
 	}
 }
 
+func TestAnalyzeRepositoryAggregatesModuleMetricsByCALMNode(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "first.go"), []byte(`package sample
+
+func First() string {
+	return "first"
+}
+`), 0o644); err != nil {
+		t.Fatalf("write first: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "second.go"), []byte(`package sample
+
+func Second() string {
+	return "second"
+}
+`), 0o644); err != nil {
+		t.Fatalf("write second: %v", err)
+	}
+
+	results, err := AnalyzeRepository(context.Background(), dir, "go", RepositoryOptions{})
+	if err != nil {
+		t.Fatalf("AnalyzeRepository returned error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("results = %d, want 2", len(results))
+	}
+	for _, result := range results {
+		if result.CALMNode != "sample" || result.ModuleMetric.PublicMethods != 2 {
+			t.Fatalf("result = %+v, want aggregated sample module with two public methods", result)
+		}
+	}
+}
+
 func containsAll(value string, needles ...string) bool {
 	for _, needle := range needles {
 		if !stringsContains(value, needle) {
