@@ -194,15 +194,14 @@ func TestAnalyzePythonFileUsesSingleRadonAPISubprocessWhenRadonHasPythonShebang(
 	}
 }
 
-func TestAnalyzePythonFileFallsBackToRadonCLIWhenFastPathReturnsMalformedOutput(t *testing.T) {
+func TestAnalyzePythonFileFallsBackToRadonCLIWhenFastPathSubprocessFails(t *testing.T) {
 	dir := t.TempDir()
-	file := filepath.Join(dir, "fallback_malformed.py")
+	file := filepath.Join(dir, "fallback_error.py")
 	if err := os.WriteFile(file, []byte("def fallback():\n    return 1\n"), 0o644); err != nil {
 		t.Fatalf("write source: %v", err)
 	}
 	logPath := filepath.Join(dir, "radon-degraded.log")
-	fakePython := fakeMalformedRadonPythonWithCLIFallback(t, dir, logPath, file)
-	fakeRadonWithShebang(t, dir, fakePython)
+	fakeShellRadonWithCLIFallback(t, dir, logPath, file)
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	result, err := AnalyzePythonFile(context.Background(), file, "")
@@ -464,17 +463,15 @@ printf '{"cc":{"%%s":[{"type":"F","name":"one","complexity":1,"lineno":1,"endlin
 	return path
 }
 
-func fakeMalformedRadonPythonWithCLIFallback(t *testing.T, dir, logPath, file string) string {
+func fakeShellRadonWithCLIFallback(t *testing.T, dir, logPath, file string) string {
 	t.Helper()
-	path := filepath.Join(dir, "fake-degraded-python")
+	path := filepath.Join(dir, "radon")
 	script := fmt.Sprintf(`#!/usr/bin/env bash
 set -euo pipefail
-if [ "$1" = "-c" ]; then
+if [ "${1:-}" = "-c" ]; then
   printf 'fast\n' >> %[1]q
-  printf 'not-json'
-  exit 0
+  exit 2
 fi
-shift
 printf ' %%s %%s\n' "$1" "$*" >> %[1]q
 if [ "$1" = "cc" ]; then
   printf '{"%[2]s":[{"type":"F","name":"fallback","complexity":1,"lineno":1,"endline":2}]}'
@@ -485,7 +482,7 @@ else
 fi
 `, logPath, file)
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
-		t.Fatalf("write fake degraded radon python: %v", err)
+		t.Fatalf("write fake shell radon: %v", err)
 	}
 	return path
 }
