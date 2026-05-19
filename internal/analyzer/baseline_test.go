@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
