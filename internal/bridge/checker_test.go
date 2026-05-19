@@ -534,6 +534,45 @@ func TestHandlerCheckCSharpDeferredAnalyzerFailureSurfacesOnNextCall(t *testing.
 	}
 }
 
+func TestHandlerCheckCSharpWarmupFailurePrecedesOutstandingViolation(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	state := NewState()
+	state.FailWarmup("csharp", "running csharp analyzer: boom")
+	state.ReplaceFile(repo, "src/Existing.cs", []Violation{{
+		FitnessFunction: "cyclomatic_complexity",
+		CALMNode:        "Existing",
+		File:            "src/Existing.cs",
+		Function:        "Render",
+		Value:           10,
+		Limit:           9,
+		Message:         "existing violation",
+	}})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		State:       state,
+	}, nil))
+	defer server.Close()
+
+	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
+		"repo": `+jsonString(repo)+`,
+		"file": "src/Retry.cs",
+		"language": "csharp",
+		"proposed_content": `+jsonString(cleanCSharpSource())+`
+	}`))
+	if err != nil {
+		t.Fatalf("POST /check: %v", err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read response: %v", err)
+	}
+	if response.StatusCode != http.StatusServiceUnavailable || !strings.Contains(string(body), "csharp warm-up failed") {
+		t.Fatalf("status = %d body = %q, want warm-up infrastructure failure before outstanding block", response.StatusCode, body)
+	}
+}
+
 func TestHandlerCheckCSharpColdDefersAnalysisAndBlocksNextCall(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
@@ -629,6 +668,43 @@ func TestHandlerCheckCSharpColdBlocksExistingOutstandingViolation(t *testing.T) 
 	if calls.Load() != 0 {
 		t.Fatalf("analyzer calls = %d, want no cold analyzer while existing block is outstanding", calls.Load())
 	}
+}
+
+func TestCheckerCheckCSharpCanceledWarmupLockDoesNotLeaveLanguageRunning(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	state := NewState()
+	unlock, err := state.LockRepo(context.Background(), repo)
+	if err != nil {
+		t.Fatalf("lock repo: %v", err)
+	}
+	defer unlock()
+	checker := Checker{
+		PatternPath: writeTestPattern(t),
+		State:       state,
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": fakeCSharpAnalyzer(analyzer.AnalysisResult{Language: "csharp"}),
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = checker.Check(ctx, CheckRequest{
+		Repo:            repo,
+		File:            "src/Widget.cs",
+		Language:        "csharp",
+		ProposedContent: cleanCSharpSource(),
+	})
+	if err == nil || !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context canceled while waiting for repo lock", err)
+	}
+	if state.IsWarm("csharp") {
+		t.Fatal("csharp should not be marked warm after canceled warm-up lock")
+	}
+	if state.BeginWarmup("csharp") {
+		return
+	}
+	t.Fatal("csharp warm-up should be claimable after canceled lock acquisition")
 }
 
 func TestHandlerCheckCSharpColdAdvisoryClearsStaleBlockState(t *testing.T) {

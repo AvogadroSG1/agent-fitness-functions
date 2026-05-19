@@ -98,20 +98,34 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 		return CheckResponse{Status: StatusPass}, nil
 	}
 	if request.Language == "csharp" && config.EnforcementMode == EnforcementBlock && !state.IsWarm("csharp") {
-		if outstanding := state.Violations(repo); len(outstanding) > 0 {
-			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
-		}
 		if message, ok := state.TakeWarmupFailure("csharp"); ok {
 			return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message))
 		}
+		if outstanding := state.Violations(repo); len(outstanding) > 0 {
+			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
+		}
+		unlockRepo, err := state.LockRepo(ctx, repo)
+		if err != nil {
+			return CheckResponse{}, infrastructureError("check canceled while waiting for repository lock", err)
+		}
+		if state.IsWarm("csharp") {
+			defer unlockRepo()
+			return c.checkSynchronousLocked(ctx, request, repo, config, state)
+		}
+		if message, ok := state.TakeWarmupFailure("csharp"); ok {
+			unlockRepo()
+			return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message))
+		}
+		if outstanding := state.Violations(repo); len(outstanding) > 0 {
+			unlockRepo()
+			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
+		}
 		if state.BeginWarmup("csharp") {
-			unlockRepo, err := state.LockRepo(ctx, repo)
-			if err != nil {
-				return CheckResponse{}, infrastructureError("check canceled while waiting for repository lock", err)
-			}
 			c.startDeferredCheck(request, repo, config, unlockRepo)
 			return CheckResponse{Status: StatusPass, Warming: true}, nil
 		}
+		defer unlockRepo()
+		return c.checkSynchronousLocked(ctx, request, repo, config, state)
 	}
 	return c.checkSynchronous(ctx, request, repo, config, state)
 }
