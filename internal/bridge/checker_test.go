@@ -543,12 +543,17 @@ func TestHandlerCheckRespectsDisabledAISlopFitnessFunctions(t *testing.T) {
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
-			"go": fakeGoAnalyzer(analyzer.AnalysisResult{
-				Language:   "go",
-				FileMetric: analyzer.FileMetric{TotalLOC: 100, LogicLOC: 10, LDR: 0.10},
-				Imports:    analyzer.ImportMetric{Total: 10, Used: 7, Unused: []string{"bytes", "context", "fmt"}, DDC: 0.7},
-			}),
-		},
+				"go": fakeGoAnalyzer(analyzer.AnalysisResult{
+					Language:   "go",
+					FileMetric: analyzer.FileMetric{TotalLOC: 100, LogicLOC: 10, LDR: 0.10},
+					Imports: analyzer.ImportMetric{
+						Total:  10,
+						Used:   7,
+						Unused: []string{"bytes", "context", "fmt"},
+						DDC:    0.7,
+					},
+				}),
+			},
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
 		}),
@@ -585,12 +590,17 @@ func TestHandlerCheckTogglesAISlopFitnessFunctionsIndependently(t *testing.T) {
 			server := httptest.NewServer(NewHandlerWithChecker(Checker{
 				PatternPath: writeTestPattern(t),
 				Analyzers: map[string]SourceAnalyzer{
-					"go": fakeGoAnalyzer(analyzer.AnalysisResult{
-						Language:   "go",
-						FileMetric: analyzer.FileMetric{TotalLOC: 100, LogicLOC: 10, LDR: 0.10},
-						Imports:    analyzer.ImportMetric{Total: 10, Used: 7, Unused: []string{"bytes", "context", "fmt"}, DDC: 0.7},
-					}),
-				},
+						"go": fakeGoAnalyzer(analyzer.AnalysisResult{
+							Language:   "go",
+							FileMetric: analyzer.FileMetric{TotalLOC: 100, LogicLOC: 10, LDR: 0.10},
+							Imports: analyzer.ImportMetric{
+								Total:  10,
+								Used:   7,
+								Unused: []string{"bytes", "context", "fmt"},
+								DDC:    0.7,
+							},
+						}),
+					},
 				Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 					return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
 				}),

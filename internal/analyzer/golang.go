@@ -83,12 +83,19 @@ func lineMetrics(source string) (int, int) {
 	total := 0
 	logic := 0
 	inBlockComment := false
+	inImportBlock := false
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
 		}
 		total++
+		if inImportBlock {
+			if trimmed == ")" {
+				inImportBlock = false
+			}
+			continue
+		}
 		if inBlockComment {
 			if strings.Contains(trimmed, "*/") {
 				inBlockComment = false
@@ -101,11 +108,14 @@ func lineMetrics(source string) (int, int) {
 			}
 			continue
 		}
+		if trimmed == "import (" {
+			inImportBlock = true
+			continue
+		}
 		if strings.HasPrefix(trimmed, "//") ||
 			strings.HasPrefix(trimmed, "package ") ||
 			strings.HasPrefix(trimmed, "import ") ||
 			strings.HasPrefix(trimmed, "type ") ||
-			trimmed == "import (" ||
 			trimmed == ")" ||
 			trimmed == "{" ||
 			trimmed == "}" {
@@ -130,11 +140,11 @@ func goImportMetric(file *ast.File) ImportMetric {
 	}
 	usedNames := map[string]bool{}
 	ast.Inspect(file, func(node ast.Node) bool {
-		if importSpec, ok := node.(*ast.ImportSpec); ok {
-			return importSpec.Name == nil
+		selector, ok := node.(*ast.SelectorExpr)
+		if !ok {
+			return true
 		}
-		ident, ok := node.(*ast.Ident)
-		if ok {
+		if ident, ok := selector.X.(*ast.Ident); ok {
 			usedNames[ident.Name] = true
 		}
 		return true

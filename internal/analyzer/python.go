@@ -216,6 +216,41 @@ func AnalyzePythonRepository(ctx context.Context, root, radonPath string) ([]Ana
 
 func pythonImportMetric(source string) ImportMetric {
 	names := pythonImportNames(source)
+	identifiers := pythonUsedIdentifiers(source)
+	used := 0
+	unused := make([]string, 0)
+	for _, name := range names {
+		if _, ok := identifiers[name]; ok {
+			used++
+			continue
+		}
+		unused = append(unused, name)
+	}
+	return ImportMetric{Total: len(names), Used: used, Unused: unused, DDC: ratio(used, len(names))}
+}
+
+func pythonUsedIdentifiers(source string) map[string]struct{} {
+	body := stripPythonStringsAndComments(pythonImportBody(source))
+	tokensByLine := pythonTokensByLine(body)
+	bound := pythonBoundIdentifiers(tokensByLine)
+	used := make(map[string]struct{})
+	for _, tokens := range tokensByLine {
+		for index, token := range tokens {
+			if !isPythonIdentifierToken(token) ||
+				pythonKeywords[token] ||
+				isPythonBindingPosition(tokens, index) {
+				continue
+			}
+			if _, ok := bound[token]; ok {
+				continue
+			}
+			used[token] = struct{}{}
+		}
+	}
+	return used
+}
+
+func pythonImportBody(source string) string {
 	bodyLines := make([]string, 0)
 	inImportBlock := false
 	for _, line := range strings.Split(source, "\n") {
@@ -234,18 +269,220 @@ func pythonImportMetric(source string) ImportMetric {
 		}
 		bodyLines = append(bodyLines, line)
 	}
-	body := strings.Join(bodyLines, "\n")
-	identifiers := pythonIdentifiers(body)
-	used := 0
-	unused := make([]string, 0)
-	for _, name := range names {
-		if _, ok := identifiers[name]; ok {
-			used++
+	return strings.Join(bodyLines, "\n")
+}
+
+func stripPythonStringsAndComments(source string) string {
+	var builder strings.Builder
+	var quote byte
+	inString := false
+	triple := false
+	for index := 0; index < len(source); index++ {
+		value := source[index]
+		if inString {
+			if value == '\n' {
+				builder.WriteByte('\n')
+				if !triple {
+					inString = false
+				}
+				continue
+			}
+			if value == '\\' && !triple && index+1 < len(source) {
+				builder.WriteByte(' ')
+				index++
+				if source[index] == '\n' {
+					builder.WriteByte('\n')
+				} else {
+					builder.WriteByte(' ')
+				}
+				continue
+			}
+			if value == quote {
+				if triple {
+					if index+2 < len(source) && source[index+1] == quote && source[index+2] == quote {
+						builder.WriteString("   ")
+						index += 2
+						inString = false
+						continue
+					}
+				} else {
+					inString = false
+				}
+			}
+			builder.WriteByte(' ')
 			continue
 		}
-		unused = append(unused, name)
+		if value == '#' {
+			for index < len(source) && source[index] != '\n' {
+				builder.WriteByte(' ')
+				index++
+			}
+			if index < len(source) {
+				builder.WriteByte('\n')
+			}
+			continue
+		}
+		if value == '\'' || value == '"' {
+			quote = value
+			triple = index+2 < len(source) && source[index+1] == quote && source[index+2] == quote
+			inString = true
+			if triple {
+				builder.WriteString("   ")
+				index += 2
+			} else {
+				builder.WriteByte(' ')
+			}
+			continue
+		}
+		builder.WriteByte(value)
 	}
-	return ImportMetric{Total: len(names), Used: used, Unused: unused, DDC: ratio(used, len(names))}
+	return builder.String()
+}
+
+func pythonTokensByLine(source string) map[int][]string {
+	tokens := make(map[int][]string)
+	line := 0
+	for index := 0; index < len(source); {
+		value := rune(source[index])
+		if value == '\n' {
+			line++
+			index++
+			continue
+		}
+		if isPythonIdentifierStart(value) {
+			start := index
+			index++
+			for index < len(source) && isPythonIdentifierPart(rune(source[index])) {
+				index++
+			}
+			tokens[line] = append(tokens[line], source[start:index])
+			continue
+		}
+		if strings.ContainsRune("()[]{}.,:+-*/%=<>!", value) {
+			if index+1 < len(source) {
+				two := source[index : index+2]
+				if pythonTwoCharOperators[two] {
+					tokens[line] = append(tokens[line], two)
+					index += 2
+					continue
+				}
+			}
+			tokens[line] = append(tokens[line], string(value))
+		}
+		index++
+	}
+	return tokens
+}
+
+func pythonBoundIdentifiers(tokensByLine map[int][]string) map[string]struct{} {
+	bound := make(map[string]struct{})
+	for _, tokens := range tokensByLine {
+		for index, token := range tokens {
+			if token == "def" || token == "class" || token == "as" {
+				bindNextIdentifier(tokens, index+1, bound)
+			}
+		}
+		if len(tokens) > 0 && tokens[0] == "def" {
+			bindFunctionParameters(tokens, bound)
+			continue
+		}
+		if len(tokens) > 0 && tokens[0] == "for" {
+			bindBeforeToken(tokens, "in", bound)
+		}
+		if assignment := firstPythonAssignment(tokens); assignment > 0 {
+			bindIdentifiers(tokens[:assignment], bound)
+		}
+	}
+	return bound
+}
+
+func bindNextIdentifier(tokens []string, start int, bound map[string]struct{}) {
+	for index := start; index < len(tokens); index++ {
+		if isPythonIdentifierToken(tokens[index]) && !pythonKeywords[tokens[index]] {
+			bound[tokens[index]] = struct{}{}
+			return
+		}
+	}
+}
+
+func bindFunctionParameters(tokens []string, bound map[string]struct{}) {
+	depth := 0
+	inParams := false
+	for _, token := range tokens {
+		switch token {
+		case "(":
+			depth++
+			inParams = true
+		case ")":
+			depth--
+			if depth <= 0 {
+				return
+			}
+		default:
+			if inParams && depth == 1 && isPythonIdentifierToken(token) && !pythonKeywords[token] {
+				bound[token] = struct{}{}
+			}
+		}
+	}
+}
+
+func bindBeforeToken(tokens []string, stop string, bound map[string]struct{}) {
+	for index, token := range tokens {
+		if token == stop {
+			bindIdentifiers(tokens[:index], bound)
+			return
+		}
+	}
+}
+
+func bindIdentifiers(tokens []string, bound map[string]struct{}) {
+	for index, token := range tokens {
+		if !isPythonIdentifierToken(token) || pythonKeywords[token] {
+			continue
+		}
+		if index > 0 && tokens[index-1] == "." {
+			continue
+		}
+		bound[token] = struct{}{}
+	}
+}
+
+func firstPythonAssignment(tokens []string) int {
+	for index, token := range tokens {
+		if pythonAssignmentOperators[token] {
+			return index
+		}
+	}
+	return -1
+}
+
+func isPythonBindingPosition(tokens []string, index int) bool {
+	if index > 0 {
+		switch tokens[index-1] {
+		case "def", "class", "as":
+			return true
+		}
+	}
+	if index+1 < len(tokens) && pythonAssignmentOperators[tokens[index+1]] {
+		return true
+	}
+	return false
+}
+
+func isPythonIdentifierToken(token string) bool {
+	if token == "" {
+		return false
+	}
+	runes := []rune(token)
+	if !isPythonIdentifierStart(runes[0]) {
+		return false
+	}
+	for _, value := range runes[1:] {
+		if !isPythonIdentifierPart(value) {
+			return false
+		}
+	}
+	return true
 }
 
 func pythonIdentifiers(source string) map[string]struct{} {
@@ -276,6 +513,27 @@ func isPythonIdentifierStart(value rune) bool {
 
 func isPythonIdentifierPart(value rune) bool {
 	return isPythonIdentifierStart(value) || unicode.IsDigit(value)
+}
+
+var pythonKeywords = map[string]bool{
+	"False": true, "None": true, "True": true, "and": true, "as": true,
+	"assert": true, "async": true, "await": true, "break": true, "class": true,
+	"continue": true, "def": true, "del": true, "elif": true, "else": true,
+	"except": true, "finally": true, "for": true, "from": true, "global": true,
+	"if": true, "import": true, "in": true, "is": true, "lambda": true,
+	"nonlocal": true, "not": true, "or": true, "pass": true, "raise": true,
+	"return": true, "try": true, "while": true, "with": true, "yield": true,
+}
+
+var pythonAssignmentOperators = map[string]bool{
+	"=": true, "+=": true, "-=": true, "*=": true, "/=": true,
+	"//=": true, "%=": true, "**=": true, ":=": true,
+}
+
+var pythonTwoCharOperators = map[string]bool{
+	"==": true, "!=": true, "<=": true, ">=": true, "+=": true,
+	"-=": true, "*=": true, "/=": true, "//": true, "%=": true,
+	"**": true, ":=": true,
 }
 
 func publicFunctionCount(functions []FunctionMetric) int {

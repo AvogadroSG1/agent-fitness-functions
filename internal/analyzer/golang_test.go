@@ -76,8 +76,8 @@ func privatePassThrough() string {
 	if result.FileMetric.PublicMethods != 2 {
 		t.Fatalf("public methods = %d, want 2", result.FileMetric.PublicMethods)
 	}
-	if result.FileMetric.TotalLOC != 27 || result.FileMetric.LogicLOC != 16 || result.FileMetric.LDR != float64(16)/float64(27) {
-		t.Fatalf("file metrics = %+v, want total LOC 27, logic LOC 16, LDR 16/27", result.FileMetric)
+	if result.FileMetric.TotalLOC != 27 || result.FileMetric.LogicLOC != 14 || result.FileMetric.LDR != float64(14)/float64(27) {
+		t.Fatalf("file metrics = %+v, want total LOC 27, logic LOC 14, LDR 14/27", result.FileMetric)
 	}
 	if result.Imports.Total != 2 || result.Imports.Used != 2 {
 		t.Fatalf("imports = %+v, want 2/2 used", result.Imports)
@@ -143,6 +143,37 @@ func UseImport() string {
 	}
 	if len(result.Imports.Unused) != 1 || result.Imports.Unused[0] != "aliasbytes" {
 		t.Fatalf("unused imports = %+v, want aliasbytes", result.Imports.Unused)
+	}
+}
+
+func TestAnalyzeGoFileDoesNotTreatLocalIdentifierAsImportUsage(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "shadowed.go")
+	source := `package sample
+
+import (
+	aliasbytes "bytes"
+	"fmt"
+)
+
+func Shadowed(aliasbytes string) string {
+	fmtValue := "not a package usage"
+	return fmtValue + aliasbytes
+}
+`
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	result, err := AnalyzeGoFile(path)
+	if err != nil {
+		t.Fatalf("AnalyzeGoFile returned error: %v", err)
+	}
+
+	if result.Imports.Total != 2 || result.Imports.Used != 0 || result.Imports.DDC != 0 {
+		t.Fatalf("imports = %+v, want 0/2 imports used", result.Imports)
+	}
+	if len(result.Imports.Unused) != 2 || result.Imports.Unused[0] != "aliasbytes" || result.Imports.Unused[1] != "fmt" {
+		t.Fatalf("unused imports = %+v, want aliasbytes and fmt", result.Imports.Unused)
 	}
 }
 

@@ -738,3 +738,5 @@ No exceptions.
 | `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/QuestionsWriteController.cs` | 0/13 | 0.000 |
 | `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Controllers/UsersReadController.cs` | 0/13 | 0.000 |
 | `/Users/poconnor/code/StackOverflow/StackOverflow.Api.V3/Ingestion/IngestionService.cs` | 0/13 | 0.000 |
+
+Footer: Authored By Peter O'Connor with Assistance from Codex (GPT-5) · 2026-05-19 · Calm-POC threshold exceptions

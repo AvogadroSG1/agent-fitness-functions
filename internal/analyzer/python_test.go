@@ -62,6 +62,26 @@ def public_choice(value):
 	}
 }
 
+func TestPythonImportMetricIgnoresCommentsStringsAndLocalBindings(t *testing.T) {
+	source := `import json
+import unused_module
+from pathlib import Path
+
+# unused_module appears here but is not used.
+def public_choice(unused_module):
+    text = "json and Path are only words in this string"
+    json = {"shadowed": unused_module}
+    return text
+`
+	imports := pythonImportMetric(source)
+	if imports.Total != 3 || imports.Used != 0 || imports.DDC != 0 {
+		t.Fatalf("imports = %+v, want no imports used", imports)
+	}
+	if len(imports.Unused) != 3 || imports.Unused[0] != "json" || imports.Unused[1] != "unused_module" || imports.Unused[2] != "Path" {
+		t.Fatalf("unused imports = %+v, want json, unused_module, and Path", imports.Unused)
+	}
+}
+
 func TestAnalyzePythonRepositoryBatchesRadonCalls(t *testing.T) {
 	dir := t.TempDir()
 	first := filepath.Join(dir, "first.py")
