@@ -8,10 +8,11 @@ import (
 
 // State stores outstanding violations by repository and file.
 type State struct {
-	mu         sync.RWMutex
-	violations map[string]map[string][]Violation
-	repoLocks  map[string]*repoLock
-	warmups    map[string]warmupStatus
+	mu             sync.RWMutex
+	violations     map[string]map[string][]Violation
+	repoLocks      map[string]*repoLock
+	warmups        map[string]warmupStatus
+	warmupFailures map[string]string
 }
 
 type repoLock struct {
@@ -30,9 +31,10 @@ const (
 // NewState creates an empty outstanding violation store.
 func NewState() *State {
 	return &State{
-		violations: map[string]map[string][]Violation{},
-		repoLocks:  map[string]*repoLock{},
-		warmups:    map[string]warmupStatus{},
+		violations:     map[string]map[string][]Violation{},
+		repoLocks:      map[string]*repoLock{},
+		warmups:        map[string]warmupStatus{},
+		warmupFailures: map[string]string{},
 	}
 }
 
@@ -112,6 +114,41 @@ func (s *State) CompleteWarmup(language string) {
 		s.warmups = map[string]warmupStatus{}
 	}
 	s.warmups[language] = warmupComplete
+	if s.warmupFailures != nil {
+		delete(s.warmupFailures, language)
+	}
+}
+
+// FailWarmup records a background warm-up failure for the next check to surface.
+func (s *State) FailWarmup(language, message string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.warmups == nil {
+		s.warmups = map[string]warmupStatus{}
+	}
+	if s.warmupFailures == nil {
+		s.warmupFailures = map[string]string{}
+	}
+	s.warmups[language] = warmupCold
+	s.warmupFailures[language] = message
+}
+
+// TakeWarmupFailure returns and clears a background warm-up failure.
+func (s *State) TakeWarmupFailure(language string) (string, bool) {
+	if s == nil {
+		return "", false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	message, ok := s.warmupFailures[language]
+	if !ok {
+		return "", false
+	}
+	delete(s.warmupFailures, language)
+	return message, true
 }
 
 // IsWarm reports whether a language should use the synchronous check path.

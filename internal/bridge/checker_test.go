@@ -456,6 +456,84 @@ func TestHandlerCheckReturnsServiceUnavailableForMissingRadon(t *testing.T) {
 	}
 }
 
+func TestHandlerCheckReturnsServiceUnavailableForCSharpAnalyzerFailure(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	state := NewState()
+	state.CompleteWarmup("csharp")
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		State:       state,
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
+				return analyzer.AnalysisResult{}, errors.New("running Roslyn analyzer: boom")
+			}),
+		},
+	}, nil))
+	defer server.Close()
+
+	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
+		"repo": `+jsonString(repo)+`,
+		"file": "src/Widget.cs",
+		"language": "csharp",
+		"proposed_content": `+jsonString(cleanCSharpSource())+`
+	}`))
+	if err != nil {
+		t.Fatalf("POST /check: %v", err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read response: %v", err)
+	}
+	if response.StatusCode != http.StatusServiceUnavailable || !strings.Contains(string(body), "running csharp analyzer") {
+		t.Fatalf("status = %d body = %q, want csharp analyzer infrastructure failure", response.StatusCode, body)
+	}
+}
+
+func TestHandlerCheckCSharpDeferredAnalyzerFailureSurfacesOnNextCall(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	failed := make(chan struct{})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		PatternPath: writeTestPattern(t),
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
+				close(failed)
+				return analyzer.AnalysisResult{}, errors.New("running Roslyn analyzer: boom")
+			}),
+		},
+	}, nil))
+	defer server.Close()
+
+	first := postCheckForLanguage(t, server.URL, repo, "src/Widget.cs", "csharp", cleanCSharpSource())
+	if first.Status != StatusPass || !first.Warming {
+		t.Fatalf("first response = %+v, want deferred warming pass", first)
+	}
+	select {
+	case <-failed:
+	case <-time.After(time.Second):
+		t.Fatal("deferred C# analyzer failure did not run")
+	}
+	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
+		"repo": `+jsonString(repo)+`,
+		"file": "src/Retry.cs",
+		"language": "csharp",
+		"proposed_content": `+jsonString(cleanCSharpSource())+`
+	}`))
+	if err != nil {
+		t.Fatalf("POST /check: %v", err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read response: %v", err)
+	}
+	if response.StatusCode != http.StatusServiceUnavailable || !strings.Contains(string(body), "csharp warm-up failed") {
+		t.Fatalf("status = %d body = %q, want warm-up infrastructure failure", response.StatusCode, body)
+	}
+}
+
 func TestHandlerCheckCSharpColdDefersAnalysisAndBlocksNextCall(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
@@ -614,14 +692,12 @@ func TestHandlerCheckCSharpSecondColdCallAnalyzesSynchronouslyWhileWarmupRuns(t 
 	releaseFirst := make(chan struct{})
 	secondStarted := make(chan struct{})
 	releaseSecond := make(chan struct{})
-	var calls atomic.Int32
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"csharp": AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
-				call := calls.Add(1)
-				switch call {
-				case 1:
+				switch request.File {
+				case "src/Warmup.cs":
 					close(firstStarted)
 					select {
 					case <-releaseFirst:
@@ -629,7 +705,7 @@ func TestHandlerCheckCSharpSecondColdCallAnalyzesSynchronouslyWhileWarmupRuns(t 
 						return analyzer.AnalysisResult{}, ctx.Err()
 					}
 					return analyzer.AnalysisResult{Language: "csharp"}, nil
-				case 2:
+				case "src/Widget.cs":
 					close(secondStarted)
 					select {
 					case <-releaseSecond:
@@ -652,15 +728,17 @@ func TestHandlerCheckCSharpSecondColdCallAnalyzesSynchronouslyWhileWarmupRuns(t 
 	if first.Status != StatusPass || !first.Warming {
 		t.Fatalf("first response = %+v, want deferred warming pass", first)
 	}
-	select {
-	case <-firstStarted:
-	case <-time.After(time.Second):
-		t.Fatal("first deferred C# analysis did not start")
-	}
 	responseCh := make(chan CheckResponse, 1)
 	go func() {
 		responseCh <- postCheckForLanguage(t, server.URL, repo, "src/Widget.cs", "csharp", complexCSharpSource())
 	}()
+	select {
+	case <-secondStarted:
+		t.Fatal("second cold C# call entered analyzer before deferred warm-up held the repo lock")
+	case <-firstStarted:
+	case <-time.After(time.Second):
+		t.Fatal("first deferred C# analysis did not start")
+	}
 	select {
 	case response := <-responseCh:
 		t.Fatalf("second cold C# call returned before analyzer completed: %+v", response)

@@ -101,8 +101,15 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 		if outstanding := state.Violations(repo); len(outstanding) > 0 {
 			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
 		}
+		if message, ok := state.TakeWarmupFailure("csharp"); ok {
+			return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message))
+		}
 		if state.BeginWarmup("csharp") {
-			c.startDeferredCheck(request)
+			unlockRepo, err := state.LockRepo(ctx, repo)
+			if err != nil {
+				return CheckResponse{}, infrastructureError("check canceled while waiting for repository lock", err)
+			}
+			c.startDeferredCheck(request, repo, config, unlockRepo)
 			return CheckResponse{Status: StatusPass, Warming: true}, nil
 		}
 	}
@@ -115,6 +122,10 @@ func (c *Checker) checkSynchronous(ctx context.Context, request CheckRequest, re
 		return CheckResponse{}, infrastructureError("check canceled while waiting for repository lock", err)
 	}
 	defer unlockRepo()
+	return c.checkSynchronousLocked(ctx, request, repo, config, state)
+}
+
+func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckRequest, repo string, config Config, state *State) (response CheckResponse, err error) {
 	patternPath := c.PatternPath
 	if patternPath == "" {
 		patternPath = filepath.Join("patterns", "governance.json")
@@ -213,21 +224,18 @@ func (c *Checker) state() *State {
 	return c.State
 }
 
-func (c *Checker) startDeferredCheck(request CheckRequest) {
+func (c *Checker) startDeferredCheck(request CheckRequest, repo string, config Config, unlockRepo func()) {
 	checker := *c
 	go func() {
-		defer checker.State.CompleteWarmup("csharp")
+		defer unlockRepo()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		config, repo, err := loadConfig(request.Repo)
+		_, err := checker.checkSynchronousLocked(ctx, request, repo, config, checker.State)
 		if err != nil {
+			checker.State.FailWarmup("csharp", err.Error())
 			return
 		}
-		if config.EnforcementMode == EnforcementOff {
-			checker.State.ClearRepo(repo)
-			return
-		}
-		_, _ = checker.checkSynchronous(ctx, request, repo, config, checker.State)
+		checker.State.CompleteWarmup("csharp")
 	}()
 }
 
@@ -236,7 +244,11 @@ func isAnalyzerInfrastructureError(err error) bool {
 		return true
 	}
 	var pathErr *os.PathError
-	return errors.As(err, &pathErr)
+	if errors.As(err, &pathErr) {
+		return true
+	}
+	message := err.Error()
+	return strings.Contains(message, "running Roslyn analyzer") || strings.Contains(message, "parsing Roslyn analyzer output")
 }
 
 func (c Checker) writeProposedContent(request CheckRequest) (string, func() error, error) {
