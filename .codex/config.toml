@@ -1,0 +1,8 @@
+[mcp_servers]
+  [mcp_servers.excalidraw]
+    _graft_managed = true
+    args = ["/Users/poconnor/code/mcp_excalidraw/dist/index.js"]
+    command = "node"
+    [mcp_servers.excalidraw.env]
+      ENABLE_CANVAS_SYNC = "${ENABLE_CANVAS_SYNC}"
+      EXPRESS_SERVER_URL = "${EXPRESS_SERVER_URL}"

@@ -1,0 +1,17 @@
+{
+  "libraries": [
+    {
+      "name": "peter_mcps",
+      "url": "/Users/poconnor/.cache/graft/libraries/peter_mcps"
+    }
+  ],
+  "mcps": [
+    {
+      "name": "excalidraw",
+      "library": "peter_mcps",
+      "version": "0.1.0",
+      "definition_hash": "a2dc24f3e863e1eeaf82b503fa258046f68b4ca79d1cda83a58508dae443271e",
+      "target": "both"
+    }
+  ]
+}
