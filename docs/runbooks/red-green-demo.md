@@ -116,7 +116,7 @@ The existing `fixtures/violations/python/ringstation-dd-stage-bronze.py` remains
 ## Troubleshooting
 
 - If the hook says `CALM_BRIDGE_ADDR must be loopback`, use `http://127.0.0.1:<port>` or explicitly set `CALM_ALLOW_REMOTE_BRIDGE=1` for a trusted remote daemon.
-- If installation refuses to overwrite a hook, inspect the existing hook. Set `CALM_HOOK_OVERWRITE=1` only when replacing it is intentional.
+- If installation refuses to overwrite a hook, inspect the existing hook. Set `CALM_HOOK_APPEND=1` to install CALM as a sidecar alongside the existing hook (recommended when the existing hook must be preserved), or set `CALM_HOOK_OVERWRITE=1` to replace it entirely.
 - If a red commit unexpectedly passes, confirm that `.calm/config.json` enables the intended function and that the staged file is the red fixture.
 - If a red commit reports the wrong fitness function, confirm that every non-target function is explicitly set to `false` in `.calm/config.json`.
 - If a green commit still blocks, re-stage the green file. Outstanding block-mode violations clear when the same file passes.

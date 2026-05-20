@@ -102,6 +102,86 @@ func TestInstallHooksSupportsWorktrees(t *testing.T) {
 	}
 }
 
+func TestInstallHooksAppendModeInstallsSidecar(t *testing.T) {
+	repo := t.TempDir()
+	runGit(t, repo, "init")
+	existingHook := filepath.Join(repo, ".git", "hooks", "pre-commit")
+	if err := os.WriteFile(existingHook, []byte("#!/usr/bin/env bash\necho custom\n"), 0o755); err != nil {
+		t.Fatalf("write existing hook: %v", err)
+	}
+
+	command := exec.Command("bash", "install-hooks.sh", repo)
+	command.Env = append(os.Environ(), "CALM_HOOK_APPEND=1")
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("install-hooks failed in append mode: %v\n%s", err, output)
+	}
+
+	sidecar := filepath.Join(repo, ".git", "hooks", "calm-pre-commit")
+	info, err := os.Stat(sidecar)
+	if err != nil {
+		t.Fatalf("sidecar not found at %s: %v", sidecar, err)
+	}
+	if info.Mode()&0o111 == 0 {
+		t.Fatalf("sidecar mode = %v, want executable", info.Mode())
+	}
+
+	existing, err := os.ReadFile(existingHook)
+	if err != nil {
+		t.Fatalf("read existing hook: %v", err)
+	}
+	if !strings.Contains(string(existing), "echo custom") {
+		t.Fatalf("existing hook content was replaced:\n%s", existing)
+	}
+	if !strings.Contains(string(existing), "# CALM pre-commit hook (sidecar)") {
+		t.Fatalf("existing hook missing sidecar call block:\n%s", existing)
+	}
+}
+
+func TestInstallHooksAppendModeIsIdempotent(t *testing.T) {
+	repo := t.TempDir()
+	runGit(t, repo, "init")
+	existingHook := filepath.Join(repo, ".git", "hooks", "pre-commit")
+	if err := os.WriteFile(existingHook, []byte("#!/usr/bin/env bash\necho custom\n"), 0o755); err != nil {
+		t.Fatalf("write existing hook: %v", err)
+	}
+
+	for range 2 {
+		command := exec.Command("bash", "install-hooks.sh", repo)
+		command.Env = append(os.Environ(), "CALM_HOOK_APPEND=1")
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("install-hooks failed in append mode: %v\n%s", err, output)
+		}
+	}
+
+	existing, err := os.ReadFile(existingHook)
+	if err != nil {
+		t.Fatalf("read existing hook: %v", err)
+	}
+	count := strings.Count(string(existing), "# CALM pre-commit hook (sidecar)")
+	if count != 1 {
+		t.Fatalf("sidecar call block appears %d times, want exactly 1:\n%s", count, existing)
+	}
+}
+
+func TestInstallHooksRefusalMentionsAppendOption(t *testing.T) {
+	repo := t.TempDir()
+	runGit(t, repo, "init")
+	existingHook := filepath.Join(repo, ".git", "hooks", "pre-commit")
+	if err := os.WriteFile(existingHook, []byte("#!/usr/bin/env bash\necho custom\n"), 0o755); err != nil {
+		t.Fatalf("write existing hook: %v", err)
+	}
+
+	command := exec.Command("bash", "install-hooks.sh", repo)
+	output, err := command.CombinedOutput()
+	if err == nil {
+		t.Fatalf("install-hooks succeeded, want refusal")
+	}
+	if !strings.Contains(string(output), "CALM_HOOK_APPEND=1") {
+		t.Fatalf("refusal message does not mention CALM_HOOK_APPEND=1:\n%s", output)
+	}
+}
+
 func runGit(t *testing.T, repo string, args ...string) {
 	t.Helper()
 	command := exec.Command("git", append([]string{"-C", repo}, args...)...)
