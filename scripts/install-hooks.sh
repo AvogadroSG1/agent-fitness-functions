@@ -10,6 +10,7 @@ repo=$1
 repo_root=$(git -C "$repo" rev-parse --show-toplevel)
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source_hook=$(cd -- "$script_dir/.." && pwd)/hooks/pre-commit.sh
+source_formatter=$(cd -- "$script_dir/.." && pwd)/hooks/format-violations.py
 target_hook=$(git -C "$repo_root" rev-parse --git-path hooks/pre-commit)
 case "$target_hook" in
   /*) ;;
