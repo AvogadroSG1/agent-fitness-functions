@@ -145,19 +145,18 @@ func (c *Checker) checkSynchronous(ctx context.Context, request CheckRequest, re
 }
 
 func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckRequest, repo string, config Config, state *State) (response CheckResponse, err error) {
-	var pattern calm.Pattern
-	if c.PatternPath == "" {
-		var err error
-		pattern, err = calm.LoadPatternFromBytes("embedded:governance.json", patterns.GovernanceJSON)
-		if err != nil {
-			return CheckResponse{}, infrastructureError("loading embedded governance pattern", err)
+	patternPath, cleanupPattern, err := c.resolvePatternPath()
+	if err != nil {
+		return CheckResponse{}, err
+	}
+	defer func() {
+		if cleanupErr := cleanupPattern(); cleanupErr != nil {
+			err = errors.Join(err, infrastructureError("cleaning temp pattern file", cleanupErr))
 		}
-	} else {
-		var err error
-		pattern, err = calm.LoadPattern(c.PatternPath)
-		if err != nil {
-			return CheckResponse{}, infrastructureError("loading governance pattern", err)
-		}
+	}()
+	pattern, err := calm.LoadPattern(patternPath)
+	if err != nil {
+		return CheckResponse{}, infrastructureError("loading governance pattern", err)
 	}
 	sourcePath, cleanup, err := c.writeProposedContent(request)
 	if err != nil {
