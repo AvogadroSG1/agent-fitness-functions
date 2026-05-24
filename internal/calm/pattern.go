@@ -57,10 +57,19 @@ func LoadPattern(path string) (Pattern, error) {
 	if err != nil {
 		return Pattern{}, fmt.Errorf("reading pattern %s: %w", path, err)
 	}
+	return parsePattern(path, content)
+}
+
+// LoadPatternFromBytes parses and validates a CALM governance pattern from raw JSON.
+func LoadPatternFromBytes(label string, data []byte) (Pattern, error) {
+	return parsePattern(label, data)
+}
+
+func parsePattern(label string, content []byte) (Pattern, error) {
 	var pattern Pattern
 	var schema patternSchema
 	if err := json.Unmarshal(content, &schema); err != nil {
-		return Pattern{}, fmt.Errorf("parsing pattern %s: %w", path, err)
+		return Pattern{}, fmt.Errorf("parsing pattern %s: %w", label, err)
 	}
 	pattern.Schema = schema.Schema
 	pattern.ID = schema.ID
@@ -68,7 +77,7 @@ func LoadPattern(path string) (Pattern, error) {
 	pattern.Description = schema.Description
 	pattern.FitnessFunctions = fitnessFunctions(schema.Properties.Nodes.Items.Properties.Metadata.Properties.Fitness.Properties)
 	if len(pattern.FitnessFunctions) == 0 {
-		return Pattern{}, fmt.Errorf("pattern %s must define fitness-functions", path)
+		return Pattern{}, fmt.Errorf("pattern %s must define fitness-functions", label)
 	}
 	return pattern, nil
 }
