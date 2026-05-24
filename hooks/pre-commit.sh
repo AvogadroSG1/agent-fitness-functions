@@ -63,12 +63,12 @@ while IFS= read -r -d '' file; do
   case "$status" in
     block)
       printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
-        --mode "$status" --file "$file" >&2
+        --mode "$status" --file "$file" >&2 || true
       blocked=1
       ;;
     advisory)
       printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
-        --mode "$status" --file "$file" >&2
+        --mode "$status" --file "$file" >&2 || true
       ;;
     pass)
       ;;
