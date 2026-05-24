@@ -16,6 +16,7 @@ import (
 	"github.com/poconnor/calm-poc/internal/analyzer"
 	"github.com/poconnor/calm-poc/internal/calm"
 	"github.com/poconnor/calm-poc/internal/report"
+	"github.com/poconnor/calm-poc/patterns"
 )
 
 // Validator runs CALM validation for generated architecture documents.
