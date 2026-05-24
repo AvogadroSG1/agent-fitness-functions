@@ -11,6 +11,11 @@ repo_root=$(git -C "$repo" rev-parse --show-toplevel)
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source_hook=$(cd -- "$script_dir/.." && pwd)/hooks/pre-commit.sh
 source_formatter=$(cd -- "$script_dir/.." && pwd)/hooks/format-violations.py
+[[ -f "$source_formatter" ]] || {
+  echo "error: format-violations.py not found at $source_formatter" >&2
+  echo "  ensure the calm-poc repo is complete (CALM_SRC=$CALM_SRC)" >&2
+  exit 2
+}
 target_hook=$(git -C "$repo_root" rev-parse --git-path hooks/pre-commit)
 case "$target_hook" in
   /*) ;;
