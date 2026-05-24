@@ -60,6 +60,25 @@ write_config() {
 JSON
 }
 
+# Print "Actual: X | Target: ≤/≥ Y" from a bridge check JSON response.
+fmt_metrics() {
+  printf '%s' "$1" | python3 -c '
+import json, sys
+try:
+    vs = json.load(sys.stdin).get("violations", [])
+    if vs:
+        v = vs[0]
+        val, lim = float(v["value"]), float(v["limit"])
+        op = "≤" if val > lim else "≥"
+        fmt = lambda n: str(int(n)) if n == int(n) else f"{n:.3f}"
+        print(f"Actual: {fmt(val)} | Target: {op} {fmt(lim)}", end="")
+    else:
+        print("no violation data", end="")
+except Exception:
+    print("?", end="")
+'
+}
+
 expect_block() {
   local rule=$1
   local red=$2
@@ -67,6 +86,18 @@ expect_block() {
   local expected=$4
 
   write_config "$rule"
+
+  # Probe red fixture directly to capture actual/target values for display.
+  local red_json
+  red_json=$("$bridge_bin" check \
+    --addr "$bridge_addr" \
+    --file "internal/demo/demo.go" \
+    --repo "$demo_repo" \
+    --content "$(cat "$repo_root/$red")" \
+    --language go 2>/dev/null) || red_json='{}'
+  local red_metrics
+  red_metrics=$(fmt_metrics "$red_json")
+
   cp -f "$repo_root/$red" "$demo_repo/internal/demo/demo.go"
   git -C "$demo_repo" add .calm/config.json internal/demo/demo.go
   if CALM_BRIDGE_BIN="$bridge_bin" CALM_BRIDGE_ADDR="$bridge_addr" git -C "$demo_repo" commit -m "red $rule" >"$tmp_dir/red.out" 2>&1; then
@@ -83,9 +114,11 @@ expect_block() {
   cp -f "$repo_root/$green" "$demo_repo/internal/demo/demo.go"
   git -C "$demo_repo" add .calm/config.json internal/demo/demo.go
   CALM_BRIDGE_BIN="$bridge_bin" CALM_BRIDGE_ADDR="$bridge_addr" git -C "$demo_repo" commit -m "green $rule" >/dev/null
-  echo "PASS $rule"
+
+  printf 'PASS  %-28s  [Go]  red: blocked (%s)  green: pass\n' "$rule" "$red_metrics"
 }
 
+echo "Testing: Go fitness functions"
 expect_block "cyclomatic-complexity" "fixtures/violations/go/cyclomatic-complexity.go" "fixtures/green/go/cyclomatic-complexity.go" "cyclomatic complexity"
 expect_block "interface-width" "fixtures/violations/go/interface-width.go" "fixtures/green/go/interface-width.go" "exposes"
 expect_block "logic-density" "fixtures/violations/go/logic-density.go" "fixtures/green/go/logic-density.go" "Logic Density Ratio"
