@@ -294,6 +294,30 @@ func isAnalyzerInfrastructureError(err error) bool {
 	return strings.Contains(message, "running Roslyn analyzer") || strings.Contains(message, "parsing Roslyn analyzer output")
 }
 
+// resolvePatternPath returns the path to the governance pattern. When PatternPath is not set it
+// writes the embedded default to a temp file. The caller must invoke the returned cleanup function.
+func (c Checker) resolvePatternPath() (string, func() error, error) {
+	noop := func() error { return nil }
+	if c.PatternPath != "" {
+		return c.PatternPath, noop, nil
+	}
+	f, err := os.CreateTemp(c.TempDir, "calm-pattern-*.json")
+	if err != nil {
+		return "", noop, infrastructureError("creating temp pattern file", err)
+	}
+	cleanup := func() error { return os.Remove(f.Name()) }
+	if _, err := f.Write(patterns.GovernanceJSON); err != nil {
+		_ = f.Close()
+		_ = cleanup()
+		return "", noop, infrastructureError("writing temp pattern file", err)
+	}
+	if err := f.Close(); err != nil {
+		_ = cleanup()
+		return "", noop, infrastructureError("closing temp pattern file", err)
+	}
+	return f.Name(), cleanup, nil
+}
+
 func (c Checker) writeProposedContent(request CheckRequest) (string, func() error, error) {
 	extension := filepath.Ext(request.File)
 	if extension == "" {
