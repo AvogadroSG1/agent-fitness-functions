@@ -25,8 +25,8 @@ printf '{"status":"block","violations":[{"message":"too complex"}]}\n'
 	if exitCode(err) != 2 {
 		t.Fatalf("pre-tool-use succeeded, want block; output=%s", output)
 	}
-	if !strings.Contains(string(output), "CALM violation in sample.go") || !strings.Contains(string(output), "too complex") {
-		t.Fatalf("output = %s, want violation message", output)
+	if !strings.Contains(string(output), "calm_check:") || !strings.Contains(string(output), "blocking") {
+		t.Fatalf("output = %s, want YAML calm_check block with blocking mode", output)
 	}
 	logContent := readFile(t, logPath)
 	for _, want := range []string{"check", "--file sample.go", "--repo ", "--content-file ", "--language go"} {
@@ -50,8 +50,8 @@ printf '{"status":"advisory","violations":[{"message":"warning only"}]}\n'
 	if err != nil {
 		t.Fatalf("pre-tool-use failed: %v\n%s", err, output)
 	}
-	if !strings.Contains(string(output), "CALM advisory for sample.py") || !strings.Contains(string(output), "warning only") {
-		t.Fatalf("output = %s, want advisory message", output)
+	if !strings.Contains(string(output), "calm_check:") || !strings.Contains(string(output), "advisory") {
+		t.Fatalf("output = %s, want YAML calm_check block with advisory mode", output)
 	}
 	if !strings.Contains(readFile(t, logPath), "--language python") {
 		t.Fatalf("calm log = %s, want python language", readFile(t, logPath))
@@ -102,8 +102,8 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
 	if exitCode(err) != 2 {
 		t.Fatalf("pre-tool-use succeeded, want running daemon block; output=%s", output)
 	}
-	if !strings.Contains(string(output), "cyclomatic complexity") {
-		t.Fatalf("output = %s, want analyzer-backed daemon violation", output)
+	if !strings.Contains(string(output), "cyclomatic-complexity") {
+		t.Fatalf("output = %s, want YAML cyclomatic-complexity violation", output)
 	}
 
 	goodPayload := `{"tool_name":"Write","tool_input":{"file_path":"sample.go","content":"package sample\nfunc Score(kind string, retries int, urgent bool) int {\nscore := map[string]int{\"create\": 1, \"update\": 1, \"delete\": 1, \"manual\": 1, \"batch\": 1, \"sync\": 1}[kind]\nif urgent { score++ }\nif retries > 0 { score += min(retries, 3) }\nreturn score\n}\n"}}`
