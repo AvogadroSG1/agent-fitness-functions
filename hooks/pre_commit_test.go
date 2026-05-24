@@ -40,11 +40,11 @@ fi
 	if err == nil {
 		t.Fatalf("pre-commit succeeded, want block; output=%s", output)
 	}
-	if !strings.Contains(string(output), "CALM violation in bad.go") ||
-		!strings.Contains(string(output), "too complex") ||
-		!strings.Contains(string(output), "CALM advisory for warn.py") ||
-		!strings.Contains(string(output), "warning only") {
-		t.Fatalf("output = %s, want block and advisory messages", output)
+	if strings.Count(string(output), "calm_check:") != 2 {
+		t.Fatalf("output = %s, want two calm_check YAML blocks (one block, one advisory)", output)
+	}
+	if !strings.Contains(string(output), "blocking") || !strings.Contains(string(output), "advisory") {
+		t.Fatalf("output = %s, want both blocking and advisory mode labels", output)
 	}
 	logContent, err := os.ReadFile(logPath)
 	if err != nil {
@@ -76,8 +76,8 @@ printf '{"status":"advisory","violations":[{"message":"warning only"}]}\n'
 	if err != nil {
 		t.Fatalf("pre-commit failed: %v\n%s", err, output)
 	}
-	if !strings.Contains(string(output), "CALM advisory for warn.py") || !strings.Contains(string(output), "warning only") {
-		t.Fatalf("output = %s, want advisory message", output)
+	if !strings.Contains(string(output), "calm_check:") || !strings.Contains(string(output), "advisory") {
+		t.Fatalf("output = %s, want YAML calm_check block with advisory mode", output)
 	}
 	logContent, err := os.ReadFile(logPath)
 	if err != nil {
@@ -129,8 +129,8 @@ func TestPreCommitBlocksStagedViolationThroughRunningDaemon(t *testing.T) {
 	if received.ProposedContent != "package staged\n" {
 		t.Fatalf("proposed content = %q, want staged index content", received.ProposedContent)
 	}
-	if !strings.Contains(string(output), "daemon validated staged violation") {
-		t.Fatalf("output = %s, want daemon violation message", output)
+	if !strings.Contains(string(output), "calm_check:") {
+		t.Fatalf("output = %s, want YAML calm_check block", output)
 	}
 }
 
@@ -162,8 +162,8 @@ printf '{"status":"advisory","violations":[{"message":"configured advisory"}]}\n
 	if err != nil {
 		t.Fatalf("pre-commit failed: %v\n%s", err, output)
 	}
-	if !strings.Contains(string(output), "configured advisory") {
-		t.Fatalf("output = %s, want advisory from running daemon path", output)
+	if !strings.Contains(string(output), "calm_check:") || !strings.Contains(string(output), "advisory") {
+		t.Fatalf("output = %s, want YAML calm_check block with advisory mode", output)
 	}
 }
 
