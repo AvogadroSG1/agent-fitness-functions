@@ -24,6 +24,7 @@ if [[ -e "$target_hook" ]]; then
     calm_sidecar="$(dirname "$target_hook")/calm-pre-commit"
     cp -f "$source_hook" "$calm_sidecar"
     chmod +x "$calm_sidecar"
+    cp -f "$source_formatter" "$(dirname "$calm_sidecar")/format-violations.py"
     echo "updated $calm_sidecar"
     exit 0
   elif ! grep -q "CALM pre-commit hook" "$target_hook"; then
