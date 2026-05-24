@@ -32,6 +32,7 @@ if [[ -e "$target_hook" ]]; then
       calm_sidecar="$(dirname "$target_hook")/calm-pre-commit"
       cp -f "$source_hook" "$calm_sidecar"
       chmod +x "$calm_sidecar"
+      cp -f "$source_formatter" "$(dirname "$calm_sidecar")/format-violations.py"
       printf '\n# CALM pre-commit hook (sidecar)\n"%s"\n' "$calm_sidecar" >> "$target_hook"
       echo "appended CALM call to $target_hook (sidecar: $calm_sidecar)"
       exit 0
