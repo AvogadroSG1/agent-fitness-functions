@@ -41,15 +41,6 @@ json_field() {
   python3 -c 'import json,sys; print(json.load(sys.stdin).get(sys.argv[1], ""))' "$1"
 }
 
-json_messages() {
-  python3 -c 'import json,sys
-payload = json.load(sys.stdin)
-for violation in payload.get("violations", []):
-    message = violation.get("message", "")
-    if message:
-        print(message)
-'
-}
 
 payload=$(cat)
 payload_file=$(mktemp)
