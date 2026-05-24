@@ -19,7 +19,9 @@ tmp/
 .tmp/
 
 # Local editor and OS files
-.DS_Store
+**/.DS_Store
+excalidraw.log
+**/excalidraw.log
 .idea/
 .vscode/
 
