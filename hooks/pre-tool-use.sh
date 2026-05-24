@@ -139,13 +139,13 @@ if ! status=$(printf '%s' "$result" | json_field status 2>/dev/null); then
 fi
 case "$status" in
   block)
-    echo "CALM violation in $file:" >&2
-    printf '%s' "$result" | json_messages >&2
+    printf '%s' "$result" | python3 "$repo/hooks/format-violations.py" \
+      --mode "$status" --file "$file" >&2
     exit 2
     ;;
   advisory)
-    echo "CALM advisory for $file:" >&2
-    printf '%s' "$result" | json_messages >&2
+    printf '%s' "$result" | python3 "$repo/hooks/format-violations.py" \
+      --mode "$status" --file "$file" >&2
     ;;
   pass)
     ;;
