@@ -45,5 +45,5 @@ if [[ -e "$target_hook" ]]; then
 fi
 cp -f "$source_hook" "$target_hook"
 chmod +x "$target_hook"
-
+cp -f "$source_formatter" "$(dirname "$target_hook")/format-violations.py"
 echo "installed $target_hook"
