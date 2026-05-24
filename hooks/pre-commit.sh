@@ -62,13 +62,13 @@ while IFS= read -r -d '' file; do
   status=$(printf '%s' "$result" | json_field status)
   case "$status" in
     block)
-      echo "CALM violation in $file:" >&2
-      printf '%s' "$result" | json_messages >&2
+      printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
+        --mode "$status" --file "$file" >&2
       blocked=1
       ;;
     advisory)
-      echo "CALM advisory for $file:" >&2
-      printf '%s' "$result" | json_messages >&2
+      printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
+        --mode "$status" --file "$file" >&2
       ;;
     pass)
       ;;
