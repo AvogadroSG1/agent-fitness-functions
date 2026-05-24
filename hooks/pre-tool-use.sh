@@ -139,12 +139,12 @@ if ! status=$(printf '%s' "$result" | json_field status 2>/dev/null); then
 fi
 case "$status" in
   block)
-    printf '%s' "$result" | python3 "$repo/hooks/format-violations.py" \
+    printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
       --mode "$status" --file "$file" >&2
     exit 2
     ;;
   advisory)
-    printf '%s' "$result" | python3 "$repo/hooks/format-violations.py" \
+    printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
       --mode "$status" --file "$file" >&2
     ;;
   pass)
