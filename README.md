@@ -12,6 +12,26 @@ See [docs/spec/why-and-what.md](docs/spec/why-and-what.md) and [docs/spec/engine
 - .NET 8 SDK for `tools/roslyn-analyzer`; `calm-bridge baseline --language csharp` builds the local analyzer automatically when `--roslyn <path>` is omitted
 - `pyyaml` 6+ for hook violation formatting: `python3 -m pip install -r hooks/requirements.txt`
 
+## CLI Tools
+
+The `bin/` directory contains helper scripts. Add it to your PATH once after cloning:
+
+```bash
+export PATH="$(pwd)/bin:$PATH"
+```
+
+Or symlink into `~/.local/bin` for a permanent install:
+
+```bash
+ln -sf "$(pwd)/bin"/calm-* ~/.local/bin/
+```
+
+| Command | Purpose |
+|---------|---------|
+| `calm-install-hooks [repo]` | Install the CALM pre-commit hook into a git repository |
+| `calm-serve [--no-build]` | Build and start the CALM bridge daemon on loopback |
+| `calm-test <file>` | Check a file's fitness functions against the running bridge |
+
 ## Baseline Analysis
 
 Generate a C# baseline from a fresh checkout with:
