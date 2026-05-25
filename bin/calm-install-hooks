@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "usage: calm-install-hooks [<repo>]" >&2
+  echo "       calm-install-hooks --help" >&2
+  echo "" >&2
+  echo "  Installs CALM pre-commit hooks into a git repository." >&2
+  echo "  Defaults to the current working directory if no repo path is given." >&2
+  echo "" >&2
+  echo "  Environment:" >&2
+  echo "    CALM_SRC              path to the calm-poc repo (default: auto-detected)" >&2
+  echo "    CALM_HOOK_APPEND=1    append CALM call to an existing non-CALM hook" >&2
+  echo "    CALM_HOOK_OVERWRITE=1 overwrite an existing non-CALM hook" >&2
+  exit 0
+}
+
+[[ "${1:-}" == "--help" || "${1:-}" == "-h" ]] && usage
+[[ $# -gt 1 ]] && { echo "error: expected at most one argument" >&2; usage; }
+
+target="${1:-.}"
+_self=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+calm_src="${CALM_SRC:-$_self}"
+install_script="$calm_src/scripts/install-hooks.sh"
+
+[[ -x "$install_script" ]] || {
+  echo "error: install-hooks.sh not found at $install_script" >&2
+  echo "  set CALM_SRC to the calm-poc repo root" >&2
+  exit 1
+}
+
+repo_root=$(git -C "$target" rev-parse --show-toplevel 2>/dev/null) || {
+  echo "error: not inside a git repository: $target" >&2
+  exit 1
+}
+
+echo "Repo:  $repo_root"
+echo ""
+
+"$install_script" "$repo_root"
