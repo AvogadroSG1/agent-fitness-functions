@@ -1,8 +1,6 @@
 # Go build outputs
 /calm-bridge
-/bin/
 /dist/
-**/bin/
 **/obj/
 *.exe
 *.test
