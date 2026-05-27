@@ -5,7 +5,12 @@ usage() {
   echo "usage: calm-install-hooks [<repo>]" >&2
   echo "       calm-install-hooks --help" >&2
   echo "" >&2
-  echo "  Installs CALM pre-commit hooks into a git repository." >&2
+  echo "  Installs CALM enforcement hooks into a git repository:" >&2
+  echo "    - pre-commit  : blocks commits with CALM violations" >&2
+  echo "    - pre-push    : blocks pushes that include violating commits" >&2
+  echo "    - git-guard   : Claude Code PreToolUse hook that blocks --no-verify," >&2
+  echo "                    --ff-only merges, and force push" >&2
+  echo "" >&2
   echo "  Defaults to the current working directory if no repo path is given." >&2
   echo "" >&2
   echo "  Environment:" >&2
