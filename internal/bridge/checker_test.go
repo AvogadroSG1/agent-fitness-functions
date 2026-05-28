@@ -2241,3 +2241,29 @@ func TestAnalyzeGoWithModuleContextExcludesTestFiles(t *testing.T) {
 			aggregated.ModuleMetric.PublicMethods, result.ModuleMetric.PublicMethods)
 	}
 }
+
+func TestIsValidExtensionChar(t *testing.T) {
+	tests := []struct {
+		char rune
+		want bool
+	}{
+		{'.', true},
+		{'_', true},
+		{'-', true},
+		{'0', true},
+		{'9', true},
+		{'a', true},
+		{'z', true},
+		{'A', true},
+		{'Z', true},
+		{'/', false},
+		{' ', false},
+		{0, false},
+		{'!', false},
+	}
+	for _, tc := range tests {
+		if got := isValidExtensionChar(tc.char); got != tc.want {
+			t.Errorf("isValidExtensionChar(%q) = %v, want %v", tc.char, got, tc.want)
+		}
+	}
+}

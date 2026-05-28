@@ -606,12 +606,18 @@ func validSourceExtension(extension string) bool {
 		return false
 	}
 	for _, char := range extension {
-		if char == '.' || char == '_' || char == '-' || char >= '0' && char <= '9' || char >= 'A' && char <= 'Z' || char >= 'a' && char <= 'z' {
-			continue
+		if !isValidExtensionChar(char) {
+			return false
 		}
-		return false
 	}
 	return true
+}
+
+func isValidExtensionChar(char rune) bool {
+	return char == '.' || char == '_' || char == '-' ||
+		char >= '0' && char <= '9' ||
+		char >= 'A' && char <= 'Z' ||
+		char >= 'a' && char <= 'z'
 }
 
 func isValidationFailure(result calm.ValidationResult) bool {
