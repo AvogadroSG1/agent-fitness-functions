@@ -549,7 +549,10 @@ func analyzeGoWithModuleContext(ctx context.Context, request AnalysisRequest) (a
 		return proposed, nil
 	}
 	for _, entry := range dirEntries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_generated.go") {
+		if entry.IsDir() ||
+			!strings.HasSuffix(entry.Name(), ".go") ||
+			strings.HasSuffix(entry.Name(), "_generated.go") ||
+			strings.HasSuffix(entry.Name(), "_test.go") {
 			continue
 		}
 		path := filepath.Join(filepath.Dir(logicalPath), entry.Name())

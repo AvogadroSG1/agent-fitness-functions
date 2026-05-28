@@ -2207,3 +2207,37 @@ type typedNilValidator struct{}
 func (*typedNilValidator) Validate(context.Context, string, string) (calm.ValidationResult, error) {
 	panic("typed nil validator should be rejected before Validate")
 }
+
+func TestAnalyzeGoWithModuleContextExcludesTestFiles(t *testing.T) {
+	dir := t.TempDir()
+	prodSrc := "package bridge\n\nfunc PublicOne() {}\nfunc PublicTwo() {}\n"
+	var testFns strings.Builder
+	testFns.WriteString("package bridge\n\nimport \"testing\"\n\n")
+	for i := range 50 {
+		fmt.Fprintf(&testFns, "func TestFoo%d(t *testing.T) { _ = t }\n", i)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "bridge.go"), []byte(prodSrc), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "bridge_test.go"), []byte(testFns.String()), 0600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := analyzer.AnalyzeGoFile(filepath.Join(dir, "bridge.go"))
+	if err != nil {
+		t.Fatalf("AnalyzeGoFile: %v", err)
+	}
+	request := AnalysisRequest{
+		Repo:     dir,
+		File:     "bridge.go",
+		Language: "go",
+		TempPath: filepath.Join(dir, "bridge.go"),
+	}
+	aggregated, err := analyzeGoWithModuleContext(context.Background(), request)
+	if err != nil {
+		t.Fatalf("analyzeGoWithModuleContext: %v", err)
+	}
+	if aggregated.ModuleMetric.PublicMethods != result.ModuleMetric.PublicMethods {
+		t.Errorf("PublicMethods = %d, want %d (test files must not inflate count)",
+			aggregated.ModuleMetric.PublicMethods, result.ModuleMetric.PublicMethods)
+	}
+}
