@@ -2316,6 +2316,61 @@ func TestAnalyzeSourceReturnsInputErrorForUnsupportedLanguage(t *testing.T) {
 	}
 }
 
+func TestStartDeferredCheckPrintsReadyOnSuccess(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	patternPath := writeTestPattern(t)
+	deferredCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdout
+	os.Stdout = w
+
+	checker := Checker{
+		PatternPath: patternPath,
+		Validator: validatorFunc(func(_ context.Context, _, _ string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true}, nil
+		}),
+		State:           NewState(),
+		DeferredContext: deferredCtx,
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": AnalyzerFunc(func(_ context.Context, _ AnalysisRequest) (analyzer.AnalysisResult, error) {
+				return analyzer.AnalysisResult{
+					CALMNode:  "warmup",
+					Language:  "csharp",
+					Functions: []analyzer.FunctionMetric{{Name: "Run", CyclomaticComplexity: 1, IsPublic: true, LOC: 5}},
+				}, nil
+			}),
+		},
+	}
+	state := checker.State
+	unlockRepo, lockErr := state.LockRepo(context.Background(), repo)
+	if lockErr != nil {
+		_ = w.Close()
+		os.Stdout = old
+		t.Fatal(lockErr)
+	}
+	done := make(chan struct{})
+	config := defaultConfig()
+	checker.startDeferredCheck(
+		CheckRequest{Repo: repo, File: "src/Warmup.cs", Language: "csharp", ProposedContent: "// warmup"},
+		repo, config, func() { unlockRepo(); close(done) },
+	)
+	<-done
+
+	_ = w.Close()
+	os.Stdout = old
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	if !strings.Contains(buf.String(), "ready") {
+		t.Errorf("stdout = %q, want to contain \"ready\"", buf.String())
+	}
+}
+
 func TestCheckWithCSharpWarmGuardPassesWhileWarming(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})

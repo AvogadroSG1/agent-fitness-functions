@@ -299,6 +299,7 @@ func (c *Checker) startDeferredCheck(request CheckRequest, repo string, config C
 			return
 		}
 		checker.State.CompleteWarmup("csharp")
+		fmt.Println("ready")
 	}()
 }
 
