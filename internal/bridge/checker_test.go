@@ -2298,3 +2298,20 @@ func TestCollectPeerGoFilesExcludesGeneratedAndTestFiles(t *testing.T) {
 		t.Errorf("len(got) = %d, want 1 (only other.go); got %v", len(got), got)
 	}
 }
+
+func TestAnalyzeSourceReturnsInputErrorForUnsupportedLanguage(t *testing.T) {
+	repo := t.TempDir()
+	checker := Checker{State: NewState()}
+	_, err := checker.analyzeSource(context.Background(), CheckRequest{
+		Repo:     repo,
+		File:     "main.rb",
+		Language: "ruby",
+	}, repo, filepath.Join(repo, "main.rb"))
+	if err == nil {
+		t.Fatal("expected error for unsupported language")
+	}
+	var checkErr *CheckError
+	if !errors.As(err, &checkErr) || checkErr.Kind != ErrorKindInput {
+		t.Errorf("err = %v, want CheckError with Kind=input", err)
+	}
+}

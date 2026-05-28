@@ -154,10 +154,6 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 			err = errors.Join(err, infrastructureError("cleaning temp pattern file", cleanupErr))
 		}
 	}()
-	pattern, err := calm.LoadPattern(patternPath)
-	if err != nil {
-		return CheckResponse{}, infrastructureError("loading governance pattern", err)
-	}
 	sourcePath, cleanup, err := c.writeProposedContent(request)
 	if err != nil {
 		return CheckResponse{}, err
@@ -167,13 +163,24 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 			err = errors.Join(err, infrastructureError("cleaning temporary source file", cleanupErr))
 		}
 	}()
+	result, err := c.analyzeSource(ctx, request, repo, sourcePath)
+	if err != nil {
+		return CheckResponse{}, err
+	}
+	result = analyzer.EnsureModuleMetric(result)
+	result.File = request.File
+	result.CALMNode = calmNodeForRequest(request, result.CALMNode)
+	return c.runValidationAndScore(ctx, result, repo, request.File, patternPath, config, state)
+}
 
+// analyzeSource runs the language-specific analyzer for the proposed file content.
+func (c *Checker) analyzeSource(ctx context.Context, request CheckRequest, repo, sourcePath string) (analyzer.AnalysisResult, error) {
 	sourceAnalyzer, ok := c.sourceAnalyzer(request.Language)
 	if !ok {
-		return CheckResponse{}, inputError(fmt.Sprintf("unsupported language %q", request.Language), nil)
+		return analyzer.AnalysisResult{}, inputError(fmt.Sprintf("unsupported language %q", request.Language), nil)
 	}
 	if err := ctx.Err(); err != nil {
-		return CheckResponse{}, infrastructureError("check canceled before analysis", err)
+		return analyzer.AnalysisResult{}, infrastructureError("check canceled before analysis", err)
 	}
 	result, err := sourceAnalyzer.Analyze(ctx, AnalysisRequest{
 		Repo:     repo,
@@ -182,35 +189,39 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 		TempPath: sourcePath,
 	})
 	if err != nil {
-		var checkErr *CheckError
-		if errors.As(err, &checkErr) {
-			return CheckResponse{}, checkErr
-		}
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return CheckResponse{}, infrastructureError("check canceled during analysis", err)
-		}
-		if isAnalyzerInfrastructureError(err) {
-			return CheckResponse{}, infrastructureError(fmt.Sprintf("running %s analyzer", request.Language), err)
-		}
-		return CheckResponse{}, inputError(fmt.Sprintf("analyzing %s file", request.Language), err)
+		return analyzer.AnalysisResult{}, classifyAnalysisError(err, request.Language)
 	}
 	if err := ctx.Err(); err != nil {
-		return CheckResponse{}, infrastructureError("check canceled after analysis", err)
+		return analyzer.AnalysisResult{}, infrastructureError("check canceled after analysis", err)
 	}
-	result = analyzer.EnsureModuleMetric(result)
-	result.File = request.File
-	result.CALMNode = calmNodeForRequest(request, result.CALMNode)
+	return result, nil
+}
 
+func classifyAnalysisError(err error, language string) error {
+	var checkErr *CheckError
+	if errors.As(err, &checkErr) {
+		return checkErr
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return infrastructureError("check canceled during analysis", err)
+	}
+	if isAnalyzerInfrastructureError(err) {
+		return infrastructureError(fmt.Sprintf("running %s analyzer", language), err)
+	}
+	return inputError(fmt.Sprintf("analyzing %s file", language), err)
+}
+
+// runValidationAndScore runs CALM validation and fitness scoring on an analyzed result.
+func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.AnalysisResult, repo, file, patternPath string, config Config, state *State) (CheckResponse, error) {
+	pattern, err := calm.LoadPattern(patternPath)
+	if err != nil {
+		return CheckResponse{}, infrastructureError("loading governance pattern", err)
+	}
 	architecturePath, cleanupArchitecture, err := c.writeArchitecture(report.BuildArchitecture(result))
 	if err != nil {
 		return CheckResponse{}, err
 	}
-	defer func() {
-		if cleanupErr := cleanupArchitecture(); cleanupErr != nil {
-			err = errors.Join(err, infrastructureError("cleaning temporary architecture file", cleanupErr))
-		}
-	}()
-
+	defer func() { _ = cleanupArchitecture() }()
 	validator := c.Validator
 	switch {
 	case validator == nil:
@@ -224,23 +235,30 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 	}
 	violations := filterViolations(fitnessViolations(result, pattern), config)
 	if len(violations) == 0 {
-		if config.EnforcementMode == EnforcementBlock {
-			state.ReplaceFile(repo, request.File, nil)
-			outstanding := state.Violations(repo)
-			if len(outstanding) > 0 {
-				return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
-			}
-		} else {
-			state.ClearRepo(repo)
-		}
-		return CheckResponse{Status: StatusPass}, nil
+		return c.scoreClean(repo, file, config, state)
 	}
+	return c.scoreDirty(repo, file, violations, config, state)
+}
+
+func (c *Checker) scoreClean(repo, file string, config Config, state *State) (CheckResponse, error) {
+	if config.EnforcementMode == EnforcementBlock {
+		state.ReplaceFile(repo, file, nil)
+		if outstanding := state.Violations(repo); len(outstanding) > 0 {
+			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
+		}
+	} else {
+		state.ClearRepo(repo)
+	}
+	return CheckResponse{Status: StatusPass}, nil
+}
+
+func (c *Checker) scoreDirty(repo, file string, violations []Violation, config Config, state *State) (CheckResponse, error) {
 	switch config.EnforcementMode {
 	case EnforcementAdvisory:
 		state.ClearRepo(repo)
 		return CheckResponse{Status: StatusAdvisory, Violations: violations}, nil
 	default:
-		state.ReplaceFile(repo, request.File, violations)
+		state.ReplaceFile(repo, file, violations)
 		return CheckResponse{Status: StatusBlock, Violations: state.Violations(repo)}, nil
 	}
 }
