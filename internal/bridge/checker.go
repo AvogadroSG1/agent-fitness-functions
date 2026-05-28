@@ -212,7 +212,7 @@ func classifyAnalysisError(err error, language string) error {
 }
 
 // runValidationAndScore runs CALM validation and fitness scoring on an analyzed result.
-func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.AnalysisResult, repo, file, patternPath string, config Config, state *State) (CheckResponse, error) {
+func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.AnalysisResult, repo, file, patternPath string, config Config, state *State) (resp CheckResponse, err error) {
 	pattern, err := calm.LoadPattern(patternPath)
 	if err != nil {
 		return CheckResponse{}, infrastructureError("loading governance pattern", err)
@@ -221,7 +221,11 @@ func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.Ana
 	if err != nil {
 		return CheckResponse{}, err
 	}
-	defer func() { _ = cleanupArchitecture() }()
+	defer func() {
+		if cleanupErr := cleanupArchitecture(); cleanupErr != nil {
+			err = errors.Join(err, infrastructureError("cleaning temporary architecture file", cleanupErr))
+		}
+	}()
 	validator := c.Validator
 	switch {
 	case validator == nil:
