@@ -2267,3 +2267,34 @@ func TestIsValidExtensionChar(t *testing.T) {
 		}
 	}
 }
+
+func TestCollectPeerGoFilesExcludesGeneratedAndTestFiles(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"main.go":          "package main\n",
+		"other.go":         "package main\n",
+		"gen_generated.go": "package main\n",
+		"main_test.go":     "package main\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := collectPeerGoFiles(dir, filepath.Join(dir, "main.go"))
+	if err != nil {
+		t.Fatalf("collectPeerGoFiles: %v", err)
+	}
+	for _, f := range got {
+		base := filepath.Base(f)
+		if strings.HasSuffix(base, "_generated.go") || strings.HasSuffix(base, "_test.go") {
+			t.Errorf("collectPeerGoFiles returned excluded file: %s", f)
+		}
+		if base == "main.go" {
+			t.Errorf("collectPeerGoFiles returned the proposed file itself")
+		}
+	}
+	if len(got) != 1 {
+		t.Errorf("len(got) = %d, want 1 (only other.go); got %v", len(got), got)
+	}
+}

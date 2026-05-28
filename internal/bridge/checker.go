@@ -542,23 +542,13 @@ func analyzeGoWithModuleContext(ctx context.Context, request AnalysisRequest) (a
 	if err := ctx.Err(); err != nil {
 		return analyzer.AnalysisResult{}, err
 	}
-	results := []analyzer.AnalysisResult{proposed}
 	logicalPath := filepath.Join(request.Repo, request.File)
-	dirEntries, err := os.ReadDir(filepath.Dir(logicalPath))
+	peers, err := collectPeerGoFiles(filepath.Dir(logicalPath), logicalPath)
 	if err != nil {
 		return proposed, nil
 	}
-	for _, entry := range dirEntries {
-		if entry.IsDir() ||
-			!strings.HasSuffix(entry.Name(), ".go") ||
-			strings.HasSuffix(entry.Name(), "_generated.go") ||
-			strings.HasSuffix(entry.Name(), "_test.go") {
-			continue
-		}
-		path := filepath.Join(filepath.Dir(logicalPath), entry.Name())
-		if filepath.Clean(path) == filepath.Clean(logicalPath) {
-			continue
-		}
+	results := []analyzer.AnalysisResult{proposed}
+	for _, path := range peers {
 		existing, err := analyzer.AnalyzeGoFile(path)
 		if err != nil {
 			return analyzer.AnalysisResult{}, err
@@ -568,6 +558,31 @@ func analyzeGoWithModuleContext(ctx context.Context, request AnalysisRequest) (a
 		}
 	}
 	return analyzer.AggregateModuleMetrics(results)[0], nil
+}
+
+// collectPeerGoFiles returns peer .go files in dir, excluding the proposed file,
+// generated files, and test files.
+func collectPeerGoFiles(dir, logicalPath string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var peers []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() ||
+			!strings.HasSuffix(name, ".go") ||
+			strings.HasSuffix(name, "_generated.go") ||
+			strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		if filepath.Clean(path) == filepath.Clean(logicalPath) {
+			continue
+		}
+		peers = append(peers, path)
+	}
+	return peers, nil
 }
 
 func calmNodeForRequest(request CheckRequest, fallback string) string {
