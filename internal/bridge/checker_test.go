@@ -2315,3 +2315,43 @@ func TestAnalyzeSourceReturnsInputErrorForUnsupportedLanguage(t *testing.T) {
 		t.Errorf("err = %v, want CheckError with Kind=input", err)
 	}
 }
+
+func TestCheckWithCSharpWarmGuardPassesWhileWarming(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	patternPath := writeTestPattern(t)
+	deferredCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	checker := Checker{
+		PatternPath: patternPath,
+		Validator: validatorFunc(func(_ context.Context, _, _ string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true}, nil
+		}),
+		State:           NewState(),
+		DeferredContext: deferredCtx,
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": AnalyzerFunc(func(_ context.Context, _ AnalysisRequest) (analyzer.AnalysisResult, error) {
+				return analyzer.AnalysisResult{
+					CALMNode:  "warmup",
+					Language:  "csharp",
+					Functions: []analyzer.FunctionMetric{{Name: "Run", CyclomaticComplexity: 1, IsPublic: true, LOC: 5}},
+				}, nil
+			}),
+		},
+	}
+	response, err := checker.Check(context.Background(), CheckRequest{
+		Repo:            repo,
+		File:            "src/Warmup.cs",
+		Language:        "csharp",
+		ProposedContent: "// warmup",
+	})
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	if response.Status != StatusPass {
+		t.Errorf("status = %q, want %q", response.Status, StatusPass)
+	}
+	if !response.Warming {
+		t.Error("Warming = false, want true on first csharp check")
+	}
+}
