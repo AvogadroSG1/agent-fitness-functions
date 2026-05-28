@@ -182,7 +182,9 @@ func DiscoverGoFiles(root string) ([]string, error) {
 			}
 			return nil
 		}
-		if strings.HasSuffix(entry.Name(), ".go") && !strings.HasSuffix(entry.Name(), "_generated.go") {
+		if strings.HasSuffix(entry.Name(), ".go") &&
+			!strings.HasSuffix(entry.Name(), "_generated.go") &&
+			!strings.HasSuffix(entry.Name(), "_test.go") {
 			files = append(files, current)
 		}
 		return nil
