@@ -95,7 +95,7 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
 }`)
 	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
 	calmBridge := buildCalmBridge(t)
-	serverURL := startBridgeDaemon(t, calmBridge)
+	serverURL := startBridgeDaemon(t, calmBridge, repo)
 
 	badPayload := `{"tool_name":"Write","tool_input":{"file_path":"sample.go","content":"package sample\nfunc Score(kind string, retries int, urgent bool) int {\nscore := 0\nif kind == \"create\" { score++ }\nif kind == \"update\" { score++ }\nif kind == \"delete\" { score++ }\nif kind == \"manual\" { score++ }\nif kind == \"batch\" { score++ }\nif kind == \"sync\" { score++ }\nif retries > 0 { score++ }\nif retries > 1 { score++ }\nif retries > 2 { score++ }\nif urgent { score++ }\nreturn score\n}\n"}}`
 	output, err := runPreToolUseWithBin(t, repo, badPayload, calmBridge, "", "", serverURL)
@@ -282,7 +282,7 @@ func readFile(t *testing.T, path string) string {
 	return string(content)
 }
 
-func startBridgeDaemon(t *testing.T, calmBridge string) string {
+func startBridgeDaemon(t *testing.T, calmBridge string, repo string) string {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -292,6 +292,37 @@ func startBridgeDaemon(t *testing.T, calmBridge string) string {
 	if err := listener.Close(); err != nil {
 		t.Fatalf("close listener: %v", err)
 	}
+
+	// Create a temporary configs directory with a config for the test repository.
+	// The daemon needs a config for each repository it checks, using a normalized name.
+	configsDir := t.TempDir()
+
+	// Create a generic config for any test repository.
+	// The daemon's extractRepositoryName function will normalize the path to a valid name.
+	// We create a "test-repo" directory as a fallback that works for test cases.
+	repoDir := filepath.Join(configsDir, "test-repo")
+	if err := os.MkdirAll(repoDir, 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	configJSON := `{"enforcement-mode":"block","fitness-functions":{"cyclomatic-complexity":true}}`
+	if err := os.WriteFile(filepath.Join(repoDir, "config.json"), []byte(configJSON), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	// Also create a config using the normalized repo name from the actual test repo
+	// to cover cases where the daemon extracts a specific name from the path
+	repoConfigName := lastPathComponent(repo)
+	repoConfigName = strings.ToLower(repoConfigName)
+	if repoConfigName != "" && repoConfigName != "test-repo" {
+		repoDir = filepath.Join(configsDir, repoConfigName)
+		if err := os.MkdirAll(repoDir, 0o755); err != nil {
+			t.Fatalf("mkdir repo-specific config dir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(repoDir, "config.json"), []byte(configJSON), 0o644); err != nil {
+			t.Fatalf("write repo-specific config: %v", err)
+		}
+	}
+
 	command := exec.Command(calmBridge, "serve", "--addr", addr)
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -300,6 +331,7 @@ func startBridgeDaemon(t *testing.T, calmBridge string) string {
 	command.Dir = filepath.Dir(cwd)
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
+	command.Env = append(os.Environ(), "CALM_CONFIGS_DIR="+configsDir)
 	if err := command.Start(); err != nil {
 		t.Fatalf("start bridge daemon: %v", err)
 	}
@@ -320,6 +352,10 @@ func startBridgeDaemon(t *testing.T, calmBridge string) string {
 	}
 	t.Fatal("bridge daemon did not become healthy")
 	return ""
+}
+
+func lastPathComponent(path string) string {
+	return filepath.Base(strings.TrimRight(path, "/"))
 }
 
 func exitCode(err error) int {
