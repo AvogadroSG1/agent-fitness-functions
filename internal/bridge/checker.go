@@ -101,38 +101,45 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 		return CheckResponse{Status: StatusPass}, nil
 	}
 	if request.Language == "csharp" && config.EnforcementMode == EnforcementBlock {
-		if message, ok := state.TakeWarmupFailure("csharp"); ok {
-			return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message))
-		}
-		if outstanding := state.Violations(repo); hasOtherFileViolation(outstanding, request.File) {
-			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
-		}
+		return c.checkWithCSharpWarmGuard(ctx, request, repo, config, state)
 	}
-	if request.Language == "csharp" && config.EnforcementMode == EnforcementBlock && !state.IsWarm("csharp") {
-		unlockRepo, err := state.LockRepo(ctx, repo)
-		if err != nil {
-			return CheckResponse{}, infrastructureError("check canceled while waiting for repository lock", err)
-		}
-		if state.IsWarm("csharp") {
-			defer unlockRepo()
-			return c.checkSynchronousLocked(ctx, request, repo, config, state)
-		}
-		if message, ok := state.TakeWarmupFailure("csharp"); ok {
-			unlockRepo()
-			return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message))
-		}
-		if outstanding := state.Violations(repo); hasOtherFileViolation(outstanding, request.File) {
-			unlockRepo()
-			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
-		}
-		if state.BeginWarmup("csharp") {
-			c.startDeferredCheck(request, repo, config, unlockRepo)
-			return CheckResponse{Status: StatusPass, Warming: true}, nil
-		}
+	return c.checkSynchronous(ctx, request, repo, config, state)
+}
+
+// checkWithCSharpWarmGuard handles csharp warmup sequencing before delegating
+// to the synchronous check path.
+func (c *Checker) checkWithCSharpWarmGuard(ctx context.Context, request CheckRequest, repo string, config Config, state *State) (CheckResponse, error) {
+	if message, ok := state.TakeWarmupFailure("csharp"); ok {
+		return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message))
+	}
+	if outstanding := state.Violations(repo); hasOtherFileViolation(outstanding, request.File) {
+		return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
+	}
+	if state.IsWarm("csharp") {
+		return c.checkSynchronous(ctx, request, repo, config, state)
+	}
+	unlockRepo, err := state.LockRepo(ctx, repo)
+	if err != nil {
+		return CheckResponse{}, infrastructureError("check canceled while waiting for repository lock", err)
+	}
+	if state.IsWarm("csharp") {
 		defer unlockRepo()
 		return c.checkSynchronousLocked(ctx, request, repo, config, state)
 	}
-	return c.checkSynchronous(ctx, request, repo, config, state)
+	if message, ok := state.TakeWarmupFailure("csharp"); ok {
+		unlockRepo()
+		return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message))
+	}
+	if outstanding := state.Violations(repo); hasOtherFileViolation(outstanding, request.File) {
+		unlockRepo()
+		return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
+	}
+	if state.BeginWarmup("csharp") {
+		c.startDeferredCheck(request, repo, config, unlockRepo)
+		return CheckResponse{Status: StatusPass, Warming: true}, nil
+	}
+	defer unlockRepo()
+	return c.checkSynchronousLocked(ctx, request, repo, config, state)
 }
 
 func (c *Checker) checkSynchronous(ctx context.Context, request CheckRequest, repo string, config Config, state *State) (response CheckResponse, err error) {
@@ -154,10 +161,6 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 			err = errors.Join(err, infrastructureError("cleaning temp pattern file", cleanupErr))
 		}
 	}()
-	pattern, err := calm.LoadPattern(patternPath)
-	if err != nil {
-		return CheckResponse{}, infrastructureError("loading governance pattern", err)
-	}
 	sourcePath, cleanup, err := c.writeProposedContent(request)
 	if err != nil {
 		return CheckResponse{}, err
@@ -167,13 +170,24 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 			err = errors.Join(err, infrastructureError("cleaning temporary source file", cleanupErr))
 		}
 	}()
+	result, err := c.analyzeSource(ctx, request, repo, sourcePath)
+	if err != nil {
+		return CheckResponse{}, err
+	}
+	result = analyzer.EnsureModuleMetric(result)
+	result.File = request.File
+	result.CALMNode = calmNodeForRequest(request, result.CALMNode)
+	return c.runValidationAndScore(ctx, result, repo, request.File, patternPath, config, state)
+}
 
+// analyzeSource runs the language-specific analyzer for the proposed file content.
+func (c *Checker) analyzeSource(ctx context.Context, request CheckRequest, repo, sourcePath string) (analyzer.AnalysisResult, error) {
 	sourceAnalyzer, ok := c.sourceAnalyzer(request.Language)
 	if !ok {
-		return CheckResponse{}, inputError(fmt.Sprintf("unsupported language %q", request.Language), nil)
+		return analyzer.AnalysisResult{}, inputError(fmt.Sprintf("unsupported language %q", request.Language), nil)
 	}
 	if err := ctx.Err(); err != nil {
-		return CheckResponse{}, infrastructureError("check canceled before analysis", err)
+		return analyzer.AnalysisResult{}, infrastructureError("check canceled before analysis", err)
 	}
 	result, err := sourceAnalyzer.Analyze(ctx, AnalysisRequest{
 		Repo:     repo,
@@ -182,25 +196,34 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 		TempPath: sourcePath,
 	})
 	if err != nil {
-		var checkErr *CheckError
-		if errors.As(err, &checkErr) {
-			return CheckResponse{}, checkErr
-		}
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return CheckResponse{}, infrastructureError("check canceled during analysis", err)
-		}
-		if isAnalyzerInfrastructureError(err) {
-			return CheckResponse{}, infrastructureError(fmt.Sprintf("running %s analyzer", request.Language), err)
-		}
-		return CheckResponse{}, inputError(fmt.Sprintf("analyzing %s file", request.Language), err)
+		return analyzer.AnalysisResult{}, classifyAnalysisError(err, request.Language)
 	}
 	if err := ctx.Err(); err != nil {
-		return CheckResponse{}, infrastructureError("check canceled after analysis", err)
+		return analyzer.AnalysisResult{}, infrastructureError("check canceled after analysis", err)
 	}
-	result = analyzer.EnsureModuleMetric(result)
-	result.File = request.File
-	result.CALMNode = calmNodeForRequest(request, result.CALMNode)
+	return result, nil
+}
 
+func classifyAnalysisError(err error, language string) error {
+	var checkErr *CheckError
+	if errors.As(err, &checkErr) {
+		return checkErr
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return infrastructureError("check canceled during analysis", err)
+	}
+	if isAnalyzerInfrastructureError(err) {
+		return infrastructureError(fmt.Sprintf("running %s analyzer", language), err)
+	}
+	return inputError(fmt.Sprintf("analyzing %s file", language), err)
+}
+
+// runValidationAndScore runs CALM validation and fitness scoring on an analyzed result.
+func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.AnalysisResult, repo, file, patternPath string, config Config, state *State) (resp CheckResponse, err error) {
+	pattern, err := calm.LoadPattern(patternPath)
+	if err != nil {
+		return CheckResponse{}, infrastructureError("loading governance pattern", err)
+	}
 	architecturePath, cleanupArchitecture, err := c.writeArchitecture(report.BuildArchitecture(result))
 	if err != nil {
 		return CheckResponse{}, err
@@ -210,7 +233,6 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 			err = errors.Join(err, infrastructureError("cleaning temporary architecture file", cleanupErr))
 		}
 	}()
-
 	validator := c.Validator
 	switch {
 	case validator == nil:
@@ -224,23 +246,30 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 	}
 	violations := filterViolations(fitnessViolations(result, pattern), config)
 	if len(violations) == 0 {
-		if config.EnforcementMode == EnforcementBlock {
-			state.ReplaceFile(repo, request.File, nil)
-			outstanding := state.Violations(repo)
-			if len(outstanding) > 0 {
-				return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
-			}
-		} else {
-			state.ClearRepo(repo)
-		}
-		return CheckResponse{Status: StatusPass}, nil
+		return c.scoreClean(repo, file, config, state)
 	}
+	return c.scoreDirty(repo, file, violations, config, state)
+}
+
+func (c *Checker) scoreClean(repo, file string, config Config, state *State) (CheckResponse, error) {
+	if config.EnforcementMode == EnforcementBlock {
+		state.ReplaceFile(repo, file, nil)
+		if outstanding := state.Violations(repo); len(outstanding) > 0 {
+			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
+		}
+	} else {
+		state.ClearRepo(repo)
+	}
+	return CheckResponse{Status: StatusPass}, nil
+}
+
+func (c *Checker) scoreDirty(repo, file string, violations []Violation, config Config, state *State) (CheckResponse, error) {
 	switch config.EnforcementMode {
 	case EnforcementAdvisory:
 		state.ClearRepo(repo)
 		return CheckResponse{Status: StatusAdvisory, Violations: violations}, nil
 	default:
-		state.ReplaceFile(repo, request.File, violations)
+		state.ReplaceFile(repo, file, violations)
 		return CheckResponse{Status: StatusBlock, Violations: state.Violations(repo)}, nil
 	}
 }
@@ -270,6 +299,7 @@ func (c *Checker) startDeferredCheck(request CheckRequest, repo string, config C
 			return
 		}
 		checker.State.CompleteWarmup("csharp")
+		fmt.Println("ready")
 	}()
 }
 
@@ -542,20 +572,13 @@ func analyzeGoWithModuleContext(ctx context.Context, request AnalysisRequest) (a
 	if err := ctx.Err(); err != nil {
 		return analyzer.AnalysisResult{}, err
 	}
-	results := []analyzer.AnalysisResult{proposed}
 	logicalPath := filepath.Join(request.Repo, request.File)
-	dirEntries, err := os.ReadDir(filepath.Dir(logicalPath))
+	peers, err := collectPeerGoFiles(filepath.Dir(logicalPath), logicalPath)
 	if err != nil {
 		return proposed, nil
 	}
-	for _, entry := range dirEntries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_generated.go") {
-			continue
-		}
-		path := filepath.Join(filepath.Dir(logicalPath), entry.Name())
-		if filepath.Clean(path) == filepath.Clean(logicalPath) {
-			continue
-		}
+	results := []analyzer.AnalysisResult{proposed}
+	for _, path := range peers {
 		existing, err := analyzer.AnalyzeGoFile(path)
 		if err != nil {
 			return analyzer.AnalysisResult{}, err
@@ -565,6 +588,31 @@ func analyzeGoWithModuleContext(ctx context.Context, request AnalysisRequest) (a
 		}
 	}
 	return analyzer.AggregateModuleMetrics(results)[0], nil
+}
+
+// collectPeerGoFiles returns peer .go files in dir, excluding the proposed file,
+// generated files, and test files.
+func collectPeerGoFiles(dir, logicalPath string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var peers []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() ||
+			!strings.HasSuffix(name, ".go") ||
+			strings.HasSuffix(name, "_generated.go") ||
+			strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		if filepath.Clean(path) == filepath.Clean(logicalPath) {
+			continue
+		}
+		peers = append(peers, path)
+	}
+	return peers, nil
 }
 
 func calmNodeForRequest(request CheckRequest, fallback string) string {
@@ -603,12 +651,18 @@ func validSourceExtension(extension string) bool {
 		return false
 	}
 	for _, char := range extension {
-		if char == '.' || char == '_' || char == '-' || char >= '0' && char <= '9' || char >= 'A' && char <= 'Z' || char >= 'a' && char <= 'z' {
-			continue
+		if !isValidExtensionChar(char) {
+			return false
 		}
-		return false
 	}
 	return true
+}
+
+func isValidExtensionChar(char rune) bool {
+	return char == '.' || char == '_' || char == '-' ||
+		char >= '0' && char <= '9' ||
+		char >= 'A' && char <= 'Z' ||
+		char >= 'a' && char <= 'z'
 }
 
 func isValidationFailure(result calm.ValidationResult) bool {

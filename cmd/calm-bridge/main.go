@@ -20,6 +20,7 @@ import (
 
 	"github.com/poconnor/calm-poc/internal/analyzer"
 	"github.com/poconnor/calm-poc/internal/bridge"
+	"github.com/poconnor/calm-poc/internal/sarif"
 )
 
 func main() {
@@ -90,59 +91,84 @@ func runCheck(args []string, stdout io.Writer, client *http.Client, starter func
 	contentFile := flags.String("content-file", "", "path to proposed file content")
 	language := flags.String("language", "", "source language")
 	staged := flags.Bool("staged", false, "read content from git staged state")
+	format := flags.String("format", "json", "output format: json or sarif")
 	if err := flags.Parse(args); err != nil {
 		return usageError{err: err}
 	}
 	if *file == "" || *repo == "" {
 		return usageError{err: errors.New("check requires --file and --repo")}
 	}
-
-	if !isHealthy(client, *addr) {
-		if err := starter(*addr); err != nil {
-			return fmt.Errorf("starting daemon: %w", err)
-		}
-		if err := waitHealthy(client, *addr, 500*time.Millisecond); err != nil {
-			return err
-		}
+	validFormats := map[string]bool{"json": true, "sarif": true}
+	if !validFormats[*format] {
+		return usageError{err: fmt.Errorf("unsupported format %q: use json or sarif", *format)}
 	}
-
+	if err := ensureDaemon(client, *addr, starter); err != nil {
+		return err
+	}
 	proposedContent, err := resolveContent(*repo, *file, *content, *contentFile, *staged)
 	if err != nil {
 		return err
 	}
-	request := bridge.CheckRequest{
+	body, err := postCheck(context.Background(), client, *addr, bridge.CheckRequest{
 		Repo:            *repo,
 		File:            *file,
 		ProposedContent: proposedContent,
 		Language:        *language,
+	})
+	if err != nil {
+		return err
 	}
+	return writeCheckResponse(stdout, *format, *repo, body)
+}
+
+func ensureDaemon(client *http.Client, addr string, starter func(string) error) error {
+	if isHealthy(client, addr) {
+		return nil
+	}
+	if err := starter(addr); err != nil {
+		return fmt.Errorf("starting daemon: %w", err)
+	}
+	return waitHealthy(client, addr, 500*time.Millisecond)
+}
+
+func postCheck(ctx context.Context, client *http.Client, addr string, request bridge.CheckRequest) ([]byte, error) {
 	body, err := json.Marshal(request)
 	if err != nil {
-		return fmt.Errorf("encoding check request: %w", err)
+		return nil, fmt.Errorf("encoding check request: %w", err)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(*addr, "/")+"/check", bytes.NewReader(body))
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(addr, "/")+"/check", bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("building check request: %w", err)
+		return nil, fmt.Errorf("building check request: %w", err)
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
 	response, err := client.Do(httpRequest)
 	if err != nil {
-		return fmt.Errorf("posting check request: %w", err)
+		return nil, fmt.Errorf("posting check request: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
-		message := strings.TrimSpace(string(body))
+		errBody, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
+		message := strings.TrimSpace(string(errBody))
 		if message == "" {
-			return fmt.Errorf("check failed with HTTP %d", response.StatusCode)
+			return nil, fmt.Errorf("check failed with HTTP %d", response.StatusCode)
 		}
-		return fmt.Errorf("check failed with HTTP %d: %s", response.StatusCode, message)
+		return nil, fmt.Errorf("check failed with HTTP %d: %s", response.StatusCode, message)
 	}
-	_, err = io.Copy(stdout, response.Body)
-	return err
+	return io.ReadAll(io.LimitReader(response.Body, 10<<20))
+}
+
+func writeCheckResponse(stdout io.Writer, format, repo string, body []byte) error {
+	if format != "sarif" {
+		_, err := stdout.Write(body)
+		return err
+	}
+	var cr bridge.CheckResponse
+	if err := json.Unmarshal(body, &cr); err != nil {
+		return fmt.Errorf("decoding check response: %w", err)
+	}
+	return json.NewEncoder(stdout).Encode(sarif.Convert(cr, repo))
 }
 
 func resolveContent(repo, file, explicitContent, contentFile string, staged bool) (string, error) {
@@ -235,20 +261,16 @@ func runBaseline(args []string, stdout io.Writer) error {
 	if err := flags.Parse(args); err != nil {
 		return usageError{err: err}
 	}
-	if *repo == "" || *language == "" || *output == "" {
-		return usageError{err: errors.New("baseline requires --repo, --language, and --output")}
+	if err := requireBaselineArgs(*repo, *language, *output); err != nil {
+		return err
 	}
 	repositoryName := *name
 	if repositoryName == "" {
 		repositoryName = filepath.Base(*repo)
 	}
-	roslynPath := *roslyn
-	if *language == "csharp" && roslynPath == "" {
-		var err error
-		roslynPath, err = ensureLocalRoslynAnalyzer()
-		if err != nil {
-			return err
-		}
+	roslynPath, err := resolveRoslynPath(*language, *roslyn)
+	if err != nil {
+		return err
 	}
 	results, err := analyzer.AnalyzeRepository(context.Background(), *repo, *language, analyzer.RepositoryOptions{
 		RadonPath:  *radon,
@@ -262,6 +284,22 @@ func runBaseline(args []string, stdout io.Writer) error {
 	}
 	_, err = fmt.Fprintf(stdout, "wrote %s (%d files)\n", *output, len(results))
 	return err
+}
+
+func requireBaselineArgs(repo, language, output string) error {
+	for _, f := range []string{repo, language, output} {
+		if f == "" {
+			return usageError{err: errors.New("baseline requires --repo, --language, and --output")}
+		}
+	}
+	return nil
+}
+
+func resolveRoslynPath(language, roslynFlag string) (string, error) {
+	if language != "csharp" || roslynFlag != "" {
+		return roslynFlag, nil
+	}
+	return ensureLocalRoslynAnalyzer()
 }
 
 func ensureLocalRoslynAnalyzer() (string, error) {

@@ -3,6 +3,7 @@ package analyzer
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -199,6 +200,44 @@ func Run() string {
 
 	if result.Imports.Total != 0 || result.Imports.Used != 0 || result.Imports.DDC != 1 {
 		t.Fatalf("imports = %+v, want no imports with DDC 1", result.Imports)
+	}
+}
+
+func TestDiscoverGoFilesExcludesTestAndGeneratedFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	writeFile := func(name, body string) {
+		t.Helper()
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+
+	stub := "package sample\n"
+	writeFile("main.go", stub)
+	writeFile("util.go", stub)
+	writeFile("util_test.go", stub)
+	writeFile("wire_generated.go", stub)
+	writeFile("schema_generated.go", stub)
+
+	files, err := DiscoverGoFiles(dir)
+	if err != nil {
+		t.Fatalf("DiscoverGoFiles returned error: %v", err)
+	}
+
+	for _, f := range files {
+		base := filepath.Base(f)
+		if strings.HasSuffix(base, "_test.go") {
+			t.Errorf("DiscoverGoFiles included test file: %s", base)
+		}
+		if strings.HasSuffix(base, "_generated.go") {
+			t.Errorf("DiscoverGoFiles included generated file: %s", base)
+		}
+	}
+
+	if len(files) != 2 {
+		t.Errorf("DiscoverGoFiles returned %d files, want 2 (main.go and util.go)", len(files))
 	}
 }
 

@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "CALM: Check Current File",
+      "type": "shell",
+      "command": "mkdir -p .calm && calm-bridge check --file ${relativeFile} --repo ${workspaceFolder} --format sarif > .calm/results.sarif",
+      "group": "test",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared",
+        "close": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "CALM: Watch (run on save)",
+      "type": "shell",
+      "command": "while true; do inotifywait -e close_write ${file} 2>/dev/null || fswatch -1 ${file} 2>/dev/null; mkdir -p .calm && calm-bridge check --file ${relativeFile} --repo ${workspaceFolder} --format sarif > .calm/results.sarif; done",
+      "isBackground": true,
+      "group": "test",
+      "presentation": {
+        "reveal": "never",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

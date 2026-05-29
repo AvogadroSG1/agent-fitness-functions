@@ -2207,3 +2207,206 @@ type typedNilValidator struct{}
 func (*typedNilValidator) Validate(context.Context, string, string) (calm.ValidationResult, error) {
 	panic("typed nil validator should be rejected before Validate")
 }
+
+func TestAnalyzeGoWithModuleContextExcludesTestFiles(t *testing.T) {
+	dir := t.TempDir()
+	prodSrc := "package bridge\n\nfunc PublicOne() {}\nfunc PublicTwo() {}\n"
+	var testFns strings.Builder
+	testFns.WriteString("package bridge\n\nimport \"testing\"\n\n")
+	for i := range 50 {
+		fmt.Fprintf(&testFns, "func TestFoo%d(t *testing.T) { _ = t }\n", i)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "bridge.go"), []byte(prodSrc), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "bridge_test.go"), []byte(testFns.String()), 0600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := analyzer.AnalyzeGoFile(filepath.Join(dir, "bridge.go"))
+	if err != nil {
+		t.Fatalf("AnalyzeGoFile: %v", err)
+	}
+	request := AnalysisRequest{
+		Repo:     dir,
+		File:     "bridge.go",
+		Language: "go",
+		TempPath: filepath.Join(dir, "bridge.go"),
+	}
+	aggregated, err := analyzeGoWithModuleContext(context.Background(), request)
+	if err != nil {
+		t.Fatalf("analyzeGoWithModuleContext: %v", err)
+	}
+	if aggregated.ModuleMetric.PublicMethods != result.ModuleMetric.PublicMethods {
+		t.Errorf("PublicMethods = %d, want %d (test files must not inflate count)",
+			aggregated.ModuleMetric.PublicMethods, result.ModuleMetric.PublicMethods)
+	}
+}
+
+func TestIsValidExtensionChar(t *testing.T) {
+	tests := []struct {
+		char rune
+		want bool
+	}{
+		{'.', true},
+		{'_', true},
+		{'-', true},
+		{'0', true},
+		{'9', true},
+		{'a', true},
+		{'z', true},
+		{'A', true},
+		{'Z', true},
+		{'/', false},
+		{' ', false},
+		{0, false},
+		{'!', false},
+	}
+	for _, tc := range tests {
+		if got := isValidExtensionChar(tc.char); got != tc.want {
+			t.Errorf("isValidExtensionChar(%q) = %v, want %v", tc.char, got, tc.want)
+		}
+	}
+}
+
+func TestCollectPeerGoFilesExcludesGeneratedAndTestFiles(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"main.go":          "package main\n",
+		"other.go":         "package main\n",
+		"gen_generated.go": "package main\n",
+		"main_test.go":     "package main\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := collectPeerGoFiles(dir, filepath.Join(dir, "main.go"))
+	if err != nil {
+		t.Fatalf("collectPeerGoFiles: %v", err)
+	}
+	for _, f := range got {
+		base := filepath.Base(f)
+		if strings.HasSuffix(base, "_generated.go") || strings.HasSuffix(base, "_test.go") {
+			t.Errorf("collectPeerGoFiles returned excluded file: %s", f)
+		}
+		if base == "main.go" {
+			t.Errorf("collectPeerGoFiles returned the proposed file itself")
+		}
+	}
+	if len(got) != 1 {
+		t.Errorf("len(got) = %d, want 1 (only other.go); got %v", len(got), got)
+	}
+}
+
+func TestAnalyzeSourceReturnsInputErrorForUnsupportedLanguage(t *testing.T) {
+	repo := t.TempDir()
+	checker := Checker{State: NewState()}
+	_, err := checker.analyzeSource(context.Background(), CheckRequest{
+		Repo:     repo,
+		File:     "main.rb",
+		Language: "ruby",
+	}, repo, filepath.Join(repo, "main.rb"))
+	if err == nil {
+		t.Fatal("expected error for unsupported language")
+	}
+	var checkErr *CheckError
+	if !errors.As(err, &checkErr) || checkErr.Kind != ErrorKindInput {
+		t.Errorf("err = %v, want CheckError with Kind=input", err)
+	}
+}
+
+func TestStartDeferredCheckPrintsReadyOnSuccess(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	patternPath := writeTestPattern(t)
+	deferredCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdout
+	os.Stdout = w
+
+	checker := Checker{
+		PatternPath: patternPath,
+		Validator: validatorFunc(func(_ context.Context, _, _ string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true}, nil
+		}),
+		State:           NewState(),
+		DeferredContext: deferredCtx,
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": AnalyzerFunc(func(_ context.Context, _ AnalysisRequest) (analyzer.AnalysisResult, error) {
+				return analyzer.AnalysisResult{
+					CALMNode:  "warmup",
+					Language:  "csharp",
+					Functions: []analyzer.FunctionMetric{{Name: "Run", CyclomaticComplexity: 1, IsPublic: true, LOC: 5}},
+				}, nil
+			}),
+		},
+	}
+	state := checker.State
+	unlockRepo, lockErr := state.LockRepo(context.Background(), repo)
+	if lockErr != nil {
+		_ = w.Close()
+		os.Stdout = old
+		t.Fatal(lockErr)
+	}
+	done := make(chan struct{})
+	config := defaultConfig()
+	checker.startDeferredCheck(
+		CheckRequest{Repo: repo, File: "src/Warmup.cs", Language: "csharp", ProposedContent: "// warmup"},
+		repo, config, func() { unlockRepo(); close(done) },
+	)
+	<-done
+
+	_ = w.Close()
+	os.Stdout = old
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	if !strings.Contains(buf.String(), "ready") {
+		t.Errorf("stdout = %q, want to contain \"ready\"", buf.String())
+	}
+}
+
+func TestCheckWithCSharpWarmGuardPassesWhileWarming(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	patternPath := writeTestPattern(t)
+	deferredCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	checker := Checker{
+		PatternPath: patternPath,
+		Validator: validatorFunc(func(_ context.Context, _, _ string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true}, nil
+		}),
+		State:           NewState(),
+		DeferredContext: deferredCtx,
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": AnalyzerFunc(func(_ context.Context, _ AnalysisRequest) (analyzer.AnalysisResult, error) {
+				return analyzer.AnalysisResult{
+					CALMNode:  "warmup",
+					Language:  "csharp",
+					Functions: []analyzer.FunctionMetric{{Name: "Run", CyclomaticComplexity: 1, IsPublic: true, LOC: 5}},
+				}, nil
+			}),
+		},
+	}
+	response, err := checker.Check(context.Background(), CheckRequest{
+		Repo:            repo,
+		File:            "src/Warmup.cs",
+		Language:        "csharp",
+		ProposedContent: "// warmup",
+	})
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	if response.Status != StatusPass {
+		t.Errorf("status = %q, want %q", response.Status, StatusPass)
+	}
+	if !response.Warming {
+		t.Error("Warming = false, want true on first csharp check")
+	}
+}
