@@ -86,7 +86,7 @@ func TestDockerComposeDeploymentContract(t *testing.T) {
 		"CALM_TLS_CA: /app/certs/ca.crt",
 		`CALM_RATE_LIMIT: "100"`,
 		`CALM_ANALYZER_TIMEOUT: "30s"`,
-		`test: ["CMD-SHELL", "if [ -n \"$CALM_TLS_CA\" ]; then curl --fail --silent --cacert \"$CALM_TLS_CA\" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1"]`,
+		`test: ["CMD-SHELL", "if [ -n \"$$CALM_TLS_CA\" ]; then curl --fail --silent --cacert \"$$CALM_TLS_CA\" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1"]`,
 		"interval: 30s",
 		"timeout: 5s",
 		"start_period: 15s",
