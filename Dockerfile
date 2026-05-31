@@ -2,6 +2,8 @@
 
 FROM golang:1.22.4-alpine3.20 AS go-build
 WORKDIR /src
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
 
 COPY go.mod go.sum ./
 RUN go mod download
@@ -9,17 +11,23 @@ RUN go mod download
 COPY cmd/ cmd/
 COPY internal/ internal/
 COPY patterns/ patterns/
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-w -s" \
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-w -s" \
     -o /out/calm-bridge ./cmd/calm-bridge
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0.301 AS dotnet-build
 WORKDIR /src/tools/roslyn-analyzer
+ARG TARGETARCH=amd64
 
 COPY tools/roslyn-analyzer/CalmRoslynAnalyzer.csproj ./
 RUN dotnet restore
 
 COPY tools/roslyn-analyzer/ ./
-RUN dotnet publish -c Release --self-contained true -r linux-x64 -o /out/roslyn
+RUN case "$TARGETARCH" in \
+        amd64) rid=linux-x64 ;; \
+        arm64) rid=linux-arm64 ;; \
+        *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
+    esac \
+    && dotnet publish -c Release --self-contained true -r "$rid" -o /out/roslyn
 
 FROM mcr.microsoft.com/dotnet/runtime-deps:8.0.6
 
