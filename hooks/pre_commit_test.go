@@ -167,6 +167,112 @@ printf '{"status":"advisory","violations":[{"message":"configured advisory"}]}\n
 	}
 }
 
+func TestPreCommitRemoteModeUsesBasenameRepoAndContentFile(t *testing.T) {
+	repo := initGitRepo(t)
+	writeFile(t, filepath.Join(repo, "remote.go"), "package staged\n")
+	runGit(t, repo, "add", "remote.go")
+	writeFile(t, filepath.Join(repo, "remote.go"), "package worktree\n")
+	logPath := filepath.Join(t.TempDir(), "calm.log")
+	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$CALM_BRIDGE_LOG"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --content-file)
+      shift
+      printf 'content=%s\n' "$(cat "$1")" >> "$CALM_BRIDGE_LOG"
+      ;;
+  esac
+  shift
+done
+printf '{"status":"pass"}\n'
+`)
+	script := hookScriptPath(t)
+
+	command := exec.Command("bash", script)
+	command.Dir = repo
+	command.Env = append(os.Environ(),
+		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"CALM_BRIDGE_ADDR=https://calm-governance.example:7890",
+		"CALM_ALLOW_REMOTE_BRIDGE=1",
+		"CALM_CLIENT_CERT=/certs/client.crt",
+		"CALM_CLIENT_KEY=/certs/client.key",
+		"CALM_CLIENT_CA=/certs/ca.crt",
+		"CALM_BRIDGE_LOG="+logPath,
+	)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("pre-commit remote mode failed: %v\n%s", err, output)
+	}
+	logContent := readFile(t, logPath)
+	for _, want := range []string{
+		"--addr https://calm-governance.example:7890",
+		"--repo " + filepath.Base(repo),
+		"--content-file ",
+		"--client-cert /certs/client.crt",
+		"--client-key /certs/client.key",
+		"--client-ca /certs/ca.crt",
+		"content=package staged",
+	} {
+		if !strings.Contains(logContent, want) {
+			t.Fatalf("calm log = %s, want %s", logContent, want)
+		}
+	}
+	if strings.Contains(logContent, "--staged") || strings.Contains(logContent, "--repo "+repo) {
+		t.Fatalf("calm log = %s, want remote mode to avoid --staged and filesystem repo path", logContent)
+	}
+}
+
+func TestPreCommitRemoteModeUsesCALMRepoNameOverride(t *testing.T) {
+	repo := initGitRepo(t)
+	writeFile(t, filepath.Join(repo, "remote.go"), "package staged\n")
+	runGit(t, repo, "add", "remote.go")
+	logPath := filepath.Join(t.TempDir(), "calm.log")
+	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$CALM_BRIDGE_LOG"
+printf '{"status":"pass"}\n'
+`)
+	script := hookScriptPath(t)
+
+	command := exec.Command("bash", script)
+	command.Dir = repo
+	command.Env = append(os.Environ(),
+		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"CALM_BRIDGE_ADDR=https://calm-governance.example:7890",
+		"CALM_ALLOW_REMOTE_BRIDGE=1",
+		"CALM_REPO_NAME=graft",
+		"CALM_BRIDGE_LOG="+logPath,
+	)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("pre-commit remote override failed: %v\n%s", err, output)
+	}
+	logContent := readFile(t, logPath)
+	if !strings.Contains(logContent, "--repo graft") {
+		t.Fatalf("calm log = %s, want CALM_REPO_NAME override", logContent)
+	}
+}
+
+func TestPreCommitRejectsRemoteHTTPBridge(t *testing.T) {
+	repo := initGitRepo(t)
+	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
+	runGit(t, repo, "add", "sample.go")
+	script := hookScriptPath(t)
+
+	command := exec.Command("bash", script)
+	command.Dir = repo
+	command.Env = append(os.Environ(),
+		"CALM_BRIDGE_ADDR=http://calm-governance.example:7890",
+		"CALM_ALLOW_REMOTE_BRIDGE=1",
+	)
+	output, err := command.CombinedOutput()
+	if err == nil {
+		t.Fatalf("pre-commit accepted remote HTTP bridge, want rejection; output=%s", output)
+	}
+	if !strings.Contains(string(output), "remote CALM_BRIDGE_ADDR must use https") {
+		t.Fatalf("output = %s, want HTTPS diagnostic", output)
+	}
+}
+
 func TestPreCommitBlocksUnknownStatus(t *testing.T) {
 	repo := initGitRepo(t)
 	writeFile(t, filepath.Join(repo, "weird.go"), "package sample\n")

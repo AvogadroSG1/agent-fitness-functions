@@ -1,0 +1,58 @@
+# Docker Compose is the local/staging deployment contract for calm-bridge.
+# Compose applies restart, mounts, read_only, tmpfs, cap_drop, and security_opt locally.
+# Resource enforcement differs by runtime: local Compose treats deploy.resources as
+# advisory compatibility metadata, while Swarm has enforced deploy.resources limits.
+# Kubernetes production deployments MUST use the Helm chart as authoritative.
+# Helm chart is authoritative for pod securityContext, resources.limits,
+# ConfigMaps, Secrets, and read-only mounts.
+services:
+  calm-bridge:
+    image: calm-bridge:${GIT_SHA:-local}
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
+    ports:
+      - "7890:7890"
+    command:
+      - --addr
+      - 0.0.0.0:7890
+      - --tls-cert
+      - /app/certs/server.crt
+      - --tls-key
+      - /app/certs/server.key
+      - --tls-ca
+      - /app/certs/ca.crt
+    volumes:
+      - ./configs:/app/configs:ro
+      - ./certs:/app/certs:ro
+      - ./caller-repos.json:/app/caller-repos.json:ro
+    environment:
+      CALM_CONFIGS_DIR: /app/configs
+      CALM_TLS_CERT: /app/certs/server.crt
+      CALM_TLS_KEY: /app/certs/server.key
+      CALM_TLS_CA: /app/certs/ca.crt
+      CALM_RATE_LIMIT: "100"
+      CALM_ANALYZER_TIMEOUT: "30s"
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -n \"$CALM_TLS_CA\" ]; then curl --fail --silent --cacert \"$CALM_TLS_CA\" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    cpus: "1.0"
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"

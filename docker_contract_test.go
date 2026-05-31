@@ -25,7 +25,7 @@ func TestDockerfileContainerContract(t *testing.T) {
 	mustContain(t, dockerfile, "USER appuser")
 	mustContain(t, dockerfile, "ENTRYPOINT [\"/app/calm-bridge\", \"serve\"]")
 	mustContain(t, dockerfile, "HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3")
-	mustContain(t, dockerfile, "python3 -m pip install --no-cache-dir --break-system-packages -r /tmp/requirements.txt")
+	mustContain(t, dockerfile, "python3 -m pip install --no-cache-dir --break-system-packages --require-hashes -r /tmp/requirements.lock")
 
 	userIndex := strings.Index(dockerfile, "useradd -u 1001")
 	copyChownIndex := strings.Index(dockerfile, "COPY --from=go-build --chown=appuser:appuser")
@@ -57,6 +57,74 @@ func TestRequirementsPinsRadon(t *testing.T) {
 	}
 }
 
+func TestDockerComposeDeploymentContract(t *testing.T) {
+	content, err := os.ReadFile("docker-compose.yml")
+	if err != nil {
+		t.Fatalf("read docker-compose.yml: %v", err)
+	}
+	compose := string(content)
+
+	for _, needle := range []string{
+		"calm-bridge:",
+		"image: calm-bridge:${GIT_SHA:-local}",
+		"context: .",
+		"GIT_SHA: ${GIT_SHA:-dev}",
+		"BUILD_DATE: ${BUILD_DATE:-unknown}",
+		`"7890:7890"`,
+		"--tls-cert",
+		"/app/certs/server.crt",
+		"--tls-key",
+		"/app/certs/server.key",
+		"--tls-ca",
+		"/app/certs/ca.crt",
+		"./configs:/app/configs:ro",
+		"./certs:/app/certs:ro",
+		"./caller-repos.json:/app/caller-repos.json:ro",
+		"CALM_CONFIGS_DIR: /app/configs",
+		"CALM_TLS_CERT: /app/certs/server.crt",
+		"CALM_TLS_KEY: /app/certs/server.key",
+		"CALM_TLS_CA: /app/certs/ca.crt",
+		`CALM_RATE_LIMIT: "100"`,
+		`CALM_ANALYZER_TIMEOUT: "30s"`,
+		`test: ["CMD-SHELL", "if [ -n \"$CALM_TLS_CA\" ]; then curl --fail --silent --cacert \"$CALM_TLS_CA\" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1"]`,
+		"interval: 30s",
+		"timeout: 5s",
+		"start_period: 15s",
+		"retries: 3",
+		"restart: unless-stopped",
+		"no-new-privileges:true",
+		"read_only: true",
+		"/tmp:size=256m",
+		"cap_drop:",
+		"- ALL",
+		"memory: 1g",
+		`cpus: "1.0"`,
+		"Compose",
+		"advisory",
+		"Swarm",
+		"enforced",
+		"Kubernetes",
+		"Helm chart is authoritative",
+	} {
+		mustContain(t, compose, needle)
+	}
+}
+
+func TestRequirementsLockPinsTransitiveDependenciesWithHashes(t *testing.T) {
+	content, err := os.ReadFile("requirements.lock")
+	if err != nil {
+		t.Fatalf("read requirements.lock: %v", err)
+	}
+	lock := string(content)
+
+	for _, requirement := range []string{"colorama==", "mando==", "radon==6.0.1", "six=="} {
+		mustContain(t, lock, requirement)
+		if !requirementHasHash(lock, requirement) {
+			t.Fatalf("requirements.lock entry %q must include at least one --hash=sha256 value", requirement)
+		}
+	}
+}
+
 func linesSet(content string) map[string]bool {
 	result := map[string]bool{}
 	for _, line := range strings.Split(content, "\n") {
@@ -68,9 +136,23 @@ func linesSet(content string) map[string]bool {
 	return result
 }
 
+func requirementHasHash(lock, requirement string) bool {
+	start := strings.Index(lock, requirement)
+	if start == -1 {
+		return false
+	}
+	nextRequirement := len(lock)
+	for _, marker := range []string{"\ncolorama==", "\nmando==", "\nradon==", "\nsix=="} {
+		if next := strings.Index(lock[start+1:], marker); next != -1 && start+1+next < nextRequirement {
+			nextRequirement = start + 1 + next
+		}
+	}
+	return strings.Contains(lock[start:nextRequirement], "--hash=sha256:")
+}
+
 func mustContain(t *testing.T, content, needle string) {
 	t.Helper()
 	if !strings.Contains(content, needle) {
-		t.Fatalf("Dockerfile missing %q", needle)
+		t.Fatalf("content missing %q", needle)
 	}
 }

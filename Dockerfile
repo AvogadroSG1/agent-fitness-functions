@@ -34,15 +34,15 @@ WORKDIR /app
 RUN groupadd -g 1001 appuser \
     && useradd -u 1001 -g appuser -s /usr/sbin/nologin -M appuser
 
-COPY requirements.txt /tmp/requirements.txt
+COPY requirements.lock /tmp/requirements.lock
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
         ca-certificates \
         curl \
         python3 \
         python3-pip \
-    && python3 -m pip install --no-cache-dir --break-system-packages -r /tmp/requirements.txt \
-    && rm -f /tmp/requirements.txt \
+    && python3 -m pip install --no-cache-dir --break-system-packages --require-hashes -r /tmp/requirements.lock \
+    && rm -f /tmp/requirements.lock \
     && find /var/lib/apt/lists -mindepth 1 -delete
 
 COPY --from=go-build --chown=appuser:appuser /out/calm-bridge /app/calm-bridge
@@ -52,7 +52,7 @@ VOLUME ["/app/configs"]
 EXPOSE 7890
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl --fail --silent http://127.0.0.1:7890/health || exit 1
+    CMD if [ -n "$CALM_TLS_CA" ]; then curl --fail --silent --cacert "$CALM_TLS_CA" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1
 
 USER appuser
 ENTRYPOINT ["/app/calm-bridge", "serve"]
