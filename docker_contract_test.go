@@ -15,12 +15,17 @@ func TestDockerfileContainerContract(t *testing.T) {
 	mustContain(t, dockerfile, "FROM golang:1.22.4-alpine3.20 AS go-build")
 	mustContain(t, dockerfile, "FROM mcr.microsoft.com/dotnet/sdk:8.0.301 AS dotnet-build")
 	mustContain(t, dockerfile, "FROM mcr.microsoft.com/dotnet/runtime-deps:8.0.6")
-	mustContain(t, dockerfile, "ARG TARGETOS=linux")
+	mustContain(t, dockerfile, "ARG TARGETOS")
 	mustContain(t, dockerfile, "ARG TARGETARCH")
+	mustContain(t, dockerfile, "${TARGETOS:?TARGETOS is required}")
+	mustContain(t, dockerfile, "${TARGETARCH:?TARGETARCH is required}")
 	mustContain(t, dockerfile, "GOOS=$TARGETOS GOARCH=$TARGETARCH")
 	mustContain(t, dockerfile, "linux-x64")
 	mustContain(t, dockerfile, "linux-arm64")
 	mustContain(t, dockerfile, "dotnet publish -c Release --self-contained true -r \"$rid\"")
+	mustNotContain(t, dockerfile, "ARG TARGETARCH=amd64")
+	mustNotContain(t, dockerfile, "GOARCH=amd64")
+	mustNotContain(t, dockerfile, " -r linux-x64 ")
 	mustContain(t, dockerfile, "ARG GIT_SHA=dev")
 	mustContain(t, dockerfile, "ARG BUILD_DATE=unknown")
 	mustContain(t, dockerfile, "org.opencontainers.image.revision=$GIT_SHA")
@@ -210,5 +215,12 @@ func mustContain(t *testing.T, content, needle string) {
 	t.Helper()
 	if !strings.Contains(content, needle) {
 		t.Fatalf("content missing %q", needle)
+	}
+}
+
+func mustNotContain(t *testing.T, content, needle string) {
+	t.Helper()
+	if strings.Contains(content, needle) {
+		t.Fatalf("content unexpectedly contains %q", needle)
 	}
 }
