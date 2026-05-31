@@ -18,9 +18,11 @@ import (
 
 func TestCheckerWithDefaultRoslynAnalyzerDefersThenBlocksCSharpFixture(t *testing.T) {
 	ensureDefaultRoslynAnalyzer(t)
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")

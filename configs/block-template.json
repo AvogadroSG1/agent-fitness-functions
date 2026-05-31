@@ -1,12 +1,5 @@
 {
-  "version": "0.1.0",
-  "repo": "",
-  "language": "",
   "enforcement-mode": "block",
-  "daemon": {
-    "host": "localhost",
-    "port": 7890,
-    "startup-timeout-ms": 500
-  },
+  "enforcement-on-error": "block",
   "fitness-functions": {}
 }

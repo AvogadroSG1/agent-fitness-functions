@@ -5,6 +5,14 @@ set -euo pipefail
 repo=$(git rev-parse --show-toplevel)
 calm_bridge=${CALM_BRIDGE_BIN:-calm-bridge}
 addr=${CALM_BRIDGE_ADDR:-}
+client_cert=${CALM_CLIENT_CERT:-}
+client_key=${CALM_CLIENT_KEY:-}
+client_ca=${CALM_CLIENT_CA:-}
+repo_name=${CALM_REPO_NAME:-}
+repo_arg=$repo
+if [[ -n "$repo_name" ]]; then
+  repo_arg=$repo_name
+fi
 blocked=0
 
 bridge_addr_is_loopback() {
@@ -48,9 +56,18 @@ while IFS= read -r -d '' file; do
     continue
   fi
 
-  args=(check --file "$file" --repo "$repo" --staged --language "$language")
+  args=(check --file "$file" --repo "$repo_arg" --staged --language "$language")
   if [[ -n "$addr" ]]; then
     args+=(--addr "$addr")
+  fi
+  if [[ -n "$client_cert" ]]; then
+    args+=(--client-cert "$client_cert")
+  fi
+  if [[ -n "$client_key" ]]; then
+    args+=(--client-key "$client_key")
+  fi
+  if [[ -n "$client_ca" ]]; then
+    args+=(--client-ca "$client_ca")
   fi
 
   if ! result=$("$calm_bridge" "${args[@]}"); then

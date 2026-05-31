@@ -1,0 +1,59 @@
+# syntax=docker/dockerfile:1
+
+FROM golang:1.22.4-alpine3.20 AS go-build
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY cmd/ cmd/
+COPY internal/ internal/
+COPY patterns/ patterns/
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-w -s" \
+    -o /out/calm-bridge ./cmd/calm-bridge
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0.301 AS dotnet-build
+WORKDIR /src/tools/roslyn-analyzer
+
+COPY tools/roslyn-analyzer/CalmRoslynAnalyzer.csproj ./
+RUN dotnet restore
+
+COPY tools/roslyn-analyzer/ ./
+RUN dotnet publish -c Release --self-contained true -r linux-x64 -o /out/roslyn
+
+FROM mcr.microsoft.com/dotnet/runtime-deps:8.0.6
+
+ARG GIT_SHA=dev
+ARG BUILD_DATE=unknown
+
+LABEL org.opencontainers.image.revision=$GIT_SHA \
+      org.opencontainers.image.created=$BUILD_DATE
+
+WORKDIR /app
+
+RUN groupadd -g 1001 appuser \
+    && useradd -u 1001 -g appuser -s /usr/sbin/nologin -M appuser
+
+COPY requirements.txt /tmp/requirements.txt
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        ca-certificates \
+        curl \
+        python3 \
+        python3-pip \
+    && python3 -m pip install --no-cache-dir --break-system-packages -r /tmp/requirements.txt \
+    && rm -f /tmp/requirements.txt \
+    && find /var/lib/apt/lists -mindepth 1 -delete
+
+COPY --from=go-build --chown=appuser:appuser /out/calm-bridge /app/calm-bridge
+COPY --from=dotnet-build --chown=appuser:appuser /out/roslyn/ /app/tools/roslyn-analyzer/bin/Release/net8.0/
+
+VOLUME ["/app/configs"]
+EXPOSE 7890
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl --fail --silent http://127.0.0.1:7890/health || exit 1
+
+USER appuser
+ENTRYPOINT ["/app/calm-bridge", "serve"]
+CMD ["--addr", "0.0.0.0:7890"]

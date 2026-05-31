@@ -22,8 +22,9 @@ import (
 )
 
 func TestHandlerCheckRunsGoAnalyzerCALMAndBlocksCyclomaticComplexityViolation(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	patternPath := writeTestPattern(t)
 	var called bool
 	validator := validatorFunc(func(_ context.Context, architecturePath, patternPathArg string) (calm.ValidationResult, error) {
@@ -41,6 +42,7 @@ func TestHandlerCheckRunsGoAnalyzerCALMAndBlocksCyclomaticComplexityViolation(t 
 		return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
 	})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: patternPath,
 		Validator:   validator,
 	}, nil))
@@ -101,9 +103,11 @@ func TestHandlerCheckRunsGoAnalyzerCALMAndBlocksCyclomaticComplexityViolation(t 
 
 func TestHandlerCheckCleansTemporaryFiles(t *testing.T) {
 	tempDir := t.TempDir()
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		TempDir:     tempDir,
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
@@ -135,9 +139,11 @@ func TestHandlerCheckCleansTemporaryFiles(t *testing.T) {
 }
 
 func TestHandlerCheckReturnsServiceUnavailableForCALMInfrastructureFailure(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: false, Output: ""}, errors.New("calm executable missing")
@@ -168,9 +174,11 @@ func TestHandlerCheckReturnsServiceUnavailableForCALMInfrastructureFailure(t *te
 }
 
 func TestHandlerCheckReturnsBadRequestForUnsupportedLanguage(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 	}, nil))
 	defer server.Close()
@@ -198,7 +206,9 @@ func TestHandlerCheckReturnsBadRequestForUnsupportedLanguage(t *testing.T) {
 }
 
 func TestHandlerCheckReturnsBadRequestForTrailingJSON(t *testing.T) {
+	store := newTestConfigStore(t)
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 	}, nil))
 	defer server.Close()
@@ -219,9 +229,11 @@ func TestHandlerCheckReturnsBadRequestForTrailingJSON(t *testing.T) {
 }
 
 func TestHandlerCheckReturnsBadRequestForInvalidFileExtension(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 	}, nil))
 	defer server.Close()
@@ -246,9 +258,11 @@ func TestHandlerCheckReturnsBadRequestForInvalidFileExtension(t *testing.T) {
 }
 
 func TestHandlerCheckRejectsNilAnalyzerWithoutPanic(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers:   map[string]SourceAnalyzer{"go": AnalyzerFunc(nil)},
 	}, nil))
@@ -270,10 +284,12 @@ func TestHandlerCheckRejectsNilAnalyzerWithoutPanic(t *testing.T) {
 }
 
 func TestHandlerCheckRejectsTypedNilAnalyzerWithoutPanic(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	var typedNil *typedNilAnalyzer
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers:   map[string]SourceAnalyzer{"go": typedNil},
 	}, nil))
@@ -295,9 +311,11 @@ func TestHandlerCheckRejectsTypedNilAnalyzerWithoutPanic(t *testing.T) {
 }
 
 func TestHandlerCheckReturnsServiceUnavailableForAnalyzerCancellation(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"go": AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
@@ -323,10 +341,12 @@ func TestHandlerCheckReturnsServiceUnavailableForAnalyzerCancellation(t *testing
 }
 
 func TestHandlerCheckRejectsTypedNilValidatorWithoutPanic(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	var typedNil *typedNilValidator
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Validator:   typedNil,
 	}, nil))
@@ -348,10 +368,12 @@ func TestHandlerCheckRejectsTypedNilValidatorWithoutPanic(t *testing.T) {
 }
 
 func TestHandlerCheckPassesCleanGoContent(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	patternPath := writeTestPattern(t)
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: patternPath,
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: true, Output: `{"hasErrors":false}`}, nil
@@ -379,9 +401,11 @@ func TestHandlerCheckPassesCleanGoContent(t *testing.T) {
 }
 
 func TestHandlerCheckRunsPythonAnalyzerAndRoutesAdvisoryViolation(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"python": fakePythonAnalyzer(pythonAnalysisWithComplexFunction("build_config", 10)),
@@ -406,9 +430,11 @@ func TestHandlerCheckRunsPythonAnalyzerAndRoutesAdvisoryViolation(t *testing.T) 
 }
 
 func TestHandlerCheckPassesCleanPythonContent(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"python": fakePythonAnalyzer(analyzer.AnalysisResult{Language: "python"}),
@@ -426,9 +452,11 @@ func TestHandlerCheckPassesCleanPythonContent(t *testing.T) {
 }
 
 func TestHandlerCheckBlocksInterfaceWidthViolation(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"interface-width": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"interface-width": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"go": fakeGoAnalyzer(deepShallowAnalysis("go", 21, 100)),
@@ -453,9 +481,11 @@ func TestHandlerCheckBlocksInterfaceWidthViolation(t *testing.T) {
 }
 
 func TestHandlerCheckBlocksImplementationDepthViolation(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"implementation-depth": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"implementation-depth": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"go": fakeGoAnalyzer(deepShallowAnalysis("go", 4, 2)),
@@ -480,9 +510,11 @@ func TestHandlerCheckBlocksImplementationDepthViolation(t *testing.T) {
 }
 
 func TestHandlerCheckPassesCalibratedImplementationDepthAtTwoLOCPerMethod(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"implementation-depth": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"implementation-depth": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"go": fakeGoAnalyzer(deepShallowAnalysis("go", 4, 8)),
@@ -500,17 +532,23 @@ func TestHandlerCheckPassesCalibratedImplementationDepthAtTwoLOCPerMethod(t *tes
 }
 
 func TestHandlerCheckAggregatesRealGoPackageForInterfaceWidth(t *testing.T) {
-	repo := t.TempDir()
-	packageDir := filepath.Join(repo, "internal", "wide")
+	workspace := t.TempDir()
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	repoDir := filepath.Join(workspace, repo)
+	packageDir := filepath.Join(repoDir, "internal", "wide")
 	if err := os.MkdirAll(packageDir, 0o755); err != nil {
 		t.Fatalf("mkdir package: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(packageDir, "existing.go"), []byte(goExportedFunctionsSource("Existing", 20)), 0o644); err != nil {
 		t.Fatalf("write existing go: %v", err)
 	}
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"interface-width": true})
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"interface-width": true})
+	patternPath := writeTestPattern(t)
+	withWorkingDir(t, workspace)
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
-		PatternPath: writeTestPattern(t),
+		ConfigStore: store,
+		PatternPath: patternPath,
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
 		}),
@@ -546,9 +584,11 @@ func TestHandlerCheckTogglesDeepShallowFitnessFunctionsIndependently(t *testing.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := t.TempDir()
-			writeRepoConfig(t, repo, EnforcementBlock, tt.fitness)
+			repo := "repo-one"
+			store := newTestConfigStore(t)
+			writeRepoConfig(t, store, repo, EnforcementBlock, tt.fitness)
 			server := httptest.NewServer(NewHandlerWithChecker(Checker{
+				ConfigStore: store,
 				PatternPath: writeTestPattern(t),
 				Analyzers: map[string]SourceAnalyzer{
 					"go": fakeGoAnalyzer(deepShallowAnalysis("go", 21, 10)),
@@ -580,9 +620,11 @@ func TestHandlerCheckAppliesDeepShallowRulesAcrossLanguages(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := t.TempDir()
-			writeRepoConfig(t, repo, EnforcementAdvisory, map[string]bool{"interface-width": true})
+			repo := "repo-one"
+			store := newTestConfigStore(t)
+			writeRepoConfig(t, store, repo, EnforcementAdvisory, map[string]bool{"interface-width": true})
 			server := httptest.NewServer(NewHandlerWithChecker(Checker{
+				ConfigStore: store,
 				PatternPath: writeTestPattern(t),
 				Analyzers:   map[string]SourceAnalyzer{tt.language: tt.analyzer},
 				Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
@@ -612,9 +654,11 @@ func TestHandlerCheckAppliesImplementationDepthAcrossLanguages(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := t.TempDir()
-			writeRepoConfig(t, repo, EnforcementAdvisory, map[string]bool{"implementation-depth": true})
+			repo := "repo-one"
+			store := newTestConfigStore(t)
+			writeRepoConfig(t, store, repo, EnforcementAdvisory, map[string]bool{"implementation-depth": true})
 			server := httptest.NewServer(NewHandlerWithChecker(Checker{
+				ConfigStore: store,
 				PatternPath: writeTestPattern(t),
 				Analyzers:   map[string]SourceAnalyzer{tt.language: tt.analyzer},
 				Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
@@ -632,9 +676,11 @@ func TestHandlerCheckAppliesImplementationDepthAcrossLanguages(t *testing.T) {
 }
 
 func TestHandlerCheckBlocksLogicDensityViolation(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"logic-density": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"logic-density": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"go": fakeGoAnalyzer(analyzer.AnalysisResult{
@@ -663,9 +709,11 @@ func TestHandlerCheckBlocksLogicDensityViolation(t *testing.T) {
 }
 
 func TestHandlerCheckBlocksDependencyDisciplineViolationWithUnusedImports(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"dependency-discipline": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"dependency-discipline": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"go": fakeGoAnalyzer(analyzer.AnalysisResult{
@@ -701,9 +749,11 @@ func TestHandlerCheckBlocksDependencyDisciplineViolationWithUnusedImports(t *tes
 }
 
 func TestHandlerCheckBlocksRealGoBoilerplateForLogicDensity(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"logic-density": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"logic-density": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 	}, nil))
 	defer server.Close()
@@ -718,9 +768,11 @@ func TestHandlerCheckBlocksRealGoBoilerplateForLogicDensity(t *testing.T) {
 }
 
 func TestHandlerCheckBlocksRealGoUnusedImportsForDependencyDiscipline(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"dependency-discipline": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"dependency-discipline": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 	}, nil))
 	defer server.Close()
@@ -741,12 +793,14 @@ func TestHandlerCheckBlocksRealGoUnusedImportsForDependencyDiscipline(t *testing
 }
 
 func TestHandlerCheckRespectsDisabledAISlopFitnessFunctions(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{
 		"logic-density":         false,
 		"dependency-discipline": false,
 	})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"go": fakeGoAnalyzer(analyzer.AnalysisResult{
@@ -791,9 +845,11 @@ func TestHandlerCheckTogglesAISlopFitnessFunctionsIndependently(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := t.TempDir()
-			writeRepoConfig(t, repo, EnforcementBlock, tt.fitness)
+			repo := "repo-one"
+			store := newTestConfigStore(t)
+			writeRepoConfig(t, store, repo, EnforcementBlock, tt.fitness)
 			server := httptest.NewServer(NewHandlerWithChecker(Checker{
+				ConfigStore: store,
 				PatternPath: writeTestPattern(t),
 				Analyzers: map[string]SourceAnalyzer{
 					"go": fakeGoAnalyzer(analyzer.AnalysisResult{
@@ -822,9 +878,11 @@ func TestHandlerCheckTogglesAISlopFitnessFunctionsIndependently(t *testing.T) {
 }
 
 func TestHandlerCheckIgnoresZeroDenominatorAISlopMetrics(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"logic-density": true, "dependency-discipline": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"logic-density": true, "dependency-discipline": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"go": fakeGoAnalyzer(analyzer.AnalysisResult{
@@ -846,9 +904,11 @@ func TestHandlerCheckIgnoresZeroDenominatorAISlopMetrics(t *testing.T) {
 }
 
 func TestHandlerCheckReturnsServiceUnavailableForMissingRadon(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"python": AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
@@ -878,11 +938,13 @@ func TestHandlerCheckReturnsServiceUnavailableForMissingRadon(t *testing.T) {
 }
 
 func TestHandlerCheckReturnsServiceUnavailableForCSharpAnalyzerFailure(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	state := NewState()
 	state.CompleteWarmup("csharp")
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		State:       state,
 		Analyzers: map[string]SourceAnalyzer{
@@ -913,10 +975,12 @@ func TestHandlerCheckReturnsServiceUnavailableForCSharpAnalyzerFailure(t *testin
 }
 
 func TestHandlerCheckCSharpDeferredAnalyzerFailureSurfacesOnNextCall(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	failed := make(chan struct{})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"csharp": AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
@@ -956,10 +1020,12 @@ func TestHandlerCheckCSharpDeferredAnalyzerFailureSurfacesOnNextCall(t *testing.
 }
 
 func TestHandlerCheckCSharpDeferredPanicSurfacesOnNextCall(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	started := make(chan struct{})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"csharp": AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
@@ -999,8 +1065,9 @@ func TestHandlerCheckCSharpDeferredPanicSurfacesOnNextCall(t *testing.T) {
 }
 
 func TestHandlerCheckCSharpWarmupFailurePrecedesOutstandingViolation(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	state := NewState()
 	state.FailWarmup("csharp", "running csharp analyzer: boom")
 	state.ReplaceFile(repo, "src/Existing.cs", []Violation{{
@@ -1013,6 +1080,7 @@ func TestHandlerCheckCSharpWarmupFailurePrecedesOutstandingViolation(t *testing.
 		Message:         "existing violation",
 	}})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		State:       state,
 	}, nil))
@@ -1038,12 +1106,14 @@ func TestHandlerCheckCSharpWarmupFailurePrecedesOutstandingViolation(t *testing.
 }
 
 func TestHandlerCheckCSharpColdDefersAnalysisAndBlocksNextCall(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	started := make(chan AnalysisRequest, 1)
 	release := make(chan struct{})
 	var calls atomic.Int32
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"csharp": AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
@@ -1097,8 +1167,9 @@ func TestHandlerCheckCSharpColdDefersAnalysisAndBlocksNextCall(t *testing.T) {
 }
 
 func TestHandlerCheckCSharpColdBlocksExistingOutstandingViolation(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	state := NewState()
 	state.ReplaceFile(repo, "src/Existing.cs", []Violation{{
 		FitnessFunction: "cyclomatic_complexity",
@@ -1111,6 +1182,7 @@ func TestHandlerCheckCSharpColdBlocksExistingOutstandingViolation(t *testing.T) 
 	}})
 	var calls atomic.Int32
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		State:       state,
 		Analyzers: map[string]SourceAnalyzer{
@@ -1132,8 +1204,9 @@ func TestHandlerCheckCSharpColdBlocksExistingOutstandingViolation(t *testing.T) 
 }
 
 func TestCheckerCheckCSharpCanceledWarmupLockDoesNotLeaveLanguageRunning(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	state := NewState()
 	unlock, err := state.LockRepo(context.Background(), repo)
 	if err != nil {
@@ -1141,6 +1214,7 @@ func TestCheckerCheckCSharpCanceledWarmupLockDoesNotLeaveLanguageRunning(t *test
 	}
 	defer unlock()
 	checker := Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		State:       state,
 		Analyzers: map[string]SourceAnalyzer{
@@ -1169,8 +1243,9 @@ func TestCheckerCheckCSharpCanceledWarmupLockDoesNotLeaveLanguageRunning(t *test
 }
 
 func TestHandlerCheckCSharpColdAdvisoryClearsStaleBlockState(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
 	state := NewState()
 	state.ReplaceFile(repo, "src/Existing.cs", []Violation{{
 		FitnessFunction: "cyclomatic_complexity",
@@ -1182,6 +1257,7 @@ func TestHandlerCheckCSharpColdAdvisoryClearsStaleBlockState(t *testing.T) {
 		Message:         "existing violation",
 	}})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		State:       state,
 		Analyzers: map[string]SourceAnalyzer{
@@ -1203,9 +1279,11 @@ func TestHandlerCheckCSharpColdAdvisoryClearsStaleBlockState(t *testing.T) {
 }
 
 func TestHandlerCheckCSharpColdAdvisoryReturnsGuidanceSynchronously(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"csharp": fakeCSharpAnalyzer(csharpAnalysisWithComplexFunction("Render", 10)),
@@ -1223,13 +1301,15 @@ func TestHandlerCheckCSharpColdAdvisoryReturnsGuidanceSynchronously(t *testing.T
 }
 
 func TestHandlerCheckCSharpSecondColdCallAnalyzesSynchronouslyWhileWarmupRuns(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	firstStarted := make(chan struct{})
 	releaseFirst := make(chan struct{})
 	secondStarted := make(chan struct{})
 	releaseSecond := make(chan struct{})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Analyzers: map[string]SourceAnalyzer{
 			"csharp": AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
@@ -1303,14 +1383,16 @@ func TestHandlerCheckCSharpSecondColdCallAnalyzesSynchronouslyWhileWarmupRuns(t 
 }
 
 func TestHandlerCheckCSharpWarmPathIsSynchronous(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	state := NewState()
 	firstAnalyzed := make(chan struct{})
 	secondStarted := make(chan struct{})
 	releaseSecond := make(chan struct{})
 	var calls atomic.Int32
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		State:       state,
 		Analyzers: map[string]SourceAnalyzer{
@@ -1385,9 +1467,11 @@ func TestHandlerCheckRoutesViolationsByEnforcementMode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := t.TempDir()
-			writeRepoConfig(t, repo, tt.mode, map[string]bool{"cyclomatic-complexity": true})
+			repo := "repo-one"
+			store := newTestConfigStore(t)
+			writeRepoConfig(t, store, repo, tt.mode, map[string]bool{"cyclomatic-complexity": true})
 			server := httptest.NewServer(NewHandlerWithChecker(Checker{
+				ConfigStore: store,
 				PatternPath: writeTestPattern(t),
 				Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 					return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
@@ -1404,10 +1488,12 @@ func TestHandlerCheckRoutesViolationsByEnforcementMode(t *testing.T) {
 }
 
 func TestHandlerCheckOffModeSkipsAnalysis(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementOff, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementOff, map[string]bool{"cyclomatic-complexity": true})
 	called := false
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: "/does/not/exist.json",
 		Analyzers: map[string]SourceAnalyzer{
 			"go": AnalyzerFunc(func(context.Context, AnalysisRequest) (analyzer.AnalysisResult, error) {
@@ -1425,9 +1511,11 @@ func TestHandlerCheckOffModeSkipsAnalysis(t *testing.T) {
 }
 
 func TestHandlerCheckAccumulatesOutstandingViolationsUntilFilePasses(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
@@ -1454,9 +1542,11 @@ func TestHandlerCheckAccumulatesOutstandingViolationsUntilFilePasses(t *testing.
 }
 
 func TestHandlerCheckAccumulatesMultipleOutstandingViolationsAndClearsIndependently(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
@@ -1487,9 +1577,11 @@ func TestHandlerCheckAccumulatesMultipleOutstandingViolationsAndClearsIndependen
 }
 
 func TestHandlerCheckClearsBlockStateWhenModeChangesToAdvisoryOrOff(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
@@ -1498,7 +1590,7 @@ func TestHandlerCheckClearsBlockStateWhenModeChangesToAdvisoryOrOff(t *testing.T
 	defer server.Close()
 
 	_ = postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
-	writeRepoConfig(t, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
+	writeRepoConfig(t, store, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
 	advisory := postCheck(t, server.URL, repo, "internal/parser/parser.go", cleanGoSource())
 	if advisory.Status != StatusPass {
 		t.Fatalf("advisory clean response = %+v, want pass and stale state cleared", advisory)
@@ -1507,7 +1599,7 @@ func TestHandlerCheckClearsBlockStateWhenModeChangesToAdvisoryOrOff(t *testing.T
 		t.Fatalf("state after advisory = %+v, want stale state cleared", state)
 	}
 	_ = postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
-	writeRepoConfig(t, repo, EnforcementOff, map[string]bool{"cyclomatic-complexity": true})
+	writeRepoConfig(t, store, repo, EnforcementOff, map[string]bool{"cyclomatic-complexity": true})
 	off := postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
 	if off.Status != StatusPass {
 		t.Fatalf("off response = %+v, want pass", off)
@@ -1518,9 +1610,11 @@ func TestHandlerCheckClearsBlockStateWhenModeChangesToAdvisoryOrOff(t *testing.T
 }
 
 func TestHandlerCheckUsesCanonicalRepoPathForOutstandingState(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
@@ -1544,9 +1638,11 @@ func TestHandlerCheckUsesCanonicalRepoPathForOutstandingState(t *testing.T) {
 }
 
 func TestCheckerDirectUsagePreservesStateAcrossCalls(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	checker := Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		State:       NewState(),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
@@ -1581,8 +1677,9 @@ func TestCheckerDirectUsagePreservesStateAcrossCalls(t *testing.T) {
 }
 
 func TestCheckerDirectUsageRequiresConfiguredState(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	checker := Checker{PatternPath: writeTestPattern(t)}
 
 	_, err := checker.Check(context.Background(), CheckRequest{
@@ -1597,9 +1694,11 @@ func TestCheckerDirectUsageRequiresConfiguredState(t *testing.T) {
 }
 
 func TestCheckerDirectUsageInitializesStateOnceForConcurrentCalls(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	checker := Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		State:       NewState(),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
@@ -1630,9 +1729,11 @@ func TestCheckerDirectUsageInitializesStateOnceForConcurrentCalls(t *testing.T) 
 }
 
 func TestCheckerCheckRespectsCancellationWhileWaitingForRepoLock(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	checker := Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		State:       NewState(),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
@@ -1677,9 +1778,11 @@ func TestStateLockRepoReleasesUnusedLockEntries(t *testing.T) {
 }
 
 func TestHandlerStateReturnsOutstandingViolationsForRepo(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
@@ -1695,9 +1798,11 @@ func TestHandlerStateReturnsOutstandingViolationsForRepo(t *testing.T) {
 }
 
 func TestHandlerCheckRespectsDisabledFitnessFunctions(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": false})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": false})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
@@ -1712,9 +1817,11 @@ func TestHandlerCheckRespectsDisabledFitnessFunctions(t *testing.T) {
 }
 
 func TestHandlerCheckDefaultsMissingFitnessFunctionKeysToEnabled(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: false, Output: `{"hasErrors":true}`}, errors.New("calm validate failed")
@@ -1729,9 +1836,11 @@ func TestHandlerCheckDefaultsMissingFitnessFunctionKeysToEnabled(t *testing.T) {
 }
 
 func TestHandlerCheckRejectsUnknownFitnessFunctionKeys(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexityy": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexityy": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 	}, nil))
 	defer server.Close()
@@ -1746,13 +1855,15 @@ func TestHandlerCheckRejectsUnknownFitnessFunctionKeys(t *testing.T) {
 		t.Fatalf("POST /check: %v", err)
 	}
 	defer response.Body.Close()
-	if response.StatusCode != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400", response.StatusCode)
+	if response.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", response.StatusCode)
 	}
 }
 
 func TestHandlerCheckRejectsInvalidRepositoryPath(t *testing.T) {
+	store := newTestConfigStore(t)
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
 	}, nil))
 	defer server.Close()
@@ -1804,19 +1915,65 @@ func jsonString(value string) string {
 	return string(content)
 }
 
-func writeRepoConfig(t *testing.T, repo string, mode EnforcementMode, fitness map[string]bool) {
+func newTestConfigStore(t *testing.T) *ConfigStore {
 	t.Helper()
-	dir := filepath.Join(repo, ".calm")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("mkdir config dir: %v", err)
+	return &ConfigStore{
+		entries:  map[string]ConfigEntry{},
+		dir:      t.TempDir(),
+		readFile: os.ReadFile,
 	}
+}
+
+func writeRepoConfig(t *testing.T, store *ConfigStore, repo string, mode EnforcementMode, fitness map[string]bool) {
+	t.Helper()
 	content, err := json.Marshal(Config{EnforcementMode: mode, FitnessFunctions: fitness})
 	if err != nil {
 		t.Fatalf("marshal config: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "config.json"), content, 0o644); err != nil {
+	writeRepoConfigContent(t, store, repo, string(content))
+}
+
+func writeInvalidRepoConfig(t *testing.T, store *ConfigStore, repo, content string) {
+	t.Helper()
+	writeRepoConfigContent(t, store, repo, content)
+}
+
+func writeRepoConfigContent(t *testing.T, store *ConfigStore, repo, content string) {
+	t.Helper()
+	if store == nil {
+		t.Fatal("config store is nil")
+	}
+	repoName, err := validateRepoName(repo)
+	if err != nil {
+		t.Fatalf("validate repo name %q: %v", repo, err)
+	}
+	repoDir := filepath.Join(store.dir, repoName)
+	if err := os.MkdirAll(repoDir, 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	path := filepath.Join(repoDir, "config.json")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
+	if err := store.reloadRepo(context.Background(), repoName); err != nil {
+		t.Fatalf("reload config %q: %v", repoName, err)
+	}
+}
+
+func withWorkingDir(t *testing.T, dir string) {
+	t.Helper()
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir %q: %v", dir, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(oldDir); err != nil {
+			t.Fatalf("restore dir %q: %v", oldDir, err)
+		}
+	})
 }
 
 func postCheck(t *testing.T, serverURL, repo, file, source string) CheckResponse {
@@ -2317,8 +2474,9 @@ func TestAnalyzeSourceReturnsInputErrorForUnsupportedLanguage(t *testing.T) {
 }
 
 func TestStartDeferredCheckPrintsReadyOnSuccess(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	patternPath := writeTestPattern(t)
 	deferredCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -2331,6 +2489,7 @@ func TestStartDeferredCheckPrintsReadyOnSuccess(t *testing.T) {
 	os.Stdout = w
 
 	checker := Checker{
+		ConfigStore: store,
 		PatternPath: patternPath,
 		Validator: validatorFunc(func(_ context.Context, _, _ string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: true}, nil
@@ -2372,12 +2531,14 @@ func TestStartDeferredCheckPrintsReadyOnSuccess(t *testing.T) {
 }
 
 func TestCheckWithCSharpWarmGuardPassesWhileWarming(t *testing.T) {
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	patternPath := writeTestPattern(t)
 	deferredCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	checker := Checker{
+		ConfigStore: store,
 		PatternPath: patternPath,
 		Validator: validatorFunc(func(_ context.Context, _, _ string) (calm.ValidationResult, error) {
 			return calm.ValidationResult{Valid: true}, nil
