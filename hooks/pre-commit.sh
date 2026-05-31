@@ -9,11 +9,16 @@ client_cert=${CALM_CLIENT_CERT:-}
 client_key=${CALM_CLIENT_KEY:-}
 client_ca=${CALM_CLIENT_CA:-}
 repo_name=${CALM_REPO_NAME:-}
+remote_mode=0
 repo_arg=$repo
-if [[ -n "$repo_name" ]]; then
-  repo_arg=$repo_name
-fi
 blocked=0
+tmp_files=()
+cleanup() {
+  if [[ "${#tmp_files[@]}" -gt 0 ]]; then
+    rm -f "${tmp_files[@]}"
+  fi
+}
+trap cleanup EXIT
 
 bridge_addr_is_loopback() {
   python3 - "$1" <<'PY'
@@ -33,9 +38,31 @@ except ValueError:
 PY
 }
 
-if [[ -n "$addr" && "${CALM_ALLOW_REMOTE_BRIDGE:-}" != "1" ]] && ! bridge_addr_is_loopback "$addr"; then
-  echo "CALM_BRIDGE_ADDR must be loopback unless CALM_ALLOW_REMOTE_BRIDGE=1 is set" >&2
-  exit 1
+bridge_addr_is_https() {
+  python3 - "$1" <<'PYCHECK'
+import sys
+from urllib.parse import urlparse
+
+sys.exit(0 if urlparse(sys.argv[1]).scheme == "https" else 1)
+PYCHECK
+}
+
+if [[ -n "$addr" ]] && ! bridge_addr_is_loopback "$addr"; then
+  if [[ "${CALM_ALLOW_REMOTE_BRIDGE:-}" != "1" ]]; then
+    echo "CALM_BRIDGE_ADDR must be loopback unless CALM_ALLOW_REMOTE_BRIDGE=1 is set" >&2
+    exit 1
+  fi
+  if ! bridge_addr_is_https "$addr"; then
+    echo "remote CALM_BRIDGE_ADDR must use https" >&2
+    exit 1
+  fi
+  remote_mode=1
+fi
+
+if [[ -n "$repo_name" ]]; then
+  repo_arg=$repo_name
+elif [[ "$remote_mode" -eq 1 ]]; then
+  repo_arg=$(basename "$repo")
 fi
 
 language_for_file() {
@@ -56,7 +83,20 @@ while IFS= read -r -d '' file; do
     continue
   fi
 
-  args=(check --file "$file" --repo "$repo_arg" --staged --language "$language")
+  args=(check --file "$file" --repo "$repo_arg" --language "$language")
+  content_file=""
+  if [[ "$remote_mode" -eq 1 ]]; then
+    content_file=$(mktemp)
+    tmp_files+=("$content_file")
+    if ! git -C "$repo" show ":$file" >"$content_file"; then
+      echo "CALM check failed for $file" >&2
+      blocked=1
+      continue
+    fi
+    args+=(--content-file "$content_file")
+  else
+    args+=(--staged)
+  fi
   if [[ -n "$addr" ]]; then
     args+=(--addr "$addr")
   fi

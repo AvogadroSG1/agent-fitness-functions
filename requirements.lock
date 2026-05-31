@@ -1,0 +1,10 @@
+# Locked Python analyzer dependencies for the calm-bridge container.
+# Generated from requirements.txt with hashes from downloaded wheel artifacts.
+colorama==0.4.6 \
+    --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
+mando==0.7.1 \
+    --hash=sha256:26ef1d70928b6057ee3ca12583d73c63e05c49de8972d620c278a7b206581a8a
+radon==6.0.1 \
+    --hash=sha256:632cc032364a6f8bb1010a2f6a12d0f14bc7e5ede76585ef29dc0cecf4cd8859
+six==1.17.0 \
+    --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274

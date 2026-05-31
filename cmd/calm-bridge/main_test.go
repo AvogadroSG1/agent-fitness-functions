@@ -157,6 +157,38 @@ func TestRunCheckRequiresClientCertAndKeyTogether(t *testing.T) {
 	}
 }
 
+func TestRunCheckAllowsBareLogicalRepoWithContentFile(t *testing.T) {
+	var received bridge.CheckRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/check":
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(bridge.CheckResponse{Status: bridge.StatusPass})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	contentPath := filepath.Join(t.TempDir(), "content.go")
+	if err := os.WriteFile(contentPath, []byte("package logical\n"), 0o600); err != nil {
+		t.Fatalf("write content file: %v", err)
+	}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run([]string{"check", "--addr", server.URL, "--file", "remote.go", "--repo", "graft", "--content-file", contentPath, "--language", "go"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if received.Repo != "graft" || received.ProposedContent != "package logical\n" {
+		t.Fatalf("received request = %+v", received)
+	}
+}
+
 func TestRunCheckPostsToHealthyDaemon(t *testing.T) {
 	var received bridge.CheckRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

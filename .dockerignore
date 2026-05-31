@@ -14,6 +14,10 @@ obj/
 calm-bridge
 baseline-report-*.json
 Explaination.md
+certs/*.crt
+certs/*.key
+certs/*.csr
+certs/*.srl
 
 .tmp/
 .cache/
