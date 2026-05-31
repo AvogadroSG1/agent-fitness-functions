@@ -39,9 +39,13 @@ RUN apt-get update \
     && apt-get install --no-install-recommends -y \
         ca-certificates \
         curl \
+        nodejs \
+        npm \
         python3 \
         python3-pip \
     && python3 -m pip install --no-cache-dir --break-system-packages --require-hashes -r /tmp/requirements.lock \
+    && npm install -g @finos/calm-cli@1.40.0 \
+    && npm cache clean --force \
     && rm -f /tmp/requirements.lock \
     && find /var/lib/apt/lists -mindepth 1 -delete
 

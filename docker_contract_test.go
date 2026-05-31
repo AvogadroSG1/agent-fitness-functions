@@ -25,6 +25,9 @@ func TestDockerfileContainerContract(t *testing.T) {
 	mustContain(t, dockerfile, "USER appuser")
 	mustContain(t, dockerfile, "ENTRYPOINT [\"/app/calm-bridge\", \"serve\"]")
 	mustContain(t, dockerfile, "HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3")
+	mustContain(t, dockerfile, "nodejs")
+	mustContain(t, dockerfile, "npm")
+	mustContain(t, dockerfile, "npm install -g @finos/calm-cli@1.40.0")
 	mustContain(t, dockerfile, "python3 -m pip install --no-cache-dir --break-system-packages --require-hashes -r /tmp/requirements.lock")
 
 	userIndex := strings.Index(dockerfile, "useradd -u 1001")
