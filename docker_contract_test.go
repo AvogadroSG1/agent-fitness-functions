@@ -40,11 +40,60 @@ func TestDockerIgnoreExcludesBuildArtifactsAndSecrets(t *testing.T) {
 		t.Fatalf("read .dockerignore: %v", err)
 	}
 	ignored := linesSet(string(content))
-	for _, pattern := range []string{".git", ".calm", "*.md", "*.log", ".env*", "tmp/", ".tmp/", ".cache/", "bin/", "obj/", "**/bin/", "**/obj/"} {
+	for _, pattern := range []string{".git", ".calm", "*.md", "*.log", ".env*", "tmp/", ".tmp/", ".cache/", "bin/", "obj/", "**/bin/", "**/obj/", "certs/*.crt", "certs/*.key", "certs/*.csr", "certs/*.srl"} {
 		if !ignored[pattern] {
 			t.Fatalf(".dockerignore missing %q", pattern)
 		}
 	}
+}
+
+func TestDevCertificateBootstrapContract(t *testing.T) {
+	scriptInfo, err := os.Stat("scripts/generate-dev-certs.sh")
+	if err != nil {
+		t.Fatalf("stat scripts/generate-dev-certs.sh: %v", err)
+	}
+	if scriptInfo.Mode()&0o111 == 0 {
+		t.Fatalf("scripts/generate-dev-certs.sh must be executable")
+	}
+
+	scriptContent, err := os.ReadFile("scripts/generate-dev-certs.sh")
+	if err != nil {
+		t.Fatalf("read scripts/generate-dev-certs.sh: %v", err)
+	}
+	script := string(scriptContent)
+	for _, needle := range []string{
+		"certs/server.crt",
+		"certs/server.key",
+		"certs/ca.crt",
+		"certs/client.crt",
+		"certs/client.key",
+		"dev-hook-pool",
+		"subjectAltName",
+		"127.0.0.1",
+		"localhost",
+		"openssl",
+	} {
+		mustContain(t, script, needle)
+	}
+
+	certIgnoreContent, err := os.ReadFile("certs/.gitignore")
+	if err != nil {
+		t.Fatalf("read certs/.gitignore: %v", err)
+	}
+	certIgnores := linesSet(string(certIgnoreContent))
+	for _, pattern := range []string{"*", "!.gitignore"} {
+		if !certIgnores[pattern] {
+			t.Fatalf("certs/.gitignore missing %q", pattern)
+		}
+	}
+
+	readmeContent, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatalf("read README.md: %v", err)
+	}
+	readme := string(readmeContent)
+	mustContain(t, readme, "scripts/generate-dev-certs.sh")
+	mustContain(t, readme, "docker compose up --build")
 }
 
 func TestRequirementsPinsRadon(t *testing.T) {

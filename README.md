@@ -33,6 +33,14 @@ certs/server.key
 certs/ca.crt
 ```
 
+For local verification, generate non-production development certificates with:
+
+```bash
+scripts/generate-dev-certs.sh
+```
+
+The script also creates `certs/client.crt` and `certs/client.key` with CN `dev-hook-pool` for authenticated local hook checks. Generated files under `certs/` are ignored by git and excluded from the Docker build context.
+
 Then verify the deployment artifact with:
 
 ```bash
