@@ -4,6 +4,14 @@ set -euo pipefail
 repo=$(git rev-parse --show-toplevel)
 calm_bridge=${CALM_BRIDGE_BIN:-calm-bridge}
 addr=${CALM_BRIDGE_ADDR:-}
+client_cert=${CALM_CLIENT_CERT:-}
+client_key=${CALM_CLIENT_KEY:-}
+client_ca=${CALM_CLIENT_CA:-}
+repo_name=${CALM_REPO_NAME:-}
+repo_arg=$repo
+if [[ -n "$repo_name" ]]; then
+  repo_arg=$repo_name
+fi
 
 bridge_addr_is_loopback() {
   python3 - "$1" <<'PY'
@@ -122,9 +130,18 @@ if [[ "$binary" == "True" || "$binary" == "true" ]]; then
   exit 2
 fi
 
-args=(check --file "$file" --repo "$repo" --content-file "$content_file" --language "$language")
+args=(check --file "$file" --repo "$repo_arg" --content-file "$content_file" --language "$language")
 if [[ -n "$addr" ]]; then
   args+=(--addr "$addr")
+fi
+if [[ -n "$client_cert" ]]; then
+  args+=(--client-cert "$client_cert")
+fi
+if [[ -n "$client_key" ]]; then
+  args+=(--client-key "$client_key")
+fi
+if [[ -n "$client_ca" ]]; then
+  args+=(--client-ca "$client_ca")
 fi
 
 if ! result=$("$calm_bridge" "${args[@]}"); then

@@ -1,6 +1,13 @@
 package hooks
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
@@ -95,10 +102,14 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
 }`)
 	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
 	calmBridge := buildCalmBridge(t)
-	serverURL := startBridgeDaemon(t, calmBridge, repo)
+	daemon := startBridgeDaemon(t, calmBridge, repo)
+	t.Setenv("CALM_REPO_NAME", "repo-one")
+	t.Setenv("CALM_CLIENT_CERT", daemon.clientCertPath)
+	t.Setenv("CALM_CLIENT_KEY", daemon.clientKeyPath)
+	t.Setenv("CALM_CLIENT_CA", daemon.serverCAPath)
 
 	badPayload := `{"tool_name":"Write","tool_input":{"file_path":"sample.go","content":"package sample\nfunc Score(kind string, retries int, urgent bool) int {\nscore := 0\nif kind == \"create\" { score++ }\nif kind == \"update\" { score++ }\nif kind == \"delete\" { score++ }\nif kind == \"manual\" { score++ }\nif kind == \"batch\" { score++ }\nif kind == \"sync\" { score++ }\nif retries > 0 { score++ }\nif retries > 1 { score++ }\nif retries > 2 { score++ }\nif urgent { score++ }\nreturn score\n}\n"}}`
-	output, err := runPreToolUseWithBin(t, repo, badPayload, calmBridge, "", "", serverURL)
+	output, err := runPreToolUseWithBin(t, repo, badPayload, calmBridge, "", "", daemon.url)
 	if exitCode(err) != 2 {
 		t.Fatalf("pre-tool-use succeeded, want running daemon block; output=%s", output)
 	}
@@ -107,7 +118,7 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
 	}
 
 	goodPayload := `{"tool_name":"Write","tool_input":{"file_path":"sample.go","content":"package sample\nfunc Score(kind string, retries int, urgent bool) int {\nscore := map[string]int{\"create\": 1, \"update\": 1, \"delete\": 1, \"manual\": 1, \"batch\": 1, \"sync\": 1}[kind]\nif urgent { score++ }\nif retries > 0 { score += min(retries, 3) }\nreturn score\n}\n"}}`
-	output, err = runPreToolUseWithBin(t, repo, goodPayload, calmBridge, "", "", serverURL)
+	output, err = runPreToolUseWithBin(t, repo, goodPayload, calmBridge, "", "", daemon.url)
 	if err != nil {
 		t.Fatalf("pre-tool-use failed for known-good content: %v\n%s", err, output)
 	}
@@ -282,7 +293,14 @@ func readFile(t *testing.T, path string) string {
 	return string(content)
 }
 
-func startBridgeDaemon(t *testing.T, calmBridge string, repo string) string {
+type bridgeDaemon struct {
+	url            string
+	clientCertPath string
+	clientKeyPath  string
+	serverCAPath   string
+}
+
+func startBridgeDaemon(t *testing.T, calmBridge string, repo string) bridgeDaemon {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -293,14 +311,8 @@ func startBridgeDaemon(t *testing.T, calmBridge string, repo string) string {
 		t.Fatalf("close listener: %v", err)
 	}
 
-	// Create a temporary configs directory with a config for the test repository.
-	// The daemon needs a config for each repository it checks, using a normalized name.
 	configsDir := t.TempDir()
-
-	// Create a generic config for any test repository.
-	// The daemon's extractRepositoryName function will normalize the path to a valid name.
-	// We create a "test-repo" directory as a fallback that works for test cases.
-	repoDir := filepath.Join(configsDir, "test-repo")
+	repoDir := filepath.Join(configsDir, "repo-one")
 	if err := os.MkdirAll(repoDir, 0o755); err != nil {
 		t.Fatalf("mkdir config dir: %v", err)
 	}
@@ -308,22 +320,13 @@ func startBridgeDaemon(t *testing.T, calmBridge string, repo string) string {
 	if err := os.WriteFile(filepath.Join(repoDir, "config.json"), []byte(configJSON), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
-
-	// Also create a config using the normalized repo name from the actual test repo
-	// to cover cases where the daemon extracts a specific name from the path
-	repoConfigName := lastPathComponent(repo)
-	repoConfigName = strings.ToLower(repoConfigName)
-	if repoConfigName != "" && repoConfigName != "test-repo" {
-		repoDir = filepath.Join(configsDir, repoConfigName)
-		if err := os.MkdirAll(repoDir, 0o755); err != nil {
-			t.Fatalf("mkdir repo-specific config dir: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(repoDir, "config.json"), []byte(configJSON), 0o644); err != nil {
-			t.Fatalf("write repo-specific config: %v", err)
-		}
+	if err := os.WriteFile(filepath.Join(configsDir, "caller-repos.json"), []byte(`{"callers":{"pre-tool-use-test":["repo-one"]}}`), 0o644); err != nil {
+		t.Fatalf("write caller policy: %v", err)
 	}
+	certDir := t.TempDir()
+	serverCertPath, serverKeyPath, caPath, clientCertPath, clientKeyPath := writeMTLSFixture(t, certDir, "pre-tool-use-test")
 
-	command := exec.Command(calmBridge, "serve", "--addr", addr)
+	command := exec.Command(calmBridge, "serve", "--addr", addr, "--tls-cert", serverCertPath, "--tls-key", serverKeyPath, "--tls-ca", caPath)
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("get cwd: %v", err)
@@ -336,26 +339,108 @@ func startBridgeDaemon(t *testing.T, calmBridge string, repo string) string {
 		t.Fatalf("start bridge daemon: %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = http.Post("http://"+addr+"/shutdown", "application/json", nil)
+		_ = command.Process.Kill()
 		_ = command.Wait()
 	})
-	client := &http.Client{Timeout: time.Second}
+	rootCAs := x509.NewCertPool()
+	caContent, err := os.ReadFile(caPath)
+	if err != nil {
+		t.Fatalf("read test ca: %v", err)
+	}
+	if !rootCAs.AppendCertsFromPEM(caContent) {
+		t.Fatal("append test ca")
+	}
+	client := &http.Client{
+		Timeout:   time.Second,
+		Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: rootCAs, MinVersion: tls.VersionTLS12}},
+	}
 	for range 50 {
-		response, err := client.Get("http://" + addr + "/health")
+		response, err := client.Get("https://" + addr + "/health")
 		if err == nil {
 			_ = response.Body.Close()
 			if response.StatusCode == http.StatusOK {
-				return "http://" + addr
+				return bridgeDaemon{
+					url:            "https://" + addr,
+					clientCertPath: clientCertPath,
+					clientKeyPath:  clientKeyPath,
+					serverCAPath:   caPath,
+				}
 			}
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatal("bridge daemon did not become healthy")
-	return ""
+	return bridgeDaemon{}
 }
 
-func lastPathComponent(path string) string {
-	return filepath.Base(strings.TrimRight(path, "/"))
+func writeMTLSFixture(t *testing.T, dir, clientCN string) (string, string, string, string, string) {
+	t.Helper()
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate ca key: %v", err)
+	}
+	ca := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "calm-test-ca"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	caDER, err := x509.CreateCertificate(rand.Reader, ca, ca, &caKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatalf("create ca: %v", err)
+	}
+	caPath := filepath.Join(dir, "ca.pem")
+	writeCertificatePEM(t, caPath, caDER)
+
+	serverCertPath, serverKeyPath := writeSignedCertificate(t, dir, "server", ca, caKey, pkix.Name{CommonName: "localhost"}, []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth})
+	clientCertPath, clientKeyPath := writeSignedCertificate(t, dir, "client", ca, caKey, pkix.Name{CommonName: clientCN}, []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
+	return serverCertPath, serverKeyPath, caPath, clientCertPath, clientKeyPath
+}
+
+func writeSignedCertificate(t *testing.T, dir, name string, ca *x509.Certificate, caKey *rsa.PrivateKey, subject pkix.Name, usages []x509.ExtKeyUsage) (string, string) {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate %s key: %v", name, err)
+	}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject:      subject,
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:  usages,
+	}
+	if len(usages) == 1 && usages[0] == x509.ExtKeyUsageServerAuth {
+		template.DNSNames = []string{"localhost"}
+		template.IPAddresses = []net.IP{net.ParseIP("127.0.0.1")}
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, ca, &key.PublicKey, caKey)
+	if err != nil {
+		t.Fatalf("create %s certificate: %v", name, err)
+	}
+	certPath := filepath.Join(dir, name+".pem")
+	keyPath := filepath.Join(dir, name+"-key.pem")
+	writeCertificatePEM(t, certPath, der)
+	writePrivateKeyPEM(t, keyPath, key)
+	return certPath, keyPath
+}
+
+func writeCertificatePEM(t *testing.T, path string, der []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600); err != nil {
+		t.Fatalf("write certificate %s: %v", path, err)
+	}
+}
+
+func writePrivateKeyPEM(t *testing.T, path string, key *rsa.PrivateKey) {
+	t.Helper()
+	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}), 0o600); err != nil {
+		t.Fatalf("write private key %s: %v", path, err)
+	}
 }
 
 func exitCode(err error) int {
