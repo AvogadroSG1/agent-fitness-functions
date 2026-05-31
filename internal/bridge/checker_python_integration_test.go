@@ -26,8 +26,9 @@ func TestCheckerWithRealCALMBlocksRingstationPythonCyclomaticComplexityFixture(t
 	if _, err := exec.LookPath("radon"); err != nil {
 		t.Skip("radon not installed")
 	}
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	sourcePath := filepath.Join(
 		"..",
 		"..",
@@ -41,6 +42,7 @@ func TestCheckerWithRealCALMBlocksRingstationPythonCyclomaticComplexityFixture(t
 		t.Fatalf("read ringstation fixture: %v", err)
 	}
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: filepath.Join("..", "..", "patterns", "governance.json"),
 	}, nil))
 	defer server.Close()
@@ -100,8 +102,9 @@ func TestPythonSynchronousCheckPhaseProfile(t *testing.T) {
 	if _, err := exec.LookPath("radon"); err != nil {
 		t.Skip("radon not installed")
 	}
-	repo := t.TempDir()
-	writeRepoConfig(t, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	sourcePath := filepath.Join(
 		"..",
 		"..",
@@ -115,6 +118,7 @@ func TestPythonSynchronousCheckPhaseProfile(t *testing.T) {
 		t.Fatalf("read ringstation fixture: %v", err)
 	}
 	checker := Checker{
+		ConfigStore: store,
 		PatternPath: filepath.Join("..", "..", "patterns", "governance.json"),
 		State:       NewState(),
 	}
@@ -126,7 +130,7 @@ func TestPythonSynchronousCheckPhaseProfile(t *testing.T) {
 	}
 
 	start := time.Now()
-	config, canonicalRepo, err := loadConfig(request.Repo)
+	config, canonicalRepo, err := loadConfig(store, request.Repo)
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}

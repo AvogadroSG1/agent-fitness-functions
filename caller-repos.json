@@ -1,0 +1,5 @@
+{
+  "ci-runner-graft": ["graft"],
+  "ci-runner-all": ["graft", "ringstation", "slackstatus"],
+  "dev-hook-pool": ["graft", "ringstation", "slackstatus"]
+}

@@ -1,13 +1,6 @@
 {
-  "version": "0.1.0",
-  "repo": "StackOverflow.Api.V3",
-  "language": "csharp",
   "enforcement-mode": "block",
-  "daemon": {
-    "host": "localhost",
-    "port": 7890,
-    "startup-timeout-ms": 500
-  },
+  "enforcement-on-error": "block",
   "fitness-functions": {
     "cyclomatic-complexity": true,
     "interface-width": true,

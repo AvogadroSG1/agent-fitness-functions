@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -68,13 +70,32 @@ func runServe(args []string, stderr io.Writer) int {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	addr := flags.String("addr", "localhost:7890", "daemon listen address")
+	tlsCert := flags.String("tls-cert", "", "server TLS certificate path")
+	tlsKey := flags.String("tls-key", "", "server TLS private key path")
+	tlsCA := flags.String("tls-ca", "", "client CA bundle path")
+	trustedProxyHeaders := flags.Bool("trusted-proxy-headers", false, "trust X-Client-CN headers from an authenticated proxy")
+	trustedProxyClientCNs := flags.String("trusted-proxy-client-cns", "", "comma-separated trusted proxy client certificate common names")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := bridge.Serve(ctx, *addr); err != nil && !errors.Is(err, context.Canceled) {
+	if err := bridge.ServeWithOptions(ctx, bridge.ServeOptions{
+		Addr:      *addr,
+		ConfigDir: os.Getenv("CALM_CONFIGS_DIR"),
+		Ready:     os.Stdout,
+		NewStore:  bridge.NewConfigStore,
+		HandlerOptions: bridge.HandlerOptions{
+			TrustedProxyHeaders:   *trustedProxyHeaders,
+			TrustedProxyClientCNs: splitCommaSeparatedValues(*trustedProxyClientCNs),
+		},
+		TLS: bridge.ServerTLSConfig{
+			CertPath: *tlsCert,
+			KeyPath:  *tlsKey,
+			CAPath:   *tlsCA,
+		},
+	}); err != nil && !errors.Is(err, context.Canceled) {
 		_, _ = fmt.Fprintln(stderr, err)
 		return 1
 	}
@@ -92,6 +113,9 @@ func runCheck(args []string, stdout io.Writer, client *http.Client, starter func
 	language := flags.String("language", "", "source language")
 	staged := flags.Bool("staged", false, "read content from git staged state")
 	format := flags.String("format", "json", "output format: json or sarif")
+	clientCert := flags.String("client-cert", "", "mTLS client certificate path")
+	clientKey := flags.String("client-key", "", "mTLS client private key path")
+	clientCA := flags.String("client-ca", "", "server CA bundle path")
 	if err := flags.Parse(args); err != nil {
 		return usageError{err: err}
 	}
@@ -102,14 +126,18 @@ func runCheck(args []string, stdout io.Writer, client *http.Client, starter func
 	if !validFormats[*format] {
 		return usageError{err: fmt.Errorf("unsupported format %q: use json or sarif", *format)}
 	}
-	if err := ensureDaemon(client, *addr, starter); err != nil {
+	configuredClient, err := configureClientTLS(client, *clientCert, *clientKey, *clientCA)
+	if err != nil {
+		return err
+	}
+	if err := ensureDaemon(configuredClient, *addr, starter); err != nil {
 		return err
 	}
 	proposedContent, err := resolveContent(*repo, *file, *content, *contentFile, *staged)
 	if err != nil {
 		return err
 	}
-	body, err := postCheck(context.Background(), client, *addr, bridge.CheckRequest{
+	body, err := postCheck(context.Background(), configuredClient, *addr, bridge.CheckRequest{
 		Repo:            *repo,
 		File:            *file,
 		ProposedContent: proposedContent,
@@ -157,6 +185,73 @@ func postCheck(ctx context.Context, client *http.Client, addr string, request br
 		return nil, fmt.Errorf("check failed with HTTP %d: %s", response.StatusCode, message)
 	}
 	return io.ReadAll(io.LimitReader(response.Body, 10<<20))
+}
+
+func splitCommaSeparatedValues(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
+	return values
+}
+
+func configureClientTLS(base *http.Client, certPath, keyPath, caPath string) (*http.Client, error) {
+	if certPath == "" && keyPath == "" && caPath == "" {
+		return base, nil
+	}
+	if (certPath == "") != (keyPath == "") {
+		return nil, usageError{err: errors.New("check requires --client-cert and --client-key together")}
+	}
+	configured := cloneHTTPClient(base)
+	baseTransport := http.DefaultTransport.(*http.Transport)
+	if configured.Transport != nil {
+		if transport, ok := configured.Transport.(*http.Transport); ok {
+			baseTransport = transport
+		}
+	}
+	transport := baseTransport.Clone()
+	tlsConfig := transport.TLSClientConfig
+	if tlsConfig != nil {
+		tlsConfig = tlsConfig.Clone()
+	} else {
+		tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	if certPath != "" {
+		certificate, err := tls.LoadX509KeyPair(certPath, keyPath)
+		if err != nil {
+			return nil, fmt.Errorf("loading client certificate: %w", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{certificate}
+	}
+	if caPath != "" {
+		caContent, err := os.ReadFile(caPath)
+		if err != nil {
+			return nil, fmt.Errorf("reading client CA bundle: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caContent) {
+			return nil, errors.New("parsing client CA bundle")
+		}
+		tlsConfig.RootCAs = pool
+	}
+	transport.TLSClientConfig = tlsConfig
+	configured.Transport = transport
+	return configured, nil
+}
+
+func cloneHTTPClient(base *http.Client) *http.Client {
+	if base == nil {
+		return &http.Client{Timeout: 2 * time.Second}
+	}
+	clone := *base
+	return &clone
 }
 
 func writeCheckResponse(stdout io.Writer, format, repo string, body []byte) error {

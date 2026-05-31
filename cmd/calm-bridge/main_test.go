@@ -3,7 +3,14 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +25,137 @@ import (
 
 	"github.com/poconnor/calm-poc/internal/bridge"
 )
+
+func TestRunServeRequiresTLSForTrustedProxyHeaders(t *testing.T) {
+	t.Setenv("CALM_CONFIGS_DIR", writeMountedServeConfigDir(t))
+
+	var stderr bytes.Buffer
+	code := runServe([]string{
+		"--addr", "127.0.0.1:0",
+		"--trusted-proxy-headers",
+		"--trusted-proxy-client-cns", "proxy-gateway",
+	}, &stderr)
+
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(stderr.String(), "trusted proxy mode requires TLS") {
+		t.Fatalf("stderr = %q, want trusted proxy TLS validation error", stderr.String())
+	}
+}
+
+func TestRunServeRequiresTrustedProxyClientCNs(t *testing.T) {
+	t.Setenv("CALM_CONFIGS_DIR", writeMountedServeConfigDir(t))
+
+	var stderr bytes.Buffer
+	code := runServe([]string{
+		"--addr", "127.0.0.1:0",
+		"--trusted-proxy-headers",
+		"--tls-cert", "server.pem",
+		"--tls-key", "server-key.pem",
+		"--tls-ca", "ca.pem",
+	}, &stderr)
+
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(stderr.String(), "trusted proxy mode requires at least one trusted proxy client CN") {
+		t.Fatalf("stderr = %q, want trusted proxy client CN validation error", stderr.String())
+	}
+}
+
+func TestRunCheckUsesClientTLSFlags(t *testing.T) {
+	var received bridge.CheckRequest
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+				http.Error(w, "client certificate required", http.StatusUnauthorized)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		case "/check":
+			if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+				http.Error(w, "client certificate required", http.StatusUnauthorized)
+				return
+			}
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(bridge.CheckResponse{Status: bridge.StatusPass})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	server.TLS = &tls.Config{
+		ClientAuth: tls.RequireAnyClientCert,
+		MinVersion: tls.VersionTLS12,
+	}
+	server.StartTLS()
+	defer server.Close()
+
+	dir := t.TempDir()
+	caPath := filepath.Join(dir, "server-ca.pem")
+	if err := os.WriteFile(caPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0o600); err != nil {
+		t.Fatalf("write server ca: %v", err)
+	}
+	clientCertPath, clientKeyPath := writeTestClientCertificate(t, dir, "ci-runner-graft")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run([]string{
+		"check",
+		"--addr", server.URL,
+		"--file", "x.go",
+		"--repo", "/tmp/repo",
+		"--content", "package main\n",
+		"--client-ca", caPath,
+		"--client-cert", clientCertPath,
+		"--client-key", clientKeyPath,
+	}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if received.File != "x.go" || received.Repo != "/tmp/repo" {
+		t.Fatalf("received request = %+v", received)
+	}
+	if !strings.Contains(stdout.String(), "\"status\":\"pass\"") {
+		t.Fatalf("stdout = %q, want pass JSON", stdout.String())
+	}
+}
+
+func TestRunCheckRequiresClientCertAndKeyTogether(t *testing.T) {
+	var starterCalled bool
+	var stderr bytes.Buffer
+	code := runWithDependencies(
+		[]string{
+			"check",
+			"--addr", "https://127.0.0.1:1",
+			"--file", "x.go",
+			"--repo", "/tmp/repo",
+			"--content", "package main\n",
+			"--client-cert", "client.pem",
+		},
+		&bytes.Buffer{},
+		&stderr,
+		&http.Client{Timeout: time.Second},
+		func(string) error {
+			starterCalled = true
+			return nil
+		},
+	)
+
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+	if starterCalled {
+		t.Fatal("daemon starter was called before client TLS flag validation")
+	}
+	if !strings.Contains(stderr.String(), "check requires --client-cert and --client-key together") {
+		t.Fatalf("stderr = %q, want client cert/key validation error", stderr.String())
+	}
+}
 
 func TestRunCheckPostsToHealthyDaemon(t *testing.T) {
 	var received bridge.CheckRequest
@@ -380,6 +518,8 @@ func testRunServeStopsOnSignal(t *testing.T, signal os.Signal) {
 	if err := listener.Close(); err != nil {
 		t.Fatalf("close listener: %v", err)
 	}
+	configDir := writeMountedServeConfigDir(t)
+	t.Setenv("CALM_CONFIGS_DIR", configDir)
 
 	done := make(chan int, 1)
 	go func() {
@@ -412,4 +552,47 @@ func testRunServeStopsOnSignal(t *testing.T, signal os.Signal) {
 	case <-time.After(time.Second):
 		t.Fatal("runServe did not stop after SIGTERM")
 	}
+}
+
+func writeTestClientCertificate(t *testing.T, dir, commonName string) (string, string) {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate client key: %v", err)
+	}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(101),
+		Subject:      pkix.Name{CommonName: commonName},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("create client certificate: %v", err)
+	}
+	certPath := filepath.Join(dir, "client.pem")
+	keyPath := filepath.Join(dir, "client-key.pem")
+	if err := os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600); err != nil {
+		t.Fatalf("write client certificate: %v", err)
+	}
+	if err := os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}), 0o600); err != nil {
+		t.Fatalf("write client key: %v", err)
+	}
+	return certPath, keyPath
+}
+
+func writeMountedServeConfigDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	repoDir := filepath.Join(dir, "repo-one")
+	if err := os.MkdirAll(repoDir, 0o755); err != nil {
+		t.Fatalf("mkdir repo dir: %v", err)
+	}
+	content := []byte(`{"enforcement-mode":"block","fitness-functions":{"cyclomatic-complexity":true,"interface-width":true,"implementation-depth":true,"logic-density":true,"dependency-discipline":true}}`)
+	if err := os.WriteFile(filepath.Join(repoDir, "config.json"), content, 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	return dir
 }

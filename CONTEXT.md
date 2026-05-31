@@ -6,13 +6,13 @@ This document answers the questions most likely to arise when someone encounters
 
 ## How does CALM actually work?
 
-When a developer runs `git commit` in a governed repository (`graft`, `ringstation`, `SlackStatus`), a pre-commit hook fires. That hook reads the repository's `.calm/config.json`, finds every staged source file it recognizes (`.go`, `.py`, `.cs`), and sends each file's content to a running `calm-bridge` daemon. The daemon analyzes the file, evaluates the enabled fitness functions against calibrated thresholds, and returns a JSON verdict. In block mode, a failing verdict aborts the commit. In advisory mode, the commit proceeds but the developer sees a warning.
+When a developer runs `git commit` in a governed repository (`graft`, `ringstation`, `slackstatus`), a pre-commit hook fires. The hook identifies the logical repo name, finds every staged source file it recognizes (`.go`, `.py`, `.cs`), and sends each file's content to a running `calm-bridge` daemon. In container mode, the daemon resolves governance from mounted `configs/<repo>/config.json`; in local developer mode, the hook can still use the repository's `.calm/config.json` as a sandbox. The daemon analyzes the file, evaluates the enabled fitness functions against calibrated thresholds, and returns a JSON verdict. In block mode, a failing verdict aborts the commit. In advisory mode, the commit proceeds but the developer sees a warning.
 
 ```mermaid
 sequenceDiagram
     participant Dev as Developer
     participant Hook as pre-commit hook
-    participant Config as .calm/config.json
+    participant Config as configs/<repo>/config.json
     participant Bridge as calm-bridge daemon
     participant Analyzer as Language Analyzer
 
@@ -39,7 +39,7 @@ The daemon is the authority. The hook is the enforcement point. The governed rep
 
 ## Can a developer bypass the hook?
 
-Yes. Git hooks are local and unversioned. A developer can delete `.git/hooks/pre-commit` or set all fitness functions to `false` in `.calm/config.json`. The hook is a **shift-left convenience**, not a security boundary.
+Yes. Git hooks are local and unversioned. A developer can delete `.git/hooks/pre-commit` or weaken a local `.calm/config.json`. The hook is a **shift-left convenience**, not a security boundary. The containerized bridge still enforces the mounted `configs/<repo>/config.json` governance set.
 
 The real enforcement layer sits further right:
 
@@ -72,7 +72,7 @@ graph TD
         OB["calm-bridge\nthresholds & governance"]
         OC["graft (Go)"]
         OD["ringstation (Python)"]
-        OE["SlackStatus (C#)"]
+        OE["slackstatus (C#)"]
         OA -->|"owns and controls"| OB
         OB -->|"enforces on commit"| OC
         OB -->|"enforces on commit"| OD
@@ -112,10 +112,11 @@ What these metrics cannot catch: a function that is simple in isolation but orch
 
 | Component | Location | Purpose |
 |---|---|---|
-| `calm-bridge` binary | `/tmp/calm-bridge` (built from `cmd/calm-bridge`) | Daemon and CLI for all checks |
+| `calm-bridge` binary | `/app/calm-bridge` (built from `cmd/calm-bridge`) | Daemon and CLI for all checks |
 | Governance rules | `internal/bridge/checker.go`, `governance.json` | Thresholds and enabled functions |
 | Pre-commit hook | `hooks/pre-commit.sh` (installed via `scripts/install-hooks.sh`) | Commit-time enforcement in governed repos |
-| `.calm/config.json` | Each governed repository | Enforcement mode and active functions |
+| `configs/<repo>/config.json` | Mounted into the container | Governance config for the logical repo |
+| `.calm/config.json` | Optional local repository sandbox | Developer-only override for local iteration |
 | `calm-test` | `~/.local/bin/calm-test` | Ad-hoc file check without committing |
 
 ---

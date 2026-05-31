@@ -55,6 +55,7 @@ type Checker struct {
 	Validator       Validator
 	Analyzers       map[string]SourceAnalyzer
 	State           *State
+	ConfigStore     *ConfigStore
 	DeferredContext context.Context
 }
 
@@ -66,6 +67,8 @@ const (
 	ErrorKindInput ErrorKind = "input"
 	// ErrorKindInfrastructure means an internal dependency failed.
 	ErrorKindInfrastructure ErrorKind = "infrastructure"
+	// ErrorKindNotFound means the requested repository has no mounted configuration.
+	ErrorKindNotFound ErrorKind = "not_found"
 )
 
 // CheckError is a client-safe, typed checker failure.
@@ -91,7 +94,7 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 	if c.State == nil {
 		return CheckResponse{}, infrastructureError("checker state is not configured", nil)
 	}
-	config, repo, err := loadConfig(request.Repo)
+	config, repo, err := loadConfig(c.ConfigStore, request.Repo)
 	if err != nil {
 		return CheckResponse{}, err
 	}
@@ -675,4 +678,8 @@ func inputError(message string, err error) error {
 
 func infrastructureError(message string, err error) error {
 	return &CheckError{Kind: ErrorKindInfrastructure, Message: message, Err: err}
+}
+
+func notFoundError(message string, err error) error {
+	return &CheckError{Kind: ErrorKindNotFound, Message: message, Err: err}
 }
