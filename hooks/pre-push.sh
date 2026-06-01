@@ -77,9 +77,9 @@ trap cleanup EXIT
 
 while read -r _local_ref local_sha _remote_ref remote_sha; do
   # Skip deletions
-  [[ "$local_sha" == "0000000000000000000000000000000000000000" ]] && continue
-
   null_sha="0000000000000000000000000000000000000000"
+  [[ "$local_sha" == "$null_sha" ]] && continue
+
   if [[ "$remote_sha" == "$null_sha" ]]; then
     base=$(git merge-base "$local_sha" "origin/HEAD" 2>/dev/null \
            || git merge-base "$local_sha" "origin/main" 2>/dev/null \
