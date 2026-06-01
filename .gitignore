@@ -35,3 +35,4 @@ excalidraw.log
 current-architecture.json
 tmp/
 .cache/
+tools/roslyn-analyzer/bin/
