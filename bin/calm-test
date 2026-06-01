@@ -28,11 +28,19 @@ addr="${CALM_BRIDGE_ADDR:-http://127.0.0.1:7890}"
 repo_name="${CALM_REPO_NAME:-}"
 
 [[ -f "$file" ]] || { echo "error: file not found: $file" >&2; exit 1; }
-[[ -x "$bridge" ]] || {
-  echo "error: calm-bridge not found at $bridge" >&2
-  echo "  build it: calm-serve (or: cd \$(calm-src) && go build -o /tmp/calm-bridge ./cmd/calm-bridge)" >&2
-  exit 1
-}
+if [[ "$bridge" == */* ]]; then
+  [[ -x "$bridge" ]] || {
+    echo "error: calm-bridge not found at $bridge" >&2
+    echo "  build it: calm-serve (or: go build -o $bridge ./cmd/calm-bridge)" >&2
+    exit 1
+  }
+else
+  command -v "$bridge" > /dev/null 2>&1 || {
+    echo "error: calm-bridge not found on PATH: $bridge" >&2
+    echo "  build it: calm-serve (or: go build -o .tmp/calm-bridge ./cmd/calm-bridge && export CALM_BRIDGE_BIN=.tmp/calm-bridge)" >&2
+    exit 1
+  }
+fi
 
 case "$file" in
   *.go) language="go" ;;
