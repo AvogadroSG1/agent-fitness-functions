@@ -100,3 +100,38 @@ dotnet pack tools/roslyn-analyzer/CalmRoslynAnalyzer.csproj
 ```
 
 Measured cold start for the Debug Roslyn analyzer on 2026-05-18 was 0.12 seconds for a one-file C# fixture.
+
+## Governance Layer Deployment
+
+`calm-bridge` is an enterprise organization-wide governance layer. The containerized service is the **primary production path**. Every governed repository connects to a shared, centrally operated container instance; governance thresholds and enforcement configuration are authoritative only when served from the container.
+
+The local `.calm` mode (described in the CLI tools section below) is a **sandbox environment** for developer iteration and demonstration. It does not substitute for the container layer in any production or CI context.
+
+### Deployment topology
+
+```
+┌─────────────────────────────────┐
+│  Container (authoritative)      │
+│  calm-bridge serve              │
+│  configs/<repo>/config.json  ←─ governance source of truth
+│  certs/{server,ca}.{crt,key}    │
+└──────────────┬──────────────────┘
+               │ HTTPS + mTLS
+       ┌───────┴────────┐
+       │                │
+  pre-commit.sh    pre-tool-use.sh
+  (developer git)  (AI agent hook)
+```
+
+### Environment variables for remote mode
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `CALM_BRIDGE_ADDR` | Yes | Full HTTPS URL, e.g. `https://calm-governance.example:7890` |
+| `CALM_ALLOW_REMOTE_BRIDGE` | Yes (set to `1`) | Opt-in to non-loopback bridge addresses |
+| `CALM_CLIENT_CERT` | Yes (mTLS) | Path to PEM-encoded client certificate |
+| `CALM_CLIENT_KEY` | Yes (mTLS) | Path to PEM-encoded client private key |
+| `CALM_CLIENT_CA` | Yes (mTLS) | Path to PEM-encoded CA bundle for server verification |
+| `CALM_REPO_NAME` | Recommended | Logical repository name (overrides working-tree basename) |
+
+All hooks enforce HTTPS when `CALM_ALLOW_REMOTE_BRIDGE=1` is set. Connections over plain HTTP to a non-loopback address are rejected at the hook layer.
