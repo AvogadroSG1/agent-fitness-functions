@@ -4,7 +4,7 @@
       {
         "hooks": [
           {
-            "command": "/usr/bin/true",
+            "command": "CALM_BRIDGE_BIN=/Users/poconnor/peter_code/calm-poc/.tmp/calm-bridge CALM_BRIDGE_ADDR=http://127.0.0.1:7890 /Users/poconnor/peter_code/calm-poc/hooks/pre-tool-use.sh",
             "type": "command"
           }
         ],

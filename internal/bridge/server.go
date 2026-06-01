@@ -85,6 +85,7 @@ type ServeOptions struct {
 	NewStore       func(context.Context, string) (*ConfigStore, error)
 	HandlerOptions HandlerOptions
 	TLS            ServerTLSConfig
+	BlockOnWarmup  bool
 }
 
 // NewHandler builds the calm-bridge HTTP daemon routes.
@@ -319,7 +320,7 @@ func serveWithOptions(ctx context.Context, options ServeOptions) error {
 	}
 	server := &http.Server{
 		Addr: options.Addr,
-		Handler: NewHandlerWithOptions(Checker{ConfigStore: store}, func() {
+		Handler: NewHandlerWithOptions(Checker{ConfigStore: store, BlockOnWarmup: options.BlockOnWarmup}, func() {
 			select {
 			case shutdownRequested <- struct{}{}:
 			default:
