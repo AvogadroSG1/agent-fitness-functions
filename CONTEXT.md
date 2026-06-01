@@ -39,7 +39,9 @@ The daemon is the authority. The hook is the enforcement point. The governed rep
 
 ## Can a developer bypass the hook?
 
-Yes. Git hooks are local and unversioned. A developer can delete `.git/hooks/pre-commit` or weaken a local `.calm/config.json`. The hook is a **shift-left convenience**, not a security boundary. The containerized bridge still enforces the mounted `configs/<repo>/config.json` governance set.
+Yes. Git hooks are local and unversioned. A developer can delete `.git/hooks/pre-commit` or modify a local `.calm/config.json`. The hook is a **shift-left convenience**, not a security boundary.
+
+A governed repository **cannot weaken enforcement** via a local `.calm/config.json` file. When the hook connects to the containerised bridge, governance is resolved exclusively from the mounted `configs/<repo>/config.json` inside the container. The local `.calm/config.json` file has no effect on the container layer; it is only consulted when the bridge is running in local developer sandbox mode (loopback address, no remote flag).
 
 The real enforcement layer sits further right:
 
