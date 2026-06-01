@@ -1,3 +1,11 @@
+> **Historical document.** This runbook was written for the PoC local-only architecture.
+> It describes running `calm-bridge` built to `/tmp/calm-bridge` on loopback.
+> For the current container governance model, see [CONTEXT.md](../../CONTEXT.md) and
+> [README.md](../../README.md). Steps in this runbook remain valid for local sandbox
+> verification but must not be used as production deployment guidance.
+
+---
+
 # CALM PoC Red-Green Demo Runbook
 
 This runbook validates that CALM fitness functions block known violations in block-mode repositories, allow fixed code, and produce advisory guidance in advisory-mode repositories.
