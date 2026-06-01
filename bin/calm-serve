@@ -13,7 +13,7 @@ usage() {
   echo "" >&2
   echo "  Environment:" >&2
   echo "    CALM_SRC          path to the calm-poc repo (default: auto-detected)" >&2
-  echo "    CALM_BRIDGE_BIN   path to write/run the binary  (default: /tmp/calm-bridge)" >&2
+  echo "    CALM_BRIDGE_BIN   path to write/run the binary  (default: <repo>/.tmp/calm-bridge)" >&2
   echo "    CALM_BRIDGE_ADDR  listen address               (default: 127.0.0.1:7890)" >&2
   exit 0
 }
@@ -29,7 +29,7 @@ done
 
 _self=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 calm_src="${CALM_SRC:-$_self}"
-bridge="${CALM_BRIDGE_BIN:-/tmp/calm-bridge}"
+bridge="${CALM_BRIDGE_BIN:-$calm_src/.tmp/calm-bridge}"
 # strip http:// prefix if present — serve --addr takes host:port only
 raw_addr="${CALM_BRIDGE_ADDR:-127.0.0.1:7890}"
 addr="${raw_addr#http://}"
