@@ -118,7 +118,7 @@ What these metrics cannot catch: a function that is simple in isolation but orch
 | Governance rules | `internal/bridge/checker.go`, `governance.json` | Thresholds and enabled functions |
 | Pre-commit hook | `hooks/pre-commit.sh` (installed via `scripts/install-hooks.sh`) | Commit-time enforcement in governed repos |
 | `configs/<repo>/config.json` | Mounted into the container | Governance config for the logical repo |
-| `.calm/config.json` | Optional local repository sandbox | Developer-only override for local iteration |
+| `.calm/config.json` | Optional local repository sandbox | Developer sandbox only — **has no effect on container governance**; container always resolves from `configs/<repo>/config.json` |
 | `calm-test` | `~/.local/bin/calm-test` | Ad-hoc file check without committing |
 
 ---
