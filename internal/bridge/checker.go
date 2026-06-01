@@ -57,6 +57,7 @@ type Checker struct {
 	State           *State
 	ConfigStore     *ConfigStore
 	DeferredContext context.Context
+	BlockOnWarmup   bool
 }
 
 // ErrorKind classifies checker failures for HTTP clients.
@@ -138,6 +139,16 @@ func (c *Checker) checkWithCSharpWarmGuard(ctx context.Context, request CheckReq
 		return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
 	}
 	if state.BeginWarmup("csharp") {
+		if c.BlockOnWarmup {
+			defer unlockRepo()
+			resp, err := c.checkSynchronousLocked(ctx, request, repo, config, state)
+			if err != nil {
+				state.FailWarmup("csharp", err.Error())
+				return CheckResponse{}, err
+			}
+			state.CompleteWarmup("csharp")
+			return resp, nil
+		}
 		c.startDeferredCheck(request, repo, config, unlockRepo)
 		return CheckResponse{Status: StatusPass, Warming: true}, nil
 	}

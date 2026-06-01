@@ -75,6 +75,7 @@ func runServe(args []string, stderr io.Writer) int {
 	tlsCA := flags.String("tls-ca", "", "client CA bundle path")
 	trustedProxyHeaders := flags.Bool("trusted-proxy-headers", false, "trust X-Client-CN headers from an authenticated proxy")
 	trustedProxyClientCNs := flags.String("trusted-proxy-client-cns", "", "comma-separated trusted proxy client certificate common names")
+	blockOnWarmup := flags.Bool("block-on-warmup", false, "block first C# check until analyzer is ready instead of optimistic pass")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
@@ -90,6 +91,7 @@ func runServe(args []string, stderr io.Writer) int {
 			TrustedProxyHeaders:   *trustedProxyHeaders,
 			TrustedProxyClientCNs: splitCommaSeparatedValues(*trustedProxyClientCNs),
 		},
+		BlockOnWarmup: *blockOnWarmup,
 		TLS: bridge.ServerTLSConfig{
 			CertPath: *tlsCert,
 			KeyPath:  *tlsKey,

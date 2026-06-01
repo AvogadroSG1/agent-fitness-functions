@@ -5,14 +5,17 @@ usage() {
   echo "usage: calm-test <file>" >&2
   echo "       calm-test --help" >&2
   echo "" >&2
-  echo "  Checks all fitness functions for a source file against the running CALM bridge." >&2
+  echo "  LOCAL SANDBOX ONLY: checks fitness functions against a locally running CALM bridge." >&2
+  echo "  For remote container governance, configure CALM_BRIDGE_ADDR, CALM_ALLOW_REMOTE_BRIDGE=1," >&2
+  echo "  CALM_CLIENT_CERT/KEY/CA, and CALM_REPO_NAME, then run the hook directly." >&2
   echo "  Outputs a per-function status table using the repo's configured enforcement mode." >&2
   echo "" >&2
   echo "  Supported: go (.go), python (.py), csharp (.cs)" >&2
   echo "" >&2
   echo "  Environment:" >&2
-  echo "    CALM_BRIDGE_BIN   path to calm-bridge binary (default: /tmp/calm-bridge)" >&2
+  echo "    CALM_BRIDGE_BIN   path to calm-bridge binary (default: calm-bridge on PATH)" >&2
   echo "    CALM_BRIDGE_ADDR  bridge address (default: http://127.0.0.1:7890)" >&2
+  echo "    CALM_REPO_NAME    logical repo name override (default: derived from git root)" >&2
   exit 0
 }
 
@@ -20,15 +23,24 @@ usage() {
 [[ $# -ne 1 ]] && { echo "error: expected exactly one argument" >&2; usage; }
 
 file="$1"
-bridge="${CALM_BRIDGE_BIN:-/tmp/calm-bridge}"
+bridge="${CALM_BRIDGE_BIN:-calm-bridge}"
 addr="${CALM_BRIDGE_ADDR:-http://127.0.0.1:7890}"
+repo_name="${CALM_REPO_NAME:-}"
 
 [[ -f "$file" ]] || { echo "error: file not found: $file" >&2; exit 1; }
-[[ -x "$bridge" ]] || {
-  echo "error: calm-bridge not found at $bridge" >&2
-  echo "  build it: calm-serve (or: cd \$(calm-src) && go build -o /tmp/calm-bridge ./cmd/calm-bridge)" >&2
-  exit 1
-}
+if [[ "$bridge" == */* ]]; then
+  [[ -x "$bridge" ]] || {
+    echo "error: calm-bridge not found at $bridge" >&2
+    echo "  build it: calm-serve (or: go build -o $bridge ./cmd/calm-bridge)" >&2
+    exit 1
+  }
+else
+  command -v "$bridge" > /dev/null 2>&1 || {
+    echo "error: calm-bridge not found on PATH: $bridge" >&2
+    echo "  build it: calm-serve (or: go build -o .tmp/calm-bridge ./cmd/calm-bridge && export CALM_BRIDGE_BIN=.tmp/calm-bridge)" >&2
+    exit 1
+  }
+fi
 
 case "$file" in
   *.go) language="go" ;;
@@ -41,6 +53,11 @@ file_abs=$(cd "$(dirname "$file")" && pwd)/$(basename "$file")
 repo=$(git -C "$(dirname "$file_abs")" rev-parse --show-toplevel 2>/dev/null) \
   || { echo "error: file is not inside a git repository" >&2; exit 1; }
 relative_file="${file_abs#"$repo"/}"
+
+repo_arg="$repo"
+if [[ -n "$repo_name" ]]; then
+  repo_arg="$repo_name"
+fi
 
 # Read enforcement mode from the repo's .calm/config.json (default: block)
 enforcement_mode="block"
@@ -138,7 +155,7 @@ print(json.dumps(cfg, indent=2))
   response=$(
     "$bridge" check \
       --addr "$addr" \
-      --repo "$tmp_dir" \
+      --repo "$repo_arg" \
       --file "$relative_file" \
       --content "$(cat "$file_abs")" \
       --language "$language" 2>/dev/null

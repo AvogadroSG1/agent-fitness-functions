@@ -6,6 +6,12 @@ date created: Sunday, May 18th 2026
 date modified: Sunday, May 18th 2026
 ---
 
+> **Historical document.** This specification describes the PoC local-only architecture
+> (single-machine daemon, `.calm/config.json` governance, loopback-only bridge).
+> The current production architecture uses a containerized service with
+> `configs/<repo>/config.json` governance mounted at runtime.
+> See [CONTEXT.md](../../CONTEXT.md) and [README.md](../../README.md) for current architecture.
+
 # CALM PoC: Engineering Technical Specification
 
 > Context and goals: [why-and-what.md](why-and-what.md)

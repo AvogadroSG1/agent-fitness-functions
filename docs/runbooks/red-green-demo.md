@@ -1,13 +1,21 @@
+> **Historical document.** This runbook was written for the PoC local-only architecture.
+> It describes running `calm-bridge` built to `/tmp/calm-bridge` on loopback.
+> For the current container governance model, see [CONTEXT.md](../../CONTEXT.md) and
+> [README.md](../../README.md). Steps in this runbook remain valid for local sandbox
+> verification but must not be used as production deployment guidance.
+
+---
+
 # CALM PoC Red-Green Demo Runbook
 
 This runbook validates that CALM fitness functions block known violations in block-mode repositories, allow fixed code, and produce advisory guidance in advisory-mode repositories.
 
 ## Prerequisites
 
-- Build the bridge: `go build -o /tmp/calm-bridge ./cmd/calm-bridge`
-- Start the daemon on loopback: `/tmp/calm-bridge serve --addr 127.0.0.1:7890`
+- Build the bridge: `go build -o .tmp/calm-bridge ./cmd/calm-bridge`
+- Start the daemon on loopback: `CALM_BRIDGE_BIN=.tmp/calm-bridge .tmp/calm-bridge serve --addr 127.0.0.1:7890`
 - Install the git hook in each target repository: `scripts/install-hooks.sh <repo>`
-- Run commits with `CALM_BRIDGE_BIN=/tmp/calm-bridge CALM_BRIDGE_ADDR=http://127.0.0.1:7890`
+- Run commits with `CALM_BRIDGE_BIN=.tmp/calm-bridge CALM_BRIDGE_ADDR=http://127.0.0.1:7890`
 - Use per-demo `.calm/config.json` files that explicitly disable every non-target fitness function. Missing fitness-function keys default to enabled.
 
 The hook refuses non-loopback bridge addresses unless `CALM_ALLOW_REMOTE_BRIDGE=1` is set. The installer overwrites prior CALM-managed hooks and refuses unrelated existing hooks unless `CALM_HOOK_OVERWRITE=1` is set.
@@ -72,7 +80,7 @@ The smoke script runs Cyclomatic Complexity, Interface Width, Logic Density Rati
 
 ```bash
 for _ in {1..30}; do
-  result=$(/tmp/calm-bridge check \
+  result=$(.tmp/calm-bridge check \
     --addr http://127.0.0.1:7890 \
     --repo <SlackStatus repo> \
     --file src/Demo/Warmup.cs \
