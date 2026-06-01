@@ -31,9 +31,24 @@ except ValueError:
 PY
 }
 
-if [[ -n "$addr" && "${CALM_ALLOW_REMOTE_BRIDGE:-}" != "1" ]] && ! bridge_addr_is_loopback "$addr"; then
-  echo "CALM_BRIDGE_ADDR must be loopback unless CALM_ALLOW_REMOTE_BRIDGE=1 is set" >&2
-  exit 2
+bridge_addr_is_https() {
+  python3 - "$1" <<'PYCHECK'
+import sys
+from urllib.parse import urlparse
+
+sys.exit(0 if urlparse(sys.argv[1]).scheme == "https" else 1)
+PYCHECK
+}
+
+if [[ -n "$addr" ]] && ! bridge_addr_is_loopback "$addr"; then
+  if [[ "${CALM_ALLOW_REMOTE_BRIDGE:-}" != "1" ]]; then
+    echo "CALM_BRIDGE_ADDR must be loopback unless CALM_ALLOW_REMOTE_BRIDGE=1 is set" >&2
+    exit 2
+  fi
+  if ! bridge_addr_is_https "$addr"; then
+    echo "remote CALM_BRIDGE_ADDR must use https" >&2
+    exit 2
+  fi
 fi
 
 language_for_file() {
