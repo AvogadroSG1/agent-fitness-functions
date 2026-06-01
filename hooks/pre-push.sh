@@ -5,6 +5,12 @@ set -euo pipefail
 repo=$(git rev-parse --show-toplevel)
 calm_bridge=${CALM_BRIDGE_BIN:-calm-bridge}
 addr=${CALM_BRIDGE_ADDR:-}
+client_cert=${CALM_CLIENT_CERT:-}
+client_key=${CALM_CLIENT_KEY:-}
+client_ca=${CALM_CLIENT_CA:-}
+repo_name=${CALM_REPO_NAME:-}
+remote_mode=0
+repo_arg=$repo
 blocked=0
 
 bridge_addr_is_loopback() {
@@ -25,9 +31,31 @@ except ValueError:
 PY
 }
 
-if [[ -n "$addr" && "${CALM_ALLOW_REMOTE_BRIDGE:-}" != "1" ]] && ! bridge_addr_is_loopback "$addr"; then
-  echo "CALM_BRIDGE_ADDR must be loopback unless CALM_ALLOW_REMOTE_BRIDGE=1 is set" >&2
-  exit 1
+bridge_addr_is_https() {
+  python3 - "$1" <<'PYCHECK'
+import sys
+from urllib.parse import urlparse
+
+sys.exit(0 if urlparse(sys.argv[1]).scheme == "https" else 1)
+PYCHECK
+}
+
+if [[ -n "$addr" ]] && ! bridge_addr_is_loopback "$addr"; then
+  if [[ "${CALM_ALLOW_REMOTE_BRIDGE:-}" != "1" ]]; then
+    echo "CALM_BRIDGE_ADDR must be loopback unless CALM_ALLOW_REMOTE_BRIDGE=1 is set" >&2
+    exit 1
+  fi
+  if ! bridge_addr_is_https "$addr"; then
+    echo "remote CALM_BRIDGE_ADDR must use https" >&2
+    exit 1
+  fi
+  remote_mode=1
+fi
+
+if [[ -n "$repo_name" ]]; then
+  repo_arg=$repo_name
+elif [[ "$remote_mode" -eq 1 ]]; then
+  repo_arg=$(basename "$repo")
 fi
 
 language_for_file() {
@@ -47,14 +75,12 @@ tmpdir=$(mktemp -d)
 cleanup() { rm -rf "$tmpdir"; }
 trap cleanup EXIT
 
-while read -r local_ref local_sha remote_ref remote_sha; do
+while read -r _local_ref local_sha _remote_ref remote_sha; do
   # Skip deletions
   [[ "$local_sha" == "0000000000000000000000000000000000000000" ]] && continue
 
-  # Compute diff range
   null_sha="0000000000000000000000000000000000000000"
   if [[ "$remote_sha" == "$null_sha" ]]; then
-    # New branch: check commits since divergence from default branch
     base=$(git merge-base "$local_sha" "origin/HEAD" 2>/dev/null \
            || git merge-base "$local_sha" "origin/main" 2>/dev/null \
            || echo "${local_sha}^")
@@ -71,13 +97,21 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
     content_file="$tmpdir/$(echo "$file" | tr '/' '_')"
     if ! git show "${local_sha}:${file}" > "$content_file" 2>/dev/null; then
-      # File may have been deleted in a later commit; skip
       continue
     fi
 
-    args=(check --file "$file" --repo "$repo" --content-file "$content_file" --language "$language")
+    args=(check --file "$file" --repo "$repo_arg" --content-file "$content_file" --language "$language")
     if [[ -n "$addr" ]]; then
       args+=(--addr "$addr")
+    fi
+    if [[ -n "$client_cert" ]]; then
+      args+=(--client-cert "$client_cert")
+    fi
+    if [[ -n "$client_key" ]]; then
+      args+=(--client-key "$client_key")
+    fi
+    if [[ -n "$client_ca" ]]; then
+      args+=(--client-ca "$client_ca")
     fi
 
     if ! result=$("$calm_bridge" "${args[@]}"); then
