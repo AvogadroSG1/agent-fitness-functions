@@ -138,8 +138,14 @@ func (c *Checker) checkWithCSharpWarmGuard(ctx context.Context, request CheckReq
 		return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
 	}
 	if state.BeginWarmup("csharp") {
-		c.startDeferredCheck(request, repo, config, unlockRepo)
-		return CheckResponse{Status: StatusPass, Warming: true}, nil
+		defer unlockRepo()
+		resp, err := c.checkSynchronousLocked(ctx, request, repo, config, state)
+		if err != nil {
+			state.FailWarmup("csharp", err.Error())
+			return CheckResponse{}, err
+		}
+		state.CompleteWarmup("csharp")
+		return resp, nil
 	}
 	defer unlockRepo()
 	return c.checkSynchronousLocked(ctx, request, repo, config, state)
