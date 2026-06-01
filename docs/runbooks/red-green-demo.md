@@ -12,10 +12,10 @@ This runbook validates that CALM fitness functions block known violations in blo
 
 ## Prerequisites
 
-- Build the bridge: `go build -o /tmp/calm-bridge ./cmd/calm-bridge`
-- Start the daemon on loopback: `/tmp/calm-bridge serve --addr 127.0.0.1:7890`
+- Build the bridge: `go build -o .tmp/calm-bridge ./cmd/calm-bridge`
+- Start the daemon on loopback: `CALM_BRIDGE_BIN=.tmp/calm-bridge .tmp/calm-bridge serve --addr 127.0.0.1:7890`
 - Install the git hook in each target repository: `scripts/install-hooks.sh <repo>`
-- Run commits with `CALM_BRIDGE_BIN=/tmp/calm-bridge CALM_BRIDGE_ADDR=http://127.0.0.1:7890`
+- Run commits with `CALM_BRIDGE_BIN=.tmp/calm-bridge CALM_BRIDGE_ADDR=http://127.0.0.1:7890`
 - Use per-demo `.calm/config.json` files that explicitly disable every non-target fitness function. Missing fitness-function keys default to enabled.
 
 The hook refuses non-loopback bridge addresses unless `CALM_ALLOW_REMOTE_BRIDGE=1` is set. The installer overwrites prior CALM-managed hooks and refuses unrelated existing hooks unless `CALM_HOOK_OVERWRITE=1` is set.
