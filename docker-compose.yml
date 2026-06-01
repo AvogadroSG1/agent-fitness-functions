@@ -3,6 +3,7 @@
 # Resource enforcement differs by runtime: local Compose treats deploy.resources as
 # advisory compatibility metadata, while Swarm has enforced deploy.resources limits.
 # Kubernetes production deployments MUST use the Helm chart as authoritative.
+# The production Helm chart is maintained externally and is NOT included in this repository.
 # Helm chart is authoritative for pod securityContext, resources.limits,
 # ConfigMaps, Secrets, and read-only mounts.
 services:
