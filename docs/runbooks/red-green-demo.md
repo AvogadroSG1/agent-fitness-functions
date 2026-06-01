@@ -80,7 +80,7 @@ The smoke script runs Cyclomatic Complexity, Interface Width, Logic Density Rati
 
 ```bash
 for _ in {1..30}; do
-  result=$(/tmp/calm-bridge check \
+  result=$(.tmp/calm-bridge check \
     --addr http://127.0.0.1:7890 \
     --repo <SlackStatus repo> \
     --file src/Demo/Warmup.cs \
