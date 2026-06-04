@@ -1,5 +1,16 @@
 {
-  "enforcement-mode": "off",
-  "enforcement-on-error": "pass",
-  "fitness-functions": {}
+  "enforcement-mode": "block",
+  "enforcement-on-error": "block",
+  "fitness-functions": {
+    "cyclomatic-complexity": true,
+    "interface-width": true,
+    "implementation-depth": true,
+    "logic-density": true,
+    "dependency-discipline": true
+  },
+  "exclude-patterns": [
+    "*_test.go",
+    "test_*.py",
+    "*_test.py"
+  ]
 }

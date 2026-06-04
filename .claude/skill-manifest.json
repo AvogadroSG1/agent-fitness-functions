@@ -3,6 +3,7 @@
     "ai-workflow/agent-browser",
     "ai-workflow/grill-me",
     "ai-workflow/grill-with-docs",
+    "ai-workflow/handoff",
     "ai-workflow/multi-reviewer-patterns",
     "ai-workflow/parallel-debugging",
     "ai-workflow/parallel-feature-development",
