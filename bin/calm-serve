@@ -2,57 +2,51 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: calm-serve [--no-build]" >&2
+  echo "usage: calm-serve [--build]" >&2
   echo "       calm-serve --help" >&2
   echo "" >&2
-  echo "  Builds the CALM bridge binary and starts the daemon on loopback." >&2
+  echo "  Starts the calm-bridge container via Docker Compose (Docker Desktop)." >&2
   echo "  Runs in the foreground — use Ctrl+C to stop." >&2
   echo "" >&2
   echo "  Options:" >&2
-  echo "    --no-build    skip the build step (use existing binary)" >&2
+  echo "    --build    force a Docker image rebuild before starting" >&2
   echo "" >&2
   echo "  Environment:" >&2
-  echo "    CALM_SRC          path to the calm-poc repo (default: auto-detected)" >&2
-  echo "    CALM_BRIDGE_BIN   path to write/run the binary  (default: <repo>/.tmp/calm-bridge)" >&2
-  echo "    CALM_BRIDGE_ADDR  listen address               (default: 127.0.0.1:7890)" >&2
+  echo "    CALM_SRC   path to the calm-poc repo (default: auto-detected)" >&2
+  echo "    GIT_SHA    image tag suffix           (default: git short SHA)" >&2
+  echo "    BUILD_DATE image build timestamp      (default: current UTC time)" >&2
   exit 0
 }
 
-build=1
+rebuild=0
 for arg in "$@"; do
   case "$arg" in
     --help|-h) usage ;;
-    --no-build) build=0 ;;
+    --build) rebuild=1 ;;
     *) echo "error: unknown argument: $arg" >&2; usage ;;
   esac
 done
 
 _self=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 calm_src="${CALM_SRC:-$_self}"
-bridge="${CALM_BRIDGE_BIN:-$calm_src/.tmp/calm-bridge}"
-# strip http:// prefix if present — serve --addr takes host:port only
-raw_addr="${CALM_BRIDGE_ADDR:-127.0.0.1:7890}"
-addr="${raw_addr#http://}"
 
-if [[ $build -eq 1 ]]; then
-  [[ -d "$calm_src/cmd/calm-bridge" ]] || {
-    echo "error: calm-poc source not found at $calm_src" >&2
-    echo "  set CALM_SRC to the calm-poc repo root" >&2
-    exit 1
-  }
-  echo "Building: go build -o $bridge ./cmd/calm-bridge"
-  (cd "$calm_src" && go build -o "$bridge" ./cmd/calm-bridge)
-  echo "Built:    $bridge"
-  echo ""
-fi
-
-[[ -x "$bridge" ]] || {
-  echo "error: calm-bridge not found at $bridge" >&2
-  echo "  run without --no-build to compile it first" >&2
+[[ -f "$calm_src/docker-compose.yml" ]] || {
+  echo "error: docker-compose.yml not found at $calm_src" >&2
+  echo "  set CALM_SRC to the calm-poc repo root" >&2
   exit 1
 }
 
-echo "Starting: $bridge serve --addr $addr"
+export GIT_SHA="${GIT_SHA:-$(git -C "$calm_src" rev-parse --short HEAD 2>/dev/null || echo dev)}"
+export BUILD_DATE="${BUILD_DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+
+compose_args=(--project-directory "$calm_src" up)
+if [[ $rebuild -eq 1 ]]; then
+  compose_args+=(--build)
+fi
+
+echo "Starting calm-bridge container (Docker Desktop)"
+echo "  Image tag: calm-bridge:${GIT_SHA}"
+echo "  Address:   http://localhost:7890  (or https if TLS certs are mounted)"
 echo "Press Ctrl+C to stop."
 echo ""
-exec "$bridge" serve --addr "$addr"
+exec docker compose "${compose_args[@]}"
