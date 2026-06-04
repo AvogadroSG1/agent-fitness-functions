@@ -56,6 +56,48 @@ func TestParseConfigContentParsesExcludePatterns(t *testing.T) {
 	}
 }
 
+func TestConfigIsExcludedMatchesGoTestFile(t *testing.T) {
+	t.Parallel()
+
+	config := Config{ExcludePatterns: []string{"*_test.go", "test_*.py", "*_test.py"}}
+	if !config.isExcluded("internal/bridge/checker_test.go") {
+		t.Error("isExcluded() = false for *_test.go pattern, want true")
+	}
+}
+
+func TestConfigIsExcludedMatchesPythonTestFile(t *testing.T) {
+	t.Parallel()
+
+	config := Config{ExcludePatterns: []string{"*_test.go", "test_*.py", "*_test.py"}}
+	if !config.isExcluded("analyzers/test_format_violations.py") {
+		t.Error("isExcluded() = false for test_*.py pattern, want true")
+	}
+	if !config.isExcluded("analyzers/format_violations_test.py") {
+		t.Error("isExcluded() = false for *_test.py pattern, want true")
+	}
+}
+
+func TestConfigIsExcludedDoesNotMatchProductionFile(t *testing.T) {
+	t.Parallel()
+
+	config := Config{ExcludePatterns: []string{"*_test.go", "test_*.py", "*_test.py"}}
+	if config.isExcluded("internal/bridge/checker.go") {
+		t.Error("isExcluded() = true for production .go file, want false")
+	}
+	if config.isExcluded("analyzers/format_violations.py") {
+		t.Error("isExcluded() = true for production .py file, want false")
+	}
+}
+
+func TestConfigIsExcludedWithNoPatterns(t *testing.T) {
+	t.Parallel()
+
+	config := Config{}
+	if config.isExcluded("internal/bridge/checker_test.go") {
+		t.Error("isExcluded() = true with no patterns, want false")
+	}
+}
+
 func TestParseConfigContentDefaultsExcludePatternsToEmpty(t *testing.T) {
 	t.Parallel()
 
