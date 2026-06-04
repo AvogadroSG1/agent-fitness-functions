@@ -156,6 +156,17 @@ func (c Config) enabled(name string) bool {
 	return ok && enabled
 }
 
+func (c Config) isExcluded(file string) bool {
+	base := filepath.Base(file)
+	for _, pattern := range c.ExcludePatterns {
+		matched, err := filepath.Match(pattern, base)
+		if err == nil && matched {
+			return true
+		}
+	}
+	return false
+}
+
 func extractRepositoryName(repoPath string) string {
 	// Extract the last path component (e.g., /tmp/xyz123 -> xyz123)
 	// and normalize it to match the pattern ^[a-z][a-z0-9_-]{0,63}$
