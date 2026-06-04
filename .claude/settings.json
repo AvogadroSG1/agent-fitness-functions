@@ -1,16 +1,6 @@
 {
   "hooks": {
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "command": "CALM_BRIDGE_BIN=\"$(pwd)/.tmp/calm-bridge\" CALM_BRIDGE_ADDR=http://127.0.0.1:7890 \"$(pwd)/hooks/pre-tool-use.sh\"",
-            "type": "command"
-          }
-        ],
-        "matcher": "Edit|Write"
-      }
-    ],
+
     "PreCompact": [
       {
         "hooks": [
