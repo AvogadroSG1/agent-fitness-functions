@@ -50,11 +50,11 @@ PYCHECK
 if [[ -n "$addr" ]] && ! bridge_addr_is_loopback "$addr"; then
   if [[ "${CALM_ALLOW_REMOTE_BRIDGE:-}" != "1" ]]; then
     echo "CALM_BRIDGE_ADDR must be loopback unless CALM_ALLOW_REMOTE_BRIDGE=1 is set" >&2
-    exit 1
+    exit 2
   fi
   if ! bridge_addr_is_https "$addr"; then
     echo "remote CALM_BRIDGE_ADDR must use https" >&2
-    exit 1
+    exit 2
   fi
   remote_mode=1
 fi
@@ -116,7 +116,11 @@ while IFS= read -r -d '' file; do
     continue
   fi
 
-  status=$(printf '%s' "$result" | json_field status)
+  if ! status=$(printf '%s' "$result" | json_field status 2>/dev/null); then
+    echo "CALM check returned invalid JSON for $file" >&2
+    blocked=1
+    continue
+  fi
   case "$status" in
     block)
       printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
