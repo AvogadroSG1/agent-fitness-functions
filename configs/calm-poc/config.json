@@ -1,0 +1,5 @@
+{
+  "enforcement-mode": "off",
+  "enforcement-on-error": "pass",
+  "fitness-functions": {}
+}
