@@ -102,7 +102,7 @@ ln -sf "$(pwd)/bin"/calm-* ~/.local/bin/
 | Command | Purpose |
 |---------|---------|
 | `calm-install-hooks [repo]` | Install the CALM pre-commit hook into a git repository |
-| `calm-serve [--no-build]` | Build and start the CALM bridge daemon on loopback |
+| `calm-serve [--build]` | Start the CALM bridge container via Docker Compose (Docker Desktop) |
 | `calm-test <file>` | Check a file's fitness functions against the running bridge |
 
 ### Remote Container Hook Mode
