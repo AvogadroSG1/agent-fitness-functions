@@ -36,6 +36,7 @@ type Config struct {
 	EnforcementMode    EnforcementMode      `json:"enforcement-mode"`
 	EnforcementOnError ErrorEnforcementMode `json:"enforcement-on-error,omitempty"`
 	FitnessFunctions   map[string]bool      `json:"fitness-functions"`
+	ExcludePatterns    []string             `json:"exclude-patterns,omitempty"`
 }
 
 var (
