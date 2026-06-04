@@ -99,6 +99,9 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 	if err != nil {
 		return CheckResponse{}, err
 	}
+	if config.isExcluded(request.File) {
+		return CheckResponse{Status: StatusPass}, nil
+	}
 	state := c.state()
 	if config.EnforcementMode == EnforcementOff {
 		state.ClearRepo(repo)
