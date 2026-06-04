@@ -115,6 +115,7 @@ What these metrics cannot catch: a function that is simple in isolation but orch
 | Component | Location | Purpose |
 |---|---|---|
 | `calm-bridge` binary | `/app/calm-bridge` (built from `cmd/calm-bridge`) | Daemon and CLI for all checks |
+| Container service | `docker compose up` via `bin/calm-serve` (Docker Desktop) | **Primary runtime** — serves the bridge on `localhost:7890` |
 | Governance rules | `internal/bridge/checker.go`, `governance.json` | Thresholds and enabled functions |
 | Pre-commit hook | `hooks/pre-commit.sh` (installed via `scripts/install-hooks.sh`) | Commit-time enforcement in governed repos |
 | `configs/<repo>/config.json` | Mounted into the container | Governance config for the logical repo |
