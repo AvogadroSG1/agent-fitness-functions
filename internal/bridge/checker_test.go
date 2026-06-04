@@ -2456,6 +2456,98 @@ func TestCollectPeerGoFilesExcludesGeneratedAndTestFiles(t *testing.T) {
 	}
 }
 
+func TestCheckPassesExcludedTestFileWithoutRunningAnalysis(t *testing.T) {
+	t.Parallel()
+
+	repo := "repo-excluded"
+	store := newTestConfigStore(t)
+	config := Config{
+		EnforcementMode:  EnforcementBlock,
+		FitnessFunctions: map[string]bool{"cyclomatic-complexity": true},
+		ExcludePatterns:  []string{"*_test.go", "test_*.py", "*_test.py"},
+	}
+	content, err := json.Marshal(config)
+	if err != nil {
+		t.Fatalf("marshal config: %v", err)
+	}
+	writeRepoConfigContent(t, store, repo, string(content))
+
+	analyzerCalled := false
+	checker := Checker{
+		ConfigStore: store,
+		PatternPath: writeTestPattern(t),
+		State:       NewState(),
+		Analyzers: map[string]SourceAnalyzer{
+			"go": AnalyzerFunc(func(_ context.Context, _ AnalysisRequest) (analyzer.AnalysisResult, error) {
+				analyzerCalled = true
+				return analyzer.AnalysisResult{}, nil
+			}),
+		},
+	}
+
+	resp, err := checker.Check(context.Background(), CheckRequest{
+		Repo:            repo,
+		File:            "internal/bridge/checker_test.go",
+		Language:        "go",
+		ProposedContent: "package bridge\n",
+	})
+	if err != nil {
+		t.Fatalf("Check() error = %v", err)
+	}
+	if resp.Status != StatusPass {
+		t.Errorf("status = %q, want %q", resp.Status, StatusPass)
+	}
+	if analyzerCalled {
+		t.Error("analyzer was called for excluded test file, want skipped")
+	}
+}
+
+func TestCheckPassesExcludedPythonTestFileWithoutRunningAnalysis(t *testing.T) {
+	t.Parallel()
+
+	repo := "repo-excluded-py"
+	store := newTestConfigStore(t)
+	config := Config{
+		EnforcementMode:  EnforcementBlock,
+		FitnessFunctions: map[string]bool{"cyclomatic-complexity": true},
+		ExcludePatterns:  []string{"*_test.go", "test_*.py", "*_test.py"},
+	}
+	content, err := json.Marshal(config)
+	if err != nil {
+		t.Fatalf("marshal config: %v", err)
+	}
+	writeRepoConfigContent(t, store, repo, string(content))
+
+	analyzerCalled := false
+	checker := Checker{
+		ConfigStore: store,
+		PatternPath: writeTestPattern(t),
+		State:       NewState(),
+		Analyzers: map[string]SourceAnalyzer{
+			"python": AnalyzerFunc(func(_ context.Context, _ AnalysisRequest) (analyzer.AnalysisResult, error) {
+				analyzerCalled = true
+				return analyzer.AnalysisResult{}, nil
+			}),
+		},
+	}
+
+	resp, err := checker.Check(context.Background(), CheckRequest{
+		Repo:            repo,
+		File:            "analyzers/test_format_violations.py",
+		Language:        "python",
+		ProposedContent: "# test\n",
+	})
+	if err != nil {
+		t.Fatalf("Check() error = %v", err)
+	}
+	if resp.Status != StatusPass {
+		t.Errorf("status = %q, want %q", resp.Status, StatusPass)
+	}
+	if analyzerCalled {
+		t.Error("analyzer was called for excluded python test file, want skipped")
+	}
+}
+
 func TestAnalyzeSourceReturnsInputErrorForUnsupportedLanguage(t *testing.T) {
 	repo := t.TempDir()
 	checker := Checker{State: NewState()}
