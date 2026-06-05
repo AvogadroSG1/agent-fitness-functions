@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -80,6 +81,17 @@ func runServe(args []string, stderr io.Writer) int {
 		return 2
 	}
 
+	rateLimiter, err := buildRateLimiter()
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return 1
+	}
+	analyzerTimeout, err := resolveAnalyzerTimeout()
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		return 1
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := bridge.ServeWithOptions(ctx, bridge.ServeOptions{
@@ -90,8 +102,10 @@ func runServe(args []string, stderr io.Writer) int {
 		HandlerOptions: bridge.HandlerOptions{
 			TrustedProxyHeaders:   *trustedProxyHeaders,
 			TrustedProxyClientCNs: splitCommaSeparatedValues(*trustedProxyClientCNs),
+			RateLimiter:           rateLimiter,
 		},
-		BlockOnWarmup: *blockOnWarmup,
+		BlockOnWarmup:   *blockOnWarmup,
+		AnalyzerTimeout: analyzerTimeout,
 		TLS: bridge.ServerTLSConfig{
 			CertPath: *tlsCert,
 			KeyPath:  *tlsKey,
@@ -102,6 +116,40 @@ func runServe(args []string, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// buildRateLimiter creates a rate limiter from CALM_RATE_LIMIT (default 100 req/min).
+// Returns nil when the env var is explicitly set to 0 (disables rate limiting).
+func buildRateLimiter() (bridge.RateLimiter, error) {
+	raw := os.Getenv("CALM_RATE_LIMIT")
+	if raw == "" {
+		return bridge.NewFixedWindowRateLimiter(100, time.Minute), nil
+	}
+	limit, err := strconv.Atoi(raw)
+	if err != nil || limit < 0 {
+		return nil, fmt.Errorf("CALM_RATE_LIMIT: expected non-negative integer, got %q", raw)
+	}
+	if limit == 0 {
+		return nil, nil
+	}
+	return bridge.NewFixedWindowRateLimiter(limit, time.Minute), nil
+}
+
+// resolveAnalyzerTimeout parses CALM_ANALYZER_TIMEOUT (default 30s).
+// Returns 0 when the env var is explicitly set to 0 (disables timeout).
+func resolveAnalyzerTimeout() (time.Duration, error) {
+	raw := os.Getenv("CALM_ANALYZER_TIMEOUT")
+	if raw == "" {
+		return 30 * time.Second, nil
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("CALM_ANALYZER_TIMEOUT: invalid duration %q: %w", raw, err)
+	}
+	if d < 0 {
+		return 0, fmt.Errorf("CALM_ANALYZER_TIMEOUT: duration must be non-negative, got %q", raw)
+	}
+	return d, nil
 }
 
 func runCheck(args []string, stdout io.Writer, client *http.Client, starter func(string) error) error {
@@ -212,19 +260,28 @@ func configureClientTLS(base *http.Client, certPath, keyPath, caPath string) (*h
 		return nil, usageError{err: errors.New("check requires --client-cert and --client-key together")}
 	}
 	configured := cloneHTTPClient(base)
-	baseTransport := http.DefaultTransport.(*http.Transport)
-	if configured.Transport != nil {
-		if transport, ok := configured.Transport.(*http.Transport); ok {
-			baseTransport = transport
+	transport := cloneClientTransport(configured)
+	tlsConfig, err := buildClientTLSConfig(transport.TLSClientConfig, certPath, keyPath, caPath)
+	if err != nil {
+		return nil, err
+	}
+	transport.TLSClientConfig = tlsConfig
+	configured.Transport = transport
+	return configured, nil
+}
+
+func cloneClientTransport(client *http.Client) *http.Transport {
+	base := http.DefaultTransport.(*http.Transport)
+	if client.Transport != nil {
+		if transport, ok := client.Transport.(*http.Transport); ok {
+			base = transport
 		}
 	}
-	transport := baseTransport.Clone()
-	tlsConfig := transport.TLSClientConfig
-	if tlsConfig != nil {
-		tlsConfig = tlsConfig.Clone()
-	} else {
-		tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12}
-	}
+	return base.Clone()
+}
+
+func buildClientTLSConfig(existing *tls.Config, certPath, keyPath, caPath string) (*tls.Config, error) {
+	tlsConfig := cloneTLSConfig(existing)
 	if certPath != "" {
 		certificate, err := tls.LoadX509KeyPair(certPath, keyPath)
 		if err != nil {
@@ -243,9 +300,14 @@ func configureClientTLS(base *http.Client, certPath, keyPath, caPath string) (*h
 		}
 		tlsConfig.RootCAs = pool
 	}
-	transport.TLSClientConfig = tlsConfig
-	configured.Transport = transport
-	return configured, nil
+	return tlsConfig, nil
+}
+
+func cloneTLSConfig(existing *tls.Config) *tls.Config {
+	if existing != nil {
+		return existing.Clone()
+	}
+	return &tls.Config{MinVersion: tls.VersionTLS12}
 }
 
 func cloneHTTPClient(base *http.Client) *http.Client {
@@ -280,19 +342,27 @@ func resolveContent(repo, file, explicitContent, contentFile string, staged bool
 		return explicitContent, nil
 	}
 	if staged {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		command := exec.CommandContext(ctx, "git", "-C", repo, "show", ":"+file)
-		output, err := command.CombinedOutput()
-		if err != nil {
-			detail := strings.TrimSpace(string(output))
-			if detail == "" {
-				return "", fmt.Errorf("reading staged content for %s: %w", file, err)
-			}
-			return "", fmt.Errorf("reading staged content for %s: %w: %s", file, err, detail)
-		}
-		return string(output), nil
+		return resolveContentFromGit(repo, file)
 	}
+	return resolveContentFromDisk(repo, file)
+}
+
+func resolveContentFromGit(repo, file string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, "git", "-C", repo, "show", ":"+file)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		detail := strings.TrimSpace(string(output))
+		if detail == "" {
+			return "", fmt.Errorf("reading staged content for %s: %w", file, err)
+		}
+		return "", fmt.Errorf("reading staged content for %s: %w: %s", file, err, detail)
+	}
+	return string(output), nil
+}
+
+func resolveContentFromDisk(repo, file string) (string, error) {
 	path := file
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(repo, file)

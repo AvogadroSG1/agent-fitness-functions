@@ -79,13 +79,14 @@ type Violation struct {
 }
 
 type ServeOptions struct {
-	Addr           string
-	ConfigDir      string
-	Ready          io.Writer
-	NewStore       func(context.Context, string) (*ConfigStore, error)
-	HandlerOptions HandlerOptions
-	TLS            ServerTLSConfig
-	BlockOnWarmup  bool
+	Addr            string
+	ConfigDir       string
+	Ready           io.Writer
+	NewStore        func(context.Context, string) (*ConfigStore, error)
+	HandlerOptions  HandlerOptions
+	TLS             ServerTLSConfig
+	BlockOnWarmup   bool
+	AnalyzerTimeout time.Duration
 }
 
 // NewHandler builds the calm-bridge HTTP daemon routes.
@@ -101,6 +102,9 @@ func NewHandlerWithChecker(checker Checker, shutdown func()) http.Handler {
 func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOptions) http.Handler {
 	if checker.State == nil {
 		checker.State = NewState()
+	}
+	if checker.ConcurrencyPermits == 0 && options.MaxConcurrentAnalysesPerRepo > 0 {
+		checker.ConcurrencyPermits = options.MaxConcurrentAnalysesPerRepo
 	}
 	deferredCtx, cancelDeferred := context.WithCancel(context.Background())
 	if checker.DeferredContext == nil {
@@ -181,20 +185,23 @@ func resolveCheckCaller(r *http.Request, options HandlerOptions) string {
 	return caller
 }
 
+// decodeCheckRequest reads the body into a buffer (enforcing the size cap first)
+// then unmarshals JSON. Reading the full buffer before decoding ensures that an
+// oversized body returns 413 even when the JSON is invalid from the first byte.
 func decodeCheckRequest(w http.ResponseWriter, r *http.Request) (CheckRequest, bool) {
-	var request CheckRequest
-	body := http.MaxBytesReader(w, r.Body, maxCheckRequestBytes)
-	defer body.Close()
-	decoder := json.NewDecoder(body)
-	if err := decoder.Decode(&request); err != nil {
+	limitedBody := http.MaxBytesReader(w, r.Body, maxCheckRequestBytes)
+	defer limitedBody.Close()
+	raw, err := io.ReadAll(limitedBody)
+	if err != nil {
 		if isMaxBytesError(err) {
 			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
-			return CheckRequest{}, false
+		} else {
+			http.Error(w, "invalid check request", http.StatusBadRequest)
 		}
-		http.Error(w, "invalid check request", http.StatusBadRequest)
 		return CheckRequest{}, false
 	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+	var request CheckRequest
+	if err := json.Unmarshal(raw, &request); err != nil {
 		http.Error(w, "invalid check request", http.StatusBadRequest)
 		return CheckRequest{}, false
 	}
@@ -396,9 +403,15 @@ func runServer(ctx context.Context, store *ConfigStore, options ServeOptions) er
 	if err != nil {
 		return err
 	}
+	checker := Checker{
+		ConfigStore:        store,
+		BlockOnWarmup:      options.BlockOnWarmup,
+		AnalyzerTimeout:    options.AnalyzerTimeout,
+		ConcurrencyPermits: handlerOptions.MaxConcurrentAnalysesPerRepo,
+	}
 	server := &http.Server{
 		Addr: options.Addr,
-		Handler: NewHandlerWithOptions(Checker{ConfigStore: store, BlockOnWarmup: options.BlockOnWarmup}, func() {
+		Handler: NewHandlerWithOptions(checker, func() {
 			select {
 			case shutdownRequested <- struct{}{}:
 			default:

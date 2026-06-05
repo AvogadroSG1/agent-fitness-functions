@@ -59,6 +59,10 @@ type Checker struct {
 	DeferredContext context.Context
 	BlockOnWarmup   bool
 	AnalyzerTimeout time.Duration
+	// ConcurrencyPermits is the per-repo concurrency cap managed by the HTTP
+	// handler. When > 0, the handler's external N-permit semaphore already
+	// serializes concurrent analyses, so checkSynchronous skips its own lock.
+	ConcurrencyPermits int
 }
 
 // ErrorKind classifies checker failures for HTTP clients.
@@ -173,7 +177,13 @@ func (c *Checker) checkCSharpWarmup(ctx context.Context, request CheckRequest, r
 	return CheckResponse{Status: StatusPass, Warming: true}, nil
 }
 
+// checkSynchronous acquires a per-repo lock (when no external concurrency cap is
+// configured) then delegates to checkSynchronousLocked. When ConcurrencyPermits
+// > 0 the handler's external N-permit semaphore is the only lock needed.
 func (c *Checker) checkSynchronous(ctx context.Context, request CheckRequest, repo string, config Config, state *State) (response CheckResponse, err error) {
+	if c.ConcurrencyPermits > 0 {
+		return c.checkSynchronousLocked(ctx, request, repo, config, state)
+	}
 	unlockRepo, err := state.LockRepo(ctx, repo)
 	if err != nil {
 		return CheckResponse{}, infrastructureError("check canceled while waiting for repository lock", err)
@@ -211,7 +221,10 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 	return c.runValidationAndScore(ctx, result, repo, request.File, patternPath, config, state)
 }
 
-// routeAnalysisError applies enforcement-on-error policy for infrastructure failures.
+// routeAnalysisError applies enforcement-on-error policy for non-input failures.
+// Input errors are always returned as-is. For infrastructure/timeout failures,
+// advisory and pass modes produce synthetic responses; block mode propagates the
+// original error preserving its Kind for HTTP status mapping.
 func (c *Checker) routeAnalysisError(err error, config Config) (CheckResponse, error) {
 	var checkErr *CheckError
 	if !errors.As(err, &checkErr) {
@@ -226,9 +239,6 @@ func (c *Checker) routeAnalysisError(err error, config Config) (CheckResponse, e
 	case EnforcementOnErrorPass:
 		return CheckResponse{Status: StatusPass}, nil
 	default:
-		if checkErr.Kind == ErrorKindTimeout {
-			return CheckResponse{}, &CheckError{Kind: ErrorKindInfrastructure, Message: checkErr.Message, Err: checkErr.Err}
-		}
 		return CheckResponse{}, err
 	}
 }
