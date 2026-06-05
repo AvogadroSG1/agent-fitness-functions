@@ -336,7 +336,11 @@ namespace MyApp.App;
 
 public class Consumer
 {
-    public Widget Get() => new Widget { Id = 1 };
+    public Widget Get()
+    {
+        Console.WriteLine("fetching");
+        return new Widget { Id = 1 };
+    }
 }
 `
 	consumerPath := filepath.Join(dir, "Consumer.cs")
