@@ -100,43 +100,36 @@ var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
 Console.WriteLine(json);
 return 0;
 
-static async Task<SemanticModel> ProjectSemanticModel(SyntaxTree tree, string filePath, string projectPath)
+static async Task<(SemanticModel Model, SyntaxTree Tree)> ProjectSemanticModel(string source, string filePath, string projectPath)
 {
     MSBuildLocator.RegisterDefaults();
     using var workspace = MSBuildWorkspace.Create();
     var project = await workspace.OpenProjectAsync(projectPath);
     var compilation = await project.GetCompilationAsync();
+    // Determine the parse options used by the project so our tree has a matching language version.
+    var projectParseOptions = (compilation?.SyntaxTrees.FirstOrDefault()?.Options as CSharpParseOptions)
+        ?? new CSharpParseOptions();
+    // Parse our source with project-aligned options so all trees in the compilation share the same version.
+    var tree = CSharpSyntaxTree.ParseText(source, projectParseOptions, path: filePath);
     if (compilation is null)
     {
-        return PlatformSemanticModel(tree);
+        return (PlatformSemanticModel(tree), tree);
     }
-    // Determine the parse options used by the project so our tree has a matching language version.
-    var projectParseOptions = compilation.SyntaxTrees.FirstOrDefault()?.Options as CSharpParseOptions;
+    // Build a new compilation that shares the project's references and all other source files
+    // but substitutes our freshly-parsed tree for the target file. This ensures:
+    // (a) the semantic model can resolve project-local types from sibling files, and
+    // (b) our tree is part of the compilation and GetSemanticModel succeeds.
     var normalizedFile = Path.GetFullPath(filePath);
-    // Re-parse the source with project-matching options so language versions are consistent.
-    SyntaxTree alignedTree;
-    if (projectParseOptions is not null && !ReferenceEquals(tree.Options, projectParseOptions))
-    {
-        alignedTree = tree.WithRootAndOptions(await tree.GetRootAsync(), projectParseOptions);
-    }
-    else
-    {
-        alignedTree = tree;
-    }
-    // Build a new compilation that shares the project's references and other source files
-    // but uses our freshly-parsed tree for the target file. This ensures:
-    // (a) the semantic model can resolve project-local types, and
-    // (b) the tree passed in is actually part of the compilation.
     var otherTrees = compilation.SyntaxTrees
         .Where(t => !string.Equals(
             Path.GetFullPath(t.FilePath ?? ""), normalizedFile, StringComparison.OrdinalIgnoreCase))
         .ToList();
     var projectCompilation = CSharpCompilation.Create(
         compilation.AssemblyName ?? "CalmRoslynAnalysis",
-        otherTrees.Append(alignedTree),
+        otherTrees.Append(tree),
         compilation.References,
         (CSharpCompilationOptions)compilation.Options);
-    return projectCompilation.GetSemanticModel(alignedTree);
+    return (projectCompilation.GetSemanticModel(tree), tree);
 }
 
 static SemanticModel PlatformSemanticModel(SyntaxTree tree)
