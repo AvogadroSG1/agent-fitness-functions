@@ -58,6 +58,7 @@ type Checker struct {
 	ConfigStore     *ConfigStore
 	DeferredContext context.Context
 	BlockOnWarmup   bool
+	AnalyzerTimeout time.Duration
 }
 
 // ErrorKind classifies checker failures for HTTP clients.
@@ -70,6 +71,8 @@ const (
 	ErrorKindInfrastructure ErrorKind = "infrastructure"
 	// ErrorKindNotFound means the requested repository has no mounted configuration.
 	ErrorKindNotFound ErrorKind = "not_found"
+	// ErrorKindTimeout means an analyzer exceeded its configured deadline.
+	ErrorKindTimeout ErrorKind = "timeout"
 )
 
 // CheckError is a client-safe, typed checker failure.
@@ -116,15 +119,26 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 // checkWithCSharpWarmGuard handles csharp warmup sequencing before delegating
 // to the synchronous check path.
 func (c *Checker) checkWithCSharpWarmGuard(ctx context.Context, request CheckRequest, repo string, config Config, state *State) (CheckResponse, error) {
-	if message, ok := state.TakeWarmupFailure("csharp"); ok {
-		return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message))
-	}
-	if outstanding := state.Violations(repo); hasOtherFileViolation(outstanding, request.File) {
-		return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
+	if resp, err, done := c.checkCSharpEarlyOut(request, repo, state); done {
+		return resp, err
 	}
 	if state.IsWarm("csharp") {
 		return c.checkSynchronous(ctx, request, repo, config, state)
 	}
+	return c.checkCSharpWithLock(ctx, request, repo, config, state)
+}
+
+func (c *Checker) checkCSharpEarlyOut(request CheckRequest, repo string, state *State) (CheckResponse, error, bool) {
+	if message, ok := state.TakeWarmupFailure("csharp"); ok {
+		return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message)), true
+	}
+	if outstanding := state.Violations(repo); hasOtherFileViolation(outstanding, request.File) {
+		return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil, true
+	}
+	return CheckResponse{}, nil, false
+}
+
+func (c *Checker) checkCSharpWithLock(ctx context.Context, request CheckRequest, repo string, config Config, state *State) (CheckResponse, error) {
 	unlockRepo, err := state.LockRepo(ctx, repo)
 	if err != nil {
 		return CheckResponse{}, infrastructureError("check canceled while waiting for repository lock", err)
@@ -133,30 +147,30 @@ func (c *Checker) checkWithCSharpWarmGuard(ctx context.Context, request CheckReq
 		defer unlockRepo()
 		return c.checkSynchronousLocked(ctx, request, repo, config, state)
 	}
-	if message, ok := state.TakeWarmupFailure("csharp"); ok {
+	if resp, err, done := c.checkCSharpEarlyOut(request, repo, state); done {
 		unlockRepo()
-		return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message))
-	}
-	if outstanding := state.Violations(repo); hasOtherFileViolation(outstanding, request.File) {
-		unlockRepo()
-		return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
+		return resp, err
 	}
 	if state.BeginWarmup("csharp") {
-		if c.BlockOnWarmup {
-			defer unlockRepo()
-			resp, err := c.checkSynchronousLocked(ctx, request, repo, config, state)
-			if err != nil {
-				state.FailWarmup("csharp", err.Error())
-				return CheckResponse{}, err
-			}
-			state.CompleteWarmup("csharp")
-			return resp, nil
-		}
-		c.startDeferredCheck(request, repo, config, unlockRepo)
-		return CheckResponse{Status: StatusPass, Warming: true}, nil
+		return c.checkCSharpWarmup(ctx, request, repo, config, state, unlockRepo)
 	}
 	defer unlockRepo()
 	return c.checkSynchronousLocked(ctx, request, repo, config, state)
+}
+
+func (c *Checker) checkCSharpWarmup(ctx context.Context, request CheckRequest, repo string, config Config, state *State, unlockRepo func()) (CheckResponse, error) {
+	if c.BlockOnWarmup {
+		defer unlockRepo()
+		resp, err := c.checkSynchronousLocked(ctx, request, repo, config, state)
+		if err != nil {
+			state.FailWarmup("csharp", err.Error())
+			return CheckResponse{}, err
+		}
+		state.CompleteWarmup("csharp")
+		return resp, nil
+	}
+	c.startDeferredCheck(request, repo, config, unlockRepo)
+	return CheckResponse{Status: StatusPass, Warming: true}, nil
 }
 
 func (c *Checker) checkSynchronous(ctx context.Context, request CheckRequest, repo string, config Config, state *State) (response CheckResponse, err error) {
@@ -189,12 +203,34 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 	}()
 	result, err := c.analyzeSource(ctx, request, repo, sourcePath)
 	if err != nil {
-		return CheckResponse{}, err
+		return c.routeAnalysisError(err, config)
 	}
 	result = analyzer.EnsureModuleMetric(result)
 	result.File = request.File
 	result.CALMNode = calmNodeForRequest(request, result.CALMNode)
 	return c.runValidationAndScore(ctx, result, repo, request.File, patternPath, config, state)
+}
+
+// routeAnalysisError applies enforcement-on-error policy for infrastructure failures.
+func (c *Checker) routeAnalysisError(err error, config Config) (CheckResponse, error) {
+	var checkErr *CheckError
+	if !errors.As(err, &checkErr) {
+		return CheckResponse{}, err
+	}
+	if checkErr.Kind == ErrorKindInput {
+		return CheckResponse{}, err
+	}
+	switch config.EnforcementOnError {
+	case EnforcementOnErrorAdvisory:
+		return CheckResponse{Status: StatusAdvisory}, nil
+	case EnforcementOnErrorPass:
+		return CheckResponse{Status: StatusPass}, nil
+	default:
+		if checkErr.Kind == ErrorKindTimeout {
+			return CheckResponse{}, &CheckError{Kind: ErrorKindInfrastructure, Message: checkErr.Message, Err: checkErr.Err}
+		}
+		return CheckResponse{}, err
+	}
 }
 
 // analyzeSource runs the language-specific analyzer for the proposed file content.
@@ -206,7 +242,15 @@ func (c *Checker) analyzeSource(ctx context.Context, request CheckRequest, repo,
 	if err := ctx.Err(); err != nil {
 		return analyzer.AnalysisResult{}, infrastructureError("check canceled before analysis", err)
 	}
-	result, err := sourceAnalyzer.Analyze(ctx, AnalysisRequest{
+
+	analyzeCtx := ctx
+	var cancel context.CancelFunc
+	if c.AnalyzerTimeout > 0 {
+		analyzeCtx, cancel = context.WithTimeout(ctx, c.AnalyzerTimeout)
+		defer cancel()
+	}
+
+	result, err := sourceAnalyzer.Analyze(analyzeCtx, AnalysisRequest{
 		Repo:     repo,
 		File:     request.File,
 		Language: request.Language,
@@ -215,7 +259,10 @@ func (c *Checker) analyzeSource(ctx context.Context, request CheckRequest, repo,
 	if err != nil {
 		return analyzer.AnalysisResult{}, classifyAnalysisError(err, request.Language)
 	}
-	if err := ctx.Err(); err != nil {
+	if err := analyzeCtx.Err(); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return analyzer.AnalysisResult{}, timeoutError("analyzer timed out", err)
+		}
 		return analyzer.AnalysisResult{}, infrastructureError("check canceled after analysis", err)
 	}
 	return result, nil
@@ -226,7 +273,10 @@ func classifyAnalysisError(err error, language string) error {
 	if errors.As(err, &checkErr) {
 		return checkErr
 	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return timeoutError("analyzer timed out", err)
+	}
+	if errors.Is(err, context.Canceled) {
 		return infrastructureError("check canceled during analysis", err)
 	}
 	if isAnalyzerInfrastructureError(err) {
@@ -708,4 +758,8 @@ func infrastructureError(message string, err error) error {
 
 func notFoundError(message string, err error) error {
 	return &CheckError{Kind: ErrorKindNotFound, Message: message, Err: err}
+}
+
+func timeoutError(message string, err error) error {
+	return &CheckError{Kind: ErrorKindTimeout, Message: message, Err: err}
 }

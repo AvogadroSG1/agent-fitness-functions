@@ -38,26 +38,60 @@ func NewState() *State {
 	}
 }
 
-// LockRepo serializes a check lifecycle for one repository.
+// LockRepo serializes a check lifecycle for one repository (single-permit semaphore).
 func (s *State) LockRepo(ctx context.Context, repo string) (func(), error) {
+	return s.lockRepoN(ctx, repo, 1)
+}
+
+// LockRepoN acquires one permit from an N-wide semaphore for one repository.
+// Returns a release function and nil on success, or nil and an error if ctx is
+// canceled before a permit becomes available.
+func (s *State) LockRepoN(ctx context.Context, repo string, n int) (func(), error) {
+	return s.lockRepoN(ctx, repo, n)
+}
+
+func (s *State) lockRepoN(ctx context.Context, repo string, n int) (func(), error) {
 	if s == nil {
 		return func() {}, nil
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	lock := s.ensureRepoLock(repo, normalizePermits(n))
+	return s.acquireRepoPermit(ctx, repo, lock)
+}
+
+func normalizePermits(n int) int {
+	if n < 1 {
+		return 1
+	}
+	return n
+}
+
+func (s *State) ensureRepoLock(repo string, n int) *repoLock {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.repoLocks == nil {
 		s.repoLocks = map[string]*repoLock{}
 	}
 	lock := s.repoLocks[repo]
-	if lock == nil {
-		lock = &repoLock{permits: make(chan struct{}, 1)}
-		lock.permits <- struct{}{}
+	if lock == nil || cap(lock.permits) != n {
+		lock = newRepoLock(n)
 		s.repoLocks[repo] = lock
 	}
 	lock.refs++
-	s.mu.Unlock()
+	return lock
+}
+
+func newRepoLock(n int) *repoLock {
+	lock := &repoLock{permits: make(chan struct{}, n)}
+	for range n {
+		lock.permits <- struct{}{}
+	}
+	return lock
+}
+
+func (s *State) acquireRepoPermit(ctx context.Context, repo string, lock *repoLock) (func(), error) {
 	select {
 	case <-ctx.Done():
 		s.releaseRepoLock(repo, lock)
