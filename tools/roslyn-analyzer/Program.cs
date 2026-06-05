@@ -226,22 +226,6 @@ static string CALMNode(SyntaxNode root, string file)
     return classNode?.Identifier.ValueText ?? Path.GetFileNameWithoutExtension(file);
 }
 
-static SemanticModel SemanticModel(SyntaxTree tree)
-{
-    var trustedPlatformAssemblies = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string;
-    var references = (trustedPlatformAssemblies ?? "")
-        .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-        .Select(path => MetadataReference.CreateFromFile(path))
-        .Cast<MetadataReference>()
-        .ToList();
-    var compilation = CSharpCompilation.Create(
-        "CalmRoslynAnalysis",
-        [tree],
-        references,
-        new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-    return compilation.GetSemanticModel(tree);
-}
-
 static ImportMetric ImportMetric(IReadOnlyCollection<UsingDirectiveSyntax> usingDirectives, SyntaxNode root, SemanticModel semanticModel)
 {
     var imports = usingDirectives
