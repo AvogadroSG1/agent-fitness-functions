@@ -668,79 +668,6 @@ func bindIdentifiersAt(tokens []string, offset int, positions map[int]bool, boun
 	}
 }
 
-func pythonBoundIdentifiers(tokensByLine map[int][]string) map[string]struct{} {
-	bound := make(map[string]struct{})
-	for _, tokens := range tokensByLine {
-		for index, token := range tokens {
-			if token == "def" || token == "class" || token == "as" {
-				bindNextIdentifier(tokens, index+1, bound)
-			}
-		}
-		if len(tokens) > 0 && tokens[0] == "def" {
-			bindFunctionParameters(tokens, bound)
-			continue
-		}
-		if len(tokens) > 0 && tokens[0] == "for" {
-			bindBeforeToken(tokens, "in", bound)
-		}
-		if assignment := firstPythonAssignment(tokens); assignment > 0 {
-			bindIdentifiers(tokens[:assignment], bound)
-		}
-	}
-	return bound
-}
-
-func bindNextIdentifier(tokens []string, start int, bound map[string]struct{}) {
-	for index := start; index < len(tokens); index++ {
-		if isPythonIdentifierToken(tokens[index]) && !pythonKeywords[tokens[index]] {
-			bound[tokens[index]] = struct{}{}
-			return
-		}
-	}
-}
-
-func bindFunctionParameters(tokens []string, bound map[string]struct{}) {
-	depth := 0
-	inParams := false
-	for _, token := range tokens {
-		switch token {
-		case "(":
-			depth++
-			inParams = true
-		case ")":
-			depth--
-			if depth <= 0 {
-				return
-			}
-		default:
-			if inParams && depth == 1 && isPythonIdentifierToken(token) && !pythonKeywords[token] {
-				bound[token] = struct{}{}
-			}
-		}
-	}
-}
-
-func bindBeforeToken(tokens []string, stop string, bound map[string]struct{}) {
-	for index, token := range tokens {
-		if token == stop {
-			bindIdentifiers(tokens[:index], bound)
-			return
-		}
-	}
-}
-
-func bindIdentifiers(tokens []string, bound map[string]struct{}) {
-	for index, token := range tokens {
-		if !isPythonIdentifierToken(token) || pythonKeywords[token] {
-			continue
-		}
-		if index > 0 && tokens[index-1] == "." {
-			continue
-		}
-		bound[token] = struct{}{}
-	}
-}
-
 func firstPythonAssignment(tokens []string) int {
 	for index, token := range tokens {
 		if pythonAssignmentOperators[token] {
@@ -748,19 +675,6 @@ func firstPythonAssignment(tokens []string) int {
 		}
 	}
 	return -1
-}
-
-func isPythonBindingPosition(tokens []string, index int) bool {
-	if index > 0 {
-		switch tokens[index-1] {
-		case "def", "class", "as":
-			return true
-		}
-	}
-	if index+1 < len(tokens) && pythonAssignmentOperators[tokens[index+1]] {
-		return true
-	}
-	return false
 }
 
 func isPythonIdentifierToken(token string) bool {
@@ -777,28 +691,6 @@ func isPythonIdentifierToken(token string) bool {
 		}
 	}
 	return true
-}
-
-func pythonIdentifiers(source string) map[string]struct{} {
-	identifiers := make(map[string]struct{})
-	start := -1
-	for index, value := range source {
-		if start == -1 {
-			if isPythonIdentifierStart(value) {
-				start = index
-			}
-			continue
-		}
-		if isPythonIdentifierPart(value) {
-			continue
-		}
-		identifiers[source[start:index]] = struct{}{}
-		start = -1
-	}
-	if start != -1 {
-		identifiers[source[start:]] = struct{}{}
-	}
-	return identifiers
 }
 
 func isPythonIdentifierStart(value rune) bool {
