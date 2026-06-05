@@ -50,6 +50,31 @@ func (s *State) LockRepoN(ctx context.Context, repo string, n int) (func(), erro
 	return s.lockRepoN(ctx, repo, n)
 }
 
+// TryLockRepoN attempts to acquire one permit from an N-wide semaphore without
+// blocking. Returns (release, true) if a permit was available, (nil, false) if
+// all permits are already held.
+func (s *State) TryLockRepoN(repo string, n int) (func(), bool) {
+	if s == nil {
+		return func() {}, true
+	}
+	lock := s.ensureRepoLock(repo, normalizePermits(n))
+	select {
+	case <-lock.permits:
+		released := false
+		return func() {
+			if released {
+				return
+			}
+			released = true
+			lock.permits <- struct{}{}
+			s.releaseRepoLock(repo, lock)
+		}, true
+	default:
+		s.releaseRepoLock(repo, lock)
+		return nil, false
+	}
+}
+
 func (s *State) lockRepoN(ctx context.Context, repo string, n int) (func(), error) {
 	if s == nil {
 		return func() {}, nil
