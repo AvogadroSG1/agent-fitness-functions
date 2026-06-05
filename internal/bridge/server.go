@@ -144,9 +144,11 @@ func checkHandler(checker Checker, options HandlerOptions) http.HandlerFunc {
 			}
 			request.Repo = authorizedRepo
 		}
-		if !acquireConcurrencySlot(w, checker.State, request.Repo, options.MaxConcurrentAnalysesPerRepo) {
+		releaseSlot, slotAcquired := acquireConcurrencySlot(w, checker.State, request.Repo, options.MaxConcurrentAnalysesPerRepo)
+		if !slotAcquired {
 			return
 		}
+		defer releaseSlot()
 		response, err := (&checker).Check(r.Context(), request)
 		if err != nil {
 			writeCheckError(w, err)
@@ -154,6 +156,21 @@ func checkHandler(checker Checker, options HandlerOptions) http.HandlerFunc {
 		}
 		writeJSON(w, response)
 	}
+}
+
+// acquireConcurrencySlot checks the per-repo concurrency cap. When n==0, it
+// always succeeds with a no-op release. On failure it writes 503 and returns
+// (nil, false).
+func acquireConcurrencySlot(w http.ResponseWriter, state *State, repo string, n int) (func(), bool) {
+	if n <= 0 {
+		return func() {}, true
+	}
+	release, ok := state.TryLockRepoN(repo, n)
+	if !ok {
+		http.Error(w, "repository analysis capacity exceeded", http.StatusServiceUnavailable)
+		return nil, false
+	}
+	return release, true
 }
 
 func resolveCheckCaller(r *http.Request, options HandlerOptions) string {
@@ -182,25 +199,6 @@ func decodeCheckRequest(w http.ResponseWriter, r *http.Request) (CheckRequest, b
 		return CheckRequest{}, false
 	}
 	return request, true
-}
-
-func acquireConcurrencySlot(w http.ResponseWriter, state *State, repo string, n int) bool {
-	if n <= 0 {
-		return true
-	}
-	releaseSlot, ok := state.TryLockRepoN(repo, n)
-	if !ok {
-		http.Error(w, "repository analysis capacity exceeded", http.StatusServiceUnavailable)
-		return false
-	}
-	// The caller is responsible for releasing — we use a defer in the outer handler.
-	// Since we can't defer from inside this helper, schedule release via a finalizer goroutine
-	// registered by the caller. Instead, return a cleanup via a wrapper approach.
-	// Actually: the test expects the slot to be held for the duration of the analysis.
-	// This approach won't work cleanly without returning the release func.
-	// Revert: inline the slot check directly into checkHandler.
-	releaseSlot()
-	return true
 }
 
 func writeAuthorizationError(w http.ResponseWriter, err error) {
