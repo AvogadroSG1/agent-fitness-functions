@@ -356,15 +356,10 @@ public class Consumer
 	if result.Imports.Total != 2 {
 		t.Fatalf("imports.total = %d, want 2", result.Imports.Total)
 	}
-	// MyApp.Domain must resolve as used with project context.
-	// System is genuinely unused in the consumer code (no System.* identifiers),
-	// so used >= 1 with Domain not in the unused list is the correct expectation.
-	if result.Imports.Used < 1 {
-		t.Fatalf("imports.used = %d, want >= 1 (MyApp.Domain must resolve with project context); got unused: %v", result.Imports.Used, result.Imports.Unused)
+	if result.Imports.Used != 2 {
+		t.Fatalf("imports.used = %d, want 2 (both System and MyApp.Domain must resolve with project context); got unused: %v", result.Imports.Used, result.Imports.Unused)
 	}
-	for _, u := range result.Imports.Unused {
-		if strings.Contains(u, "Domain") {
-			t.Fatalf("MyApp.Domain incorrectly listed as unused: %v", result.Imports.Unused)
-		}
+	if result.Imports.DDC != 1.0 {
+		t.Fatalf("imports.ddc = %.3f, want 1.0", result.Imports.DDC)
 	}
 }
