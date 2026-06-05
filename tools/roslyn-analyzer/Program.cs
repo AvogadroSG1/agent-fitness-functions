@@ -102,10 +102,18 @@ return 0;
 
 static async Task<(SemanticModel Model, SyntaxTree Tree)> ProjectSemanticModel(string source, string filePath, string projectPath)
 {
-    MSBuildLocator.RegisterDefaults();
+    if (!MSBuildLocator.IsRegistered)
+        MSBuildLocator.RegisterDefaults();
     using var workspace = MSBuildWorkspace.Create();
     var project = await workspace.OpenProjectAsync(projectPath);
+    if (workspace.Diagnostics.Any(d => d.Kind == WorkspaceDiagnosticKind.Failure))
+    {
+        foreach (var diag in workspace.Diagnostics.Where(d => d.Kind == WorkspaceDiagnosticKind.Failure))
+            Console.Error.WriteLine($"MSBuild workspace warning: {diag.Message}");
+    }
     var compilation = await project.GetCompilationAsync();
+    if (compilation is null)
+        Console.Error.WriteLine($"MSBuild workspace: no compilation produced for {projectPath}, falling back to platform-only analysis");
     // Determine the parse options used by the project so our tree has a matching language version.
     var projectParseOptions = (compilation?.SyntaxTrees.FirstOrDefault()?.Options as CSharpParseOptions)
         ?? new CSharpParseOptions();
