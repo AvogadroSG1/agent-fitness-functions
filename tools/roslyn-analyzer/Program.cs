@@ -27,17 +27,18 @@ if (file is null)
 }
 
 var source = await File.ReadAllTextAsync(file);
-var tree = CSharpSyntaxTree.ParseText(source, path: file);
-var root = await tree.GetRootAsync();
+SyntaxTree tree;
 SemanticModel semanticModel;
 if (projectPath is not null)
 {
-    semanticModel = await ProjectSemanticModel(tree, file, projectPath);
+    (semanticModel, tree) = await ProjectSemanticModel(source, file, projectPath);
 }
 else
 {
+    tree = CSharpSyntaxTree.ParseText(source, path: file);
     semanticModel = PlatformSemanticModel(tree);
 }
+var root = await tree.GetRootAsync();
 var lineSpan = tree.GetLineSpan(root.FullSpan);
 var usingDirectives = root.DescendantNodes().OfType<UsingDirectiveSyntax>().ToList();
 var publicMethods = 0;
