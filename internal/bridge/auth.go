@@ -16,9 +16,11 @@ import (
 const callerRepoBindingsFileName = "caller-repos.json"
 
 type HandlerOptions struct {
-	RequireAuthentication bool
-	TrustedProxyHeaders   bool
-	TrustedProxyClientCNs []string
+	RequireAuthentication        bool
+	TrustedProxyHeaders          bool
+	TrustedProxyClientCNs        []string
+	RateLimiter                  RateLimiter
+	MaxConcurrentAnalysesPerRepo int
 }
 
 type ServerTLSConfig struct {
