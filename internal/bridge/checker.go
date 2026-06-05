@@ -611,7 +611,7 @@ func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
 	}
 	if language == "csharp" {
 		return AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
-			return analyzer.AnalyzeCSharpFile(ctx, request.TempPath, "")
+			return analyzeWithCSharpProjectContext(ctx, request)
 		}), true
 	}
 	return nil, false
