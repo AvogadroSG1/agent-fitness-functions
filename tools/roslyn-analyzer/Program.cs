@@ -109,19 +109,21 @@ static async Task<SemanticModel> ProjectSemanticModel(SyntaxTree tree, string fi
     {
         return PlatformSemanticModel(tree);
     }
+    // Build a new compilation that shares the project's references and other source files
+    // but uses our freshly-parsed tree for the target file. This ensures:
+    // (a) the semantic model can resolve project-local types, and
+    // (b) the tree passed in is actually part of the compilation.
     var normalizedFile = Path.GetFullPath(filePath);
-    var document = project.Documents.FirstOrDefault(d =>
-        string.Equals(Path.GetFullPath(d.FilePath ?? ""), normalizedFile, StringComparison.OrdinalIgnoreCase));
-    if (document is not null)
-    {
-        var updatedDoc = document.WithSyntaxRoot(await tree.GetRootAsync());
-        var updatedCompilation = await updatedDoc.Project.GetCompilationAsync();
-        if (updatedCompilation is not null)
-        {
-            return updatedCompilation.GetSemanticModel(tree);
-        }
-    }
-    return compilation.GetSemanticModel(tree);
+    var otherTrees = compilation.SyntaxTrees
+        .Where(t => !string.Equals(
+            Path.GetFullPath(t.FilePath ?? ""), normalizedFile, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+    var projectCompilation = CSharpCompilation.Create(
+        compilation.AssemblyName ?? "CalmRoslynAnalysis",
+        otherTrees.Append(tree),
+        compilation.References,
+        (CSharpCompilationOptions)compilation.Options);
+    return projectCompilation.GetSemanticModel(tree);
 }
 
 static SemanticModel PlatformSemanticModel(SyntaxTree tree)
