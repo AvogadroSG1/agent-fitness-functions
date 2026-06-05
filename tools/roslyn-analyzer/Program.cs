@@ -1,20 +1,43 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.MSBuild;
 
-if (args.Length != 1)
+// Args: <file.cs> [--project <foo.csproj>]
+string? projectPath = null;
+string? file = null;
+for (var i = 0; i < args.Length; i++)
 {
-    Console.Error.WriteLine("usage: calm-roslyn-analyzer <file.cs>");
+    if (args[i] == "--project" && i + 1 < args.Length)
+    {
+        projectPath = args[++i];
+    }
+    else if (!args[i].StartsWith("--", StringComparison.Ordinal))
+    {
+        file = args[i];
+    }
+}
+if (file is null)
+{
+    Console.Error.WriteLine("usage: calm-roslyn-analyzer <file.cs> [--project <foo.csproj>]");
     return 2;
 }
 
-var file = args[0];
 var source = await File.ReadAllTextAsync(file);
 var tree = CSharpSyntaxTree.ParseText(source, path: file);
 var root = await tree.GetRootAsync();
-var semanticModel = SemanticModel(tree);
+SemanticModel semanticModel;
+if (projectPath is not null)
+{
+    semanticModel = await ProjectSemanticModel(tree, file, projectPath);
+}
+else
+{
+    semanticModel = PlatformSemanticModel(tree);
+}
 var lineSpan = tree.GetLineSpan(root.FullSpan);
 var usingDirectives = root.DescendantNodes().OfType<UsingDirectiveSyntax>().ToList();
 var publicMethods = 0;
@@ -75,6 +98,47 @@ var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
 });
 Console.WriteLine(json);
 return 0;
+
+static async Task<SemanticModel> ProjectSemanticModel(SyntaxTree tree, string filePath, string projectPath)
+{
+    MSBuildLocator.RegisterDefaults();
+    using var workspace = MSBuildWorkspace.Create();
+    var project = await workspace.OpenProjectAsync(projectPath);
+    var compilation = await project.GetCompilationAsync();
+    if (compilation is null)
+    {
+        return PlatformSemanticModel(tree);
+    }
+    var normalizedFile = Path.GetFullPath(filePath);
+    var document = project.Documents.FirstOrDefault(d =>
+        string.Equals(Path.GetFullPath(d.FilePath ?? ""), normalizedFile, StringComparison.OrdinalIgnoreCase));
+    if (document is not null)
+    {
+        var updatedDoc = document.WithSyntaxRoot(await tree.GetRootAsync());
+        var updatedCompilation = await updatedDoc.Project.GetCompilationAsync();
+        if (updatedCompilation is not null)
+        {
+            return updatedCompilation.GetSemanticModel(tree);
+        }
+    }
+    return compilation.GetSemanticModel(tree);
+}
+
+static SemanticModel PlatformSemanticModel(SyntaxTree tree)
+{
+    var trustedPlatformAssemblies = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string;
+    var references = (trustedPlatformAssemblies ?? "")
+        .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+        .Select(path => MetadataReference.CreateFromFile(path))
+        .Cast<MetadataReference>()
+        .ToList();
+    var compilation = CSharpCompilation.Create(
+        "CalmRoslynAnalysis",
+        [tree],
+        references,
+        new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+    return compilation.GetSemanticModel(tree);
+}
 
 static int Complexity(SyntaxNode functionNode)
 {
