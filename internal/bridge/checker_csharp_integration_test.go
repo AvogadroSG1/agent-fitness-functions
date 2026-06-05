@@ -70,3 +70,61 @@ func ensureDefaultRoslynAnalyzer(t *testing.T) {
 		t.Fatalf("dotnet build failed: %v\n%s", err, output)
 	}
 }
+
+func TestCheckerCSharpProjectContextResolvesLocalNamespace(t *testing.T) {
+	ensureDefaultRoslynAnalyzer(t)
+
+	repoRoot := t.TempDir()
+	csprojPath := filepath.Join(repoRoot, "MyApp.csproj")
+	if err := os.WriteFile(csprojPath, []byte(`<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+</Project>`), 0o644); err != nil {
+		t.Fatalf("write csproj: %v", err)
+	}
+	widgetSrc := `namespace MyApp.Domain;
+public class Widget { public int Id { get; set; } }`
+	if err := os.WriteFile(filepath.Join(repoRoot, "Widget.cs"), []byte(widgetSrc), 0o644); err != nil {
+		t.Fatalf("write Widget.cs: %v", err)
+	}
+	consumerSrc := `using System;
+using MyApp.Domain;
+
+namespace MyApp.App;
+
+public class Consumer
+{
+    public Widget Get()
+    {
+        Console.WriteLine("fetching");
+        return new Widget { Id = 1 };
+    }
+}
+`
+	if err := os.WriteFile(filepath.Join(repoRoot, "Consumer.cs"), []byte(consumerSrc), 0o644); err != nil {
+		t.Fatalf("write Consumer.cs: %v", err)
+	}
+
+	req := AnalysisRequest{
+		Repo:     repoRoot,
+		File:     "Consumer.cs",
+		Language: "csharp",
+		TempPath: filepath.Join(repoRoot, "Consumer.cs"),
+	}
+	result, err := analyzeWithCSharpProjectContext(context.Background(), req)
+	if err != nil {
+		t.Fatalf("analyzeWithCSharpProjectContext returned error: %v", err)
+	}
+	if result.Imports.Total != 2 {
+		t.Fatalf("imports.total = %d, want 2", result.Imports.Total)
+	}
+	if result.Imports.Used != 2 {
+		t.Fatalf("imports.used = %d, want 2 — MyApp.Domain must resolve with project context; got unused: %v",
+			result.Imports.Used, result.Imports.Unused)
+	}
+	if result.Imports.DDC != 1.0 {
+		t.Fatalf("imports.ddc = %.3f, want 1.0", result.Imports.DDC)
+	}
+}
