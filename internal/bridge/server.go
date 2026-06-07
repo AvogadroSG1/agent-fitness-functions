@@ -23,7 +23,7 @@ const (
 	// StatusAdvisory indicates that an active fitness function reported guidance without blocking.
 	StatusAdvisory CheckStatus = "advisory"
 
-	maxCheckRequestBytes = 10 << 20
+	maxCheckRequestBytes = 5 << 20
 	defaultConfigsDir    = "/app/configs"
 )
 
@@ -79,13 +79,14 @@ type Violation struct {
 }
 
 type ServeOptions struct {
-	Addr           string
-	ConfigDir      string
-	Ready          io.Writer
-	NewStore       func(context.Context, string) (*ConfigStore, error)
-	HandlerOptions HandlerOptions
-	TLS            ServerTLSConfig
-	BlockOnWarmup  bool
+	Addr            string
+	ConfigDir       string
+	Ready           io.Writer
+	NewStore        func(context.Context, string) (*ConfigStore, error)
+	HandlerOptions  HandlerOptions
+	TLS             ServerTLSConfig
+	BlockOnWarmup   bool
+	AnalyzerTimeout time.Duration
 }
 
 // NewHandler builds the calm-bridge HTTP daemon routes.
@@ -102,6 +103,9 @@ func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOpti
 	if checker.State == nil {
 		checker.State = NewState()
 	}
+	if checker.ConcurrencyPermits == 0 && options.MaxConcurrentAnalysesPerRepo > 0 {
+		checker.ConcurrencyPermits = options.MaxConcurrentAnalysesPerRepo
+	}
 	deferredCtx, cancelDeferred := context.WithCancel(context.Background())
 	if checker.DeferredContext == nil {
 		checker.DeferredContext = deferredCtx
@@ -114,57 +118,111 @@ func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOpti
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc("/check", withAuthenticatedCaller(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/check", withAuthenticatedCaller(checkHandler(checker, options), options))
+	mux.HandleFunc("/state", withAuthenticatedCaller(stateHandler(checker, options), options))
+	mux.HandleFunc("/configs", withAuthenticatedCaller(configsHandler(checker, options), options))
+	mux.HandleFunc("/shutdown", withAuthenticatedCaller(shutdownHandler(checker, options, cancelDeferred, shutdown), options))
+	return mux
+}
+
+func checkHandler(checker Checker, options HandlerOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		var caller string
-		if options.RequireAuthentication {
-			var ok bool
-			caller, ok = authenticatedCaller(r)
-			if !ok {
-				writeUnauthorized(w)
-				return
-			}
-		}
-		var request CheckRequest
-		body := http.MaxBytesReader(w, r.Body, maxCheckRequestBytes)
-		defer body.Close()
-		decoder := json.NewDecoder(body)
-		if err := decoder.Decode(&request); err != nil {
-			http.Error(w, "invalid check request", http.StatusBadRequest)
+		caller := resolveCheckCaller(r, options)
+		if options.RateLimiter != nil && !options.RateLimiter.Allow(caller) {
+			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 			return
 		}
-		if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-			http.Error(w, "invalid check request", http.StatusBadRequest)
+		request, ok := decodeCheckRequest(w, r)
+		if !ok {
 			return
 		}
 		if options.RequireAuthentication {
 			authorizedRepo, err := authorizeRepoAccess(checker.ConfigStore, caller, request.Repo)
 			if err != nil {
-				if isInputError(err) {
-					writeCheckError(w, err)
-					return
-				}
-				writeForbidden(w, err.Error())
+				writeAuthorizationError(w, err)
 				return
 			}
 			request.Repo = authorizedRepo
 		}
+		releaseSlot, slotAcquired := acquireConcurrencySlot(w, checker.State, request.Repo, options.MaxConcurrentAnalysesPerRepo)
+		if !slotAcquired {
+			return
+		}
+		defer releaseSlot()
 		response, err := (&checker).Check(r.Context(), request)
 		if err != nil {
 			writeCheckError(w, err)
 			return
 		}
 		writeJSON(w, response)
-	}, options))
-	mux.HandleFunc("/state", withAuthenticatedCaller(func(w http.ResponseWriter, r *http.Request) {
+	}
+}
+
+// acquireConcurrencySlot checks the per-repo concurrency cap. When n==0, it
+// always succeeds with a no-op release. On failure it writes 503 and returns
+// (nil, false).
+func acquireConcurrencySlot(w http.ResponseWriter, state *State, repo string, n int) (func(), bool) {
+	if n <= 0 {
+		return func() {}, true
+	}
+	release, ok := state.TryLockRepoN(repo, n)
+	if !ok {
+		http.Error(w, "repository analysis capacity exceeded", http.StatusServiceUnavailable)
+		return nil, false
+	}
+	return release, true
+}
+
+func resolveCheckCaller(r *http.Request, options HandlerOptions) string {
+	caller, _ := authenticatedCaller(r)
+	if caller == "" && !options.RequireAuthentication {
+		caller = remoteHost(r)
+	}
+	return caller
+}
+
+// decodeCheckRequest reads the body into a buffer (enforcing the size cap first)
+// then unmarshals JSON. Reading the full buffer before decoding ensures that an
+// oversized body returns 413 even when the JSON is invalid from the first byte.
+func decodeCheckRequest(w http.ResponseWriter, r *http.Request) (CheckRequest, bool) {
+	limitedBody := http.MaxBytesReader(w, r.Body, maxCheckRequestBytes)
+	defer limitedBody.Close()
+	raw, err := io.ReadAll(limitedBody)
+	if err != nil {
+		if isMaxBytesError(err) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+		} else {
+			http.Error(w, "invalid check request", http.StatusBadRequest)
+		}
+		return CheckRequest{}, false
+	}
+	var request CheckRequest
+	if err := json.Unmarshal(raw, &request); err != nil {
+		http.Error(w, "invalid check request", http.StatusBadRequest)
+		return CheckRequest{}, false
+	}
+	return request, true
+}
+
+func writeAuthorizationError(w http.ResponseWriter, err error) {
+	if isInputError(err) {
+		writeCheckError(w, err)
+		return
+	}
+	writeForbidden(w, err.Error())
+}
+
+func stateHandler(checker Checker, options HandlerOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		var caller string
+		caller := ""
 		if options.RequireAuthentication {
 			var ok bool
 			caller, ok = authenticatedCaller(r)
@@ -178,18 +236,9 @@ func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOpti
 			http.Error(w, "state requires repo", http.StatusBadRequest)
 			return
 		}
-		targetRepo := repo
-		if options.RequireAuthentication {
-			authorizedRepo, err := authorizeRepoAccess(checker.ConfigStore, caller, repo)
-			if err != nil {
-				if isInputError(err) {
-					writeCheckError(w, err)
-					return
-				}
-				writeForbidden(w, err.Error())
-				return
-			}
-			targetRepo = authorizedRepo
+		targetRepo, ok := resolveAuthorizedRepo(w, checker.ConfigStore, caller, repo, options.RequireAuthentication)
+		if !ok {
+			return
 		}
 		if _, canonicalRepo, err := loadConfig(checker.ConfigStore, targetRepo); err != nil {
 			writeCheckError(w, err)
@@ -197,18 +246,39 @@ func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOpti
 		} else {
 			writeJSON(w, StateResponse{Repo: canonicalRepo, Violations: checker.State.Violations(canonicalRepo)})
 		}
-	}, options))
-	mux.HandleFunc("/configs", withAuthenticatedCaller(func(w http.ResponseWriter, r *http.Request) {
+	}
+}
+
+func resolveAuthorizedRepo(w http.ResponseWriter, store *ConfigStore, caller, repo string, requireAuth bool) (string, bool) {
+	if !requireAuth {
+		return repo, true
+	}
+	authorizedRepo, err := authorizeRepoAccess(store, caller, repo)
+	if err != nil {
+		writeAuthorizationError(w, err)
+		return "", false
+	}
+	return authorizedRepo, true
+}
+
+func configsHandler(checker Checker, options HandlerOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		var caller string
 		if options.RequireAuthentication {
-			var ok bool
-			caller, ok = authenticatedCaller(r)
+			caller, ok := authenticatedCaller(r)
 			if !ok {
 				writeUnauthorized(w)
+				return
+			}
+			if checker.ConfigStore == nil {
+				writeCheckError(w, infrastructureError("config store is not configured", nil))
+				return
+			}
+			if !checker.ConfigStore.CallerIsAdmin(caller) {
+				writeForbidden(w, fmt.Sprintf("caller %q is not authorized for /configs", caller))
 				return
 			}
 		}
@@ -216,14 +286,13 @@ func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOpti
 			writeCheckError(w, infrastructureError("config store is not configured", nil))
 			return
 		}
-		if options.RequireAuthentication && !checker.ConfigStore.CallerIsAdmin(caller) {
-			writeForbidden(w, fmt.Sprintf("caller %q is not authorized for /configs", caller))
-			return
-		}
 		loadedAt, snapshot := checker.ConfigStore.SnapshotState()
 		writeJSON(w, buildConfigsResponse(loadedAt, snapshot))
-	}, options))
-	mux.HandleFunc("/shutdown", withAuthenticatedCaller(func(w http.ResponseWriter, r *http.Request) {
+	}
+}
+
+func shutdownHandler(checker Checker, options HandlerOptions, cancelDeferred func(), shutdownFn func()) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -245,11 +314,10 @@ func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOpti
 		}
 		writeJSON(w, map[string]string{"status": "shutting_down"})
 		cancelDeferred()
-		if shutdown != nil {
-			shutdown()
+		if shutdownFn != nil {
+			shutdownFn()
 		}
-	}, options))
-	return mux
+	}
 }
 
 // Serve starts the daemon on addr and blocks until ctx is canceled or the server fails.
@@ -263,6 +331,11 @@ func Serve(ctx context.Context, addr string) error {
 }
 
 func ServeWithOptions(ctx context.Context, options ServeOptions) error {
+	applyServeDefaults(&options)
+	return serveWithOptions(ctx, options)
+}
+
+func applyServeDefaults(options *ServeOptions) {
 	if options.Addr == "" {
 		options.Addr = "localhost:7890"
 	}
@@ -275,7 +348,6 @@ func ServeWithOptions(ctx context.Context, options ServeOptions) error {
 	if options.NewStore == nil {
 		options.NewStore = NewConfigStore
 	}
-	return serveWithOptions(ctx, options)
 }
 
 func serveWithDependencies(ctx context.Context, addr, configDir string, ready io.Writer, newStore func(context.Context, string) (*ConfigStore, error)) error {
@@ -286,41 +358,60 @@ func serveWithOptions(ctx context.Context, options ServeOptions) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if options.ConfigDir == "" {
-		options.ConfigDir = defaultConfigsDir
-	}
-	if options.NewStore == nil {
-		options.NewStore = NewConfigStore
-	}
-	if err := options.TLS.Validate(); err != nil {
+	applyServeInternalDefaults(&options)
+	if err := validateServeOptions(options); err != nil {
 		return err
 	}
 	store, err := options.NewStore(ctx, options.ConfigDir)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = store.Close()
-	}()
+	defer func() { _ = store.Close() }()
+	return runServer(ctx, store, options)
+}
 
-	shutdownRequested := make(chan struct{}, 1)
-	handlerOptions := options.HandlerOptions
-	handlerOptions.RequireAuthentication = true
-	if handlerOptions.TrustedProxyHeaders {
+func applyServeInternalDefaults(options *ServeOptions) {
+	if options.ConfigDir == "" {
+		options.ConfigDir = defaultConfigsDir
+	}
+	if options.NewStore == nil {
+		options.NewStore = NewConfigStore
+	}
+}
+
+func validateServeOptions(options ServeOptions) error {
+	if err := options.TLS.Validate(); err != nil {
+		return err
+	}
+	if options.HandlerOptions.TrustedProxyHeaders {
 		if !options.TLS.Enabled() {
 			return errors.New("trusted proxy mode requires TLS")
 		}
-		if len(handlerOptions.TrustedProxyClientCNs) == 0 {
+		if len(options.HandlerOptions.TrustedProxyClientCNs) == 0 {
 			return errors.New("trusted proxy mode requires at least one trusted proxy client CN")
 		}
 	}
+	return nil
+}
+
+func runServer(ctx context.Context, store *ConfigStore, options ServeOptions) error {
+	shutdownRequested := make(chan struct{}, 1)
+	handlerOptions := options.HandlerOptions
+	handlerOptions.RequireAuthentication = true
+
 	listener, err := net.Listen("tcp", options.Addr)
 	if err != nil {
 		return err
 	}
+	checker := Checker{
+		ConfigStore:        store,
+		BlockOnWarmup:      options.BlockOnWarmup,
+		AnalyzerTimeout:    options.AnalyzerTimeout,
+		ConcurrencyPermits: handlerOptions.MaxConcurrentAnalysesPerRepo,
+	}
 	server := &http.Server{
 		Addr: options.Addr,
-		Handler: NewHandlerWithOptions(Checker{ConfigStore: store, BlockOnWarmup: options.BlockOnWarmup}, func() {
+		Handler: NewHandlerWithOptions(checker, func() {
 			select {
 			case shutdownRequested <- struct{}{}:
 			default:
@@ -330,21 +421,21 @@ func serveWithOptions(ctx context.Context, options ServeOptions) error {
 		ReadTimeout:       10 * time.Second,
 	}
 	if options.TLS.Enabled() {
-		server.TLSConfig, err = loadServerTLSConfig(options.TLS)
-		if err != nil {
+		if server.TLSConfig, err = loadServerTLSConfig(options.TLS); err != nil {
 			return err
 		}
 		listener = tlsListener(listener, server.TLSConfig)
 	}
 
 	errCh := make(chan error, 1)
-	go func() {
-		errCh <- server.Serve(listener)
-	}()
+	go func() { errCh <- server.Serve(listener) }()
 	if options.Ready != nil {
 		_, _ = fmt.Fprintln(options.Ready, "ready")
 	}
+	return awaitShutdown(ctx, server, shutdownRequested, errCh)
+}
 
+func awaitShutdown(ctx context.Context, server *http.Server, shutdownRequested <-chan struct{}, errCh <-chan error) error {
 	select {
 	case <-ctx.Done():
 		return shutdown(server, ctx.Err())
@@ -361,6 +452,19 @@ func serveWithOptions(ctx context.Context, options ServeOptions) error {
 func isInputError(err error) bool {
 	var checkErr *CheckError
 	return errors.As(err, &checkErr) && checkErr.Kind == ErrorKindInput
+}
+
+func isMaxBytesError(err error) bool {
+	var maxBytesErr *http.MaxBytesError
+	return errors.As(err, &maxBytesErr)
+}
+
+func remoteHost(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }
 
 func tlsListener(listener net.Listener, config *tls.Config) net.Listener {
@@ -398,6 +502,9 @@ func writeCheckError(w http.ResponseWriter, err error) {
 			return
 		case ErrorKindNotFound:
 			http.Error(w, checkErr.Message, http.StatusNotFound)
+			return
+		case ErrorKindTimeout:
+			http.Error(w, checkErr.Message, http.StatusGatewayTimeout)
 			return
 		}
 	}

@@ -48,18 +48,25 @@ func TestCallerRepoBindings(t *testing.T) {
 		t.Fatalf("read caller-repos.json: %v", err)
 	}
 
-	var bindings map[string][]string
-	if err := json.Unmarshal(content, &bindings); err != nil {
+	var doc struct {
+		Callers map[string][]string `json:"callers"`
+		Admins  []string            `json:"admins"`
+	}
+	if err := json.Unmarshal(content, &doc); err != nil {
 		t.Fatalf("parse caller-repos.json: %v", err)
 	}
 
-	want := map[string][]string{
-		"ci-runner-graft": []string{"graft"},
-		"ci-runner-all":   []string{"graft", "ringstation", "slackstatus"},
-		"dev-hook-pool":   []string{"graft", "ringstation", "slackstatus"},
+	wantCallers := map[string][]string{
+		"ci-runner-graft": {"graft"},
+		"ci-runner-all":   {"graft", "ringstation", "slackstatus"},
+		"dev-hook-pool":   {"calm-poc", "graft", "ringstation", "slackstatus"},
 	}
-	if !reflect.DeepEqual(bindings, want) {
-		t.Fatalf("caller bindings = %#v, want %#v", bindings, want)
+	if !reflect.DeepEqual(doc.Callers, wantCallers) {
+		t.Fatalf("caller bindings = %#v, want %#v", doc.Callers, wantCallers)
+	}
+	wantAdmins := []string{"dev-hook-pool"}
+	if !reflect.DeepEqual(doc.Admins, wantAdmins) {
+		t.Fatalf("admins = %#v, want %#v", doc.Admins, wantAdmins)
 	}
 }
 

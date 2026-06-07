@@ -35,6 +35,36 @@ func AnalyzeCSharpFile(ctx context.Context, file, cliPath string) (AnalysisResul
 	return result, nil
 }
 
+// AnalyzeCSharpFileWithProject analyzes one C# file with project context loaded from csprojPath.
+// When csprojPath is empty it falls back to AnalyzeCSharpFile.
+func AnalyzeCSharpFileWithProject(ctx context.Context, file, csprojPath, cliPath string) (AnalysisResult, error) {
+	if csprojPath == "" {
+		return AnalyzeCSharpFile(ctx, file, cliPath)
+	}
+	if cliPath == "" {
+		cliPath = defaultRoslynCLI()
+	}
+	output, stderr, err := runToolOutput(ctx, cliPath, file, "--project", csprojPath)
+	if err != nil {
+		return AnalysisResult{}, fmt.Errorf("running Roslyn analyzer: %w", err)
+	}
+	var result AnalysisResult
+	if err := json.Unmarshal(output, &result); err != nil {
+		if strings.TrimSpace(stderr) != "" {
+			return AnalysisResult{}, fmt.Errorf("parsing Roslyn analyzer output: %w: stderr: %s", err, strings.TrimSpace(stderr))
+		}
+		return AnalysisResult{}, fmt.Errorf("parsing Roslyn analyzer output: %w", err)
+	}
+	if result.Language == "" {
+		result.Language = "csharp"
+	}
+	if result.File == "" {
+		result.File = file
+	}
+	result.ModuleMetric = BuildModuleMetric(result.FileMetric, result.Functions)
+	return result, nil
+}
+
 func defaultRoslynCLI() string {
 	candidates := []string{
 		filepath.Join("tools", "roslyn-analyzer", "bin", "Release", "net8.0", "CalmRoslynAnalyzer"),

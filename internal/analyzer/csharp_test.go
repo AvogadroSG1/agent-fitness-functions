@@ -308,3 +308,58 @@ func writeFakeRoslyn(t *testing.T, dir, name, script string) string {
 	}
 	return path
 }
+
+func TestAnalyzeCSharpFileWithProjectContextResolvesProjectLocalNamespace(t *testing.T) {
+	cli := buildRoslynAnalyzer(t)
+
+	dir := t.TempDir()
+	csprojPath := filepath.Join(dir, "MyApp.csproj")
+	if err := os.WriteFile(csprojPath, []byte(`<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+</Project>`), 0o644); err != nil {
+		t.Fatalf("write csproj: %v", err)
+	}
+
+	typesPath := filepath.Join(dir, "Types.cs")
+	if err := os.WriteFile(typesPath, []byte(`namespace MyApp.Domain;
+public class Widget { public int Id { get; set; } }`), 0o644); err != nil {
+		t.Fatalf("write Types.cs: %v", err)
+	}
+
+	consumerSrc := `using System;
+using MyApp.Domain;
+
+namespace MyApp.App;
+
+public class Consumer
+{
+    public Widget Get()
+    {
+        Console.WriteLine("fetching");
+        return new Widget { Id = 1 };
+    }
+}
+`
+	consumerPath := filepath.Join(dir, "Consumer.cs")
+	if err := os.WriteFile(consumerPath, []byte(consumerSrc), 0o644); err != nil {
+		t.Fatalf("write Consumer.cs: %v", err)
+	}
+
+	result, err := AnalyzeCSharpFileWithProject(context.Background(), consumerPath, csprojPath, cli)
+	if err != nil {
+		t.Fatalf("AnalyzeCSharpFileWithProject returned error: %v", err)
+	}
+
+	if result.Imports.Total != 2 {
+		t.Fatalf("imports.total = %d, want 2", result.Imports.Total)
+	}
+	if result.Imports.Used != 2 {
+		t.Fatalf("imports.used = %d, want 2 (both System and MyApp.Domain must resolve with project context); got unused: %v", result.Imports.Used, result.Imports.Unused)
+	}
+	if result.Imports.DDC != 1.0 {
+		t.Fatalf("imports.ddc = %.3f, want 1.0", result.Imports.DDC)
+	}
+}

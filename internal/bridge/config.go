@@ -36,6 +36,7 @@ type Config struct {
 	EnforcementMode    EnforcementMode      `json:"enforcement-mode"`
 	EnforcementOnError ErrorEnforcementMode `json:"enforcement-on-error,omitempty"`
 	FitnessFunctions   map[string]bool      `json:"fitness-functions"`
+	ExcludePatterns    []string             `json:"exclude-patterns,omitempty"`
 }
 
 var (
@@ -153,6 +154,17 @@ func defaultConfig() Config {
 func (c Config) enabled(name string) bool {
 	enabled, ok := c.FitnessFunctions[name]
 	return ok && enabled
+}
+
+func (c Config) isExcluded(file string) bool {
+	base := filepath.Base(file)
+	for _, pattern := range c.ExcludePatterns {
+		matched, err := filepath.Match(pattern, base)
+		if err == nil && matched {
+			return true
+		}
+	}
+	return false
 }
 
 func extractRepositoryName(repoPath string) string {

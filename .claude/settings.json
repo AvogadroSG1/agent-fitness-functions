@@ -4,8 +4,8 @@
       {
         "hooks": [
           {
-            "command": "CALM_BRIDGE_BIN=\"$(pwd)/.tmp/calm-bridge\" CALM_BRIDGE_ADDR=http://127.0.0.1:7890 \"$(pwd)/hooks/pre-tool-use.sh\"",
-            "type": "command"
+            "type": "command",
+            "command": "CALM_BRIDGE_BIN=\"$(pwd)/.tmp/calm-bridge\" CALM_BRIDGE_ADDR=https://127.0.0.1:7890 CALM_CLIENT_CERT=\"$(pwd)/certs/client.crt\" CALM_CLIENT_KEY=\"$(pwd)/certs/client.key\" CALM_CLIENT_CA=\"$(pwd)/certs/ca.crt\" CALM_REPO_NAME=calm-poc \"$(pwd)/hooks/pre-tool-use.sh\""
           }
         ],
         "matcher": "Edit|Write"
@@ -15,8 +15,8 @@
       {
         "hooks": [
           {
-            "command": "bd prime",
-            "type": "command"
+            "type": "command",
+            "command": "bd prime"
           }
         ],
         "matcher": ""
@@ -26,8 +26,8 @@
       {
         "hooks": [
           {
-            "command": "bd prime",
-            "type": "command"
+            "type": "command",
+            "command": "bd prime"
           }
         ],
         "matcher": ""

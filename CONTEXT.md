@@ -124,4 +124,18 @@ What these metrics cannot catch: a function that is simple in isolation but orch
 
 ---
 
-*Authored By Peter O'Connor with Assistance from Claude Code (claude-sonnet-4-6) · 2026-05-24 · CALM PoC Context & FAQ*
+---
+
+## C# Dependency Discipline — calibration status (calm-poc-oeu)
+
+The `calm-bridge check` path now resolves project-local namespaces with `--project <csproj>` when a `.csproj` is discoverable from the file being checked. This fixes the root cause of DDC = 0 on files that only imported project-local namespaces (unresolvable without compilation context).
+
+**Baseline command limitation:** The `calm-bridge baseline` command uses `AnalyzeRepository`, which invokes the Roslyn CLI without `--project`. The SlackStatus baseline was regenerated (153 files, 2026-06-04) but still shows P10 DDC = 0 because single-file analysis cannot resolve project-local namespaces during bulk scanning. The distribution shape will improve once `baseline` is updated to pass the nearest `.csproj` for each file — tracked separately.
+
+**Current DDC threshold in `patterns/governance.json`:** `0.8` (unchanged — real calibration requires a project-aware baseline).
+
+**Why `0.8` is still advisory-safe:** The check path uses project context at runtime, so individual commits that use project-local namespaces will no longer be misclassified as DDC violations. The threshold of `0.8` is strict enough to catch genuinely unused imports; it will not false-positive on project-local namespace usage.
+
+**Next calibration step:** Extend `AnalyzeRepository` to pass `--project <nearest-csproj>` to the Roslyn CLI for each `.cs` file, regenerate baselines, read the resulting P10 DDC distribution, and update the `minimum` in `patterns/governance.json` accordingly.
+
+*Authored By Peter O'Connor with Assistance from Claude Code (claude-sonnet-4-6) · 2026-06-04 · CALM PoC Context & FAQ*
