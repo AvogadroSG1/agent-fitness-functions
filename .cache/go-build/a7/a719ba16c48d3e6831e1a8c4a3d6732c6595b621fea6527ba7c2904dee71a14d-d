@@ -1,0 +1,8 @@
+./checker.go
+./config.go
+./configstore.go
+./server.go
+./state.go
+./checker_test.go
+./configstore_test.go
+./server_test.go
