@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/poconnor/calm-poc/internal/client"
 	"github.com/poconnor/calm-poc/internal/fitness"
 )
 
@@ -308,7 +309,7 @@ func TestResolveContentReadsRelativeToRepo(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	content, err := resolveContent(repo, "x.go", "", "", false)
+	content, err := client.ResolveContent(repo, "x.go", "", "", false)
 	if err != nil {
 		t.Fatalf("resolve content: %v", err)
 	}
