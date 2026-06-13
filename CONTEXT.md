@@ -32,6 +32,9 @@ A single architectural metric detectable at the file boundary (cyclomatic comple
 The wire contract spoken by both client and server — the request a client sends and the verdict the server returns. Lives in `internal/fitness`, owned by neither side.
 _Avoid_: CheckRequest, CheckResponse.
 
+**Naming rule**:
+Always spell the product out — `stack-fitness-functions`. No abbreviations (no `sff`, no `calm-bridge`). Env vars use the derived prefix `STACK_FITNESS_FUNCTIONS_*`; bin helpers use the full name (`stack-fitness-functions-serve`, `stack-fitness-functions-test`). Descriptive over short.
+
 ## Relationships
 
 - The **client** sends a **Validation Request** to the **server**; the **server** returns a **Validation Result**.
