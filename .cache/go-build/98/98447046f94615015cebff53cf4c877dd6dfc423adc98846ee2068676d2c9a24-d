@@ -1,6 +1,0 @@
-./analyzer.go
-./baseline.go
-./csharp.go
-./golang.go
-./python.go
-./repository.go

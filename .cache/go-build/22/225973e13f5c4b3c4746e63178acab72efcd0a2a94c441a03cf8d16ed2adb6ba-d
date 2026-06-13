@@ -1,6 +1,0 @@
-./auth.go
-./checker.go
-./config.go
-./configstore.go
-./server.go
-./state.go
