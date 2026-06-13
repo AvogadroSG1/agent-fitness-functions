@@ -62,7 +62,7 @@ func TestCheckerWithRealCALMBlocksRingstationPythonCyclomaticComplexityFixture(t
 		}
 		latency := time.Since(start)
 		latencies = append(latencies, latency)
-		var body CheckResponse
+		var body ValidationResult
 		decodeErr := json.NewDecoder(response.Body).Decode(&body)
 		closeErr := response.Body.Close()
 		if closeErr != nil {
@@ -122,7 +122,7 @@ func TestPythonSynchronousCheckPhaseProfile(t *testing.T) {
 		PatternPath: filepath.Join("..", "..", "patterns", "governance.json"),
 		State:       NewState(),
 	}
-	request := CheckRequest{
+	request := ValidationRequest{
 		Repo:            repo,
 		File:            "databricks/cost-analytics/src/setup/dd_stage_bronze.py",
 		Language:        "python",

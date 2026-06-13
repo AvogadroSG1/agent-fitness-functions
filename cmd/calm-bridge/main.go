@@ -23,6 +23,7 @@ import (
 
 	"github.com/poconnor/calm-poc/internal/analyzer"
 	"github.com/poconnor/calm-poc/internal/bridge"
+	"github.com/poconnor/calm-poc/internal/fitness"
 	"github.com/poconnor/calm-poc/internal/sarif"
 )
 
@@ -187,7 +188,7 @@ func runCheck(args []string, stdout io.Writer, client *http.Client, starter func
 	if err != nil {
 		return err
 	}
-	body, err := postCheck(context.Background(), configuredClient, *addr, bridge.CheckRequest{
+	body, err := postCheck(context.Background(), configuredClient, *addr, fitness.ValidationRequest{
 		Repo:            *repo,
 		File:            *file,
 		ProposedContent: proposedContent,
@@ -196,7 +197,7 @@ func runCheck(args []string, stdout io.Writer, client *http.Client, starter func
 	if err != nil {
 		return err
 	}
-	return writeCheckResponse(stdout, *format, *repo, body)
+	return writeValidationResult(stdout, *format, *repo, body)
 }
 
 func ensureDaemon(client *http.Client, addr string, starter func(string) error) error {
@@ -209,7 +210,7 @@ func ensureDaemon(client *http.Client, addr string, starter func(string) error) 
 	return waitHealthy(client, addr, 500*time.Millisecond)
 }
 
-func postCheck(ctx context.Context, client *http.Client, addr string, request bridge.CheckRequest) ([]byte, error) {
+func postCheck(ctx context.Context, client *http.Client, addr string, request fitness.ValidationRequest) ([]byte, error) {
 	body, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("encoding check request: %w", err)
@@ -318,12 +319,12 @@ func cloneHTTPClient(base *http.Client) *http.Client {
 	return &clone
 }
 
-func writeCheckResponse(stdout io.Writer, format, repo string, body []byte) error {
+func writeValidationResult(stdout io.Writer, format, repo string, body []byte) error {
 	if format != "sarif" {
 		_, err := stdout.Write(body)
 		return err
 	}
-	var cr bridge.CheckResponse
+	var cr fitness.ValidationResult
 	if err := json.Unmarshal(body, &cr); err != nil {
 		return fmt.Errorf("decoding check response: %w", err)
 	}

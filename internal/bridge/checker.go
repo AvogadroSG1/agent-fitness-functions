@@ -98,21 +98,21 @@ func (e *CheckError) Unwrap() error {
 }
 
 // Check runs the synchronous check path for one proposed file.
-func (c *Checker) Check(ctx context.Context, request CheckRequest) (response CheckResponse, err error) {
+func (c *Checker) Check(ctx context.Context, request ValidationRequest) (response ValidationResult, err error) {
 	if c.State == nil {
-		return CheckResponse{}, infrastructureError("checker state is not configured", nil)
+		return ValidationResult{}, infrastructureError("checker state is not configured", nil)
 	}
 	config, repo, err := loadConfig(c.ConfigStore, request.Repo)
 	if err != nil {
-		return CheckResponse{}, err
+		return ValidationResult{}, err
 	}
 	if config.isExcluded(request.File) {
-		return CheckResponse{Status: StatusPass}, nil
+		return ValidationResult{Status: StatusPass}, nil
 	}
 	state := c.state()
 	if config.EnforcementMode == EnforcementOff {
 		state.ClearRepo(repo)
-		return CheckResponse{Status: StatusPass}, nil
+		return ValidationResult{Status: StatusPass}, nil
 	}
 	if request.Language == "csharp" && config.EnforcementMode == EnforcementBlock {
 		return c.checkWithCSharpWarmGuard(ctx, request, repo, config, state)
@@ -122,7 +122,7 @@ func (c *Checker) Check(ctx context.Context, request CheckRequest) (response Che
 
 // checkWithCSharpWarmGuard handles csharp warmup sequencing before delegating
 // to the synchronous check path.
-func (c *Checker) checkWithCSharpWarmGuard(ctx context.Context, request CheckRequest, repo string, config Config, state *State) (CheckResponse, error) {
+func (c *Checker) checkWithCSharpWarmGuard(ctx context.Context, request ValidationRequest, repo string, config Config, state *State) (ValidationResult, error) {
 	if resp, err, done := c.checkCSharpEarlyOut(request, repo, state); done {
 		return resp, err
 	}
@@ -132,20 +132,20 @@ func (c *Checker) checkWithCSharpWarmGuard(ctx context.Context, request CheckReq
 	return c.checkCSharpWithLock(ctx, request, repo, config, state)
 }
 
-func (c *Checker) checkCSharpEarlyOut(request CheckRequest, repo string, state *State) (CheckResponse, error, bool) {
+func (c *Checker) checkCSharpEarlyOut(request ValidationRequest, repo string, state *State) (ValidationResult, error, bool) {
 	if message, ok := state.TakeWarmupFailure("csharp"); ok {
-		return CheckResponse{}, infrastructureError("csharp warm-up failed", errors.New(message)), true
+		return ValidationResult{}, infrastructureError("csharp warm-up failed", errors.New(message)), true
 	}
 	if outstanding := state.Violations(repo); hasOtherFileViolation(outstanding, request.File) {
-		return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil, true
+		return ValidationResult{Status: StatusBlock, Violations: outstanding}, nil, true
 	}
-	return CheckResponse{}, nil, false
+	return ValidationResult{}, nil, false
 }
 
-func (c *Checker) checkCSharpWithLock(ctx context.Context, request CheckRequest, repo string, config Config, state *State) (CheckResponse, error) {
+func (c *Checker) checkCSharpWithLock(ctx context.Context, request ValidationRequest, repo string, config Config, state *State) (ValidationResult, error) {
 	unlockRepo, err := state.LockRepo(ctx, repo)
 	if err != nil {
-		return CheckResponse{}, infrastructureError("check canceled while waiting for repository lock", err)
+		return ValidationResult{}, infrastructureError("check canceled while waiting for repository lock", err)
 	}
 	if state.IsWarm("csharp") {
 		defer unlockRepo()
@@ -162,40 +162,40 @@ func (c *Checker) checkCSharpWithLock(ctx context.Context, request CheckRequest,
 	return c.checkSynchronousLocked(ctx, request, repo, config, state)
 }
 
-func (c *Checker) checkCSharpWarmup(ctx context.Context, request CheckRequest, repo string, config Config, state *State, unlockRepo func()) (CheckResponse, error) {
+func (c *Checker) checkCSharpWarmup(ctx context.Context, request ValidationRequest, repo string, config Config, state *State, unlockRepo func()) (ValidationResult, error) {
 	if c.BlockOnWarmup {
 		defer unlockRepo()
 		resp, err := c.checkSynchronousLocked(ctx, request, repo, config, state)
 		if err != nil {
 			state.FailWarmup("csharp", err.Error())
-			return CheckResponse{}, err
+			return ValidationResult{}, err
 		}
 		state.CompleteWarmup("csharp")
 		return resp, nil
 	}
 	c.startDeferredCheck(request, repo, config, unlockRepo)
-	return CheckResponse{Status: StatusPass, Warming: true}, nil
+	return ValidationResult{Status: StatusPass, Warming: true}, nil
 }
 
 // checkSynchronous acquires a per-repo lock (when no external concurrency cap is
 // configured) then delegates to checkSynchronousLocked. When ConcurrencyPermits
 // > 0 the handler's external N-permit semaphore is the only lock needed.
-func (c *Checker) checkSynchronous(ctx context.Context, request CheckRequest, repo string, config Config, state *State) (response CheckResponse, err error) {
+func (c *Checker) checkSynchronous(ctx context.Context, request ValidationRequest, repo string, config Config, state *State) (response ValidationResult, err error) {
 	if c.ConcurrencyPermits > 0 {
 		return c.checkSynchronousLocked(ctx, request, repo, config, state)
 	}
 	unlockRepo, err := state.LockRepo(ctx, repo)
 	if err != nil {
-		return CheckResponse{}, infrastructureError("check canceled while waiting for repository lock", err)
+		return ValidationResult{}, infrastructureError("check canceled while waiting for repository lock", err)
 	}
 	defer unlockRepo()
 	return c.checkSynchronousLocked(ctx, request, repo, config, state)
 }
 
-func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckRequest, repo string, config Config, state *State) (response CheckResponse, err error) {
+func (c *Checker) checkSynchronousLocked(ctx context.Context, request ValidationRequest, repo string, config Config, state *State) (response ValidationResult, err error) {
 	patternPath, cleanupPattern, err := c.resolvePatternPath()
 	if err != nil {
-		return CheckResponse{}, err
+		return ValidationResult{}, err
 	}
 	defer func() {
 		if cleanupErr := cleanupPattern(); cleanupErr != nil {
@@ -204,7 +204,7 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 	}()
 	sourcePath, cleanup, err := c.writeProposedContent(request)
 	if err != nil {
-		return CheckResponse{}, err
+		return ValidationResult{}, err
 	}
 	defer func() {
 		if cleanupErr := cleanup(); cleanupErr != nil {
@@ -225,26 +225,26 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
 // Input errors are always returned as-is. For infrastructure/timeout failures,
 // advisory and pass modes produce synthetic responses; block mode propagates the
 // original error preserving its Kind for HTTP status mapping.
-func (c *Checker) routeAnalysisError(err error, config Config) (CheckResponse, error) {
+func (c *Checker) routeAnalysisError(err error, config Config) (ValidationResult, error) {
 	var checkErr *CheckError
 	if !errors.As(err, &checkErr) {
-		return CheckResponse{}, err
+		return ValidationResult{}, err
 	}
 	if checkErr.Kind == ErrorKindInput {
-		return CheckResponse{}, err
+		return ValidationResult{}, err
 	}
 	switch config.EnforcementOnError {
 	case EnforcementOnErrorAdvisory:
-		return CheckResponse{Status: StatusAdvisory}, nil
+		return ValidationResult{Status: StatusAdvisory}, nil
 	case EnforcementOnErrorPass:
-		return CheckResponse{Status: StatusPass}, nil
+		return ValidationResult{Status: StatusPass}, nil
 	default:
-		return CheckResponse{}, err
+		return ValidationResult{}, err
 	}
 }
 
 // analyzeSource runs the language-specific analyzer for the proposed file content.
-func (c *Checker) analyzeSource(ctx context.Context, request CheckRequest, repo, sourcePath string) (analyzer.AnalysisResult, error) {
+func (c *Checker) analyzeSource(ctx context.Context, request ValidationRequest, repo, sourcePath string) (analyzer.AnalysisResult, error) {
 	sourceAnalyzer, ok := c.sourceAnalyzer(request.Language)
 	if !ok {
 		return analyzer.AnalysisResult{}, inputError(fmt.Sprintf("unsupported language %q", request.Language), nil)
@@ -296,14 +296,14 @@ func classifyAnalysisError(err error, language string) error {
 }
 
 // runValidationAndScore runs CALM validation and fitness scoring on an analyzed result.
-func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.AnalysisResult, repo, file, patternPath string, config Config, state *State) (resp CheckResponse, err error) {
+func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.AnalysisResult, repo, file, patternPath string, config Config, state *State) (resp ValidationResult, err error) {
 	pattern, err := calm.LoadPattern(patternPath)
 	if err != nil {
-		return CheckResponse{}, infrastructureError("loading governance pattern", err)
+		return ValidationResult{}, infrastructureError("loading governance pattern", err)
 	}
 	architecturePath, cleanupArchitecture, err := c.writeArchitecture(report.BuildArchitecture(result))
 	if err != nil {
-		return CheckResponse{}, err
+		return ValidationResult{}, err
 	}
 	defer func() {
 		if cleanupErr := cleanupArchitecture(); cleanupErr != nil {
@@ -315,11 +315,11 @@ func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.Ana
 	case validator == nil:
 		validator = calm.Validator{}
 	case isNilInterface(validator):
-		return CheckResponse{}, infrastructureError("CALM validator is not configured", nil)
+		return ValidationResult{}, infrastructureError("CALM validator is not configured", nil)
 	}
 	validation, err := validator.Validate(ctx, architecturePath, patternPath)
 	if err != nil && !isValidationFailure(validation) {
-		return CheckResponse{}, infrastructureError("running CALM validation", err)
+		return ValidationResult{}, infrastructureError("running CALM validation", err)
 	}
 	violations := filterViolations(fitnessViolations(result, pattern), config)
 	if len(violations) == 0 {
@@ -328,26 +328,26 @@ func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.Ana
 	return c.scoreDirty(repo, file, violations, config, state)
 }
 
-func (c *Checker) scoreClean(repo, file string, config Config, state *State) (CheckResponse, error) {
+func (c *Checker) scoreClean(repo, file string, config Config, state *State) (ValidationResult, error) {
 	if config.EnforcementMode == EnforcementBlock {
 		state.ReplaceFile(repo, file, nil)
 		if outstanding := state.Violations(repo); len(outstanding) > 0 {
-			return CheckResponse{Status: StatusBlock, Violations: outstanding}, nil
+			return ValidationResult{Status: StatusBlock, Violations: outstanding}, nil
 		}
 	} else {
 		state.ClearRepo(repo)
 	}
-	return CheckResponse{Status: StatusPass}, nil
+	return ValidationResult{Status: StatusPass}, nil
 }
 
-func (c *Checker) scoreDirty(repo, file string, violations []Violation, config Config, state *State) (CheckResponse, error) {
+func (c *Checker) scoreDirty(repo, file string, violations []Violation, config Config, state *State) (ValidationResult, error) {
 	switch config.EnforcementMode {
 	case EnforcementAdvisory:
 		state.ClearRepo(repo)
-		return CheckResponse{Status: StatusAdvisory, Violations: violations}, nil
+		return ValidationResult{Status: StatusAdvisory, Violations: violations}, nil
 	default:
 		state.ReplaceFile(repo, file, violations)
-		return CheckResponse{Status: StatusBlock, Violations: state.Violations(repo)}, nil
+		return ValidationResult{Status: StatusBlock, Violations: state.Violations(repo)}, nil
 	}
 }
 
@@ -355,7 +355,7 @@ func (c *Checker) state() *State {
 	return c.State
 }
 
-func (c *Checker) startDeferredCheck(request CheckRequest, repo string, config Config, unlockRepo func()) {
+func (c *Checker) startDeferredCheck(request ValidationRequest, repo string, config Config, unlockRepo func()) {
 	checker := *c
 	go func() {
 		defer unlockRepo()
@@ -425,7 +425,7 @@ func (c Checker) resolvePatternPath() (string, func() error, error) {
 	return f.Name(), cleanup, nil
 }
 
-func (c Checker) writeProposedContent(request CheckRequest) (string, func() error, error) {
+func (c Checker) writeProposedContent(request ValidationRequest) (string, func() error, error) {
 	extension := filepath.Ext(request.File)
 	if extension == "" {
 		extension = ".go"
@@ -704,7 +704,7 @@ func collectPeerGoFiles(dir, logicalPath string) ([]string, error) {
 	return peers, nil
 }
 
-func calmNodeForRequest(request CheckRequest, fallback string) string {
+func calmNodeForRequest(request ValidationRequest, fallback string) string {
 	base := strings.TrimSuffix(filepath.Base(request.File), filepath.Ext(request.File))
 	if fallback == "" || strings.HasPrefix(fallback, "calm-check-") || request.Language == "python" {
 		if base == "" {

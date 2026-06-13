@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/poconnor/calm-poc/internal/bridge"
+	"github.com/poconnor/calm-poc/internal/fitness"
 )
 
 func TestRunServeRequiresTLSForTrustedProxyHeaders(t *testing.T) {
@@ -65,7 +65,7 @@ func TestRunServeRequiresTrustedProxyClientCNs(t *testing.T) {
 }
 
 func TestRunCheckUsesClientTLSFlags(t *testing.T) {
-	var received bridge.CheckRequest
+	var received fitness.ValidationRequest
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
@@ -82,7 +82,7 @@ func TestRunCheckUsesClientTLSFlags(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
 				t.Fatalf("decode request: %v", err)
 			}
-			_ = json.NewEncoder(w).Encode(bridge.CheckResponse{Status: bridge.StatusPass})
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{Status: fitness.StatusPass})
 		default:
 			http.NotFound(w, r)
 		}
@@ -158,7 +158,7 @@ func TestRunCheckRequiresClientCertAndKeyTogether(t *testing.T) {
 }
 
 func TestRunCheckAllowsBareLogicalRepoWithContentFile(t *testing.T) {
-	var received bridge.CheckRequest
+	var received fitness.ValidationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
@@ -167,7 +167,7 @@ func TestRunCheckAllowsBareLogicalRepoWithContentFile(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
 				t.Fatalf("decode request: %v", err)
 			}
-			_ = json.NewEncoder(w).Encode(bridge.CheckResponse{Status: bridge.StatusPass})
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{Status: fitness.StatusPass})
 		default:
 			http.NotFound(w, r)
 		}
@@ -190,7 +190,7 @@ func TestRunCheckAllowsBareLogicalRepoWithContentFile(t *testing.T) {
 }
 
 func TestRunCheckPostsToHealthyDaemon(t *testing.T) {
-	var received bridge.CheckRequest
+	var received fitness.ValidationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
@@ -199,7 +199,7 @@ func TestRunCheckPostsToHealthyDaemon(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
 				t.Fatalf("decode request: %v", err)
 			}
-			_ = json.NewEncoder(w).Encode(bridge.CheckResponse{Status: bridge.StatusPass})
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{Status: fitness.StatusPass})
 		default:
 			http.NotFound(w, r)
 		}
@@ -221,7 +221,7 @@ func TestRunCheckPostsToHealthyDaemon(t *testing.T) {
 }
 
 func TestRunCheckStartsDaemonWhenCold(t *testing.T) {
-	var received bridge.CheckRequest
+	var received fitness.ValidationRequest
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
@@ -234,7 +234,7 @@ func TestRunCheckStartsDaemonWhenCold(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
 				t.Fatalf("decode request: %v", err)
 			}
-			_ = json.NewEncoder(w).Encode(bridge.CheckResponse{Status: bridge.StatusPass})
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{Status: fitness.StatusPass})
 		default:
 			http.NotFound(w, r)
 		}
@@ -318,7 +318,7 @@ func TestResolveContentReadsRelativeToRepo(t *testing.T) {
 }
 
 func TestRunCheckPreservesContentFileBytes(t *testing.T) {
-	var received bridge.CheckRequest
+	var received fitness.ValidationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
@@ -327,7 +327,7 @@ func TestRunCheckPreservesContentFileBytes(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
 				t.Fatalf("decode request: %v", err)
 			}
-			_ = json.NewEncoder(w).Encode(bridge.CheckResponse{Status: bridge.StatusPass})
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{Status: fitness.StatusPass})
 		default:
 			http.NotFound(w, r)
 		}
@@ -349,7 +349,7 @@ func TestRunCheckPreservesContentFileBytes(t *testing.T) {
 }
 
 func TestRunCheckAllowsEmptyContentFile(t *testing.T) {
-	var received bridge.CheckRequest
+	var received fitness.ValidationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
@@ -358,7 +358,7 @@ func TestRunCheckAllowsEmptyContentFile(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
 				t.Fatalf("decode request: %v", err)
 			}
-			_ = json.NewEncoder(w).Encode(bridge.CheckResponse{Status: bridge.StatusPass})
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{Status: fitness.StatusPass})
 		default:
 			http.NotFound(w, r)
 		}
@@ -388,7 +388,7 @@ func TestRunCheckStagedReadsIndexInsteadOfWorktree(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(repo, "x.go"), []byte("package worktree\n"), 0o644); err != nil {
 		t.Fatalf("write worktree content: %v", err)
 	}
-	var received bridge.CheckRequest
+	var received fitness.ValidationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
@@ -397,7 +397,7 @@ func TestRunCheckStagedReadsIndexInsteadOfWorktree(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
 				t.Fatalf("decode request: %v", err)
 			}
-			_ = json.NewEncoder(w).Encode(bridge.CheckResponse{Status: bridge.StatusPass})
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{Status: fitness.StatusPass})
 		default:
 			http.NotFound(w, r)
 		}

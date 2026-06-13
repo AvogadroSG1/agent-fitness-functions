@@ -5,12 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poconnor/calm-poc/internal/bridge"
+	"github.com/poconnor/calm-poc/internal/fitness"
 	"github.com/poconnor/calm-poc/internal/sarif"
 )
 
 func TestConvertEmptyViolationsProducesEmptyResults(t *testing.T) {
-	resp := bridge.CheckResponse{Status: bridge.StatusPass}
+	resp := fitness.ValidationResult{Status: fitness.StatusPass}
 	out := marshalSARIF(t, sarif.Convert(resp, ""))
 
 	if len(out.Runs) != 1 {
@@ -22,9 +22,9 @@ func TestConvertEmptyViolationsProducesEmptyResults(t *testing.T) {
 }
 
 func TestConvertBlockStatusProducesErrorLevel(t *testing.T) {
-	resp := bridge.CheckResponse{
-		Status: bridge.StatusBlock,
-		Violations: []bridge.Violation{
+	resp := fitness.ValidationResult{
+		Status: fitness.StatusBlock,
+		Violations: []fitness.Violation{
 			{FitnessFunction: "cyclomatic_complexity", Message: "too complex"},
 		},
 	}
@@ -36,9 +36,9 @@ func TestConvertBlockStatusProducesErrorLevel(t *testing.T) {
 }
 
 func TestConvertAdvisoryStatusProducesWarningLevel(t *testing.T) {
-	resp := bridge.CheckResponse{
-		Status: bridge.StatusAdvisory,
-		Violations: []bridge.Violation{
+	resp := fitness.ValidationResult{
+		Status: fitness.StatusAdvisory,
+		Violations: []fitness.Violation{
 			{FitnessFunction: "logic_density", Message: "low density"},
 		},
 	}
@@ -50,9 +50,9 @@ func TestConvertAdvisoryStatusProducesWarningLevel(t *testing.T) {
 }
 
 func TestConvertViolationWithFileProducesLocation(t *testing.T) {
-	resp := bridge.CheckResponse{
-		Status: bridge.StatusBlock,
-		Violations: []bridge.Violation{
+	resp := fitness.ValidationResult{
+		Status: fitness.StatusBlock,
+		Violations: []fitness.Violation{
 			{FitnessFunction: "f", Message: "msg", File: "/repo/internal/foo/bar.go"},
 		},
 	}
@@ -69,9 +69,9 @@ func TestConvertViolationWithFileProducesLocation(t *testing.T) {
 }
 
 func TestConvertDuplicateRulesAreDeduped(t *testing.T) {
-	resp := bridge.CheckResponse{
-		Status: bridge.StatusBlock,
-		Violations: []bridge.Violation{
+	resp := fitness.ValidationResult{
+		Status: fitness.StatusBlock,
+		Violations: []fitness.Violation{
 			{FitnessFunction: "ff1", Message: "a"},
 			{FitnessFunction: "ff1", Message: "b"},
 			{FitnessFunction: "ff2", Message: "c"},
@@ -85,7 +85,7 @@ func TestConvertDuplicateRulesAreDeduped(t *testing.T) {
 }
 
 func TestConvertIncludesSchemaVersion(t *testing.T) {
-	out := marshalSARIF(t, sarif.Convert(bridge.CheckResponse{Status: bridge.StatusPass}, ""))
+	out := marshalSARIF(t, sarif.Convert(fitness.ValidationResult{Status: fitness.StatusPass}, ""))
 
 	if out.Version != "2.1.0" {
 		t.Fatalf("version = %q, want 2.1.0", out.Version)
@@ -97,9 +97,9 @@ func TestConvertIncludesSchemaVersion(t *testing.T) {
 
 // sarifDoc mirrors the top-level SARIF structure for JSON unmarshalling in tests.
 type sarifDoc struct {
-	Schema string    `json:"$schema"`
-	Version string   `json:"version"`
-	Runs   []sarifRun `json:"runs"`
+	Schema  string     `json:"$schema"`
+	Version string     `json:"version"`
+	Runs    []sarifRun `json:"runs"`
 }
 
 type sarifRun struct {
@@ -120,7 +120,7 @@ type sarifRule struct {
 }
 
 type sarifResult struct {
-	Level     string         `json:"level"`
+	Level     string          `json:"level"`
 	Locations []sarifLocation `json:"locations"`
 }
 

@@ -63,7 +63,7 @@ func TestHandlerCheckAcceptsSchemaAndReturnsPass(t *testing.T) {
 		t.Fatalf("POST /check status = %d, want %d", response.StatusCode, http.StatusOK)
 	}
 
-	var checkResponse CheckResponse
+	var checkResponse ValidationResult
 	if err := json.NewDecoder(response.Body).Decode(&checkResponse); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}

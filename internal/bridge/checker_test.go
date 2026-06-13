@@ -19,6 +19,7 @@ import (
 
 	"github.com/poconnor/calm-poc/internal/analyzer"
 	"github.com/poconnor/calm-poc/internal/calm"
+	"github.com/poconnor/calm-poc/internal/fitness"
 )
 
 func TestHandlerCheckRunsGoAnalyzerCALMAndBlocksCyclomaticComplexityViolation(t *testing.T) {
@@ -85,7 +86,7 @@ func TestHandlerCheckRunsGoAnalyzerCALMAndBlocksCyclomaticComplexityViolation(t 
 			t.Fatalf("raw response = %s, want violation field %q", rawBody, field)
 		}
 	}
-	var body CheckResponse
+	var body ValidationResult
 	if err := json.Unmarshal(rawBody, &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
@@ -391,7 +392,7 @@ func TestHandlerCheckPassesCleanGoContent(t *testing.T) {
 		t.Fatalf("POST /check: %v", err)
 	}
 	defer response.Body.Close()
-	var body CheckResponse
+	var body ValidationResult
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
@@ -1224,7 +1225,7 @@ func TestCheckerCheckCSharpCanceledWarmupLockDoesNotLeaveLanguageRunning(t *test
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err = checker.Check(ctx, CheckRequest{
+	_, err = checker.Check(ctx, ValidationRequest{
 		Repo:            repo,
 		File:            "src/Widget.cs",
 		Language:        "csharp",
@@ -1460,7 +1461,7 @@ func TestHandlerCheckRoutesViolationsByEnforcementMode(t *testing.T) {
 	tests := []struct {
 		name string
 		mode EnforcementMode
-		want CheckStatus
+		want fitness.Status
 	}{
 		{name: "block", mode: EnforcementBlock, want: StatusBlock},
 		{name: "advisory", mode: EnforcementAdvisory, want: StatusAdvisory},
@@ -1650,7 +1651,7 @@ func TestCheckerDirectUsagePreservesStateAcrossCalls(t *testing.T) {
 		}),
 	}
 
-	first, err := checker.Check(context.Background(), CheckRequest{
+	first, err := checker.Check(context.Background(), ValidationRequest{
 		Repo:            repo,
 		File:            "internal/parser/parser.go",
 		Language:        "go",
@@ -1662,7 +1663,7 @@ func TestCheckerDirectUsagePreservesStateAcrossCalls(t *testing.T) {
 	if first.Status != StatusBlock || len(first.Violations) != 1 {
 		t.Fatalf("first response = %+v, want one violation", first)
 	}
-	second, err := checker.Check(context.Background(), CheckRequest{
+	second, err := checker.Check(context.Background(), ValidationRequest{
 		Repo:            repo,
 		File:            "internal/other/other.go",
 		Language:        "go",
@@ -1682,7 +1683,7 @@ func TestCheckerDirectUsageRequiresConfiguredState(t *testing.T) {
 	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	checker := Checker{PatternPath: writeTestPattern(t)}
 
-	_, err := checker.Check(context.Background(), CheckRequest{
+	_, err := checker.Check(context.Background(), ValidationRequest{
 		Repo:            repo,
 		File:            "internal/parser/parser.go",
 		Language:        "go",
@@ -1709,7 +1710,7 @@ func TestCheckerDirectUsageInitializesStateOnceForConcurrentCalls(t *testing.T) 
 	for _, file := range []string{"internal/parser/parser.go", "internal/other/other.go"} {
 		file := file
 		go func() {
-			_, err := checker.Check(context.Background(), CheckRequest{
+			_, err := checker.Check(context.Background(), ValidationRequest{
 				Repo:            repo,
 				File:            file,
 				Language:        "go",
@@ -1748,7 +1749,7 @@ func TestCheckerCheckRespectsCancellationWhileWaitingForRepoLock(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err = checker.Check(ctx, CheckRequest{
+	_, err = checker.Check(ctx, ValidationRequest{
 		Repo:            repo,
 		File:            "internal/parser/parser.go",
 		Language:        "go",
@@ -1976,12 +1977,12 @@ func withWorkingDir(t *testing.T, dir string) {
 	})
 }
 
-func postCheck(t *testing.T, serverURL, repo, file, source string) CheckResponse {
+func postCheck(t *testing.T, serverURL, repo, file, source string) ValidationResult {
 	t.Helper()
 	return postCheckForLanguage(t, serverURL, repo, file, "go", source)
 }
 
-func postCheckForLanguage(t *testing.T, serverURL, repo, file, language, source string) CheckResponse {
+func postCheckForLanguage(t *testing.T, serverURL, repo, file, language, source string) ValidationResult {
 	t.Helper()
 	body, err := postCheckForLanguageResult(serverURL, repo, file, language, source)
 	if err != nil {
@@ -1991,11 +1992,11 @@ func postCheckForLanguage(t *testing.T, serverURL, repo, file, language, source 
 }
 
 type checkResult struct {
-	response CheckResponse
+	response ValidationResult
 	err      error
 }
 
-func postCheckForLanguageResult(serverURL, repo, file, language, source string) (CheckResponse, error) {
+func postCheckForLanguageResult(serverURL, repo, file, language, source string) (ValidationResult, error) {
 	response, err := http.Post(serverURL+"/check", "application/json", strings.NewReader(`{
 		"repo": `+jsonString(repo)+`,
 		"file": `+jsonString(file)+`,
@@ -2003,16 +2004,16 @@ func postCheckForLanguageResult(serverURL, repo, file, language, source string) 
 		"proposed_content": `+jsonString(source)+`
 	}`))
 	if err != nil {
-		return CheckResponse{}, fmt.Errorf("POST /check: %w", err)
+		return ValidationResult{}, fmt.Errorf("POST /check: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(response.Body)
-		return CheckResponse{}, fmt.Errorf("status = %d body = %q, want 200", response.StatusCode, body)
+		return ValidationResult{}, fmt.Errorf("status = %d body = %q, want 200", response.StatusCode, body)
 	}
-	var body CheckResponse
+	var body ValidationResult
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
-		return CheckResponse{}, fmt.Errorf("decode response: %w", err)
+		return ValidationResult{}, fmt.Errorf("decode response: %w", err)
 	}
 	return body, nil
 }
@@ -2485,7 +2486,7 @@ func TestCheckPassesExcludedTestFileWithoutRunningAnalysis(t *testing.T) {
 		},
 	}
 
-	resp, err := checker.Check(context.Background(), CheckRequest{
+	resp, err := checker.Check(context.Background(), ValidationRequest{
 		Repo:            repo,
 		File:            "internal/bridge/checker_test.go",
 		Language:        "go",
@@ -2531,7 +2532,7 @@ func TestCheckPassesExcludedPythonTestFileWithoutRunningAnalysis(t *testing.T) {
 		},
 	}
 
-	resp, err := checker.Check(context.Background(), CheckRequest{
+	resp, err := checker.Check(context.Background(), ValidationRequest{
 		Repo:            repo,
 		File:            "analyzers/test_format_violations.py",
 		Language:        "python",
@@ -2551,7 +2552,7 @@ func TestCheckPassesExcludedPythonTestFileWithoutRunningAnalysis(t *testing.T) {
 func TestAnalyzeSourceReturnsInputErrorForUnsupportedLanguage(t *testing.T) {
 	repo := t.TempDir()
 	checker := Checker{State: NewState()}
-	_, err := checker.analyzeSource(context.Background(), CheckRequest{
+	_, err := checker.analyzeSource(context.Background(), ValidationRequest{
 		Repo:     repo,
 		File:     "main.rb",
 		Language: "ruby",
@@ -2608,7 +2609,7 @@ func TestStartDeferredCheckPrintsReadyOnSuccess(t *testing.T) {
 	done := make(chan struct{})
 	config := defaultConfig()
 	checker.startDeferredCheck(
-		CheckRequest{Repo: repo, File: "src/Warmup.cs", Language: "csharp", ProposedContent: "// warmup"},
+		ValidationRequest{Repo: repo, File: "src/Warmup.cs", Language: "csharp", ProposedContent: "// warmup"},
 		repo, config, func() { unlockRepo(); close(done) },
 	)
 	<-done
@@ -2647,7 +2648,7 @@ func TestCheckWithCSharpWarmGuardPassesWhileWarming(t *testing.T) {
 			}),
 		},
 	}
-	response, err := checker.Check(context.Background(), CheckRequest{
+	response, err := checker.Check(context.Background(), ValidationRequest{
 		Repo:            repo,
 		File:            "src/Warmup.cs",
 		Language:        "csharp",
@@ -2663,4 +2664,3 @@ func TestCheckWithCSharpWarmGuardPassesWhileWarming(t *testing.T) {
 		t.Error("Warming = false, want true on first csharp check")
 	}
 }
-

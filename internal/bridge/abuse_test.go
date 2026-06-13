@@ -15,6 +15,7 @@ import (
 
 	"github.com/poconnor/calm-poc/internal/analyzer"
 	"github.com/poconnor/calm-poc/internal/calm"
+	"github.com/poconnor/calm-poc/internal/fitness"
 )
 
 // --- body size cap ---
@@ -86,7 +87,7 @@ func TestHandlerCheckRateLimitsPerCallerIndependently(t *testing.T) {
 	limiter := NewFixedWindowRateLimiter(1, time.Minute)
 	handler := NewHandlerWithOptions(Checker{ConfigStore: store}, nil, HandlerOptions{RateLimiter: limiter})
 
-	callerAReq := syntheticCheckRequest(t, "caller-a")
+	callerAReq := syntheticValidationRequest(t, "caller-a")
 	rw := httptest.NewRecorder()
 	handler.ServeHTTP(rw, callerAReq)
 	if rw.Code == http.StatusTooManyRequests {
@@ -94,13 +95,13 @@ func TestHandlerCheckRateLimitsPerCallerIndependently(t *testing.T) {
 	}
 
 	rw = httptest.NewRecorder()
-	handler.ServeHTTP(rw, syntheticCheckRequest(t, "caller-a"))
+	handler.ServeHTTP(rw, syntheticValidationRequest(t, "caller-a"))
 	if rw.Code != http.StatusTooManyRequests {
 		t.Fatalf("caller-a second request: status = %d, want 429", rw.Code)
 	}
 
 	rw = httptest.NewRecorder()
-	handler.ServeHTTP(rw, syntheticCheckRequest(t, "caller-b"))
+	handler.ServeHTTP(rw, syntheticValidationRequest(t, "caller-b"))
 	if rw.Code == http.StatusTooManyRequests {
 		t.Fatalf("caller-b should not be rate-limited by caller-a, got 429")
 	}
@@ -239,7 +240,7 @@ func TestHandlerCheckEnforcementOnErrorPassMapsTimeoutToPass(t *testing.T) {
 	assertEnforcementOnError(t, EnforcementOnErrorPass, hangingAnalyzer(), http.StatusOK, StatusPass)
 }
 
-func assertEnforcementOnError(t *testing.T, errMode ErrorEnforcementMode, a SourceAnalyzer, wantStatus int, wantCheckStatus CheckStatus) {
+func assertEnforcementOnError(t *testing.T, errMode ErrorEnforcementMode, a SourceAnalyzer, wantStatus int, wantValidationStatus fitness.Status) {
 	t.Helper()
 	repo := "repo-one"
 	store := newTestConfigStore(t)
@@ -262,15 +263,15 @@ func assertEnforcementOnError(t *testing.T, errMode ErrorEnforcementMode, a Sour
 		b, _ := io.ReadAll(response.Body)
 		t.Fatalf("status = %d body = %q, want %d", response.StatusCode, b, wantStatus)
 	}
-	if wantCheckStatus == "" {
+	if wantValidationStatus == "" {
 		return
 	}
-	var cr CheckResponse
+	var cr ValidationResult
 	if err := json.NewDecoder(response.Body).Decode(&cr); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if cr.Status != wantCheckStatus {
-		t.Fatalf("check status = %q, want %q", cr.Status, wantCheckStatus)
+	if cr.Status != wantValidationStatus {
+		t.Fatalf("validation status = %q, want %q", cr.Status, wantValidationStatus)
 	}
 }
 
@@ -287,7 +288,7 @@ func postMinimalCheck(t *testing.T, serverURL string) int {
 	return resp.StatusCode
 }
 
-func syntheticCheckRequest(t *testing.T, callerCN string) *http.Request {
+func syntheticValidationRequest(t *testing.T, callerCN string) *http.Request {
 	t.Helper()
 	req, _ := http.NewRequest(http.MethodPost, "/check",
 		strings.NewReader(`{"repo":"x","file":"f.go","language":"go","proposed_content":""}`))

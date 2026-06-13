@@ -13,37 +13,25 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/poconnor/calm-poc/internal/fitness"
 )
 
 const (
 	// StatusPass indicates that no active fitness function blocked the change.
-	StatusPass CheckStatus = "pass"
+	StatusPass = fitness.StatusPass
 	// StatusBlock indicates that an active fitness function rejected the change.
-	StatusBlock CheckStatus = "block"
+	StatusBlock = fitness.StatusBlock
 	// StatusAdvisory indicates that an active fitness function reported guidance without blocking.
-	StatusAdvisory CheckStatus = "advisory"
+	StatusAdvisory = fitness.StatusAdvisory
 
-	maxCheckRequestBytes = 5 << 20
-	defaultConfigsDir    = "/app/configs"
+	maxValidationRequestBytes = 5 << 20
+	defaultConfigsDir         = "/app/configs"
 )
 
-// CheckStatus is the closed set of check outcomes returned by /check.
-type CheckStatus string
-
-// CheckRequest is the JSON body accepted by POST /check.
-type CheckRequest struct {
-	Repo            string `json:"repo"`
-	File            string `json:"file"`
-	ProposedContent string `json:"proposed_content"`
-	Language        string `json:"language"`
-}
-
-// CheckResponse is the JSON response returned by POST /check.
-type CheckResponse struct {
-	Status     CheckStatus `json:"status"`
-	Warming    bool        `json:"warming,omitempty"`
-	Violations []Violation `json:"violations,omitempty"`
-}
+type ValidationRequest = fitness.ValidationRequest
+type ValidationResult = fitness.ValidationResult
+type Violation = fitness.Violation
 
 // StateResponse is the JSON response returned by GET /state for one repository.
 type StateResponse struct {
@@ -65,17 +53,6 @@ type ConfigsRepoResponse struct {
 	FitnessFunctions map[string]bool `json:"fitness-functions,omitempty"`
 	Error            string          `json:"error,omitempty"`
 	LastValidAt      *time.Time      `json:"last_valid_at,omitempty"`
-}
-
-// Violation describes one architectural fitness function failure.
-type Violation struct {
-	FitnessFunction string  `json:"fitness_function"`
-	CALMNode        string  `json:"calm_node"`
-	File            string  `json:"file,omitempty"`
-	Function        string  `json:"function,omitempty"`
-	Value           float64 `json:"value"`
-	Limit           float64 `json:"limit"`
-	Message         string  `json:"message"`
 }
 
 type ServeOptions struct {
@@ -136,7 +113,7 @@ func checkHandler(checker Checker, options HandlerOptions) http.HandlerFunc {
 			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 			return
 		}
-		request, ok := decodeCheckRequest(w, r)
+		request, ok := decodeValidationRequest(w, r)
 		if !ok {
 			return
 		}
@@ -185,11 +162,11 @@ func resolveCheckCaller(r *http.Request, options HandlerOptions) string {
 	return caller
 }
 
-// decodeCheckRequest reads the body into a buffer (enforcing the size cap first)
+// decodeValidationRequest reads the body into a buffer (enforcing the size cap first)
 // then unmarshals JSON. Reading the full buffer before decoding ensures that an
 // oversized body returns 413 even when the JSON is invalid from the first byte.
-func decodeCheckRequest(w http.ResponseWriter, r *http.Request) (CheckRequest, bool) {
-	limitedBody := http.MaxBytesReader(w, r.Body, maxCheckRequestBytes)
+func decodeValidationRequest(w http.ResponseWriter, r *http.Request) (ValidationRequest, bool) {
+	limitedBody := http.MaxBytesReader(w, r.Body, maxValidationRequestBytes)
 	defer limitedBody.Close()
 	raw, err := io.ReadAll(limitedBody)
 	if err != nil {
@@ -198,12 +175,12 @@ func decodeCheckRequest(w http.ResponseWriter, r *http.Request) (CheckRequest, b
 		} else {
 			http.Error(w, "invalid check request", http.StatusBadRequest)
 		}
-		return CheckRequest{}, false
+		return ValidationRequest{}, false
 	}
-	var request CheckRequest
+	var request ValidationRequest
 	if err := json.Unmarshal(raw, &request); err != nil {
 		http.Error(w, "invalid check request", http.StatusBadRequest)
-		return CheckRequest{}, false
+		return ValidationRequest{}, false
 	}
 	return request, true
 }

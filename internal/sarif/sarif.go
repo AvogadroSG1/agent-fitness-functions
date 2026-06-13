@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/poconnor/calm-poc/internal/bridge"
+	"github.com/poconnor/calm-poc/internal/fitness"
 )
 
 const schema = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"
@@ -59,9 +59,9 @@ type artifactLocation struct {
 	URIBaseID string `json:"uriBaseId,omitempty"`
 }
 
-// Convert transforms a bridge.CheckResponse into a SARIF 2.1.0 document.
+// Convert transforms a fitness.ValidationResult into a SARIF 2.1.0 document.
 // repoRoot is used to produce repo-relative URIs for file locations.
-func Convert(resp bridge.CheckResponse, repoRoot string) any {
+func Convert(resp fitness.ValidationResult, repoRoot string) any {
 	rules := uniqueRules(resp.Violations)
 	results := make([]result, 0, len(resp.Violations))
 	for _, v := range resp.Violations {
@@ -85,7 +85,7 @@ func Convert(resp bridge.CheckResponse, repoRoot string) any {
 	}
 }
 
-func toResult(v bridge.Violation, status bridge.CheckStatus, repoRoot string) result {
+func toResult(v fitness.Violation, status fitness.Status, repoRoot string) result {
 	text := v.Message
 	if v.Function != "" {
 		text = fmt.Sprintf("%s (function: %s)", text, v.Function)
@@ -111,8 +111,8 @@ func toResult(v bridge.Violation, status bridge.CheckStatus, repoRoot string) re
 	return r
 }
 
-func levelFor(status bridge.CheckStatus) string {
-	if status == bridge.StatusBlock {
+func levelFor(status fitness.Status) string {
+	if status == fitness.StatusBlock {
 		return "error"
 	}
 	return "warning"
@@ -131,7 +131,7 @@ func relURI(file, repoRoot string) string {
 	return filepath.ToSlash(rel)
 }
 
-func uniqueRules(violations []bridge.Violation) []rule {
+func uniqueRules(violations []fitness.Violation) []rule {
 	seen := make(map[string]struct{}, len(violations))
 	var rules []rule
 	for _, v := range violations {
