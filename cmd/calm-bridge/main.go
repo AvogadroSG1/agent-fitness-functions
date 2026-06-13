@@ -22,9 +22,9 @@ import (
 	"time"
 
 	"github.com/poconnor/calm-poc/internal/analyzer"
-	"github.com/poconnor/calm-poc/internal/bridge"
 	"github.com/poconnor/calm-poc/internal/fitness"
 	"github.com/poconnor/calm-poc/internal/sarif"
+	"github.com/poconnor/calm-poc/internal/server"
 )
 
 func main() {
@@ -95,19 +95,19 @@ func runServe(args []string, stderr io.Writer) int {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := bridge.ServeWithOptions(ctx, bridge.ServeOptions{
+	if err := server.ServeWithOptions(ctx, server.ServeOptions{
 		Addr:      *addr,
 		ConfigDir: os.Getenv("CALM_CONFIGS_DIR"),
 		Ready:     os.Stdout,
-		NewStore:  bridge.NewConfigStore,
-		HandlerOptions: bridge.HandlerOptions{
+		NewStore:  server.NewConfigStore,
+		HandlerOptions: server.HandlerOptions{
 			TrustedProxyHeaders:   *trustedProxyHeaders,
 			TrustedProxyClientCNs: splitCommaSeparatedValues(*trustedProxyClientCNs),
 			RateLimiter:           rateLimiter,
 		},
 		BlockOnWarmup:   *blockOnWarmup,
 		AnalyzerTimeout: analyzerTimeout,
-		TLS: bridge.ServerTLSConfig{
+		TLS: server.ServerTLSConfig{
 			CertPath: *tlsCert,
 			KeyPath:  *tlsKey,
 			CAPath:   *tlsCA,
@@ -121,10 +121,10 @@ func runServe(args []string, stderr io.Writer) int {
 
 // buildRateLimiter creates a rate limiter from CALM_RATE_LIMIT (default 100 req/min).
 // Returns nil when the env var is explicitly set to 0 (disables rate limiting).
-func buildRateLimiter() (bridge.RateLimiter, error) {
+func buildRateLimiter() (server.RateLimiter, error) {
 	raw := os.Getenv("CALM_RATE_LIMIT")
 	if raw == "" {
-		return bridge.NewFixedWindowRateLimiter(100, time.Minute), nil
+		return server.NewFixedWindowRateLimiter(100, time.Minute), nil
 	}
 	limit, err := strconv.Atoi(raw)
 	if err != nil || limit < 0 {
@@ -133,7 +133,7 @@ func buildRateLimiter() (bridge.RateLimiter, error) {
 	if limit == 0 {
 		return nil, nil
 	}
-	return bridge.NewFixedWindowRateLimiter(limit, time.Minute), nil
+	return server.NewFixedWindowRateLimiter(limit, time.Minute), nil
 }
 
 // resolveAnalyzerTimeout parses CALM_ANALYZER_TIMEOUT (default 30s).

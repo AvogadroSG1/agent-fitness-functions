@@ -24,7 +24,7 @@ type Node struct {
 	Metadata    Metadata `json:"metadata"`
 }
 
-// Metadata contains CALM metadata emitted by calm-bridge.
+// Metadata contains CALM metadata emitted by the CLI.
 type Metadata struct {
 	Fitness       Fitness                `json:"fitness"`
 	ModuleMetrics *analyzer.ModuleMetric `json:"module_metrics,omitempty"`

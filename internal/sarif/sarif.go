@@ -74,7 +74,7 @@ func Convert(resp fitness.ValidationResult, repoRoot string) any {
 			{
 				Tool: tool{
 					Driver: driver{
-						Name:           "calm-bridge",
+						Name:           "stack-fitness-functions",
 						InformationURI: "https://calm.finos.org",
 						Rules:          rules,
 					},

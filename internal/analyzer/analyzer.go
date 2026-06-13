@@ -1,4 +1,4 @@
-// Package analyzer defines source-code metric analyzers used by calm-bridge.
+// Package analyzer defines source-code metric analyzers used by the CLI.
 package analyzer
 
 // AnalysisResult contains normalized metrics from a language-specific analyzer.
