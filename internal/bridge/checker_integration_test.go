@@ -42,11 +42,11 @@ func TestCheckerWithRealCALMBlocksGraftCyclomaticComplexityFixture(t *testing.T)
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.StatusCode)
 	}
-	var body ValidationResult
+	var body fitness.ValidationResult
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if body.Status != StatusBlock {
+	if body.Status != fitness.StatusBlock {
 		t.Fatalf("response = %+v, want block", body)
 	}
 	foundChain := false

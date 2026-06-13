@@ -33,7 +33,7 @@ func TestCheckerWithDefaultRoslynAnalyzerDefersThenBlocksCSharpFixture(t *testin
 	start := time.Now()
 	first := postCheckForLanguage(t, server.URL, repo, "src/Widget.cs", "csharp", complexCSharpSource())
 	t.Logf("real Roslyn deferred C# cold response latency: %s", time.Since(start))
-	if first.Status != StatusPass || !first.Warming {
+	if first.Status != fitness.StatusPass || !first.Warming {
 		t.Fatalf("first response = %+v, want pass with warming", first)
 	}
 	violations := waitForStateViolations(t, server.URL, repo, 1)
@@ -41,11 +41,11 @@ func TestCheckerWithDefaultRoslynAnalyzerDefersThenBlocksCSharpFixture(t *testin
 		t.Fatalf("violations = %+v, want default Roslyn Sample.Render violation", violations)
 	}
 	second := postCheckForLanguage(t, server.URL, repo, "src/Other.cs", "csharp", cleanCSharpSource())
-	if second.Status != StatusBlock || second.Warming || len(second.Violations) != 1 || second.Violations[0].File != "src/Widget.cs" {
+	if second.Status != fitness.StatusBlock || second.Warming || len(second.Violations) != 1 || second.Violations[0].File != "src/Widget.cs" {
 		t.Fatalf("second response = %+v, want deferred Widget violation to block next C# check", second)
 	}
 	cleared := postCheckForLanguage(t, server.URL, repo, "src/Widget.cs", "csharp", cleanCSharpSource())
-	if cleared.Status != StatusPass || cleared.Warming || len(cleared.Violations) != 0 {
+	if cleared.Status != fitness.StatusPass || cleared.Warming || len(cleared.Violations) != 0 {
 		t.Fatalf("cleared response = %+v, want warm synchronous pass after fixing Widget", cleared)
 	}
 }

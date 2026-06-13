@@ -221,11 +221,11 @@ func TestHandlerCheckAnalyzerTimeoutReturns504(t *testing.T) {
 // --- enforcement-on-error routing ---
 
 func TestHandlerCheckEnforcementOnErrorAdvisoryMapsAnalyzerCrashToAdvisory(t *testing.T) {
-	assertEnforcementOnError(t, EnforcementOnErrorAdvisory, crashingAnalyzer(), http.StatusOK, StatusAdvisory)
+	assertEnforcementOnError(t, EnforcementOnErrorAdvisory, crashingAnalyzer(), http.StatusOK, fitness.StatusAdvisory)
 }
 
 func TestHandlerCheckEnforcementOnErrorPassMapsAnalyzerCrashToPass(t *testing.T) {
-	assertEnforcementOnError(t, EnforcementOnErrorPass, crashingAnalyzer(), http.StatusOK, StatusPass)
+	assertEnforcementOnError(t, EnforcementOnErrorPass, crashingAnalyzer(), http.StatusOK, fitness.StatusPass)
 }
 
 func TestHandlerCheckEnforcementOnErrorBlockMapsAnalyzerCrashToServiceUnavailable(t *testing.T) {
@@ -233,11 +233,11 @@ func TestHandlerCheckEnforcementOnErrorBlockMapsAnalyzerCrashToServiceUnavailabl
 }
 
 func TestHandlerCheckEnforcementOnErrorAdvisoryMapsTimeoutToAdvisory(t *testing.T) {
-	assertEnforcementOnError(t, EnforcementOnErrorAdvisory, hangingAnalyzer(), http.StatusOK, StatusAdvisory)
+	assertEnforcementOnError(t, EnforcementOnErrorAdvisory, hangingAnalyzer(), http.StatusOK, fitness.StatusAdvisory)
 }
 
 func TestHandlerCheckEnforcementOnErrorPassMapsTimeoutToPass(t *testing.T) {
-	assertEnforcementOnError(t, EnforcementOnErrorPass, hangingAnalyzer(), http.StatusOK, StatusPass)
+	assertEnforcementOnError(t, EnforcementOnErrorPass, hangingAnalyzer(), http.StatusOK, fitness.StatusPass)
 }
 
 func assertEnforcementOnError(t *testing.T, errMode ErrorEnforcementMode, a SourceAnalyzer, wantStatus int, wantValidationStatus fitness.Status) {
@@ -266,7 +266,7 @@ func assertEnforcementOnError(t *testing.T, errMode ErrorEnforcementMode, a Sour
 	if wantValidationStatus == "" {
 		return
 	}
-	var cr ValidationResult
+	var cr fitness.ValidationResult
 	if err := json.NewDecoder(response.Body).Decode(&cr); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}

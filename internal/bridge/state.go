@@ -4,12 +4,14 @@ import (
 	"context"
 	"sort"
 	"sync"
+
+	"github.com/poconnor/calm-poc/internal/fitness"
 )
 
 // State stores outstanding violations by repository and file.
 type State struct {
 	mu             sync.RWMutex
-	violations     map[string]map[string][]Violation
+	violations     map[string]map[string][]fitness.Violation
 	repoLocks      map[string]*repoLock
 	warmups        map[string]warmupStatus
 	warmupFailures map[string]string
@@ -31,7 +33,7 @@ const (
 // NewState creates an empty outstanding violation store.
 func NewState() *State {
 	return &State{
-		violations:     map[string]map[string][]Violation{},
+		violations:     map[string]map[string][]fitness.Violation{},
 		repoLocks:      map[string]*repoLock{},
 		warmups:        map[string]warmupStatus{},
 		warmupFailures: map[string]string{},
@@ -221,7 +223,7 @@ func (s *State) IsWarm(language string) bool {
 }
 
 // ReplaceFile replaces the outstanding violations for one repository file.
-func (s *State) ReplaceFile(repo, file string, violations []Violation) {
+func (s *State) ReplaceFile(repo, file string, violations []fitness.Violation) {
 	if s == nil {
 		return
 	}
@@ -237,12 +239,12 @@ func (s *State) ReplaceFile(repo, file string, violations []Violation) {
 		return
 	}
 	if s.violations == nil {
-		s.violations = map[string]map[string][]Violation{}
+		s.violations = map[string]map[string][]fitness.Violation{}
 	}
 	if _, ok := s.violations[repo]; !ok {
-		s.violations[repo] = map[string][]Violation{}
+		s.violations[repo] = map[string][]fitness.Violation{}
 	}
-	s.violations[repo][file] = append([]Violation(nil), violations...)
+	s.violations[repo][file] = append([]fitness.Violation(nil), violations...)
 }
 
 // ClearRepo removes all outstanding violations for one repository.
@@ -270,14 +272,14 @@ func (s *State) HasFile(repo, file string) bool {
 }
 
 // Violations returns all outstanding violations for one repository.
-func (s *State) Violations(repo string) []Violation {
+func (s *State) Violations(repo string) []fitness.Violation {
 	if s == nil {
 		return nil
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	files := s.violations[repo]
-	violations := make([]Violation, 0)
+	violations := make([]fitness.Violation, 0)
 	fileNames := make([]string, 0, len(files))
 	for file := range files {
 		fileNames = append(fileNames, file)
@@ -292,13 +294,13 @@ func (s *State) Violations(repo string) []Violation {
 }
 
 // Snapshot returns outstanding violations for all repositories.
-func (s *State) Snapshot() map[string][]Violation {
+func (s *State) Snapshot() map[string][]fitness.Violation {
 	if s == nil {
-		return map[string][]Violation{}
+		return map[string][]fitness.Violation{}
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	snapshot := make(map[string][]Violation, len(s.violations))
+	snapshot := make(map[string][]fitness.Violation, len(s.violations))
 	for repo, files := range s.violations {
 		fileNames := make([]string, 0, len(files))
 		for file := range files {
@@ -314,7 +316,7 @@ func (s *State) Snapshot() map[string][]Violation {
 	return snapshot
 }
 
-func sortViolations(violations []Violation) {
+func sortViolations(violations []fitness.Violation) {
 	sort.SliceStable(violations, func(i, j int) bool {
 		if violations[i].File != violations[j].File {
 			return violations[i].File < violations[j].File

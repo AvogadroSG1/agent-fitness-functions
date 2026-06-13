@@ -18,25 +18,14 @@ import (
 )
 
 const (
-	// StatusPass indicates that no active fitness function blocked the change.
-	StatusPass = fitness.StatusPass
-	// StatusBlock indicates that an active fitness function rejected the change.
-	StatusBlock = fitness.StatusBlock
-	// StatusAdvisory indicates that an active fitness function reported guidance without blocking.
-	StatusAdvisory = fitness.StatusAdvisory
-
 	maxValidationRequestBytes = 5 << 20
 	defaultConfigsDir         = "/app/configs"
 )
 
-type ValidationRequest = fitness.ValidationRequest
-type ValidationResult = fitness.ValidationResult
-type Violation = fitness.Violation
-
 // StateResponse is the JSON response returned by GET /state for one repository.
 type StateResponse struct {
-	Repo       string      `json:"repo"`
-	Violations []Violation `json:"violations"`
+	Repo       string              `json:"repo"`
+	Violations []fitness.Violation `json:"violations"`
 }
 
 // ConfigsResponse is the JSON response returned by GET /configs.
@@ -165,7 +154,7 @@ func resolveCheckCaller(r *http.Request, options HandlerOptions) string {
 // decodeValidationRequest reads the body into a buffer (enforcing the size cap first)
 // then unmarshals JSON. Reading the full buffer before decoding ensures that an
 // oversized body returns 413 even when the JSON is invalid from the first byte.
-func decodeValidationRequest(w http.ResponseWriter, r *http.Request) (ValidationRequest, bool) {
+func decodeValidationRequest(w http.ResponseWriter, r *http.Request) (fitness.ValidationRequest, bool) {
 	limitedBody := http.MaxBytesReader(w, r.Body, maxValidationRequestBytes)
 	defer limitedBody.Close()
 	raw, err := io.ReadAll(limitedBody)
@@ -175,12 +164,12 @@ func decodeValidationRequest(w http.ResponseWriter, r *http.Request) (Validation
 		} else {
 			http.Error(w, "invalid check request", http.StatusBadRequest)
 		}
-		return ValidationRequest{}, false
+		return fitness.ValidationRequest{}, false
 	}
-	var request ValidationRequest
+	var request fitness.ValidationRequest
 	if err := json.Unmarshal(raw, &request); err != nil {
 		http.Error(w, "invalid check request", http.StatusBadRequest)
-		return ValidationRequest{}, false
+		return fitness.ValidationRequest{}, false
 	}
 	return request, true
 }

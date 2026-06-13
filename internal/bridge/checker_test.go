@@ -86,11 +86,11 @@ func TestHandlerCheckRunsGoAnalyzerCALMAndBlocksCyclomaticComplexityViolation(t 
 			t.Fatalf("raw response = %s, want violation field %q", rawBody, field)
 		}
 	}
-	var body ValidationResult
+	var body fitness.ValidationResult
 	if err := json.Unmarshal(rawBody, &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if body.Status != StatusBlock {
+	if body.Status != fitness.StatusBlock {
 		t.Fatalf("status = %q, want block", body.Status)
 	}
 	if len(body.Violations) != 1 {
@@ -392,11 +392,11 @@ func TestHandlerCheckPassesCleanGoContent(t *testing.T) {
 		t.Fatalf("POST /check: %v", err)
 	}
 	defer response.Body.Close()
-	var body ValidationResult
+	var body fitness.ValidationResult
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if body.Status != StatusPass || len(body.Violations) != 0 {
+	if body.Status != fitness.StatusPass || len(body.Violations) != 0 {
 		t.Fatalf("response = %+v, want pass without violations", body)
 	}
 }
@@ -418,7 +418,7 @@ func TestHandlerCheckRunsPythonAnalyzerAndRoutesAdvisoryViolation(t *testing.T) 
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "databricks/cost-analytics/src/setup/dd_stage_bronze.py", "python", complexPythonSource())
-	if body.Status != StatusAdvisory || len(body.Violations) != 1 {
+	if body.Status != fitness.StatusAdvisory || len(body.Violations) != 1 {
 		t.Fatalf("response = %+v, want advisory violation", body)
 	}
 	violation := body.Violations[0]
@@ -447,7 +447,7 @@ func TestHandlerCheckPassesCleanPythonContent(t *testing.T) {
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "src/setup/clean.py", "python", cleanPythonSource())
-	if body.Status != StatusPass || len(body.Violations) != 0 {
+	if body.Status != fitness.StatusPass || len(body.Violations) != 0 {
 		t.Fatalf("response = %+v, want pass", body)
 	}
 }
@@ -469,7 +469,7 @@ func TestHandlerCheckBlocksInterfaceWidthViolation(t *testing.T) {
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "internal/wide/wide.go", "go", cleanGoSource())
-	if body.Status != StatusBlock || len(body.Violations) != 1 {
+	if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
 		t.Fatalf("response = %+v, want one interface-width block", body)
 	}
 	violation := body.Violations[0]
@@ -498,7 +498,7 @@ func TestHandlerCheckBlocksImplementationDepthViolation(t *testing.T) {
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "internal/shallow/shallow.go", "go", cleanGoSource())
-	if body.Status != StatusBlock || len(body.Violations) != 1 {
+	if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
 		t.Fatalf("response = %+v, want one implementation-depth block", body)
 	}
 	violation := body.Violations[0]
@@ -527,7 +527,7 @@ func TestHandlerCheckPassesCalibratedImplementationDepthAtTwoLOCPerMethod(t *tes
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "internal/shallow/shallow.go", "go", cleanGoSource())
-	if body.Status != StatusPass || len(body.Violations) != 0 {
+	if body.Status != fitness.StatusPass || len(body.Violations) != 0 {
 		t.Fatalf("response = %+v, want 2 LOC/public method to pass calibrated threshold 0.722", body)
 	}
 }
@@ -557,7 +557,7 @@ func TestHandlerCheckAggregatesRealGoPackageForInterfaceWidth(t *testing.T) {
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "internal/wide/proposed.go", "go", goExportedFunctionsSource("Proposed", 1))
-	if body.Status != StatusBlock || len(body.Violations) != 1 {
+	if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
 		t.Fatalf("response = %+v, want aggregate package interface-width block", body)
 	}
 	violation := body.Violations[0]
@@ -601,7 +601,7 @@ func TestHandlerCheckTogglesDeepShallowFitnessFunctionsIndependently(t *testing.
 			defer server.Close()
 
 			body := postCheckForLanguage(t, server.URL, repo, "internal/deep/deep.go", "go", cleanGoSource())
-			if body.Status != StatusBlock || len(body.Violations) != 1 || body.Violations[0].FitnessFunction != tt.wantOnly {
+			if body.Status != fitness.StatusBlock || len(body.Violations) != 1 || body.Violations[0].FitnessFunction != tt.wantOnly {
 				t.Fatalf("response = %+v, want only %s violation", body, tt.wantOnly)
 			}
 		})
@@ -635,7 +635,7 @@ func TestHandlerCheckAppliesDeepShallowRulesAcrossLanguages(t *testing.T) {
 			defer server.Close()
 
 			body := postCheckForLanguage(t, server.URL, repo, tt.file, tt.language, cleanSourceForLanguage(tt.language))
-			if body.Status != StatusAdvisory || len(body.Violations) != 1 || body.Violations[0].FitnessFunction != "interface_width" {
+			if body.Status != fitness.StatusAdvisory || len(body.Violations) != 1 || body.Violations[0].FitnessFunction != "interface_width" {
 				t.Fatalf("response = %+v, want advisory interface-width violation for %s", body, tt.language)
 			}
 		})
@@ -669,7 +669,7 @@ func TestHandlerCheckAppliesImplementationDepthAcrossLanguages(t *testing.T) {
 			defer server.Close()
 
 			body := postCheckForLanguage(t, server.URL, repo, tt.file, tt.language, cleanSourceForLanguage(tt.language))
-			if body.Status != StatusAdvisory || len(body.Violations) != 1 || body.Violations[0].FitnessFunction != "implementation_depth" {
+			if body.Status != fitness.StatusAdvisory || len(body.Violations) != 1 || body.Violations[0].FitnessFunction != "implementation_depth" {
 				t.Fatalf("response = %+v, want advisory implementation-depth violation for %s", body, tt.language)
 			}
 		})
@@ -697,7 +697,7 @@ func TestHandlerCheckBlocksLogicDensityViolation(t *testing.T) {
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "internal/hollow/hollow.go", "go", cleanGoSource())
-	if body.Status != StatusBlock || len(body.Violations) != 1 {
+	if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
 		t.Fatalf("response = %+v, want one LDR block", body)
 	}
 	violation := body.Violations[0]
@@ -735,7 +735,7 @@ func TestHandlerCheckBlocksDependencyDisciplineViolationWithUnusedImports(t *tes
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "internal/imports/imports.go", "go", cleanGoSource())
-	if body.Status != StatusBlock || len(body.Violations) != 1 {
+	if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
 		t.Fatalf("response = %+v, want one DDC block", body)
 	}
 	violation := body.Violations[0]
@@ -760,7 +760,7 @@ func TestHandlerCheckBlocksRealGoBoilerplateForLogicDensity(t *testing.T) {
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "internal/hollow/hollow.go", "go", goBoilerplateSource())
-	if body.Status != StatusBlock || len(body.Violations) != 1 {
+	if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
 		t.Fatalf("response = %+v, want one real Go LDR block", body)
 	}
 	if body.Violations[0].FitnessFunction != "logic_density" || body.Violations[0].Value >= body.Violations[0].Limit {
@@ -779,7 +779,7 @@ func TestHandlerCheckBlocksRealGoUnusedImportsForDependencyDiscipline(t *testing
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "internal/imports/imports.go", "go", goUnusedImportsSource())
-	if body.Status != StatusBlock || len(body.Violations) != 1 {
+	if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
 		t.Fatalf("response = %+v, want one real Go DDC block", body)
 	}
 	violation := body.Violations[0]
@@ -822,7 +822,7 @@ func TestHandlerCheckRespectsDisabledAISlopFitnessFunctions(t *testing.T) {
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "internal/slop/slop.go", "go", cleanGoSource())
-	if body.Status != StatusPass || len(body.Violations) != 0 {
+	if body.Status != fitness.StatusPass || len(body.Violations) != 0 {
 		t.Fatalf("response = %+v, want pass when AI Slop fitness functions are disabled", body)
 	}
 }
@@ -871,7 +871,7 @@ func TestHandlerCheckTogglesAISlopFitnessFunctionsIndependently(t *testing.T) {
 			defer server.Close()
 
 			body := postCheckForLanguage(t, server.URL, repo, "internal/slop/slop.go", "go", cleanGoSource())
-			if body.Status != StatusBlock || len(body.Violations) != 1 || body.Violations[0].FitnessFunction != tt.wantOnly {
+			if body.Status != fitness.StatusBlock || len(body.Violations) != 1 || body.Violations[0].FitnessFunction != tt.wantOnly {
 				t.Fatalf("response = %+v, want only %s violation", body, tt.wantOnly)
 			}
 		})
@@ -899,7 +899,7 @@ func TestHandlerCheckIgnoresZeroDenominatorAISlopMetrics(t *testing.T) {
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "internal/empty/empty.go", "go", cleanGoSource())
-	if body.Status != StatusPass || len(body.Violations) != 0 {
+	if body.Status != fitness.StatusPass || len(body.Violations) != 0 {
 		t.Fatalf("response = %+v, want zero-denominator metrics ignored", body)
 	}
 }
@@ -993,7 +993,7 @@ func TestHandlerCheckCSharpDeferredAnalyzerFailureSurfacesOnNextCall(t *testing.
 	defer server.Close()
 
 	first := postCheckForLanguage(t, server.URL, repo, "src/Widget.cs", "csharp", cleanCSharpSource())
-	if first.Status != StatusPass || !first.Warming {
+	if first.Status != fitness.StatusPass || !first.Warming {
 		t.Fatalf("first response = %+v, want deferred warming pass", first)
 	}
 	select {
@@ -1038,7 +1038,7 @@ func TestHandlerCheckCSharpDeferredPanicSurfacesOnNextCall(t *testing.T) {
 	defer server.Close()
 
 	first := postCheckForLanguage(t, server.URL, repo, "src/Widget.cs", "csharp", cleanCSharpSource())
-	if first.Status != StatusPass || !first.Warming {
+	if first.Status != fitness.StatusPass || !first.Warming {
 		t.Fatalf("first response = %+v, want deferred warming pass", first)
 	}
 	select {
@@ -1071,7 +1071,7 @@ func TestHandlerCheckCSharpWarmupFailurePrecedesOutstandingViolation(t *testing.
 	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	state := NewState()
 	state.FailWarmup("csharp", "running csharp analyzer: boom")
-	state.ReplaceFile(repo, "src/Existing.cs", []Violation{{
+	state.ReplaceFile(repo, "src/Existing.cs", []fitness.Violation{{
 		FitnessFunction: "cyclomatic_complexity",
 		CALMNode:        "Existing",
 		File:            "src/Existing.cs",
@@ -1141,7 +1141,7 @@ func TestHandlerCheckCSharpColdDefersAnalysisAndBlocksNextCall(t *testing.T) {
 	first := postCheckForLanguage(t, server.URL, repo, "src/Widget.cs", "csharp", complexCSharpSource())
 	coldLatency := time.Since(start)
 	t.Logf("deferred C# cold response latency: %s", coldLatency)
-	if first.Status != StatusPass || !first.Warming || len(first.Violations) != 0 {
+	if first.Status != fitness.StatusPass || !first.Warming || len(first.Violations) != 0 {
 		t.Fatalf("first response = %+v, want pass with warming", first)
 	}
 	select {
@@ -1159,7 +1159,7 @@ func TestHandlerCheckCSharpColdDefersAnalysisAndBlocksNextCall(t *testing.T) {
 	}
 
 	second := postCheckForLanguage(t, server.URL, repo, "src/Other.cs", "csharp", cleanCSharpSource())
-	if second.Status != StatusBlock || second.Warming || len(second.Violations) != 1 || second.Violations[0].File != "src/Widget.cs" {
+	if second.Status != fitness.StatusBlock || second.Warming || len(second.Violations) != 1 || second.Violations[0].File != "src/Widget.cs" {
 		t.Fatalf("second response = %+v, want block from outstanding deferred violation", second)
 	}
 	if calls.Load() != 1 {
@@ -1172,7 +1172,7 @@ func TestHandlerCheckCSharpColdBlocksExistingOutstandingViolation(t *testing.T) 
 	store := newTestConfigStore(t)
 	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	state := NewState()
-	state.ReplaceFile(repo, "src/Existing.cs", []Violation{{
+	state.ReplaceFile(repo, "src/Existing.cs", []fitness.Violation{{
 		FitnessFunction: "cyclomatic_complexity",
 		CALMNode:        "Existing",
 		File:            "src/Existing.cs",
@@ -1196,7 +1196,7 @@ func TestHandlerCheckCSharpColdBlocksExistingOutstandingViolation(t *testing.T) 
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "src/New.cs", "csharp", cleanCSharpSource())
-	if body.Status != StatusBlock || body.Warming || len(body.Violations) != 1 || body.Violations[0].File != "src/Existing.cs" {
+	if body.Status != fitness.StatusBlock || body.Warming || len(body.Violations) != 1 || body.Violations[0].File != "src/Existing.cs" {
 		t.Fatalf("response = %+v, want existing violation block before cold warming", body)
 	}
 	if calls.Load() != 0 {
@@ -1225,7 +1225,7 @@ func TestCheckerCheckCSharpCanceledWarmupLockDoesNotLeaveLanguageRunning(t *test
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err = checker.Check(ctx, ValidationRequest{
+	_, err = checker.Check(ctx, fitness.ValidationRequest{
 		Repo:            repo,
 		File:            "src/Widget.cs",
 		Language:        "csharp",
@@ -1248,7 +1248,7 @@ func TestHandlerCheckCSharpColdAdvisoryClearsStaleBlockState(t *testing.T) {
 	store := newTestConfigStore(t)
 	writeRepoConfig(t, store, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
 	state := NewState()
-	state.ReplaceFile(repo, "src/Existing.cs", []Violation{{
+	state.ReplaceFile(repo, "src/Existing.cs", []fitness.Violation{{
 		FitnessFunction: "cyclomatic_complexity",
 		CALMNode:        "Existing",
 		File:            "src/Existing.cs",
@@ -1271,7 +1271,7 @@ func TestHandlerCheckCSharpColdAdvisoryClearsStaleBlockState(t *testing.T) {
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "src/New.cs", "csharp", cleanCSharpSource())
-	if body.Status != StatusPass || body.Warming || len(body.Violations) != 0 {
+	if body.Status != fitness.StatusPass || body.Warming || len(body.Violations) != 0 {
 		t.Fatalf("response = %+v, want pass without stale block in advisory mode", body)
 	}
 	if state := getState(t, server.URL, repo); len(state.Violations) != 0 {
@@ -1296,7 +1296,7 @@ func TestHandlerCheckCSharpColdAdvisoryReturnsGuidanceSynchronously(t *testing.T
 	defer server.Close()
 
 	body := postCheckForLanguage(t, server.URL, repo, "src/Widget.cs", "csharp", complexCSharpSource())
-	if body.Status != StatusAdvisory || body.Warming || len(body.Violations) != 1 || body.Violations[0].Function != "Render" {
+	if body.Status != fitness.StatusAdvisory || body.Warming || len(body.Violations) != 1 || body.Violations[0].Function != "Render" {
 		t.Fatalf("response = %+v, want synchronous advisory guidance", body)
 	}
 }
@@ -1343,7 +1343,7 @@ func TestHandlerCheckCSharpSecondColdCallAnalyzesSynchronouslyWhileWarmupRuns(t 
 	defer server.Close()
 
 	first := postCheckForLanguage(t, server.URL, repo, "src/Warmup.cs", "csharp", cleanCSharpSource())
-	if first.Status != StatusPass || !first.Warming {
+	if first.Status != fitness.StatusPass || !first.Warming {
 		t.Fatalf("first response = %+v, want deferred warming pass", first)
 	}
 	responseCh := make(chan checkResult, 1)
@@ -1378,7 +1378,7 @@ func TestHandlerCheckCSharpSecondColdCallAnalyzesSynchronouslyWhileWarmupRuns(t 
 		t.Fatalf("second cold C# call failed: %v", result.err)
 	}
 	response := result.response
-	if response.Status != StatusBlock || response.Warming || len(response.Violations) != 1 || response.Violations[0].Function != "Render" {
+	if response.Status != fitness.StatusBlock || response.Warming || len(response.Violations) != 1 || response.Violations[0].Function != "Render" {
 		t.Fatalf("second response = %+v, want synchronous C# block while warmup is running", response)
 	}
 }
@@ -1423,7 +1423,7 @@ func TestHandlerCheckCSharpWarmPathIsSynchronous(t *testing.T) {
 	defer server.Close()
 
 	first := postCheckForLanguage(t, server.URL, repo, "src/Warmup.cs", "csharp", cleanCSharpSource())
-	if first.Status != StatusPass || !first.Warming {
+	if first.Status != fitness.StatusPass || !first.Warming {
 		t.Fatalf("first response = %+v, want deferred warming pass", first)
 	}
 	select {
@@ -1452,7 +1452,7 @@ func TestHandlerCheckCSharpWarmPathIsSynchronous(t *testing.T) {
 		t.Fatalf("warm C# path failed: %v", result.err)
 	}
 	response := result.response
-	if response.Status != StatusBlock || response.Warming || len(response.Violations) != 1 || response.Violations[0].Function != "Render" {
+	if response.Status != fitness.StatusBlock || response.Warming || len(response.Violations) != 1 || response.Violations[0].Function != "Render" {
 		t.Fatalf("warm response = %+v, want synchronous block", response)
 	}
 }
@@ -1463,8 +1463,8 @@ func TestHandlerCheckRoutesViolationsByEnforcementMode(t *testing.T) {
 		mode EnforcementMode
 		want fitness.Status
 	}{
-		{name: "block", mode: EnforcementBlock, want: StatusBlock},
-		{name: "advisory", mode: EnforcementAdvisory, want: StatusAdvisory},
+		{name: "block", mode: EnforcementBlock, want: fitness.StatusBlock},
+		{name: "advisory", mode: EnforcementAdvisory, want: fitness.StatusAdvisory},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1506,7 +1506,7 @@ func TestHandlerCheckOffModeSkipsAnalysis(t *testing.T) {
 	defer server.Close()
 
 	body := postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
-	if body.Status != StatusPass || called {
+	if body.Status != fitness.StatusPass || called {
 		t.Fatalf("response = %+v called = %v, want pass without analysis", body, called)
 	}
 }
@@ -1525,15 +1525,15 @@ func TestHandlerCheckAccumulatesOutstandingViolationsUntilFilePasses(t *testing.
 	defer server.Close()
 
 	first := postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
-	if first.Status != StatusBlock || len(first.Violations) != 1 || first.Violations[0].File != "internal/parser/parser.go" {
+	if first.Status != fitness.StatusBlock || len(first.Violations) != 1 || first.Violations[0].File != "internal/parser/parser.go" {
 		t.Fatalf("first response = %+v, want stored parser violation", first)
 	}
 	second := postCheck(t, server.URL, repo, "internal/other/other.go", cleanGoSource())
-	if second.Status != StatusBlock || len(second.Violations) != 1 || second.Violations[0].File != "internal/parser/parser.go" {
+	if second.Status != fitness.StatusBlock || len(second.Violations) != 1 || second.Violations[0].File != "internal/parser/parser.go" {
 		t.Fatalf("second response = %+v, want outstanding parser violation", second)
 	}
 	cleared := postCheck(t, server.URL, repo, "internal/parser/parser.go", cleanGoSource())
-	if cleared.Status != StatusPass || len(cleared.Violations) != 0 {
+	if cleared.Status != fitness.StatusPass || len(cleared.Violations) != 0 {
 		t.Fatalf("cleared response = %+v, want pass after offending file passes", cleared)
 	}
 	state := getState(t, server.URL, repo)
@@ -1556,11 +1556,11 @@ func TestHandlerCheckAccumulatesMultipleOutstandingViolationsAndClearsIndependen
 	defer server.Close()
 
 	first := postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
-	if first.Status != StatusBlock || len(first.Violations) != 1 {
+	if first.Status != fitness.StatusBlock || len(first.Violations) != 1 {
 		t.Fatalf("first response = %+v, want one violation", first)
 	}
 	second := postCheck(t, server.URL, repo, "internal/other/other.go", complexGoSource())
-	if second.Status != StatusBlock || len(second.Violations) != 2 {
+	if second.Status != fitness.StatusBlock || len(second.Violations) != 2 {
 		t.Fatalf("second response = %+v, want two accumulated violations", second)
 	}
 	state := getState(t, server.URL, repo)
@@ -1568,11 +1568,11 @@ func TestHandlerCheckAccumulatesMultipleOutstandingViolationsAndClearsIndependen
 		t.Fatalf("state = %+v, want two outstanding violations", state)
 	}
 	stillBlocked := postCheck(t, server.URL, repo, "internal/parser/parser.go", cleanGoSource())
-	if stillBlocked.Status != StatusBlock || len(stillBlocked.Violations) != 1 || stillBlocked.Violations[0].File != "internal/other/other.go" {
+	if stillBlocked.Status != fitness.StatusBlock || len(stillBlocked.Violations) != 1 || stillBlocked.Violations[0].File != "internal/other/other.go" {
 		t.Fatalf("stillBlocked response = %+v, want remaining other.go violation", stillBlocked)
 	}
 	cleared := postCheck(t, server.URL, repo, "internal/other/other.go", cleanGoSource())
-	if cleared.Status != StatusPass || len(cleared.Violations) != 0 {
+	if cleared.Status != fitness.StatusPass || len(cleared.Violations) != 0 {
 		t.Fatalf("cleared response = %+v, want pass after both files pass", cleared)
 	}
 }
@@ -1593,7 +1593,7 @@ func TestHandlerCheckClearsBlockStateWhenModeChangesToAdvisoryOrOff(t *testing.T
 	_ = postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
 	writeRepoConfig(t, store, repo, EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
 	advisory := postCheck(t, server.URL, repo, "internal/parser/parser.go", cleanGoSource())
-	if advisory.Status != StatusPass {
+	if advisory.Status != fitness.StatusPass {
 		t.Fatalf("advisory clean response = %+v, want pass and stale state cleared", advisory)
 	}
 	if state := getState(t, server.URL, repo); len(state.Violations) != 0 {
@@ -1602,7 +1602,7 @@ func TestHandlerCheckClearsBlockStateWhenModeChangesToAdvisoryOrOff(t *testing.T
 	_ = postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
 	writeRepoConfig(t, store, repo, EnforcementOff, map[string]bool{"cyclomatic-complexity": true})
 	off := postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
-	if off.Status != StatusPass {
+	if off.Status != fitness.StatusPass {
 		t.Fatalf("off response = %+v, want pass", off)
 	}
 	if state := getState(t, server.URL, repo); len(state.Violations) != 0 {
@@ -1625,11 +1625,11 @@ func TestHandlerCheckUsesCanonicalRepoPathForOutstandingState(t *testing.T) {
 
 	dirtyRepoPath := filepath.Join(repo, ".")
 	first := postCheck(t, server.URL, dirtyRepoPath, "internal/parser/parser.go", complexGoSource())
-	if first.Status != StatusBlock || len(first.Violations) != 1 {
+	if first.Status != fitness.StatusBlock || len(first.Violations) != 1 {
 		t.Fatalf("first response = %+v, want block", first)
 	}
 	second := postCheck(t, server.URL, repo, "internal/other/other.go", cleanGoSource())
-	if second.Status != StatusBlock || len(second.Violations) != 1 || second.Violations[0].File != "internal/parser/parser.go" {
+	if second.Status != fitness.StatusBlock || len(second.Violations) != 1 || second.Violations[0].File != "internal/parser/parser.go" {
 		t.Fatalf("second response = %+v, want canonical outstanding parser violation", second)
 	}
 	state := getState(t, server.URL, dirtyRepoPath)
@@ -1651,7 +1651,7 @@ func TestCheckerDirectUsagePreservesStateAcrossCalls(t *testing.T) {
 		}),
 	}
 
-	first, err := checker.Check(context.Background(), ValidationRequest{
+	first, err := checker.Check(context.Background(), fitness.ValidationRequest{
 		Repo:            repo,
 		File:            "internal/parser/parser.go",
 		Language:        "go",
@@ -1660,10 +1660,10 @@ func TestCheckerDirectUsagePreservesStateAcrossCalls(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first check: %v", err)
 	}
-	if first.Status != StatusBlock || len(first.Violations) != 1 {
+	if first.Status != fitness.StatusBlock || len(first.Violations) != 1 {
 		t.Fatalf("first response = %+v, want one violation", first)
 	}
-	second, err := checker.Check(context.Background(), ValidationRequest{
+	second, err := checker.Check(context.Background(), fitness.ValidationRequest{
 		Repo:            repo,
 		File:            "internal/other/other.go",
 		Language:        "go",
@@ -1672,7 +1672,7 @@ func TestCheckerDirectUsagePreservesStateAcrossCalls(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second check: %v", err)
 	}
-	if second.Status != StatusBlock || len(second.Violations) != 1 || second.Violations[0].File != "internal/parser/parser.go" {
+	if second.Status != fitness.StatusBlock || len(second.Violations) != 1 || second.Violations[0].File != "internal/parser/parser.go" {
 		t.Fatalf("second response = %+v, want preserved parser violation", second)
 	}
 }
@@ -1683,7 +1683,7 @@ func TestCheckerDirectUsageRequiresConfiguredState(t *testing.T) {
 	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	checker := Checker{PatternPath: writeTestPattern(t)}
 
-	_, err := checker.Check(context.Background(), ValidationRequest{
+	_, err := checker.Check(context.Background(), fitness.ValidationRequest{
 		Repo:            repo,
 		File:            "internal/parser/parser.go",
 		Language:        "go",
@@ -1710,7 +1710,7 @@ func TestCheckerDirectUsageInitializesStateOnceForConcurrentCalls(t *testing.T) 
 	for _, file := range []string{"internal/parser/parser.go", "internal/other/other.go"} {
 		file := file
 		go func() {
-			_, err := checker.Check(context.Background(), ValidationRequest{
+			_, err := checker.Check(context.Background(), fitness.ValidationRequest{
 				Repo:            repo,
 				File:            file,
 				Language:        "go",
@@ -1749,7 +1749,7 @@ func TestCheckerCheckRespectsCancellationWhileWaitingForRepoLock(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err = checker.Check(ctx, ValidationRequest{
+	_, err = checker.Check(ctx, fitness.ValidationRequest{
 		Repo:            repo,
 		File:            "internal/parser/parser.go",
 		Language:        "go",
@@ -1812,7 +1812,7 @@ func TestHandlerCheckRespectsDisabledFitnessFunctions(t *testing.T) {
 	defer server.Close()
 
 	body := postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
-	if body.Status != StatusPass || len(body.Violations) != 0 {
+	if body.Status != fitness.StatusPass || len(body.Violations) != 0 {
 		t.Fatalf("response = %+v, want pass when cyclomatic complexity disabled", body)
 	}
 }
@@ -1831,7 +1831,7 @@ func TestHandlerCheckDefaultsMissingFitnessFunctionKeysToEnabled(t *testing.T) {
 	defer server.Close()
 
 	body := postCheck(t, server.URL, repo, "internal/parser/parser.go", complexGoSource())
-	if body.Status != StatusBlock || len(body.Violations) != 1 {
+	if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
 		t.Fatalf("response = %+v, want block when fitness map is empty", body)
 	}
 }
@@ -1977,12 +1977,12 @@ func withWorkingDir(t *testing.T, dir string) {
 	})
 }
 
-func postCheck(t *testing.T, serverURL, repo, file, source string) ValidationResult {
+func postCheck(t *testing.T, serverURL, repo, file, source string) fitness.ValidationResult {
 	t.Helper()
 	return postCheckForLanguage(t, serverURL, repo, file, "go", source)
 }
 
-func postCheckForLanguage(t *testing.T, serverURL, repo, file, language, source string) ValidationResult {
+func postCheckForLanguage(t *testing.T, serverURL, repo, file, language, source string) fitness.ValidationResult {
 	t.Helper()
 	body, err := postCheckForLanguageResult(serverURL, repo, file, language, source)
 	if err != nil {
@@ -1992,11 +1992,11 @@ func postCheckForLanguage(t *testing.T, serverURL, repo, file, language, source 
 }
 
 type checkResult struct {
-	response ValidationResult
+	response fitness.ValidationResult
 	err      error
 }
 
-func postCheckForLanguageResult(serverURL, repo, file, language, source string) (ValidationResult, error) {
+func postCheckForLanguageResult(serverURL, repo, file, language, source string) (fitness.ValidationResult, error) {
 	response, err := http.Post(serverURL+"/check", "application/json", strings.NewReader(`{
 		"repo": `+jsonString(repo)+`,
 		"file": `+jsonString(file)+`,
@@ -2004,16 +2004,16 @@ func postCheckForLanguageResult(serverURL, repo, file, language, source string) 
 		"proposed_content": `+jsonString(source)+`
 	}`))
 	if err != nil {
-		return ValidationResult{}, fmt.Errorf("POST /check: %w", err)
+		return fitness.ValidationResult{}, fmt.Errorf("POST /check: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(response.Body)
-		return ValidationResult{}, fmt.Errorf("status = %d body = %q, want 200", response.StatusCode, body)
+		return fitness.ValidationResult{}, fmt.Errorf("status = %d body = %q, want 200", response.StatusCode, body)
 	}
-	var body ValidationResult
+	var body fitness.ValidationResult
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
-		return ValidationResult{}, fmt.Errorf("decode response: %w", err)
+		return fitness.ValidationResult{}, fmt.Errorf("decode response: %w", err)
 	}
 	return body, nil
 }
@@ -2035,7 +2035,7 @@ func getState(t *testing.T, serverURL, repo string) StateResponse {
 	return state
 }
 
-func waitForStateViolations(t *testing.T, serverURL, repo string, count int) []Violation {
+func waitForStateViolations(t *testing.T, serverURL, repo string, count int) []fitness.Violation {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
@@ -2486,7 +2486,7 @@ func TestCheckPassesExcludedTestFileWithoutRunningAnalysis(t *testing.T) {
 		},
 	}
 
-	resp, err := checker.Check(context.Background(), ValidationRequest{
+	resp, err := checker.Check(context.Background(), fitness.ValidationRequest{
 		Repo:            repo,
 		File:            "internal/bridge/checker_test.go",
 		Language:        "go",
@@ -2495,8 +2495,8 @@ func TestCheckPassesExcludedTestFileWithoutRunningAnalysis(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}
-	if resp.Status != StatusPass {
-		t.Errorf("status = %q, want %q", resp.Status, StatusPass)
+	if resp.Status != fitness.StatusPass {
+		t.Errorf("status = %q, want %q", resp.Status, fitness.StatusPass)
 	}
 	if analyzerCalled {
 		t.Error("analyzer was called for excluded test file, want skipped")
@@ -2532,7 +2532,7 @@ func TestCheckPassesExcludedPythonTestFileWithoutRunningAnalysis(t *testing.T) {
 		},
 	}
 
-	resp, err := checker.Check(context.Background(), ValidationRequest{
+	resp, err := checker.Check(context.Background(), fitness.ValidationRequest{
 		Repo:            repo,
 		File:            "analyzers/test_format_violations.py",
 		Language:        "python",
@@ -2541,8 +2541,8 @@ func TestCheckPassesExcludedPythonTestFileWithoutRunningAnalysis(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Check() error = %v", err)
 	}
-	if resp.Status != StatusPass {
-		t.Errorf("status = %q, want %q", resp.Status, StatusPass)
+	if resp.Status != fitness.StatusPass {
+		t.Errorf("status = %q, want %q", resp.Status, fitness.StatusPass)
 	}
 	if analyzerCalled {
 		t.Error("analyzer was called for excluded python test file, want skipped")
@@ -2552,7 +2552,7 @@ func TestCheckPassesExcludedPythonTestFileWithoutRunningAnalysis(t *testing.T) {
 func TestAnalyzeSourceReturnsInputErrorForUnsupportedLanguage(t *testing.T) {
 	repo := t.TempDir()
 	checker := Checker{State: NewState()}
-	_, err := checker.analyzeSource(context.Background(), ValidationRequest{
+	_, err := checker.analyzeSource(context.Background(), fitness.ValidationRequest{
 		Repo:     repo,
 		File:     "main.rb",
 		Language: "ruby",
@@ -2609,7 +2609,7 @@ func TestStartDeferredCheckPrintsReadyOnSuccess(t *testing.T) {
 	done := make(chan struct{})
 	config := defaultConfig()
 	checker.startDeferredCheck(
-		ValidationRequest{Repo: repo, File: "src/Warmup.cs", Language: "csharp", ProposedContent: "// warmup"},
+		fitness.ValidationRequest{Repo: repo, File: "src/Warmup.cs", Language: "csharp", ProposedContent: "// warmup"},
 		repo, config, func() { unlockRepo(); close(done) },
 	)
 	<-done
@@ -2648,7 +2648,7 @@ func TestCheckWithCSharpWarmGuardPassesWhileWarming(t *testing.T) {
 			}),
 		},
 	}
-	response, err := checker.Check(context.Background(), ValidationRequest{
+	response, err := checker.Check(context.Background(), fitness.ValidationRequest{
 		Repo:            repo,
 		File:            "src/Warmup.cs",
 		Language:        "csharp",
@@ -2657,8 +2657,8 @@ func TestCheckWithCSharpWarmGuardPassesWhileWarming(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
-	if response.Status != StatusPass {
-		t.Errorf("status = %q, want %q", response.Status, StatusPass)
+	if response.Status != fitness.StatusPass {
+		t.Errorf("status = %q, want %q", response.Status, fitness.StatusPass)
 	}
 	if !response.Warming {
 		t.Error("Warming = false, want true on first csharp check")

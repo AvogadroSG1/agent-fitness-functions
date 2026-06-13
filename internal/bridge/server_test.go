@@ -22,6 +22,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/poconnor/calm-poc/internal/calm"
+	"github.com/poconnor/calm-poc/internal/fitness"
 )
 
 func TestHandlerHealthReturnsOK(t *testing.T) {
@@ -63,12 +64,12 @@ func TestHandlerCheckAcceptsSchemaAndReturnsPass(t *testing.T) {
 		t.Fatalf("POST /check status = %d, want %d", response.StatusCode, http.StatusOK)
 	}
 
-	var checkResponse ValidationResult
+	var checkResponse fitness.ValidationResult
 	if err := json.NewDecoder(response.Body).Decode(&checkResponse); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if checkResponse.Status != StatusPass {
-		t.Fatalf("status = %q, want %q", checkResponse.Status, StatusPass)
+	if checkResponse.Status != fitness.StatusPass {
+		t.Fatalf("status = %q, want %q", checkResponse.Status, fitness.StatusPass)
 	}
 }
 

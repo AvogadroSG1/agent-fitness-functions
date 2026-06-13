@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poconnor/calm-poc/internal/bridge"
+	"github.com/poconnor/calm-poc/internal/fitness"
 )
 
 func TestPreCommitBlocksStagedViolations(t *testing.T) {
@@ -96,7 +96,7 @@ func TestPreCommitBlocksStagedViolationThroughRunningDaemon(t *testing.T) {
 	runGit(t, repo, "add", "bad.go")
 	writeFile(t, filepath.Join(repo, "bad.go"), "package worktree\n")
 	calmBridge := buildCalmBridge(t)
-	var received bridge.CheckRequest
+	var received fitness.ValidationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
@@ -105,9 +105,9 @@ func TestPreCommitBlocksStagedViolationThroughRunningDaemon(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
 				t.Fatalf("decode check request: %v", err)
 			}
-			_ = json.NewEncoder(w).Encode(bridge.CheckResponse{
-				Status:     bridge.StatusBlock,
-				Violations: []bridge.Violation{{Message: "daemon validated staged violation"}},
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{
+				Status:     fitness.StatusBlock,
+				Violations: []fitness.Violation{{Message: "daemon validated staged violation"}},
 			})
 		default:
 			http.NotFound(w, r)

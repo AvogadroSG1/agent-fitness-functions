@@ -15,6 +15,7 @@ import (
 
 	"github.com/poconnor/calm-poc/internal/analyzer"
 	"github.com/poconnor/calm-poc/internal/calm"
+	"github.com/poconnor/calm-poc/internal/fitness"
 	"github.com/poconnor/calm-poc/internal/report"
 	"github.com/poconnor/calm-poc/patterns"
 )
@@ -98,21 +99,21 @@ func (e *CheckError) Unwrap() error {
 }
 
 // Check runs the synchronous check path for one proposed file.
-func (c *Checker) Check(ctx context.Context, request ValidationRequest) (response ValidationResult, err error) {
+func (c *Checker) Check(ctx context.Context, request fitness.ValidationRequest) (response fitness.ValidationResult, err error) {
 	if c.State == nil {
-		return ValidationResult{}, infrastructureError("checker state is not configured", nil)
+		return fitness.ValidationResult{}, infrastructureError("checker state is not configured", nil)
 	}
 	config, repo, err := loadConfig(c.ConfigStore, request.Repo)
 	if err != nil {
-		return ValidationResult{}, err
+		return fitness.ValidationResult{}, err
 	}
 	if config.isExcluded(request.File) {
-		return ValidationResult{Status: StatusPass}, nil
+		return fitness.ValidationResult{Status: fitness.StatusPass}, nil
 	}
 	state := c.state()
 	if config.EnforcementMode == EnforcementOff {
 		state.ClearRepo(repo)
-		return ValidationResult{Status: StatusPass}, nil
+		return fitness.ValidationResult{Status: fitness.StatusPass}, nil
 	}
 	if request.Language == "csharp" && config.EnforcementMode == EnforcementBlock {
 		return c.checkWithCSharpWarmGuard(ctx, request, repo, config, state)
@@ -122,7 +123,7 @@ func (c *Checker) Check(ctx context.Context, request ValidationRequest) (respons
 
 // checkWithCSharpWarmGuard handles csharp warmup sequencing before delegating
 // to the synchronous check path.
-func (c *Checker) checkWithCSharpWarmGuard(ctx context.Context, request ValidationRequest, repo string, config Config, state *State) (ValidationResult, error) {
+func (c *Checker) checkWithCSharpWarmGuard(ctx context.Context, request fitness.ValidationRequest, repo string, config Config, state *State) (fitness.ValidationResult, error) {
 	if resp, err, done := c.checkCSharpEarlyOut(request, repo, state); done {
 		return resp, err
 	}
@@ -132,20 +133,20 @@ func (c *Checker) checkWithCSharpWarmGuard(ctx context.Context, request Validati
 	return c.checkCSharpWithLock(ctx, request, repo, config, state)
 }
 
-func (c *Checker) checkCSharpEarlyOut(request ValidationRequest, repo string, state *State) (ValidationResult, error, bool) {
+func (c *Checker) checkCSharpEarlyOut(request fitness.ValidationRequest, repo string, state *State) (fitness.ValidationResult, error, bool) {
 	if message, ok := state.TakeWarmupFailure("csharp"); ok {
-		return ValidationResult{}, infrastructureError("csharp warm-up failed", errors.New(message)), true
+		return fitness.ValidationResult{}, infrastructureError("csharp warm-up failed", errors.New(message)), true
 	}
 	if outstanding := state.Violations(repo); hasOtherFileViolation(outstanding, request.File) {
-		return ValidationResult{Status: StatusBlock, Violations: outstanding}, nil, true
+		return fitness.ValidationResult{Status: fitness.StatusBlock, Violations: outstanding}, nil, true
 	}
-	return ValidationResult{}, nil, false
+	return fitness.ValidationResult{}, nil, false
 }
 
-func (c *Checker) checkCSharpWithLock(ctx context.Context, request ValidationRequest, repo string, config Config, state *State) (ValidationResult, error) {
+func (c *Checker) checkCSharpWithLock(ctx context.Context, request fitness.ValidationRequest, repo string, config Config, state *State) (fitness.ValidationResult, error) {
 	unlockRepo, err := state.LockRepo(ctx, repo)
 	if err != nil {
-		return ValidationResult{}, infrastructureError("check canceled while waiting for repository lock", err)
+		return fitness.ValidationResult{}, infrastructureError("check canceled while waiting for repository lock", err)
 	}
 	if state.IsWarm("csharp") {
 		defer unlockRepo()
@@ -162,40 +163,40 @@ func (c *Checker) checkCSharpWithLock(ctx context.Context, request ValidationReq
 	return c.checkSynchronousLocked(ctx, request, repo, config, state)
 }
 
-func (c *Checker) checkCSharpWarmup(ctx context.Context, request ValidationRequest, repo string, config Config, state *State, unlockRepo func()) (ValidationResult, error) {
+func (c *Checker) checkCSharpWarmup(ctx context.Context, request fitness.ValidationRequest, repo string, config Config, state *State, unlockRepo func()) (fitness.ValidationResult, error) {
 	if c.BlockOnWarmup {
 		defer unlockRepo()
 		resp, err := c.checkSynchronousLocked(ctx, request, repo, config, state)
 		if err != nil {
 			state.FailWarmup("csharp", err.Error())
-			return ValidationResult{}, err
+			return fitness.ValidationResult{}, err
 		}
 		state.CompleteWarmup("csharp")
 		return resp, nil
 	}
 	c.startDeferredCheck(request, repo, config, unlockRepo)
-	return ValidationResult{Status: StatusPass, Warming: true}, nil
+	return fitness.ValidationResult{Status: fitness.StatusPass, Warming: true}, nil
 }
 
 // checkSynchronous acquires a per-repo lock (when no external concurrency cap is
 // configured) then delegates to checkSynchronousLocked. When ConcurrencyPermits
 // > 0 the handler's external N-permit semaphore is the only lock needed.
-func (c *Checker) checkSynchronous(ctx context.Context, request ValidationRequest, repo string, config Config, state *State) (response ValidationResult, err error) {
+func (c *Checker) checkSynchronous(ctx context.Context, request fitness.ValidationRequest, repo string, config Config, state *State) (response fitness.ValidationResult, err error) {
 	if c.ConcurrencyPermits > 0 {
 		return c.checkSynchronousLocked(ctx, request, repo, config, state)
 	}
 	unlockRepo, err := state.LockRepo(ctx, repo)
 	if err != nil {
-		return ValidationResult{}, infrastructureError("check canceled while waiting for repository lock", err)
+		return fitness.ValidationResult{}, infrastructureError("check canceled while waiting for repository lock", err)
 	}
 	defer unlockRepo()
 	return c.checkSynchronousLocked(ctx, request, repo, config, state)
 }
 
-func (c *Checker) checkSynchronousLocked(ctx context.Context, request ValidationRequest, repo string, config Config, state *State) (response ValidationResult, err error) {
+func (c *Checker) checkSynchronousLocked(ctx context.Context, request fitness.ValidationRequest, repo string, config Config, state *State) (response fitness.ValidationResult, err error) {
 	patternPath, cleanupPattern, err := c.resolvePatternPath()
 	if err != nil {
-		return ValidationResult{}, err
+		return fitness.ValidationResult{}, err
 	}
 	defer func() {
 		if cleanupErr := cleanupPattern(); cleanupErr != nil {
@@ -204,7 +205,7 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request Validation
 	}()
 	sourcePath, cleanup, err := c.writeProposedContent(request)
 	if err != nil {
-		return ValidationResult{}, err
+		return fitness.ValidationResult{}, err
 	}
 	defer func() {
 		if cleanupErr := cleanup(); cleanupErr != nil {
@@ -225,26 +226,26 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request Validation
 // Input errors are always returned as-is. For infrastructure/timeout failures,
 // advisory and pass modes produce synthetic responses; block mode propagates the
 // original error preserving its Kind for HTTP status mapping.
-func (c *Checker) routeAnalysisError(err error, config Config) (ValidationResult, error) {
+func (c *Checker) routeAnalysisError(err error, config Config) (fitness.ValidationResult, error) {
 	var checkErr *CheckError
 	if !errors.As(err, &checkErr) {
-		return ValidationResult{}, err
+		return fitness.ValidationResult{}, err
 	}
 	if checkErr.Kind == ErrorKindInput {
-		return ValidationResult{}, err
+		return fitness.ValidationResult{}, err
 	}
 	switch config.EnforcementOnError {
 	case EnforcementOnErrorAdvisory:
-		return ValidationResult{Status: StatusAdvisory}, nil
+		return fitness.ValidationResult{Status: fitness.StatusAdvisory}, nil
 	case EnforcementOnErrorPass:
-		return ValidationResult{Status: StatusPass}, nil
+		return fitness.ValidationResult{Status: fitness.StatusPass}, nil
 	default:
-		return ValidationResult{}, err
+		return fitness.ValidationResult{}, err
 	}
 }
 
 // analyzeSource runs the language-specific analyzer for the proposed file content.
-func (c *Checker) analyzeSource(ctx context.Context, request ValidationRequest, repo, sourcePath string) (analyzer.AnalysisResult, error) {
+func (c *Checker) analyzeSource(ctx context.Context, request fitness.ValidationRequest, repo, sourcePath string) (analyzer.AnalysisResult, error) {
 	sourceAnalyzer, ok := c.sourceAnalyzer(request.Language)
 	if !ok {
 		return analyzer.AnalysisResult{}, inputError(fmt.Sprintf("unsupported language %q", request.Language), nil)
@@ -296,14 +297,14 @@ func classifyAnalysisError(err error, language string) error {
 }
 
 // runValidationAndScore runs CALM validation and fitness scoring on an analyzed result.
-func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.AnalysisResult, repo, file, patternPath string, config Config, state *State) (resp ValidationResult, err error) {
+func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.AnalysisResult, repo, file, patternPath string, config Config, state *State) (resp fitness.ValidationResult, err error) {
 	pattern, err := calm.LoadPattern(patternPath)
 	if err != nil {
-		return ValidationResult{}, infrastructureError("loading governance pattern", err)
+		return fitness.ValidationResult{}, infrastructureError("loading governance pattern", err)
 	}
 	architecturePath, cleanupArchitecture, err := c.writeArchitecture(report.BuildArchitecture(result))
 	if err != nil {
-		return ValidationResult{}, err
+		return fitness.ValidationResult{}, err
 	}
 	defer func() {
 		if cleanupErr := cleanupArchitecture(); cleanupErr != nil {
@@ -315,11 +316,11 @@ func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.Ana
 	case validator == nil:
 		validator = calm.Validator{}
 	case isNilInterface(validator):
-		return ValidationResult{}, infrastructureError("CALM validator is not configured", nil)
+		return fitness.ValidationResult{}, infrastructureError("CALM validator is not configured", nil)
 	}
 	validation, err := validator.Validate(ctx, architecturePath, patternPath)
 	if err != nil && !isValidationFailure(validation) {
-		return ValidationResult{}, infrastructureError("running CALM validation", err)
+		return fitness.ValidationResult{}, infrastructureError("running CALM validation", err)
 	}
 	violations := filterViolations(fitnessViolations(result, pattern), config)
 	if len(violations) == 0 {
@@ -328,26 +329,26 @@ func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.Ana
 	return c.scoreDirty(repo, file, violations, config, state)
 }
 
-func (c *Checker) scoreClean(repo, file string, config Config, state *State) (ValidationResult, error) {
+func (c *Checker) scoreClean(repo, file string, config Config, state *State) (fitness.ValidationResult, error) {
 	if config.EnforcementMode == EnforcementBlock {
 		state.ReplaceFile(repo, file, nil)
 		if outstanding := state.Violations(repo); len(outstanding) > 0 {
-			return ValidationResult{Status: StatusBlock, Violations: outstanding}, nil
+			return fitness.ValidationResult{Status: fitness.StatusBlock, Violations: outstanding}, nil
 		}
 	} else {
 		state.ClearRepo(repo)
 	}
-	return ValidationResult{Status: StatusPass}, nil
+	return fitness.ValidationResult{Status: fitness.StatusPass}, nil
 }
 
-func (c *Checker) scoreDirty(repo, file string, violations []Violation, config Config, state *State) (ValidationResult, error) {
+func (c *Checker) scoreDirty(repo, file string, violations []fitness.Violation, config Config, state *State) (fitness.ValidationResult, error) {
 	switch config.EnforcementMode {
 	case EnforcementAdvisory:
 		state.ClearRepo(repo)
-		return ValidationResult{Status: StatusAdvisory, Violations: violations}, nil
+		return fitness.ValidationResult{Status: fitness.StatusAdvisory, Violations: violations}, nil
 	default:
 		state.ReplaceFile(repo, file, violations)
-		return ValidationResult{Status: StatusBlock, Violations: state.Violations(repo)}, nil
+		return fitness.ValidationResult{Status: fitness.StatusBlock, Violations: state.Violations(repo)}, nil
 	}
 }
 
@@ -355,7 +356,7 @@ func (c *Checker) state() *State {
 	return c.State
 }
 
-func (c *Checker) startDeferredCheck(request ValidationRequest, repo string, config Config, unlockRepo func()) {
+func (c *Checker) startDeferredCheck(request fitness.ValidationRequest, repo string, config Config, unlockRepo func()) {
 	checker := *c
 	go func() {
 		defer unlockRepo()
@@ -380,7 +381,7 @@ func (c *Checker) startDeferredCheck(request ValidationRequest, repo string, con
 	}()
 }
 
-func hasOtherFileViolation(violations []Violation, file string) bool {
+func hasOtherFileViolation(violations []fitness.Violation, file string) bool {
 	for _, violation := range violations {
 		if violation.File != file {
 			return true
@@ -425,7 +426,7 @@ func (c Checker) resolvePatternPath() (string, func() error, error) {
 	return f.Name(), cleanup, nil
 }
 
-func (c Checker) writeProposedContent(request ValidationRequest) (string, func() error, error) {
+func (c Checker) writeProposedContent(request fitness.ValidationRequest) (string, func() error, error) {
 	extension := filepath.Ext(request.File)
 	if extension == "" {
 		extension = ".go"
@@ -474,8 +475,8 @@ func (c Checker) writeArchitecture(document report.ArchitectureDocument) (string
 	return file.Name(), cleanup, nil
 }
 
-func fitnessViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
-	violations := make([]Violation, 0)
+func fitnessViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []fitness.Violation {
+	violations := make([]fitness.Violation, 0)
 	violations = append(violations, cyclomaticComplexityViolations(result, pattern)...)
 	violations = append(violations, interfaceWidthViolations(result, pattern)...)
 	violations = append(violations, implementationDepthViolations(result, pattern)...)
@@ -484,18 +485,18 @@ func fitnessViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []V
 	return violations
 }
 
-func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
+func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []fitness.Violation {
 	rule, ok := pattern.FitnessFunctions["cyclomatic-complexity"]
 	if !ok || rule.Operator != "lte" {
 		return nil
 	}
-	violations := make([]Violation, 0)
+	violations := make([]fitness.Violation, 0)
 	for _, function := range result.Functions {
 		value := float64(function.CyclomaticComplexity)
 		if value <= rule.Threshold {
 			continue
 		}
-		violations = append(violations, Violation{
+		violations = append(violations, fitness.Violation{
 			FitnessFunction: "cyclomatic_complexity",
 			CALMNode:        result.CALMNode,
 			File:            result.File,
@@ -514,13 +515,13 @@ func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm
 	return violations
 }
 
-func interfaceWidthViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
+func interfaceWidthViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []fitness.Violation {
 	rule, ok := pattern.FitnessFunctions["interface-width"]
 	result = analyzer.EnsureModuleMetric(result)
 	if !ok || rule.Operator != "lte" || float64(result.ModuleMetric.PublicMethods) <= rule.Threshold {
 		return nil
 	}
-	return []Violation{{
+	return []fitness.Violation{{
 		FitnessFunction: "interface_width",
 		CALMNode:        result.CALMNode,
 		File:            result.File,
@@ -535,14 +536,14 @@ func interfaceWidthViolations(result analyzer.AnalysisResult, pattern calm.Patte
 	}}
 }
 
-func implementationDepthViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
+func implementationDepthViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []fitness.Violation {
 	rule, ok := pattern.FitnessFunctions["implementation-depth"]
 	result = analyzer.EnsureModuleMetric(result)
 	value := result.ModuleMetric.AverageLOCPerPublicMethod
 	if !ok || rule.Operator != "gte" || result.ModuleMetric.PublicMethods == 0 || value >= rule.Threshold {
 		return nil
 	}
-	return []Violation{{
+	return []fitness.Violation{{
 		FitnessFunction: "implementation_depth",
 		CALMNode:        result.CALMNode,
 		File:            result.File,
@@ -557,12 +558,12 @@ func implementationDepthViolations(result analyzer.AnalysisResult, pattern calm.
 	}}
 }
 
-func logicDensityViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
+func logicDensityViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []fitness.Violation {
 	rule, ok := pattern.FitnessFunctions["logic-density"]
 	if !ok || rule.Operator != "gte" || result.FileMetric.TotalLOC == 0 || result.FileMetric.LDR >= rule.Threshold {
 		return nil
 	}
-	return []Violation{{
+	return []fitness.Violation{{
 		FitnessFunction: "logic_density",
 		CALMNode:        result.CALMNode,
 		File:            result.File,
@@ -577,7 +578,7 @@ func logicDensityViolations(result analyzer.AnalysisResult, pattern calm.Pattern
 	}}
 }
 
-func dependencyDisciplineViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []Violation {
+func dependencyDisciplineViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []fitness.Violation {
 	rule, ok := pattern.FitnessFunctions["dependency-discipline"]
 	if !ok || rule.Operator != "gte" || result.Imports.Total == 0 || result.Imports.DDC >= rule.Threshold {
 		return nil
@@ -586,7 +587,7 @@ func dependencyDisciplineViolations(result analyzer.AnalysisResult, pattern calm
 	if unused == "" {
 		unused = "none reported"
 	}
-	return []Violation{{
+	return []fitness.Violation{{
 		FitnessFunction: "dependency_discipline",
 		CALMNode:        result.CALMNode,
 		File:            result.File,
@@ -602,8 +603,8 @@ func dependencyDisciplineViolations(result analyzer.AnalysisResult, pattern calm
 	}}
 }
 
-func filterViolations(violations []Violation, config Config) []Violation {
-	filtered := make([]Violation, 0, len(violations))
+func filterViolations(violations []fitness.Violation, config Config) []fitness.Violation {
+	filtered := make([]fitness.Violation, 0, len(violations))
 	for _, violation := range violations {
 		if !config.enabled(strings.ReplaceAll(violation.FitnessFunction, "_", "-")) {
 			continue
@@ -704,7 +705,7 @@ func collectPeerGoFiles(dir, logicalPath string) ([]string, error) {
 	return peers, nil
 }
 
-func calmNodeForRequest(request ValidationRequest, fallback string) string {
+func calmNodeForRequest(request fitness.ValidationRequest, fallback string) string {
 	base := strings.TrimSuffix(filepath.Base(request.File), filepath.Ext(request.File))
 	if fallback == "" || strings.HasPrefix(fallback, "calm-check-") || request.Language == "python" {
 		if base == "" {

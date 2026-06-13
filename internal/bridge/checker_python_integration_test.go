@@ -16,6 +16,7 @@ import (
 
 	"github.com/poconnor/calm-poc/internal/analyzer"
 	"github.com/poconnor/calm-poc/internal/calm"
+	"github.com/poconnor/calm-poc/internal/fitness"
 	"github.com/poconnor/calm-poc/internal/report"
 )
 
@@ -62,7 +63,7 @@ func TestCheckerWithRealCALMBlocksRingstationPythonCyclomaticComplexityFixture(t
 		}
 		latency := time.Since(start)
 		latencies = append(latencies, latency)
-		var body ValidationResult
+		var body fitness.ValidationResult
 		decodeErr := json.NewDecoder(response.Body).Decode(&body)
 		closeErr := response.Body.Close()
 		if closeErr != nil {
@@ -77,10 +78,10 @@ func TestCheckerWithRealCALMBlocksRingstationPythonCyclomaticComplexityFixture(t
 		if latency >= 500*time.Millisecond {
 			overBudget = append(overBudget, latency)
 		}
-		if body.Status != StatusBlock {
+		if body.Status != fitness.StatusBlock {
 			t.Fatalf("response run %d = %+v, want block", index+1, body)
 		}
-		if !hasViolation(body.Violations, Violation{
+		if !hasViolation(body.Violations, fitness.Violation{
 			FitnessFunction: "cyclomatic_complexity",
 			Function:        "build_config",
 			Limit:           9,
@@ -122,7 +123,7 @@ func TestPythonSynchronousCheckPhaseProfile(t *testing.T) {
 		PatternPath: filepath.Join("..", "..", "patterns", "governance.json"),
 		State:       NewState(),
 	}
-	request := ValidationRequest{
+	request := fitness.ValidationRequest{
 		Repo:            repo,
 		File:            "databricks/cost-analytics/src/setup/dd_stage_bronze.py",
 		Language:        "python",
@@ -214,7 +215,7 @@ func TestPythonSynchronousCheckPhaseProfile(t *testing.T) {
 	)
 }
 
-func hasViolation(violations []Violation, expected Violation) bool {
+func hasViolation(violations []fitness.Violation, expected fitness.Violation) bool {
 	for _, violation := range violations {
 		if violation.FitnessFunction == expected.FitnessFunction &&
 			violation.Function == expected.Function &&
