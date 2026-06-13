@@ -4,6 +4,42 @@ This document answers the questions most likely to arise when someone encounters
 
 ---
 
+## Language
+
+**stack-fitness-functions**:
+The product and binary. The single tool that validates source against architecture fitness functions, in both client and server roles.
+_Avoid_: calm-bridge, bridge (as a product name).
+
+**client validate**:
+The command that checks one file's fitness functions against the running server. Invoked by hooks at commit time.
+_Avoid_: check.
+
+**server start**:
+The command that runs the authoritative governance service (container or k8s) that resolves config and runs analyzers.
+_Avoid_: serve.
+
+**baseline**:
+The offline calibration command that bulk-analyzes a repository to derive thresholds. Belongs to neither client nor server — it is a top-level calibration concern.
+
+**CALM**:
+The FINOS Common Architecture Language Model — the external **standard** this tool enforces. Survives in `.calm/config.json`, `configs/`, the FINOS `calm` CLI dependency, and the `calm-poc` module path. Distinct from the product.
+_Avoid_: using CALM to name our product or binary.
+
+**Fitness Function**:
+A single architectural metric detectable at the file boundary (cyclomatic complexity, interface width, implementation depth, logic density ratio, dependency discipline).
+
+**Validation Request / Validation Result**:
+The wire contract spoken by both client and server — the request a client sends and the verdict the server returns. Lives in `internal/fitness`, owned by neither side.
+_Avoid_: CheckRequest, CheckResponse.
+
+## Relationships
+
+- The **client** sends a **Validation Request** to the **server**; the **server** returns a **Validation Result**.
+- Both **client** and **server** depend on the shared **fitness** contract; the contract depends on neither.
+- **baseline** calibrates the thresholds the **server** later enforces.
+
+---
+
 ## How does CALM actually work?
 
 When a developer runs `git commit` in a governed repository (`graft`, `ringstation`, `slackstatus`), a pre-commit hook fires. The hook identifies the logical repo name, finds every staged source file it recognizes (`.go`, `.py`, `.cs`), and sends each file's content to a running `calm-bridge` daemon. In container mode, the daemon resolves governance from mounted `configs/<repo>/config.json`; in local developer mode, the hook can still use the repository's `.calm/config.json` as a sandbox. The daemon analyzes the file, evaluates the enabled fitness functions against calibrated thresholds, and returns a JSON verdict. In block mode, a failing verdict aborts the commit. In advisory mode, the commit proceeds but the developer sees a warning.
