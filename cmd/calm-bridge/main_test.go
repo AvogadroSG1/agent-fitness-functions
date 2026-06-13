@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/poconnor/calm-poc/internal/client"
 	"github.com/poconnor/calm-poc/internal/fitness"
 )
 
@@ -309,12 +308,28 @@ func TestResolveContentReadsRelativeToRepo(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	content, err := client.ResolveContent(repo, "x.go", "", "", false)
-	if err != nil {
-		t.Fatalf("resolve content: %v", err)
+	var received fitness.ValidationRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/check":
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{Status: fitness.StatusPass})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	code := run([]string{"check", "--addr", server.URL, "--file", "x.go", "--repo", repo}, &bytes.Buffer{}, &bytes.Buffer{})
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
 	}
-	if content != "package main\n" {
-		t.Fatalf("content = %q, want repo-relative file content", content)
+	if received.ProposedContent != "package main\n" {
+		t.Fatalf("content = %q, want repo-relative file content", received.ProposedContent)
 	}
 }
 
