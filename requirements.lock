@@ -1,4 +1,4 @@
-# Locked Python analyzer dependencies for the calm-bridge container.
+# Locked Python analyzer dependencies for the stack-fitness-functions container.
 # Generated from requirements.txt with hashes from downloaded wheel artifacts.
 colorama==0.4.6 \
     --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6

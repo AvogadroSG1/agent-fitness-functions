@@ -22,7 +22,7 @@ func TestPreToolUseBlocksWriteViolation(t *testing.T) {
 	repo := initGitRepo(t)
 	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"block","violations":[{"message":"too complex"}]}\n'
 `)
@@ -47,11 +47,11 @@ func TestPreToolUseAllowsEditAdvisory(t *testing.T) {
 	repo := initGitRepo(t)
 	writeFile(t, filepath.Join(repo, "sample.py"), "print('old')\n")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"advisory","violations":[{"message":"warning only"}]}\n'
 `)
-	payload := `{"tool_name":"Edit","tool_input":{"file_path":"sample.py","old_string":"old","new_string":"print('new')\n"}}`
+	payload := `{"tool_name":"Edit","tool_input":{"file_path":"sample.py","old_string":"print('old')","new_string":"print('new')"}}`
 
 	output, err := runPreToolUse(t, repo, payload, fakeBin, logPath, "")
 	if err != nil {
@@ -65,12 +65,54 @@ printf '{"status":"advisory","violations":[{"message":"warning only"}]}\n'
 	}
 }
 
+func TestPreToolUseSkipsUnsupportedEditBeforeReconstruction(t *testing.T) {
+	repo := initGitRepo(t)
+	writeFile(t, filepath.Join(repo, "README.md"), "# old title\n")
+	payload := `{"tool_name":"Edit","tool_input":{"file_path":"README.md","old_string":"missing old title","new_string":"new title"}}`
+
+	output, err := runPreToolUse(t, repo, payload, t.TempDir(), "", "")
+	if err != nil {
+		t.Fatalf("pre-tool-use failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "unsupported file type") {
+		t.Fatalf("output = %s, want unsupported file skip", output)
+	}
+}
+
+func TestPreToolUseSendsReconstructedEditContent(t *testing.T) {
+	repo := initGitRepo(t)
+	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n\nfunc Message() string {\n\treturn \"old\"\n}\n")
+	logPath := filepath.Join(t.TempDir(), "calm.log")
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --content-file)
+      shift
+      cat "$1" > "$STACK_FITNESS_FUNCTIONS_LOG"
+      ;;
+  esac
+  shift
+done
+printf '{"status":"pass"}\n'
+`)
+	payload := `{"tool_name":"Edit","tool_input":{"file_path":"sample.go","old_string":"return \"old\"\n","new_string":"return \"new\"\n"}}`
+
+	output, err := runPreToolUse(t, repo, payload, fakeBin, logPath, "")
+	if err != nil {
+		t.Fatalf("pre-tool-use failed: %v\n%s", err, output)
+	}
+	want := "package sample\n\nfunc Message() string {\n\treturn \"new\"\n}\n"
+	if got := readFile(t, logPath); got != want {
+		t.Fatalf("content file = %q, want reconstructed full file %q", got, want)
+	}
+}
+
 func TestPreToolUseAllowsPassWithAbsolutePath(t *testing.T) {
 	repo := initGitRepo(t)
 	path := filepath.Join(repo, "src", "Widget.cs")
 	writeFile(t, path, "namespace Demo;\n")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"pass"}\n'
 `)
@@ -101,15 +143,15 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
   }
 }`)
 	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
-	calmBridge := buildCalmBridge(t)
-	daemon := startBridgeDaemon(t, calmBridge, repo)
+	fitnessBin := buildFitnessBin(t)
+	daemon := startFitnessDaemon(t, fitnessBin, repo)
 	t.Setenv("STACK_FITNESS_FUNCTIONS_REPO_NAME", "repo-one")
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CERT", daemon.clientCertPath)
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_KEY", daemon.clientKeyPath)
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CA", daemon.serverCAPath)
 
 	badPayload := `{"tool_name":"Write","tool_input":{"file_path":"sample.go","content":"package sample\nfunc Score(kind string, retries int, urgent bool) int {\nscore := 0\nif kind == \"create\" { score++ }\nif kind == \"update\" { score++ }\nif kind == \"delete\" { score++ }\nif kind == \"manual\" { score++ }\nif kind == \"batch\" { score++ }\nif kind == \"sync\" { score++ }\nif retries > 0 { score++ }\nif retries > 1 { score++ }\nif retries > 2 { score++ }\nif urgent { score++ }\nreturn score\n}\n"}}`
-	output, err := runPreToolUseWithBin(t, repo, badPayload, calmBridge, "", "", daemon.url)
+	output, err := runPreToolUseWithBin(t, repo, badPayload, fitnessBin, "", "", daemon.url)
 	if exitCode(err) != 2 {
 		t.Fatalf("pre-tool-use succeeded, want running daemon block; output=%s", output)
 	}
@@ -118,7 +160,7 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
 	}
 
 	goodPayload := `{"tool_name":"Write","tool_input":{"file_path":"sample.go","content":"package sample\nfunc Score(kind string, retries int, urgent bool) int {\nscore := map[string]int{\"create\": 1, \"update\": 1, \"delete\": 1, \"manual\": 1, \"batch\": 1, \"sync\": 1}[kind]\nif urgent { score++ }\nif retries > 0 { score += min(retries, 3) }\nreturn score\n}\n"}}`
-	output, err = runPreToolUseWithBin(t, repo, goodPayload, calmBridge, "", "", daemon.url)
+	output, err = runPreToolUseWithBin(t, repo, goodPayload, fitnessBin, "", "", daemon.url)
 	if err != nil {
 		t.Fatalf("pre-tool-use failed for known-good content: %v\n%s", err, output)
 	}
@@ -127,7 +169,7 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
 func TestPreToolUsePreservesEmptyAndTrailingNewlineContent(t *testing.T) {
 	repo := initGitRepo(t)
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --content-file)
@@ -210,7 +252,7 @@ func TestPreToolUseReportsMalformedJSONWithoutTraceback(t *testing.T) {
 
 func TestPreToolUseBlocksInvalidBridgeJSONWithoutTraceback(t *testing.T) {
 	repo := initGitRepo(t)
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf 'not json\n'
 `)
 	payload := `{"tool_name":"Write","tool_input":{"file_path":"sample.go","content":"package sample\n"}}`
@@ -226,7 +268,7 @@ printf 'not json\n'
 func TestPreToolUseHandlesLargeContentThroughContentFile(t *testing.T) {
 	repo := initGitRepo(t)
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --content-file)
@@ -253,7 +295,7 @@ func runPreToolUse(t *testing.T, repo, payload, fakeBin, logPath, addr string) (
 	return runPreToolUseWithBin(t, repo, payload, "", fakeBin, logPath, addr)
 }
 
-func runPreToolUseWithBin(t *testing.T, repo, payload, calmBridge, pathDir, logPath, addr string) ([]byte, error) {
+func runPreToolUseWithBin(t *testing.T, repo, payload, fitnessBin, pathDir, logPath, addr string) ([]byte, error) {
 	t.Helper()
 	command := exec.Command("bash", hookScriptPathFor(t, "pre-tool-use.sh"))
 	command.Dir = repo
@@ -262,8 +304,8 @@ func runPreToolUseWithBin(t *testing.T, repo, payload, calmBridge, pathDir, logP
 	if pathDir != "" {
 		env = append(env, "PATH="+pathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	}
-	if calmBridge != "" {
-		env = append(env, "STACK_FITNESS_FUNCTIONS_BIN="+calmBridge)
+	if fitnessBin != "" {
+		env = append(env, "STACK_FITNESS_FUNCTIONS_BIN="+fitnessBin)
 	}
 	if logPath != "" {
 		env = append(env, "STACK_FITNESS_FUNCTIONS_LOG="+logPath)
@@ -293,14 +335,14 @@ func readFile(t *testing.T, path string) string {
 	return string(content)
 }
 
-type bridgeDaemon struct {
+type fitnessDaemon struct {
 	url            string
 	clientCertPath string
 	clientKeyPath  string
 	serverCAPath   string
 }
 
-func startBridgeDaemon(t *testing.T, calmBridge string, repo string) bridgeDaemon {
+func startFitnessDaemon(t *testing.T, fitnessBin string, repo string) fitnessDaemon {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -326,7 +368,7 @@ func startBridgeDaemon(t *testing.T, calmBridge string, repo string) bridgeDaemo
 	certDir := t.TempDir()
 	serverCertPath, serverKeyPath, caPath, clientCertPath, clientKeyPath := writeMTLSFixture(t, certDir, "pre-tool-use-test")
 
-	command := exec.Command(calmBridge, "server", "start", "--addr", addr, "--tls-cert", serverCertPath, "--tls-key", serverKeyPath, "--tls-ca", caPath)
+	command := exec.Command(fitnessBin, "server", "start", "--addr", addr, "--tls-cert", serverCertPath, "--tls-key", serverKeyPath, "--tls-ca", caPath)
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("get cwd: %v", err)
@@ -359,7 +401,7 @@ func startBridgeDaemon(t *testing.T, calmBridge string, repo string) bridgeDaemo
 		if err == nil {
 			_ = response.Body.Close()
 			if response.StatusCode == http.StatusOK {
-				return bridgeDaemon{
+				return fitnessDaemon{
 					url:            "https://" + addr,
 					clientCertPath: clientCertPath,
 					clientKeyPath:  clientKeyPath,
@@ -370,7 +412,7 @@ func startBridgeDaemon(t *testing.T, calmBridge string, repo string) bridgeDaemo
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatal("bridge daemon did not become healthy")
-	return bridgeDaemon{}
+	return fitnessDaemon{}
 }
 
 func writeMTLSFixture(t *testing.T, dir, clientCN string) (string, string, string, string, string) {
