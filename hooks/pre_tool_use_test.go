@@ -293,14 +293,14 @@ func readFile(t *testing.T, path string) string {
 	return string(content)
 }
 
-type bridgeDaemon struct {
+type fitnessDaemon struct {
 	url            string
 	clientCertPath string
 	clientKeyPath  string
 	serverCAPath   string
 }
 
-func startFitnessDaemon(t *testing.T, calmBridge string, repo string) bridgeDaemon {
+func startFitnessDaemon(t *testing.T, calmBridge string, repo string) fitnessDaemon {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -359,7 +359,7 @@ func startFitnessDaemon(t *testing.T, calmBridge string, repo string) bridgeDaem
 		if err == nil {
 			_ = response.Body.Close()
 			if response.StatusCode == http.StatusOK {
-				return bridgeDaemon{
+				return fitnessDaemon{
 					url:            "https://" + addr,
 					clientCertPath: clientCertPath,
 					clientKeyPath:  clientKeyPath,
@@ -370,7 +370,7 @@ func startFitnessDaemon(t *testing.T, calmBridge string, repo string) bridgeDaem
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatal("bridge daemon did not become healthy")
-	return bridgeDaemon{}
+	return fitnessDaemon{}
 }
 
 func writeMTLSFixture(t *testing.T, dir, clientCN string) (string, string, string, string, string) {
