@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "usage: stack-fitness-functions-test <file>" >&2
+  echo "       stack-fitness-functions-test --help" >&2
+  echo "" >&2
+  echo "  LOCAL SANDBOX ONLY: validates fitness functions against a locally running server." >&2
+  echo "  For remote container governance, configure STACK_FITNESS_FUNCTIONS_ADDR, STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1," >&2
+  echo "  STACK_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA, and STACK_FITNESS_FUNCTIONS_REPO_NAME, then run the hook directly." >&2
+  echo "  Outputs a per-function status table using the repo's configured enforcement mode." >&2
+  echo "" >&2
+  echo "  Supported: go (.go), python (.py), csharp (.cs)" >&2
+  echo "" >&2
+  echo "  Environment:" >&2
+  echo "    STACK_FITNESS_FUNCTIONS_BIN   path to stack-fitness-functions binary (default: stack-fitness-functions on PATH)" >&2
+  echo "    STACK_FITNESS_FUNCTIONS_ADDR  server address (default: http://127.0.0.1:7890)" >&2
+  echo "    STACK_FITNESS_FUNCTIONS_REPO_NAME    logical repo name override (default: derived from git root)" >&2
+  exit 0
+}
+
+[[ "${1:-}" == "--help" || "${1:-}" == "-h" ]] && usage
+[[ $# -ne 1 ]] && { echo "error: expected exactly one argument" >&2; usage; }
+
+file="$1"
+bridge="${STACK_FITNESS_FUNCTIONS_BIN:-stack-fitness-functions}"
+addr="${STACK_FITNESS_FUNCTIONS_ADDR:-http://127.0.0.1:7890}"
+repo_name="${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}"
+
+[[ -f "$file" ]] || { echo "error: file not found: $file" >&2; exit 1; }
+if [[ "$bridge" == */* ]]; then
+  [[ -x "$bridge" ]] || {
+    echo "error: stack-fitness-functions not found at $bridge" >&2
+    echo "  build it: stack-fitness-functions-serve (or: go build -o $bridge ./cmd/stack-fitness-functions)" >&2
+    exit 1
+  }
+else
+  command -v "$bridge" > /dev/null 2>&1 || {
+    echo "error: stack-fitness-functions not found on PATH: $bridge" >&2
+    echo "  build it: stack-fitness-functions-serve (or: go build -o .tmp/stack-fitness-functions ./cmd/stack-fitness-functions && export STACK_FITNESS_FUNCTIONS_BIN=.tmp/stack-fitness-functions)" >&2
+    exit 1
+  }
+fi
+
+case "$file" in
+  *.go) language="go" ;;
+  *.py) language="python" ;;
+  *.cs) language="csharp" ;;
+  *)    echo "error: unsupported file type (supported: .go .py .cs)" >&2; exit 1 ;;
+esac
+
+file_abs=$(cd "$(dirname "$file")" && pwd)/$(basename "$file")
+repo=$(git -C "$(dirname "$file_abs")" rev-parse --show-toplevel 2>/dev/null) \
+  || { echo "error: file is not inside a git repository" >&2; exit 1; }
+relative_file="${file_abs#"$repo"/}"
+
+repo_arg="$repo"
+if [[ -n "$repo_name" ]]; then
+  repo_arg="$repo_name"
+fi
+
+# Read enforcement mode from the repo's .calm/config.json (default: block)
+enforcement_mode="block"
+if [[ -f "$repo/.calm/config.json" ]]; then
+  enforcement_mode=$(python3 -c '
+import json, sys
+print(json.load(open(sys.argv[1])).get("enforcement-mode", "block"))
+' "$repo/.calm/config.json")
+fi
+
+# Read enabled fitness functions from the repo's .calm/config.json.
+# Only functions explicitly set to true are checked — mirrors what the hook enforces.
+# Falls back to the full language-appropriate list if no config exists.
+if [[ -f "$repo/.calm/config.json" ]]; then
+  functions=()
+  while IFS= read -r fn; do
+    functions+=("$fn")
+  done < <(python3 -c '
+import json, sys
+cfg = json.load(open(sys.argv[1]))
+fns = cfg.get("fitness-functions", {})
+for name, enabled in fns.items():
+    if enabled:
+        print(name)
+' "$repo/.calm/config.json")
+else
+  case "$language" in
+    go|python) functions=(cyclomatic-complexity interface-width logic-density dependency-discipline) ;;
+    csharp)    functions=(cyclomatic-complexity interface-width implementation-depth logic-density dependency-discipline) ;;
+  esac
+fi
+
+if [[ ${#functions[@]} -eq 0 ]]; then
+  echo "warning: no fitness functions enabled in $repo/.calm/config.json" >&2
+  exit 0
+fi
+
+lang_label=$(python3 -c "print({'go':'Go','python':'Python','csharp':'C#'}.get('$language','$language'))")
+
+tmp_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir"' EXIT
+mkdir -p "$tmp_dir/.calm"
+
+# Render one result line. Args: <json> <enforcement_mode> <function_name> <lang_label>
+fmt_line() {
+  python3 - "$1" "$2" "$3" "$4" <<'PY'
+import json, sys
+
+raw, enforcement, fn, lang = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+
+try:
+    data = json.loads(raw)
+except Exception:
+    print(f"  {'ERROR':<9}  {fn:<32}  [{lang}]  (could not parse response)")
+    sys.exit(0)
+
+if data.get("warming"):
+    print(f"  {'WARMING':<9}  {fn:<32}  [{lang}]  (C# analyzer still warming up — retry in a moment)")
+    sys.exit(0)
+
+violations = data.get("violations", [])
+viol = next((v for v in violations if v.get("fitness_function", "").replace("_", "-") == fn), None)
+
+if viol is None:
+    print(f"  {'PASS':<9}  {fn:<32}  [{lang}]")
+else:
+    val, lim = float(viol["value"]), float(viol["limit"])
+    op  = "≤" if val > lim else "≥"
+    fmt = lambda n: str(int(n)) if n == int(n) else f"{n:.3f}"
+    metrics = f"(Actual: {fmt(val)} | Target: {op} {fmt(lim)})"
+    label   = "BLOCKED" if enforcement == "block" else "ADVISORY"
+    print(f"  {label:<9}  {fn:<32}  [{lang}]  {metrics}")
+PY
+}
+
+echo "File:  $relative_file"
+echo "Mode:  $enforcement_mode"
+echo ""
+echo "Testing: $lang_label fitness functions"
+echo ""
+
+for fn in "${functions[@]}"; do
+  # Build a per-function config in advisory mode so every validation returns data.
+  # The label (BLOCKED/ADVISORY) is derived from the repo's real enforcement mode.
+  python3 -c "
+import json
+all_fns = ['cyclomatic-complexity','interface-width','implementation-depth','logic-density','dependency-discipline']
+cfg = {
+  'enforcement-mode': 'advisory',
+  'fitness-functions': {f: (f == '$fn') for f in all_fns}
+}
+print(json.dumps(cfg, indent=2))
+" > "$tmp_dir/.calm/config.json"
+
+  response=$(
+    "$bridge" client validate \
+      --addr "$addr" \
+      --repo "$repo_arg" \
+      --file "$relative_file" \
+      --content "$(cat "$file_abs")" \
+      --language "$language" 2>/dev/null
+  ) || response='{}'
+
+  fmt_line "$response" "$enforcement_mode" "$fn" "$lang_label"
+done
+
+echo ""

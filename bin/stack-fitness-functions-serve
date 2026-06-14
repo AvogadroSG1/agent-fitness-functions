@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "usage: stack-fitness-functions-serve [--build]" >&2
+  echo "       stack-fitness-functions-serve --help" >&2
+  echo "" >&2
+  echo "  Starts the stack-fitness-functions container via Docker Compose (Docker Desktop)." >&2
+  echo "  Runs in the foreground — use Ctrl+C to stop." >&2
+  echo "" >&2
+  echo "  Options:" >&2
+  echo "    --build    force a Docker image rebuild before starting" >&2
+  echo "" >&2
+  echo "  Environment:" >&2
+  echo "    STACK_FITNESS_FUNCTIONS_SRC   path to the calm-poc repo (default: auto-detected)" >&2
+  echo "    GIT_SHA    image tag suffix           (default: git short SHA)" >&2
+  echo "    BUILD_DATE image build timestamp      (default: current UTC time)" >&2
+  exit 0
+}
+
+rebuild=0
+for arg in "$@"; do
+  case "$arg" in
+    --help|-h) usage ;;
+    --build) rebuild=1 ;;
+    *) echo "error: unknown argument: $arg" >&2; usage ;;
+  esac
+done
+
+_self=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+calm_src="${STACK_FITNESS_FUNCTIONS_SRC:-$_self}"
+
+[[ -f "$calm_src/docker-compose.yml" ]] || {
+  echo "error: docker-compose.yml not found at $calm_src" >&2
+  echo "  set STACK_FITNESS_FUNCTIONS_SRC to the calm-poc repo root" >&2
+  exit 1
+}
+
+export GIT_SHA="${GIT_SHA:-$(git -C "$calm_src" rev-parse --short HEAD 2>/dev/null || echo dev)}"
+export BUILD_DATE="${BUILD_DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+
+compose_args=(--project-directory "$calm_src" up)
+if [[ $rebuild -eq 1 ]]; then
+  compose_args+=(--build)
+fi
+
+echo "Starting stack-fitness-functions container (Docker Desktop)"
+echo "  Image tag: stack-fitness-functions:${GIT_SHA}"
+echo "  Address:   http://localhost:7890  (or https if TLS certs are mounted)"
+echo "Press Ctrl+C to stop."
+echo ""
+exec docker compose "${compose_args[@]}"
