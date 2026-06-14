@@ -73,7 +73,7 @@ func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client,
 		}
 		return 0
 	case "install-hooks":
-		if err := client.RunInstallHooks(args[1:], stdout); err != nil {
+		if err := client.RunInstallHooks(args[1:], stdout, stderr); err != nil {
 			_, _ = fmt.Fprintln(stderr, err)
 			if client.IsUsageError(err) {
 				return 2
