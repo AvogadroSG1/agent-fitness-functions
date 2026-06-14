@@ -45,23 +45,23 @@ Always spell the product out — `stack-fitness-functions`. No abbreviations (no
 
 ## How does CALM actually work?
 
-When a developer runs `git commit` in a governed repository (`graft`, `ringstation`, `slackstatus`), a pre-commit hook fires. The hook identifies the logical repo name, finds every staged source file it recognizes (`.go`, `.py`, `.cs`), and sends each file's content to a running `calm-bridge` daemon. In container mode, the daemon resolves governance from mounted `configs/<repo>/config.json`; in local developer mode, the hook can still use the repository's `.calm/config.json` as a sandbox. The daemon analyzes the file, evaluates the enabled fitness functions against calibrated thresholds, and returns a JSON verdict. In block mode, a failing verdict aborts the commit. In advisory mode, the commit proceeds but the developer sees a warning.
+When a developer runs `git commit` in a governed repository (`graft`, `ringstation`, `slackstatus`), a pre-commit hook fires. The hook identifies the logical repo name, finds every staged source file it recognizes (`.go`, `.py`, `.cs`), and sends each file's content to a running **server** started with `server start`. In container mode, the server resolves governance from mounted `configs/<repo>/config.json`; in local developer mode, the hook can still use the repository's `.calm/config.json` as a sandbox. The server analyzes the file, evaluates the enabled fitness functions against calibrated thresholds, and returns a JSON verdict. In block mode, a failing verdict aborts the commit. In advisory mode, the commit proceeds but the developer sees a warning.
 
 ```mermaid
 sequenceDiagram
     participant Dev as Developer
     participant Hook as pre-commit hook
     participant Config as configs/<repo>/config.json
-    participant Bridge as calm-bridge daemon
+    participant Server as stack-fitness-functions server
     participant Analyzer as Language Analyzer
 
     Dev->>Hook: git commit
     Hook->>Config: read enforcement-mode, enabled functions
     loop each staged .go / .py / .cs file
-        Hook->>Bridge: check(content, language, repo)
-        Bridge->>Analyzer: parse AST, compute metrics
-        Analyzer-->>Bridge: complexity, LDR, DDC, width, depth
-        Bridge-->>Hook: { result, violations[] }
+        Hook->>Server: client validate(content, language, repo)
+        Server->>Analyzer: parse AST, compute metrics
+        Analyzer-->>Server: complexity, LDR, DDC, width, depth
+        Server-->>Hook: Validation Result
         alt block mode + violation
             Hook-->>Dev: exit 1 — commit refused, violation printed
         else advisory mode + violation
@@ -72,7 +72,7 @@ sequenceDiagram
     end
 ```
 
-The daemon is the authority. The hook is the enforcement point. The governed repository cannot change thresholds — only which functions are active and what enforcement mode to use.
+The **server** is the authority. The hook is the enforcement point. The governed repository cannot change thresholds — only which functions are active and what enforcement mode to use.
 
 ---
 
@@ -80,13 +80,13 @@ The daemon is the authority. The hook is the enforcement point. The governed rep
 
 Yes. Git hooks are local and unversioned. A developer can delete `.git/hooks/pre-commit` or modify a local `.calm/config.json`. The hook is a **shift-left convenience**, not a security boundary.
 
-A governed repository **cannot weaken enforcement** via a local `.calm/config.json` file. When the hook connects to the containerized bridge, governance is resolved exclusively from the mounted `configs/<repo>/config.json` inside the container. The local `.calm/config.json` file has no effect on the container layer; it is only consulted when the bridge is running in local developer sandbox mode (loopback address, no remote flag).
+A governed repository **cannot weaken enforcement** via a local `.calm/config.json` file. When the hook connects to the containerized server, governance is resolved exclusively from the mounted `configs/<repo>/config.json` inside the container. The local `.calm/config.json` file has no effect on the container layer; it is only consulted when the server is running in local developer sandbox mode (loopback address, no remote flag).
 
 The real enforcement layer sits further right:
 
-- **CI/CD** — the same `calm-bridge check` runs against every pull request and can fail the build
-- **Deploy gate** — a deployment can require CALM attestation or reject builds with outstanding violations in the bridge's audit log
-- **Audit trail** — the daemon logs every check, so the *absence* of a check on a commit is itself a signal
+- **CI/CD** — the same `client validate` flow runs against every pull request and can fail the build
+- **Deploy gate** — a deployment can require CALM attestation or reject builds with outstanding violations in the server's audit log
+- **Audit trail** — the server logs every validation, so the *absence* of a validation on a commit is itself a signal
 
 Removing the hook is detectable. The local hook saves the round-trip to CI; it does not replace CI.
 
@@ -98,19 +98,19 @@ A linter such as `golangci-lint` also checks cyclomatic complexity. For a single
 
 | Concern | Linter | CALM |
 |---|---|---|
-| Who owns the rules | The team (rules live in the repo) | The organization (thresholds live in the bridge server) |
+| Who owns the rules | The team (rules live in the repo) | The organization (thresholds live in the stack-fitness-functions server) |
 | Who can raise the bar | Any developer with a config edit | The architecture team, explicitly |
 | Cross-language consistency | Separate tool per language, separate config per repo | One server, one set of thresholds, Go + Python + C# |
-| Audit trail | None — linting leaves no organizational record | Bridge daemon logs every check with pass/fail |
+| Audit trail | None — linting leaves no organizational record | Server logs every Validation Result |
 | What the rules represent | Code style and common bugs | Architectural principles the organization has committed to |
 
-The practical consequence: a team cannot quietly relax a threshold when their code fails. Any threshold change requires an explicit decision from whoever owns the bridge server. CALM forces the conversation; a linter config edit avoids it.
+The practical consequence: a team cannot quietly relax a threshold when their code fails. Any threshold change requires an explicit decision from whoever owns the stack-fitness-functions server. CALM forces the conversation; a linter config edit avoids it.
 
 ```mermaid
 graph TD
     subgraph org ["Organization Ownership — CALM"]
         OA["Architecture Team"]
-        OB["calm-bridge\nthresholds & governance"]
+        OB["stack-fitness-functions server\nthresholds & governance"]
         OC["graft (Go)"]
         OD["ringstation (Python)"]
         OE["slackstatus (C#)"]
@@ -131,9 +131,9 @@ graph TD
 
 ---
 
-## Does CALM need to clone the repository to check a file?
+## Does CALM need to clone the repository to validate a file?
 
-No. All five fitness functions are intra-file metrics. The bridge receives raw file content, parses the AST in memory, and returns scores. It never touches the repository on disk.
+No. All five fitness functions are intra-file metrics. The server receives raw file content, parses the AST in memory, and returns scores. It never touches the repository on disk.
 
 | Fitness Function | What it measures | Needs cross-file context? |
 |---|---|---|
@@ -153,13 +153,13 @@ What these metrics cannot catch: a function that is simple in isolation but orch
 
 | Component | Location | Purpose |
 |---|---|---|
-| `calm-bridge` binary | `/app/calm-bridge` (built from `cmd/calm-bridge`) | Daemon and CLI for all checks |
-| Container service | `docker compose up` via `bin/calm-serve` (Docker Desktop) | **Primary runtime** — serves the bridge on `localhost:7890` |
+| `calm-bridge` binary | `/app/calm-bridge` (built from `cmd/calm-bridge`) | CLI for `client validate`, `server start`, and `baseline` |
+| Container service | `docker compose up` via `bin/calm-serve` (Docker Desktop) | **Primary runtime** — starts the server on `localhost:7890` |
 | Governance rules | `internal/bridge/checker.go`, `governance.json` | Thresholds and enabled functions |
 | Pre-commit hook | `hooks/pre-commit.sh` (installed via `scripts/install-hooks.sh`) | Commit-time enforcement in governed repos |
 | `configs/<repo>/config.json` | Mounted into the container | Governance config for the logical repo |
 | `.calm/config.json` | Optional local repository sandbox | Developer sandbox only — **has no effect on container governance**; container always resolves from `configs/<repo>/config.json` |
-| `calm-test` | `~/.local/bin/calm-test` | Ad-hoc file check without committing |
+| `calm-test` | `~/.local/bin/calm-test` | Ad-hoc file validation without committing |
 
 ---
 
@@ -167,13 +167,13 @@ What these metrics cannot catch: a function that is simple in isolation but orch
 
 ## C# Dependency Discipline — calibration status (calm-poc-oeu)
 
-The `calm-bridge check` path now resolves project-local namespaces with `--project <csproj>` when a `.csproj` is discoverable from the file being checked. This fixes the root cause of DDC = 0 on files that only imported project-local namespaces (unresolvable without compilation context).
+The `client validate` path now resolves project-local namespaces with `--project <csproj>` when a `.csproj` is discoverable from the file being validated. This fixes the root cause of DDC = 0 on files that only imported project-local namespaces (unresolvable without compilation context).
 
-**Baseline command limitation:** The `calm-bridge baseline` command uses `AnalyzeRepository`, which invokes the Roslyn CLI without `--project`. The SlackStatus baseline was regenerated (153 files, 2026-06-04) but still shows P10 DDC = 0 because single-file analysis cannot resolve project-local namespaces during bulk scanning. The distribution shape will improve once `baseline` is updated to pass the nearest `.csproj` for each file — tracked separately.
+**Baseline command limitation:** The top-level `baseline` command uses `AnalyzeRepository`, which invokes the Roslyn CLI without `--project`. The SlackStatus baseline was regenerated (153 files, 2026-06-04) but still shows P10 DDC = 0 because single-file analysis cannot resolve project-local namespaces during bulk scanning. The distribution shape will improve once `baseline` is updated to pass the nearest `.csproj` for each file — tracked separately.
 
 **Current DDC threshold in `patterns/governance.json`:** `0.8` (unchanged — real calibration requires a project-aware baseline).
 
-**Why `0.8` is still advisory-safe:** The check path uses project context at runtime, so individual commits that use project-local namespaces will no longer be misclassified as DDC violations. The threshold of `0.8` is strict enough to catch genuinely unused imports; it will not false-positive on project-local namespace usage.
+**Why `0.8` is still advisory-safe:** The validation path uses project context at runtime, so individual commits that use project-local namespaces will no longer be misclassified as DDC violations. The threshold of `0.8` is strict enough to catch genuinely unused imports; it will not false-positive on project-local namespace usage.
 
 **Next calibration step:** Extend `AnalyzeRepository` to pass `--project <nearest-csproj>` to the Roslyn CLI for each `.cs` file, regenerate baselines, read the resulting P10 DDC distribution, and update the `minimum` in `patterns/governance.json` accordingly.
 

@@ -32,7 +32,7 @@ func TestDockerfileContainerContract(t *testing.T) {
 	mustContain(t, dockerfile, "org.opencontainers.image.created=$BUILD_DATE")
 	mustContain(t, dockerfile, "WORKDIR /app")
 	mustContain(t, dockerfile, "USER appuser")
-	mustContain(t, dockerfile, "ENTRYPOINT [\"/app/calm-bridge\", \"serve\"]")
+	mustContain(t, dockerfile, "ENTRYPOINT [\"/app/calm-bridge\", \"server\", \"start\"]")
 	mustContain(t, dockerfile, "HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3")
 	mustContain(t, dockerfile, "nodejs")
 	mustContain(t, dockerfile, "npm")

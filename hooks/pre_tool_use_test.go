@@ -36,7 +36,7 @@ printf '{"status":"block","violations":[{"message":"too complex"}]}\n'
 		t.Fatalf("output = %s, want YAML calm_check block with blocking mode", output)
 	}
 	logContent := readFile(t, logPath)
-	for _, want := range []string{"check", "--file sample.go", "--repo ", "--content-file ", "--language go"} {
+	for _, want := range []string{"client validate", "--file sample.go", "--repo ", "--content-file ", "--language go"} {
 		if !strings.Contains(logContent, want) {
 			t.Fatalf("calm log = %s, want %s", logContent, want)
 		}
@@ -326,7 +326,7 @@ func startBridgeDaemon(t *testing.T, calmBridge string, repo string) bridgeDaemo
 	certDir := t.TempDir()
 	serverCertPath, serverKeyPath, caPath, clientCertPath, clientKeyPath := writeMTLSFixture(t, certDir, "pre-tool-use-test")
 
-	command := exec.Command(calmBridge, "serve", "--addr", addr, "--tls-cert", serverCertPath, "--tls-key", serverKeyPath, "--tls-ca", caPath)
+	command := exec.Command(calmBridge, "server", "start", "--addr", addr, "--tls-cert", serverCertPath, "--tls-key", serverKeyPath, "--tls-ca", caPath)
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("get cwd: %v", err)

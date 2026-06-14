@@ -25,7 +25,7 @@ import (
 
 // RunCheck validates one file by posting a validation request to the daemon.
 func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter func(string) error) error {
-	flags := flag.NewFlagSet("check", flag.ContinueOnError)
+	flags := flag.NewFlagSet("client validate", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	addr := flags.String("addr", "http://localhost:7890", "daemon base URL")
 	file := flags.String("file", "", "file path being checked")
@@ -42,7 +42,7 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 		return usageError{err: err}
 	}
 	if *file == "" || *repo == "" {
-		return usageError{err: errors.New("check requires --file and --repo")}
+		return usageError{err: errors.New("client validate requires --file and --repo")}
 	}
 	validFormats := map[string]bool{"json": true, "sarif": true}
 	if !validFormats[*format] {
@@ -114,7 +114,7 @@ func configureTLS(base *http.Client, certPath, keyPath, caPath string) (*http.Cl
 		return base, nil
 	}
 	if (certPath == "") != (keyPath == "") {
-		return nil, usageError{err: errors.New("check requires --client-cert and --client-key together")}
+		return nil, usageError{err: errors.New("client validate requires --client-cert and --client-key together")}
 	}
 	configured := cloneHTTPClient(base)
 	transport := cloneTransport(configured)
@@ -264,7 +264,7 @@ func StartDaemon(addr string) error {
 		return err
 	}
 	listenAddr := strings.TrimPrefix(strings.TrimPrefix(addr, "http://"), "https://")
-	command := exec.Command(executable, "serve", "--addr", listenAddr)
+	command := exec.Command(executable, "server", "start", "--addr", listenAddr)
 	command.Stdout = io.Discard
 	command.Stderr = io.Discard
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

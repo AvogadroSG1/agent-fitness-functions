@@ -5,7 +5,7 @@ usage() {
   echo "usage: calm-test <file>" >&2
   echo "       calm-test --help" >&2
   echo "" >&2
-  echo "  LOCAL SANDBOX ONLY: checks fitness functions against a locally running CALM bridge." >&2
+  echo "  LOCAL SANDBOX ONLY: validates fitness functions against a locally running server." >&2
   echo "  For remote container governance, configure CALM_BRIDGE_ADDR, CALM_ALLOW_REMOTE_BRIDGE=1," >&2
   echo "  CALM_CLIENT_CERT/KEY/CA, and CALM_REPO_NAME, then run the hook directly." >&2
   echo "  Outputs a per-function status table using the repo's configured enforcement mode." >&2
@@ -140,7 +140,7 @@ echo "Testing: $lang_label fitness functions"
 echo ""
 
 for fn in "${functions[@]}"; do
-  # Build a per-function config in advisory mode so every check returns data.
+  # Build a per-function config in advisory mode so every validation returns data.
   # The label (BLOCKED/ADVISORY) is derived from the repo's real enforcement mode.
   python3 -c "
 import json
@@ -153,7 +153,7 @@ print(json.dumps(cfg, indent=2))
 " > "$tmp_dir/.calm/config.json"
 
   response=$(
-    "$bridge" check \
+    "$bridge" client validate \
       --addr "$addr" \
       --repo "$repo_arg" \
       --file "$relative_file" \

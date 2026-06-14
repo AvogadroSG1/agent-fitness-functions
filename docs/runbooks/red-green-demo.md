@@ -1,5 +1,5 @@
 > **Historical document.** This runbook was written for the PoC local-only architecture.
-> It describes running `calm-bridge` built to `/tmp/calm-bridge` on loopback.
+> It describes running `calm-bridge` built to `.tmp/calm-bridge` on loopback.
 > For the current container governance model, see [CONTEXT.md](../../CONTEXT.md) and
 > [README.md](../../README.md). Steps in this runbook remain valid for local sandbox
 > verification but must not be used as production deployment guidance.
@@ -12,14 +12,14 @@ This runbook validates that CALM fitness functions block known violations in blo
 
 ## Prerequisites
 
-- Start the bridge container: `calm-serve` (or `calm-serve --build` to force a rebuild) — this starts the Docker Desktop container on `localhost:7890`
+- Start the server container: `calm-serve` (or `calm-serve --build` to force a rebuild) — this starts the Docker Desktop container on `localhost:7890`
 - Install the git hook in each target repository: `scripts/install-hooks.sh <repo>`
 - Run commits with `CALM_BRIDGE_ADDR=http://localhost:7890 CALM_ALLOW_REMOTE_BRIDGE=1`
 
-> **Local binary alternative (sandbox only):** Build the bridge locally with `go build -o .tmp/calm-bridge ./cmd/calm-bridge` and start it with `.tmp/calm-bridge serve --addr 127.0.0.1:7890`. Use `CALM_BRIDGE_BIN=.tmp/calm-bridge CALM_BRIDGE_ADDR=http://127.0.0.1:7890` for commits. This path is only valid for developer sandbox iteration; it MUST NOT be used as the production path.
+> **Local binary alternative (sandbox only):** Build the binary locally with `go build -o .tmp/calm-bridge ./cmd/calm-bridge` and start it with `.tmp/calm-bridge server start --addr 127.0.0.1:7890`. Use `CALM_BRIDGE_BIN=.tmp/calm-bridge CALM_BRIDGE_ADDR=http://127.0.0.1:7890` for commits. This path is only valid for developer sandbox iteration; it MUST NOT be used as the production path.
 - Use per-demo `.calm/config.json` files that explicitly disable every non-target fitness function. Missing fitness-function keys default to enabled.
 
-The hook refuses non-loopback bridge addresses unless `CALM_ALLOW_REMOTE_BRIDGE=1` is set. The installer overwrites prior CALM-managed hooks and refuses unrelated existing hooks unless `CALM_HOOK_OVERWRITE=1` is set.
+The hook refuses non-loopback server addresses unless `CALM_ALLOW_REMOTE_BRIDGE=1` is set. The installer overwrites prior CALM-managed hooks and refuses unrelated existing hooks unless `CALM_HOOK_OVERWRITE=1` is set.
 
 ## Fixture Matrix
 
@@ -77,11 +77,11 @@ The smoke script runs Cyclomatic Complexity, Interface Width, Logic Density Rati
 ## C# Block Demo: SlackStatus
 
 1. Install the hook in `SlackStatus`.
-2. Warm the C# analyzer with a clean file before the red commit. The first cold C# check returns `pass` with `warming=true` by design, so run a clean check and wait for a non-warming response before the blocking demo:
+2. Warm the C# analyzer with a clean file before the red commit. The first cold C# validation returns `pass` with `warming=true` by design, so run a clean validation and wait for a non-warming response before the blocking demo:
 
 ```bash
 for _ in {1..30}; do
-  result=$(.tmp/calm-bridge check \
+  result=$(.tmp/calm-bridge client validate \
     --addr http://127.0.0.1:7890 \
     --repo <SlackStatus repo> \
     --file src/Demo/Warmup.cs \
@@ -124,7 +124,7 @@ The existing `fixtures/violations/python/ringstation-dd-stage-bronze.py` remains
 
 ## Troubleshooting
 
-- If the hook says `CALM_BRIDGE_ADDR must be loopback`, use `http://127.0.0.1:<port>` or explicitly set `CALM_ALLOW_REMOTE_BRIDGE=1` for a trusted remote daemon.
+- If the hook says `CALM_BRIDGE_ADDR must be loopback`, use `http://127.0.0.1:<port>` or explicitly set `CALM_ALLOW_REMOTE_BRIDGE=1` for a trusted remote server.
 - If installation refuses to overwrite a hook, inspect the existing hook. Set `CALM_HOOK_APPEND=1` to install CALM as a sidecar alongside the existing hook (recommended when the existing hook must be preserved), or set `CALM_HOOK_OVERWRITE=1` to replace it entirely.
 - If a red commit unexpectedly passes, confirm that `.calm/config.json` enables the intended function and that the staged file is the red fixture.
 - If a red commit reports the wrong fitness function, confirm that every non-target function is explicitly set to `false` in `.calm/config.json`.

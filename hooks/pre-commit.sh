@@ -83,7 +83,7 @@ while IFS= read -r -d '' file; do
     continue
   fi
 
-  args=(check --file "$file" --repo "$repo_arg" --language "$language")
+  args=(client validate --file "$file" --repo "$repo_arg" --language "$language")
   content_file=""
   if [[ "$remote_mode" -eq 1 ]]; then
     content_file=$(mktemp)

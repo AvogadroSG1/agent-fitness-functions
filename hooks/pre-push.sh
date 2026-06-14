@@ -100,7 +100,7 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
       continue
     fi
 
-    args=(check --file "$file" --repo "$repo_arg" --content-file "$content_file" --language "$language")
+    args=(client validate --file "$file" --repo "$repo_arg" --content-file "$content_file" --language "$language")
     if [[ -n "$addr" ]]; then
       args+=(--addr "$addr")
     fi

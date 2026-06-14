@@ -26,7 +26,7 @@ PY
 bridge_addr="http://127.0.0.1:$free_port"
 
 go build -o "$bridge_bin" "$repo_root/cmd/calm-bridge"
-"$bridge_bin" serve --addr "127.0.0.1:$free_port" &
+"$bridge_bin" server start --addr "127.0.0.1:$free_port" &
 bridge_pid=$!
 
 for _ in {1..40}; do
@@ -60,7 +60,7 @@ write_config() {
 JSON
 }
 
-# Print "Actual: X | Target: ≤/≥ Y" from a bridge check JSON response.
+# Print "Actual: X | Target: ≤/≥ Y" from a client validate JSON response.
 fmt_metrics() {
   printf '%s' "$1" | python3 -c '
 import json, sys
@@ -89,7 +89,7 @@ expect_block() {
 
   # Probe red fixture directly to capture actual/target values for display.
   local red_json
-  red_json=$("$bridge_bin" check \
+  red_json=$("$bridge_bin" client validate \
     --addr "$bridge_addr" \
     --file "internal/demo/demo.go" \
     --repo "$demo_repo" \

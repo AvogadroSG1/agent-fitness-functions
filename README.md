@@ -6,16 +6,16 @@ See [docs/spec/why-and-what.md](docs/spec/why-and-what.md) and [docs/spec/engine
 
 ## Tool Requirements
 
-- Go 1.22 or newer for `calm-bridge`
+- Go 1.22 or newer for the `calm-bridge` binary
 - FINOS CALM CLI 1.40.0 via `npm install -g @finos/calm-cli@1.40.0`
 - `radon` 6.0.1 on `PATH`, or pass `--radon <path>`, for Python baseline analysis
 - .NET 8 SDK for `tools/roslyn-analyzer`; `calm-bridge baseline --language csharp` builds the local analyzer automatically when `--roslyn <path>` is omitted
 - `pyyaml` 6+ for hook violation formatting: `python3 -m pip install -r hooks/requirements.txt`
-- Docker with BuildKit for validating the container image; the image packages the Go bridge, FINOS CALM CLI 1.40.0, Python `radon==6.0.1`, and the self-contained .NET 8 Roslyn analyzer.
+- Docker with BuildKit for validating the container image; the image packages the Go server, FINOS CALM CLI 1.40.0, Python `radon==6.0.1`, and the self-contained .NET 8 Roslyn analyzer.
 
 ## Container Image
 
-The repository includes a multi-stage `Dockerfile` for the containerized `calm-bridge` service. It builds the Go daemon, publishes the .NET analyzer, installs FINOS CALM CLI 1.40.0, installs Python plus `radon==6.0.1`, runs as non-root `appuser` uid 1001, and starts with `/app/calm-bridge serve`.
+The repository includes a multi-stage `Dockerfile` for the containerized stack-fitness-functions service. It builds the Go server, publishes the .NET analyzer, installs FINOS CALM CLI 1.40.0, installs Python plus `radon==6.0.1`, runs as non-root `appuser` uid 1001, and starts with `/app/calm-bridge server start`.
 
 Use a Docker-enabled environment to verify the image contract:
 
@@ -23,7 +23,7 @@ Use a Docker-enabled environment to verify the image contract:
 docker build --build-arg GIT_SHA="$(git rev-parse --short HEAD)" --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t calm-bridge:local .
 ```
 
-`docker-compose.yml` provides the local/staging deployment contract. It mounts `./configs`, `./certs`, and `./caller-repos.json` read-only, runs the container as a hardened service, and passes TLS flags to `/app/calm-bridge serve`.
+`docker-compose.yml` provides the local/staging deployment contract. It mounts `./configs`, `./certs`, and `./caller-repos.json` read-only, runs the container as a hardened service, and passes TLS flags to `/app/calm-bridge server start`.
 
 Before running Compose, provide these local certificate files for the mounted TLS volume:
 
@@ -52,7 +52,7 @@ Compose resource limits are local/staging guidance; Swarm enforces `deploy.resou
 
 ## Governance Layer Deployment
 
-`calm-bridge` is an enterprise organization-wide governance layer. The containerized service is the **primary production path**. Every governed repository connects to a shared, centrally operated container instance; governance thresholds and enforcement configuration are authoritative only when served from the container.
+The stack-fitness-functions server is an enterprise organization-wide governance layer. The containerized service is the **primary production path**. Every governed repository connects to a shared, centrally operated container instance; governance thresholds and enforcement configuration are authoritative only when served from the container.
 
 The local `.calm` mode (described in the CLI tools section below) is a **sandbox environment** for developer iteration and demonstration. It does not substitute for the container layer in any production or CI context.
 
@@ -61,7 +61,7 @@ The local `.calm` mode (described in the CLI tools section below) is a **sandbox
 ```
 ┌─────────────────────────────────┐
 │  Container (authoritative)      │
-│  calm-bridge serve              │
+│  calm-bridge server start       │
 │  configs/<repo>/config.json  ←─ governance source of truth
 │  certs/{server,ca}.{crt,key}    │
 └──────────────┬──────────────────┘
@@ -102,12 +102,12 @@ ln -sf "$(pwd)/bin"/calm-* ~/.local/bin/
 | Command | Purpose |
 |---------|---------|
 | `calm-install-hooks [repo]` | Install the CALM pre-commit hook into a git repository |
-| `calm-serve [--build]` | Start the CALM bridge container via Docker Compose (Docker Desktop) |
-| `calm-test <file>` | Check a file's fitness functions against the running bridge |
+| `calm-serve [--build]` | Start the stack-fitness-functions server container via Docker Compose (Docker Desktop) |
+| `calm-test <file>` | Validate a file's fitness functions against the running server |
 
 ### Remote Container Hook Mode
 
-For a containerized bridge, configure hooks with an HTTPS endpoint, mTLS client credentials, and an optional logical repository override:
+For a containerized server, configure hooks with an HTTPS endpoint, mTLS client credentials, and an optional logical repository override:
 
 ```bash
 export CALM_BRIDGE_ADDR=https://calm-governance.example:7890
@@ -118,7 +118,7 @@ export CALM_CLIENT_CA=/path/to/ca.crt
 export CALM_REPO_NAME=graft
 ```
 
-When `CALM_BRIDGE_ADDR` points at a remote bridge, `hooks/pre-commit.sh` sends staged content through a temporary content file and uses `CALM_REPO_NAME` or the working-tree basename as the logical `--repo` value.
+When `CALM_BRIDGE_ADDR` points at a remote server, `hooks/pre-commit.sh` sends staged content through a temporary content file and uses `CALM_REPO_NAME` or the working-tree basename as the logical `--repo` value.
 
 ## Baseline Analysis
 

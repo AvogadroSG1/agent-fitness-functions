@@ -33,22 +33,15 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(string) error) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: calm-bridge <serve|check>")
+		_, _ = fmt.Fprintln(stderr, "usage: calm-bridge <client validate|server start|baseline>")
 		return 2
 	}
 
 	switch args[0] {
-	case "serve":
-		return runServe(args[1:], stderr)
-	case "check":
-		if err := client.RunCheck(args[1:], stdout, httpClient, starter); err != nil {
-			_, _ = fmt.Fprintln(stderr, err)
-			if client.IsUsageError(err) {
-				return 2
-			}
-			return 1
-		}
-		return 0
+	case "client":
+		return runClient(args[1:], stdout, stderr, httpClient, starter)
+	case "server":
+		return runServer(args[1:], stderr)
 	case "baseline":
 		if err := runBaseline(args[1:], stdout); err != nil {
 			_, _ = fmt.Fprintln(stderr, err)
@@ -64,8 +57,43 @@ func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *ht
 	}
 }
 
+func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(string) error) int {
+	if len(args) == 0 {
+		_, _ = fmt.Fprintln(stderr, "usage: calm-bridge client <validate>")
+		return 2
+	}
+	switch args[0] {
+	case "validate":
+		if err := client.RunCheck(args[1:], stdout, httpClient, starter); err != nil {
+			_, _ = fmt.Fprintln(stderr, err)
+			if client.IsUsageError(err) {
+				return 2
+			}
+			return 1
+		}
+		return 0
+	default:
+		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", "client "+args[0])
+		return 2
+	}
+}
+
+func runServer(args []string, stderr io.Writer) int {
+	if len(args) == 0 {
+		_, _ = fmt.Fprintln(stderr, "usage: calm-bridge server <start>")
+		return 2
+	}
+	switch args[0] {
+	case "start":
+		return runServe(args[1:], stderr)
+	default:
+		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", "server "+args[0])
+		return 2
+	}
+}
+
 func runServe(args []string, stderr io.Writer) int {
-	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
+	flags := flag.NewFlagSet("server start", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	addr := flags.String("addr", "localhost:7890", "daemon listen address")
 	tlsCert := flags.String("tls-cert", "", "server TLS certificate path")

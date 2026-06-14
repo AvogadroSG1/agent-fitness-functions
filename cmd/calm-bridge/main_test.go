@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -64,7 +65,48 @@ func TestRunServeRequiresTrustedProxyClientCNs(t *testing.T) {
 	}
 }
 
-func TestRunCheckUsesClientTLSFlags(t *testing.T) {
+func TestRunDispatchesServerStart(t *testing.T) {
+	t.Setenv("CALM_CONFIGS_DIR", writeMountedServeConfigDir(t))
+
+	var stderr bytes.Buffer
+	code := run([]string{
+		"server",
+		"start",
+		"--addr", "127.0.0.1:0",
+		"--trusted-proxy-headers",
+	}, &bytes.Buffer{}, &stderr)
+
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(stderr.String(), "trusted proxy mode requires TLS") {
+		t.Fatalf("stderr = %q, want server start to dispatch to former serve behavior", stderr.String())
+	}
+}
+
+func TestRunRejectsOldTopLevelCommands(t *testing.T) {
+	tests := []struct {
+		name    string
+		command string
+	}{
+		{name: "check", command: "check"},
+		{name: "serve", command: "serve"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stderr bytes.Buffer
+			code := run([]string{tt.command}, &bytes.Buffer{}, &stderr)
+			if code != 2 {
+				t.Fatalf("exit code = %d, want 2", code)
+			}
+			if !strings.Contains(stderr.String(), "unknown command "+strconv.Quote(tt.command)) {
+				t.Fatalf("stderr = %q, want unknown command", stderr.String())
+			}
+		})
+	}
+}
+
+func TestRunClientValidateUsesClientTLSFlags(t *testing.T) {
 	var received fitness.ValidationRequest
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -104,7 +146,8 @@ func TestRunCheckUsesClientTLSFlags(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	code := run([]string{
-		"check",
+		"client",
+		"validate",
 		"--addr", server.URL,
 		"--file", "x.go",
 		"--repo", "/tmp/repo",
@@ -125,12 +168,13 @@ func TestRunCheckUsesClientTLSFlags(t *testing.T) {
 	}
 }
 
-func TestRunCheckRequiresClientCertAndKeyTogether(t *testing.T) {
+func TestRunClientValidateRequiresClientCertAndKeyTogether(t *testing.T) {
 	var starterCalled bool
 	var stderr bytes.Buffer
 	code := runWithDependencies(
 		[]string{
-			"check",
+			"client",
+			"validate",
 			"--addr", "https://127.0.0.1:1",
 			"--file", "x.go",
 			"--repo", "/tmp/repo",
@@ -152,12 +196,12 @@ func TestRunCheckRequiresClientCertAndKeyTogether(t *testing.T) {
 	if starterCalled {
 		t.Fatal("daemon starter was called before client TLS flag validation")
 	}
-	if !strings.Contains(stderr.String(), "check requires --client-cert and --client-key together") {
+	if !strings.Contains(stderr.String(), "client validate requires --client-cert and --client-key together") {
 		t.Fatalf("stderr = %q, want client cert/key validation error", stderr.String())
 	}
 }
 
-func TestRunCheckAllowsBareLogicalRepoWithContentFile(t *testing.T) {
+func TestRunClientValidateAllowsBareLogicalRepoWithContentFile(t *testing.T) {
 	var received fitness.ValidationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -180,7 +224,7 @@ func TestRunCheckAllowsBareLogicalRepoWithContentFile(t *testing.T) {
 	}
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := run([]string{"check", "--addr", server.URL, "--file", "remote.go", "--repo", "graft", "--content-file", contentPath, "--language", "go"}, &stdout, &stderr)
+	code := run([]string{"client", "validate", "--addr", server.URL, "--file", "remote.go", "--repo", "graft", "--content-file", contentPath, "--language", "go"}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
@@ -189,7 +233,7 @@ func TestRunCheckAllowsBareLogicalRepoWithContentFile(t *testing.T) {
 	}
 }
 
-func TestRunCheckPostsToHealthyDaemon(t *testing.T) {
+func TestRunClientValidatePostsToHealthyDaemon(t *testing.T) {
 	var received fitness.ValidationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -207,7 +251,7 @@ func TestRunCheckPostsToHealthyDaemon(t *testing.T) {
 	defer server.Close()
 
 	var stdout bytes.Buffer
-	code := run([]string{"check", "--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go"}, &stdout, &bytes.Buffer{})
+	code := run([]string{"client", "validate", "--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go"}, &stdout, &bytes.Buffer{})
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0", code)
 	}
@@ -220,7 +264,7 @@ func TestRunCheckPostsToHealthyDaemon(t *testing.T) {
 	}
 }
 
-func TestRunCheckStartsDaemonWhenCold(t *testing.T) {
+func TestRunClientValidateStartsDaemonWhenCold(t *testing.T) {
 	var received fitness.ValidationRequest
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -245,7 +289,7 @@ func TestRunCheckStartsDaemonWhenCold(t *testing.T) {
 
 	var stdout bytes.Buffer
 	code := runWithDependencies(
-		[]string{"check", "--addr", "http://" + listener.Addr().String(), "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n"},
+		[]string{"client", "validate", "--addr", "http://" + listener.Addr().String(), "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n"},
 		&stdout,
 		&bytes.Buffer{},
 		&http.Client{Timeout: time.Second},
@@ -268,18 +312,18 @@ func TestRunCheckStartsDaemonWhenCold(t *testing.T) {
 	}
 }
 
-func TestRunCheckReturnsUsageExitCodeForMissingFlags(t *testing.T) {
+func TestRunClientValidateReturnsUsageExitCodeForMissingFlags(t *testing.T) {
 	var stderr bytes.Buffer
-	code := run([]string{"check", "--file", "x.go"}, &bytes.Buffer{}, &stderr)
+	code := run([]string{"client", "validate", "--file", "x.go"}, &bytes.Buffer{}, &stderr)
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
 	}
-	if !strings.Contains(stderr.String(), "check requires --file and --repo") {
+	if !strings.Contains(stderr.String(), "client validate requires --file and --repo") {
 		t.Fatalf("stderr = %q, want usage error", stderr.String())
 	}
 }
 
-func TestRunCheckIncludesDaemonErrorBody(t *testing.T) {
+func TestRunClientValidateIncludesDaemonErrorBody(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
@@ -293,7 +337,7 @@ func TestRunCheckIncludesDaemonErrorBody(t *testing.T) {
 	defer server.Close()
 
 	var stderr bytes.Buffer
-	code := run([]string{"check", "--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n"}, &bytes.Buffer{}, &stderr)
+	code := run([]string{"client", "validate", "--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n"}, &bytes.Buffer{}, &stderr)
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
 	}
@@ -324,7 +368,7 @@ func TestResolveContentReadsRelativeToRepo(t *testing.T) {
 	}))
 	defer server.Close()
 
-	code := run([]string{"check", "--addr", server.URL, "--file", "x.go", "--repo", repo}, &bytes.Buffer{}, &bytes.Buffer{})
+	code := run([]string{"client", "validate", "--addr", server.URL, "--file", "x.go", "--repo", repo}, &bytes.Buffer{}, &bytes.Buffer{})
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0", code)
 	}
@@ -333,7 +377,7 @@ func TestResolveContentReadsRelativeToRepo(t *testing.T) {
 	}
 }
 
-func TestRunCheckPreservesContentFileBytes(t *testing.T) {
+func TestRunClientValidatePreservesContentFileBytes(t *testing.T) {
 	var received fitness.ValidationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -355,7 +399,7 @@ func TestRunCheckPreservesContentFileBytes(t *testing.T) {
 		t.Fatalf("write content file: %v", err)
 	}
 
-	code := run([]string{"check", "--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content-file", contentFile, "--language", "go"}, &bytes.Buffer{}, &bytes.Buffer{})
+	code := run([]string{"client", "validate", "--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content-file", contentFile, "--language", "go"}, &bytes.Buffer{}, &bytes.Buffer{})
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0", code)
 	}
@@ -364,7 +408,7 @@ func TestRunCheckPreservesContentFileBytes(t *testing.T) {
 	}
 }
 
-func TestRunCheckAllowsEmptyContentFile(t *testing.T) {
+func TestRunClientValidateAllowsEmptyContentFile(t *testing.T) {
 	var received fitness.ValidationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -385,7 +429,7 @@ func TestRunCheckAllowsEmptyContentFile(t *testing.T) {
 		t.Fatalf("write content file: %v", err)
 	}
 
-	code := run([]string{"check", "--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content-file", contentFile, "--language", "go"}, &bytes.Buffer{}, &bytes.Buffer{})
+	code := run([]string{"client", "validate", "--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content-file", contentFile, "--language", "go"}, &bytes.Buffer{}, &bytes.Buffer{})
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0", code)
 	}
@@ -394,7 +438,7 @@ func TestRunCheckAllowsEmptyContentFile(t *testing.T) {
 	}
 }
 
-func TestRunCheckStagedReadsIndexInsteadOfWorktree(t *testing.T) {
+func TestRunClientValidateStagedReadsIndexInsteadOfWorktree(t *testing.T) {
 	repo := t.TempDir()
 	runGit(t, repo, "init")
 	if err := os.WriteFile(filepath.Join(repo, "x.go"), []byte("package staged\n"), 0o644); err != nil {
@@ -421,7 +465,7 @@ func TestRunCheckStagedReadsIndexInsteadOfWorktree(t *testing.T) {
 	defer server.Close()
 
 	var stderr bytes.Buffer
-	code := run([]string{"check", "--addr", server.URL, "--file", "x.go", "--repo", repo, "--staged", "--language", "go"}, &bytes.Buffer{}, &stderr)
+	code := run([]string{"client", "validate", "--addr", server.URL, "--file", "x.go", "--repo", repo, "--staged", "--language", "go"}, &bytes.Buffer{}, &stderr)
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}

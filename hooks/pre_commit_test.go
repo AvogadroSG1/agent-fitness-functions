@@ -50,7 +50,7 @@ fi
 	if err != nil {
 		t.Fatalf("read calm log: %v", err)
 	}
-	if strings.Count(string(logContent), "check --file") != 2 {
+	if strings.Count(string(logContent), "client validate --file") != 2 {
 		t.Fatalf("calm log = %s, want two staged file checks", logContent)
 	}
 }
@@ -83,7 +83,7 @@ printf '{"status":"advisory","violations":[{"message":"warning only"}]}\n'
 	if err != nil {
 		t.Fatalf("read calm log: %v", err)
 	}
-	for _, want := range []string{"check", "--file warn.py", "--staged", "--language python"} {
+	for _, want := range []string{"client validate", "--file warn.py", "--staged", "--language python"} {
 		if !strings.Contains(string(logContent), want) {
 			t.Fatalf("calm log = %s, want %s", logContent, want)
 		}

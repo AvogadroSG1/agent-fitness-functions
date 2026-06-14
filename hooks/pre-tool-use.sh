@@ -145,7 +145,7 @@ if [[ "$binary" == "True" || "$binary" == "true" ]]; then
   exit 2
 fi
 
-args=(check --file "$file" --repo "$repo_arg" --content-file "$content_file" --language "$language")
+args=(client validate --file "$file" --repo "$repo_arg" --content-file "$content_file" --language "$language")
 if [[ -n "$addr" ]]; then
   args+=(--addr "$addr")
 fi
