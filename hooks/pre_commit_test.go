@@ -20,7 +20,7 @@ func TestPreCommitBlocksStagedViolations(t *testing.T) {
 	runGit(t, repo, "add", "bad.go")
 	runGit(t, repo, "add", "warn.py")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 if [[ "$*" == *"bad.go"* ]]; then
 printf '{"status":"block","violations":[{"message":"too complex"}]}\n'
@@ -60,7 +60,7 @@ func TestPreCommitAllowsAdvisoryStagedViolations(t *testing.T) {
 	writeFile(t, filepath.Join(repo, "warn.py"), "print('ok')\n")
 	runGit(t, repo, "add", "warn.py")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"advisory","violations":[{"message":"warning only"}]}\n'
 `)
@@ -141,7 +141,7 @@ func TestPreCommitForwardsAddressToRunningDaemon(t *testing.T) {
 	runGit(t, repo, "add", ".calm/config.json")
 	runGit(t, repo, "add", "warn.go")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 if [[ "$*" != *"--addr http://127.0.0.1:9999"* ]]; then
   echo "missing addr" >&2
@@ -173,7 +173,7 @@ func TestPreCommitRemoteModeUsesBasenameRepoAndContentFile(t *testing.T) {
 	runGit(t, repo, "add", "remote.go")
 	writeFile(t, filepath.Join(repo, "remote.go"), "package worktree\n")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -227,7 +227,7 @@ func TestPreCommitRemoteModeUsesCALMRepoNameOverride(t *testing.T) {
 	writeFile(t, filepath.Join(repo, "remote.go"), "package staged\n")
 	runGit(t, repo, "add", "remote.go")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"pass"}\n'
 `)
@@ -277,7 +277,7 @@ func TestPreCommitBlocksUnknownStatus(t *testing.T) {
 	repo := initGitRepo(t)
 	writeFile(t, filepath.Join(repo, "weird.go"), "package sample\n")
 	runGit(t, repo, "add", "weird.go")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf '{"status":"mystery","violations":[]}\n'
 `)
 	script := hookScriptPath(t)
@@ -364,7 +364,7 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
-func fakeCalmBridge(t *testing.T, script string) string {
+func fakeFitnessBin(t *testing.T, script string) string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "stack-fitness-functions")
