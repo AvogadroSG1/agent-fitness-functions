@@ -101,15 +101,15 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
   }
 }`)
 	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
-	calmBridge := buildFitnessBin(t)
-	daemon := startFitnessDaemon(t, calmBridge, repo)
+	fitnessBin := buildFitnessBin(t)
+	daemon := startFitnessDaemon(t, fitnessBin, repo)
 	t.Setenv("STACK_FITNESS_FUNCTIONS_REPO_NAME", "repo-one")
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CERT", daemon.clientCertPath)
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_KEY", daemon.clientKeyPath)
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CA", daemon.serverCAPath)
 
 	badPayload := `{"tool_name":"Write","tool_input":{"file_path":"sample.go","content":"package sample\nfunc Score(kind string, retries int, urgent bool) int {\nscore := 0\nif kind == \"create\" { score++ }\nif kind == \"update\" { score++ }\nif kind == \"delete\" { score++ }\nif kind == \"manual\" { score++ }\nif kind == \"batch\" { score++ }\nif kind == \"sync\" { score++ }\nif retries > 0 { score++ }\nif retries > 1 { score++ }\nif retries > 2 { score++ }\nif urgent { score++ }\nreturn score\n}\n"}}`
-	output, err := runPreToolUseWithBin(t, repo, badPayload, calmBridge, "", "", daemon.url)
+	output, err := runPreToolUseWithBin(t, repo, badPayload, fitnessBin, "", "", daemon.url)
 	if exitCode(err) != 2 {
 		t.Fatalf("pre-tool-use succeeded, want running daemon block; output=%s", output)
 	}
@@ -118,7 +118,7 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
 	}
 
 	goodPayload := `{"tool_name":"Write","tool_input":{"file_path":"sample.go","content":"package sample\nfunc Score(kind string, retries int, urgent bool) int {\nscore := map[string]int{\"create\": 1, \"update\": 1, \"delete\": 1, \"manual\": 1, \"batch\": 1, \"sync\": 1}[kind]\nif urgent { score++ }\nif retries > 0 { score += min(retries, 3) }\nreturn score\n}\n"}}`
-	output, err = runPreToolUseWithBin(t, repo, goodPayload, calmBridge, "", "", daemon.url)
+	output, err = runPreToolUseWithBin(t, repo, goodPayload, fitnessBin, "", "", daemon.url)
 	if err != nil {
 		t.Fatalf("pre-tool-use failed for known-good content: %v\n%s", err, output)
 	}
@@ -253,7 +253,7 @@ func runPreToolUse(t *testing.T, repo, payload, fakeBin, logPath, addr string) (
 	return runPreToolUseWithBin(t, repo, payload, "", fakeBin, logPath, addr)
 }
 
-func runPreToolUseWithBin(t *testing.T, repo, payload, calmBridge, pathDir, logPath, addr string) ([]byte, error) {
+func runPreToolUseWithBin(t *testing.T, repo, payload, fitnessBin, pathDir, logPath, addr string) ([]byte, error) {
 	t.Helper()
 	command := exec.Command("bash", hookScriptPathFor(t, "pre-tool-use.sh"))
 	command.Dir = repo
@@ -262,8 +262,8 @@ func runPreToolUseWithBin(t *testing.T, repo, payload, calmBridge, pathDir, logP
 	if pathDir != "" {
 		env = append(env, "PATH="+pathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	}
-	if calmBridge != "" {
-		env = append(env, "STACK_FITNESS_FUNCTIONS_BIN="+calmBridge)
+	if fitnessBin != "" {
+		env = append(env, "STACK_FITNESS_FUNCTIONS_BIN="+fitnessBin)
 	}
 	if logPath != "" {
 		env = append(env, "STACK_FITNESS_FUNCTIONS_LOG="+logPath)
@@ -300,7 +300,7 @@ type fitnessDaemon struct {
 	serverCAPath   string
 }
 
-func startFitnessDaemon(t *testing.T, calmBridge string, repo string) fitnessDaemon {
+func startFitnessDaemon(t *testing.T, fitnessBin string, repo string) fitnessDaemon {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -326,7 +326,7 @@ func startFitnessDaemon(t *testing.T, calmBridge string, repo string) fitnessDae
 	certDir := t.TempDir()
 	serverCertPath, serverKeyPath, caPath, clientCertPath, clientKeyPath := writeMTLSFixture(t, certDir, "pre-tool-use-test")
 
-	command := exec.Command(calmBridge, "server", "start", "--addr", addr, "--tls-cert", serverCertPath, "--tls-key", serverKeyPath, "--tls-ca", caPath)
+	command := exec.Command(fitnessBin, "server", "start", "--addr", addr, "--tls-cert", serverCertPath, "--tls-key", serverKeyPath, "--tls-ca", caPath)
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("get cwd: %v", err)
