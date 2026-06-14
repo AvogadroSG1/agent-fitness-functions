@@ -102,7 +102,7 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
 }`)
 	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
 	calmBridge := buildFitnessBin(t)
-	daemon := startBridgeDaemon(t, calmBridge, repo)
+	daemon := startFitnessDaemon(t, calmBridge, repo)
 	t.Setenv("STACK_FITNESS_FUNCTIONS_REPO_NAME", "repo-one")
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CERT", daemon.clientCertPath)
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_KEY", daemon.clientKeyPath)
@@ -300,7 +300,7 @@ type bridgeDaemon struct {
 	serverCAPath   string
 }
 
-func startBridgeDaemon(t *testing.T, calmBridge string, repo string) bridgeDaemon {
+func startFitnessDaemon(t *testing.T, calmBridge string, repo string) bridgeDaemon {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
