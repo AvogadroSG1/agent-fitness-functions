@@ -236,7 +236,7 @@ Configured in `.claude/settings.json` within each test repository:
 }
 ```
 
-The hook receives tool input as JSON on stdin. It extracts `file_path` and proposed content (`new_string` for Edit, `content` for Write) and passes them to `stack-fitness-functions client validate`. Claude Code `PreToolUse` hooks MUST exit `2` to block the tool call; stderr is surfaced to the agent as the reason.
+The hook receives tool input as JSON on stdin. It extracts `file_path`, skips unsupported files before content validation, and passes full proposed file content to `stack-fitness-functions client validate`. For `Write`, the proposed content is `content`. For `Edit`, the hook MUST reconstruct the full proposed file by applying `old_string` → `new_string` to the current on-disk file content; it MUST NOT send the `new_string` fragment as a whole source file. Claude Code `PreToolUse` hooks MUST exit `2` to block the tool call; stderr is surfaced to the agent as the reason.
 
 ### 3.5 Git Pre-Commit Hook
 

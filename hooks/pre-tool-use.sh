@@ -74,7 +74,7 @@ cleanup() {
 trap cleanup EXIT
 printf '%s' "$payload" > "$payload_file"
 
-parsed=$(python3 - "$payload_file" "$content_file" <<'PY'
+parsed=$(python3 - "$payload_file" <<'PY'
 import json
 import sys
 
@@ -83,17 +83,10 @@ try:
         payload = json.load(handle)
     tool_input = payload.get("tool_input", payload)
     file_path = tool_input.get("file_path", "")
-    content = tool_input.get("new_string", tool_input.get("content", None))
     if not file_path:
         print(json.dumps({"error": "missing file_path"}))
-    elif content is None:
-        print(json.dumps({"error": "missing proposed content"}))
     else:
-        binary = "\x00" in content
-        if not binary:
-            with open(sys.argv[2], "w", encoding="utf-8", newline="") as content_file:
-                content_file.write(content)
-        print(json.dumps({"file_path": file_path, "binary": binary}))
+        print(json.dumps({"file_path": file_path}))
 except Exception as exc:
     print(json.dumps({"error": f"invalid JSON payload: {exc}"}))
 PY
@@ -106,7 +99,6 @@ if [[ -n "$parse_error" ]]; then
 fi
 
 file_path=$(printf '%s' "$parsed" | json_field file_path)
-binary=$(printf '%s' "$parsed" | json_field binary)
 
 repo_prefix=$(cd "$repo" && pwd -P)
 absolute_file=$(python3 - "$repo_prefix" "$file_path" <<'PY'
@@ -139,6 +131,56 @@ if ! language=$(language_for_file "$file"); then
   echo "Skipping CALM check for unsupported file type: $file" >&2
   exit 0
 fi
+
+content_result=$(python3 - "$payload_file" "$content_file" "$repo_prefix" "$file" <<'PY'
+import json
+import os
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        payload = json.load(handle)
+    tool_input = payload.get("tool_input", payload)
+    if "content" in tool_input:
+        content = tool_input["content"]
+    elif "new_string" in tool_input:
+        old_string = tool_input.get("old_string")
+        new_string = tool_input["new_string"]
+        if old_string is None:
+            print(json.dumps({"error": "missing old_string for Edit"}))
+            sys.exit(0)
+        absolute_file = os.path.join(sys.argv[3], sys.argv[4])
+        with open(absolute_file, encoding="utf-8", newline="") as source_file:
+            current_content = source_file.read()
+        occurrences = current_content.count(old_string)
+        replace_all = bool(tool_input.get("replace_all", False))
+        if occurrences == 0:
+            print(json.dumps({"error": "old_string not found in current file"}))
+            sys.exit(0)
+        if not replace_all and occurrences > 1:
+            print(json.dumps({"error": "old_string matched multiple locations"}))
+            sys.exit(0)
+        count = -1 if replace_all else 1
+        content = current_content.replace(old_string, new_string, count)
+    else:
+        print(json.dumps({"error": "missing proposed content"}))
+        sys.exit(0)
+    binary = "\x00" in content
+    if not binary:
+        with open(sys.argv[2], "w", encoding="utf-8", newline="") as content_file:
+            content_file.write(content)
+    print(json.dumps({"binary": binary}))
+except Exception as exc:
+    print(json.dumps({"error": f"invalid proposed content: {exc}"}))
+PY
+)
+
+content_error=$(printf '%s' "$content_result" | json_field error)
+if [[ -n "$content_error" ]]; then
+  echo "Invalid PreToolUse payload: $content_error" >&2
+  exit 2
+fi
+binary=$(printf '%s' "$content_result" | json_field binary)
 
 if [[ "$binary" == "True" || "$binary" == "true" ]]; then
   echo "CALM check blocked binary content for supported source file: $file" >&2

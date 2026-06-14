@@ -51,7 +51,7 @@ func TestPreToolUseAllowsEditAdvisory(t *testing.T) {
 printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"advisory","violations":[{"message":"warning only"}]}\n'
 `)
-	payload := `{"tool_name":"Edit","tool_input":{"file_path":"sample.py","old_string":"old","new_string":"print('new')\n"}}`
+	payload := `{"tool_name":"Edit","tool_input":{"file_path":"sample.py","old_string":"print('old')","new_string":"print('new')"}}`
 
 	output, err := runPreToolUse(t, repo, payload, fakeBin, logPath, "")
 	if err != nil {
@@ -62,6 +62,48 @@ printf '{"status":"advisory","violations":[{"message":"warning only"}]}\n'
 	}
 	if !strings.Contains(readFile(t, logPath), "--language python") {
 		t.Fatalf("calm log = %s, want python language", readFile(t, logPath))
+	}
+}
+
+func TestPreToolUseSkipsUnsupportedEditBeforeReconstruction(t *testing.T) {
+	repo := initGitRepo(t)
+	writeFile(t, filepath.Join(repo, "README.md"), "# old title\n")
+	payload := `{"tool_name":"Edit","tool_input":{"file_path":"README.md","old_string":"missing old title","new_string":"new title"}}`
+
+	output, err := runPreToolUse(t, repo, payload, t.TempDir(), "", "")
+	if err != nil {
+		t.Fatalf("pre-tool-use failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "unsupported file type") {
+		t.Fatalf("output = %s, want unsupported file skip", output)
+	}
+}
+
+func TestPreToolUseSendsReconstructedEditContent(t *testing.T) {
+	repo := initGitRepo(t)
+	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n\nfunc Message() string {\n\treturn \"old\"\n}\n")
+	logPath := filepath.Join(t.TempDir(), "calm.log")
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --content-file)
+      shift
+      cat "$1" > "$STACK_FITNESS_FUNCTIONS_LOG"
+      ;;
+  esac
+  shift
+done
+printf '{"status":"pass"}\n'
+`)
+	payload := `{"tool_name":"Edit","tool_input":{"file_path":"sample.go","old_string":"return \"old\"\n","new_string":"return \"new\"\n"}}`
+
+	output, err := runPreToolUse(t, repo, payload, fakeBin, logPath, "")
+	if err != nil {
+		t.Fatalf("pre-tool-use failed: %v\n%s", err, output)
+	}
+	want := "package sample\n\nfunc Message() string {\n\treturn \"new\"\n}\n"
+	if got := readFile(t, logPath); got != want {
+		t.Fatalf("content file = %q, want reconstructed full file %q", got, want)
 	}
 }
 
