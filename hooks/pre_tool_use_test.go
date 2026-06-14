@@ -101,7 +101,7 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
   }
 }`)
 	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
-	calmBridge := buildCalmBridge(t)
+	calmBridge := buildFitnessBin(t)
 	daemon := startBridgeDaemon(t, calmBridge, repo)
 	t.Setenv("STACK_FITNESS_FUNCTIONS_REPO_NAME", "repo-one")
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CERT", daemon.clientCertPath)
