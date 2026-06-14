@@ -40,7 +40,7 @@ curl -fsS "$bridge_addr/health" >/dev/null
 git init "$demo_repo" >/dev/null
 git -C "$demo_repo" config user.email "calm-smoke@example.com"
 git -C "$demo_repo" config user.name "CALM Smoke"
-"$repo_root/scripts/install-hooks.sh" "$demo_repo" >/dev/null
+STACK_FITNESS_FUNCTIONS_BIN="$bridge_bin" "$bridge_bin" client install-hooks "$demo_repo" >/dev/null
 mkdir -p "$demo_repo/.calm" "$demo_repo/internal/demo"
 
 write_config() {
