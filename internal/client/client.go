@@ -25,7 +25,7 @@ import (
 	"github.com/poconnor/calm-poc/internal/sarif"
 )
 
-//go:embed embedded_hooks/*
+//go:embed hookassets/*
 var embeddedHooks embed.FS
 
 // RunCheck validates one file by posting a validation request to the daemon.
@@ -94,10 +94,10 @@ func RunInstallHooks(args []string, stdout, stderr io.Writer) error {
 		stdout:   stdout,
 		stderr:   stderr,
 	}
-	if err := installer.installGitHook("pre-commit", "embedded_hooks/pre-commit.sh", "# CALM pre-commit hook (sidecar)"); err != nil {
+	if err := installer.installGitHook("pre-commit", "hookassets/pre-commit.sh", "# CALM pre-commit hook (sidecar)"); err != nil {
 		return err
 	}
-	if err := installer.installGitHook("pre-push", "embedded_hooks/pre-push.sh", "# CALM pre-push hook (sidecar)"); err != nil {
+	if err := installer.installGitHook("pre-push", "hookassets/pre-push.sh", "# CALM pre-push hook (sidecar)"); err != nil {
 		return err
 	}
 	return installer.installGitGuard()
@@ -174,7 +174,7 @@ func (installer hookInstaller) installGitGuard() error {
 	if err != nil {
 		return err
 	}
-	if err := installer.writeEmbeddedExecutable("embedded_hooks/git-guard.sh", guardPath); err != nil {
+	if err := installer.writeEmbeddedExecutable("hookassets/git-guard.sh", guardPath); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", guardPath)
@@ -254,7 +254,7 @@ func upsertGitGuard(settings map[string]any, guardPath string) (string, error) {
 }
 
 func (installer hookInstaller) writeFormatter(hooksDir string) error {
-	return installer.writeEmbeddedFile("embedded_hooks/format-violations.py", filepath.Join(hooksDir, "format-violations.py"), 0o755)
+	return installer.writeEmbeddedFile("hookassets/format-violations.py", filepath.Join(hooksDir, "format-violations.py"), 0o755)
 }
 
 func (installer hookInstaller) writeEmbeddedExecutable(embeddedPath, targetPath string) error {
