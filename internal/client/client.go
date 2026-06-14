@@ -25,7 +25,7 @@ import (
 	"github.com/poconnor/calm-poc/internal/sarif"
 )
 
-//go:embed embedded_hooks/*
+//go:embed hookassets/*
 var embeddedHooks embed.FS
 
 // RunCheck validates one file by posting a validation request to the daemon.
