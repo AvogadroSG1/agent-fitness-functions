@@ -381,7 +381,7 @@ func writeMTLSFixture(t *testing.T, dir, clientCN string) (string, string, strin
 	}
 	ca := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "calm-test-ca"},
+		Subject:               pkix.Name{CommonName: "stack-fitness-functions-test-ca"},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(time.Hour),
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
