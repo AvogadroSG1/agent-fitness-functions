@@ -100,7 +100,7 @@ expect_block() {
 
   cp -f "$repo_root/$red" "$demo_repo/internal/demo/demo.go"
   git -C "$demo_repo" add .calm/config.json internal/demo/demo.go
-  if CALM_BRIDGE_BIN="$bridge_bin" CALM_BRIDGE_ADDR="$bridge_addr" git -C "$demo_repo" commit -m "red $rule" >"$tmp_dir/red.out" 2>&1; then
+  if STACK_FITNESS_FUNCTIONS_BIN="$bridge_bin" STACK_FITNESS_FUNCTIONS_ADDR="$bridge_addr" git -C "$demo_repo" commit -m "red $rule" >"$tmp_dir/red.out" 2>&1; then
     cat "$tmp_dir/red.out"
     echo "expected red commit to fail for $rule" >&2
     exit 1
@@ -113,7 +113,7 @@ expect_block() {
 
   cp -f "$repo_root/$green" "$demo_repo/internal/demo/demo.go"
   git -C "$demo_repo" add .calm/config.json internal/demo/demo.go
-  CALM_BRIDGE_BIN="$bridge_bin" CALM_BRIDGE_ADDR="$bridge_addr" git -C "$demo_repo" commit -m "green $rule" >/dev/null
+  STACK_FITNESS_FUNCTIONS_BIN="$bridge_bin" STACK_FITNESS_FUNCTIONS_ADDR="$bridge_addr" git -C "$demo_repo" commit -m "green $rule" >/dev/null
 
   printf 'PASS  %-28s  [Go]  red: blocked (%s)  green: pass\n' "$rule" "$red_metrics"
 }

@@ -67,7 +67,7 @@ VOLUME ["/app/configs"]
 EXPOSE 7890
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD if [ -n "$CALM_TLS_CA" ]; then curl --fail --silent --cacert "$CALM_TLS_CA" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1
+    CMD if [ -n "$STACK_FITNESS_FUNCTIONS_TLS_CA" ]; then curl --fail --silent --cacert "$STACK_FITNESS_FUNCTIONS_TLS_CA" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1
 
 USER appuser
 ENTRYPOINT ["/app/stack-fitness-functions", "server", "start"]

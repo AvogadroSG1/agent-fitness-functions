@@ -111,7 +111,7 @@ func TestInstallHooksAppendModeInstallsSidecar(t *testing.T) {
 	}
 
 	command := exec.Command("bash", "install-hooks.sh", repo)
-	command.Env = append(os.Environ(), "CALM_HOOK_APPEND=1")
+	command.Env = append(os.Environ(), "STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1")
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("install-hooks failed in append mode: %v\n%s", err, output)
@@ -148,7 +148,7 @@ func TestInstallHooksAppendModeIsIdempotent(t *testing.T) {
 
 	for range 2 {
 		command := exec.Command("bash", "install-hooks.sh", repo)
-		command.Env = append(os.Environ(), "CALM_HOOK_APPEND=1")
+		command.Env = append(os.Environ(), "STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1")
 		if output, err := command.CombinedOutput(); err != nil {
 			t.Fatalf("install-hooks failed in append mode: %v\n%s", err, output)
 		}
@@ -177,8 +177,8 @@ func TestInstallHooksRefusalMentionsAppendOption(t *testing.T) {
 	if err == nil {
 		t.Fatalf("install-hooks succeeded, want refusal")
 	}
-	if !strings.Contains(string(output), "CALM_HOOK_APPEND=1") {
-		t.Fatalf("refusal message does not mention CALM_HOOK_APPEND=1:\n%s", output)
+	if !strings.Contains(string(output), "STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1") {
+		t.Fatalf("refusal message does not mention STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1:\n%s", output)
 	}
 }
 

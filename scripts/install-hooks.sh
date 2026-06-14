@@ -18,7 +18,7 @@ source_formatter="$calm_root/hooks/format-violations.py"
 
 [[ -f "$source_formatter" ]] || {
   echo "error: format-violations.py not found at $source_formatter" >&2
-  echo "  ensure the calm-poc repo is complete (CALM_SRC=$calm_root)" >&2
+  echo "  ensure the calm-poc repo is complete (STACK_FITNESS_FUNCTIONS_SRC=$calm_root)" >&2
   exit 2
 }
 
@@ -50,7 +50,7 @@ install_git_hook() {
       echo "updated $calm_sidecar"
       return 0
     elif ! grep -q "CALM ${hook_name} hook" "$target_hook"; then
-      if [[ "${CALM_HOOK_APPEND:-}" == "1" ]]; then
+      if [[ "${STACK_FITNESS_FUNCTIONS_HOOK_APPEND:-}" == "1" ]]; then
         local calm_sidecar="$hooks_dir/calm-${hook_name}"
         cp -f "$source_hook" "$calm_sidecar"
         chmod +x "$calm_sidecar"
@@ -58,9 +58,9 @@ install_git_hook() {
         printf '\n# CALM %s hook (sidecar)\n"%s"\n' "$hook_name" "$calm_sidecar" >> "$target_hook"
         echo "appended CALM call to $target_hook (sidecar: $calm_sidecar)"
         return 0
-      elif [[ "${CALM_HOOK_OVERWRITE:-}" != "1" ]]; then
+      elif [[ "${STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE:-}" != "1" ]]; then
         echo "refusing to overwrite existing non-CALM $hook_name hook: $target_hook" >&2
-        echo "set CALM_HOOK_OVERWRITE=1 to replace it, or CALM_HOOK_APPEND=1 to append" >&2
+        echo "set STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1 to replace it, or STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1 to append" >&2
         return 1
       fi
     fi

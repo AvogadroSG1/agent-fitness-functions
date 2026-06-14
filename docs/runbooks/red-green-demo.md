@@ -14,12 +14,12 @@ This runbook validates that CALM fitness functions block known violations in blo
 
 - Start the server container: `calm-serve` (or `calm-serve --build` to force a rebuild) — this starts the Docker Desktop container on `localhost:7890`
 - Install the git hook in each target repository: `scripts/install-hooks.sh <repo>`
-- Run commits with `CALM_BRIDGE_ADDR=http://localhost:7890 CALM_ALLOW_REMOTE_BRIDGE=1`
+- Run commits with `STACK_FITNESS_FUNCTIONS_ADDR=http://localhost:7890 STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1`
 
-> **Local binary alternative (sandbox only):** Build the binary locally with `go build -o .tmp/stack-fitness-functions ./cmd/stack-fitness-functions` and start it with `.tmp/stack-fitness-functions server start --addr 127.0.0.1:7890`. Use `CALM_BRIDGE_BIN=.tmp/stack-fitness-functions CALM_BRIDGE_ADDR=http://127.0.0.1:7890` for commits. This path is only valid for developer sandbox iteration; it MUST NOT be used as the production path.
+> **Local binary alternative (sandbox only):** Build the binary locally with `go build -o .tmp/stack-fitness-functions ./cmd/stack-fitness-functions` and start it with `.tmp/stack-fitness-functions server start --addr 127.0.0.1:7890`. Use `STACK_FITNESS_FUNCTIONS_BIN=.tmp/stack-fitness-functions STACK_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:7890` for commits. This path is only valid for developer sandbox iteration; it MUST NOT be used as the production path.
 - Use per-demo `.calm/config.json` files that explicitly disable every non-target fitness function. Missing fitness-function keys default to enabled.
 
-The hook refuses non-loopback server addresses unless `CALM_ALLOW_REMOTE_BRIDGE=1` is set. The installer overwrites prior CALM-managed hooks and refuses unrelated existing hooks unless `CALM_HOOK_OVERWRITE=1` is set.
+The hook refuses non-loopback server addresses unless `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` is set. The installer overwrites prior CALM-managed hooks and refuses unrelated existing hooks unless `STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` is set.
 
 ## Fixture Matrix
 
@@ -124,8 +124,8 @@ The existing `fixtures/violations/python/ringstation-dd-stage-bronze.py` remains
 
 ## Troubleshooting
 
-- If the hook says `CALM_BRIDGE_ADDR must be loopback`, use `http://127.0.0.1:<port>` or explicitly set `CALM_ALLOW_REMOTE_BRIDGE=1` for a trusted remote server.
-- If installation refuses to overwrite a hook, inspect the existing hook. Set `CALM_HOOK_APPEND=1` to install CALM as a sidecar alongside the existing hook (recommended when the existing hook must be preserved), or set `CALM_HOOK_OVERWRITE=1` to replace it entirely.
+- If the hook says `STACK_FITNESS_FUNCTIONS_ADDR must be loopback`, use `http://127.0.0.1:<port>` or explicitly set `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` for a trusted remote server.
+- If installation refuses to overwrite a hook, inspect the existing hook. Set `STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1` to install CALM as a sidecar alongside the existing hook (recommended when the existing hook must be preserved), or set `STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` to replace it entirely.
 - If a red commit unexpectedly passes, confirm that `.calm/config.json` enables the intended function and that the staged file is the red fixture.
 - If a red commit reports the wrong fitness function, confirm that every non-target function is explicitly set to `false` in `.calm/config.json`.
 - If a green commit still blocks, re-stage the green file. Outstanding block-mode violations clear when the same file passes.

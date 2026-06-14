@@ -290,7 +290,7 @@ func shutdownHandler(checker Checker, options HandlerOptions, cancelDeferred fun
 func Serve(ctx context.Context, addr string) error {
 	return ServeWithOptions(ctx, ServeOptions{
 		Addr:      addr,
-		ConfigDir: os.Getenv("CALM_CONFIGS_DIR"),
+		ConfigDir: os.Getenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR"),
 		Ready:     os.Stdout,
 		NewStore:  NewConfigStore,
 	})
@@ -306,7 +306,7 @@ func applyServeDefaults(options *ServeOptions) {
 		options.Addr = "localhost:7890"
 	}
 	if options.ConfigDir == "" {
-		options.ConfigDir = os.Getenv("CALM_CONFIGS_DIR")
+		options.ConfigDir = os.Getenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR")
 	}
 	if options.Ready == nil {
 		options.Ready = os.Stdout

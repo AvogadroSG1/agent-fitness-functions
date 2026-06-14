@@ -76,14 +76,14 @@ The local `.calm` mode (described in the CLI tools section below) is a **sandbox
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `CALM_BRIDGE_ADDR` | Yes | Full HTTPS URL, e.g. `https://calm-governance.example:7890` |
-| `CALM_ALLOW_REMOTE_BRIDGE` | Yes (set to `1`) | Opt-in to non-loopback bridge addresses |
-| `CALM_CLIENT_CERT` | Yes (mTLS) | Path to PEM-encoded client certificate |
-| `CALM_CLIENT_KEY` | Yes (mTLS) | Path to PEM-encoded client private key |
-| `CALM_CLIENT_CA` | Yes (mTLS) | Path to PEM-encoded CA bundle for server verification |
-| `CALM_REPO_NAME` | Recommended | Logical repository name (overrides working-tree basename) |
+| `STACK_FITNESS_FUNCTIONS_ADDR` | Yes | Full HTTPS URL, e.g. `https://calm-governance.example:7890` |
+| `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE` | Yes (set to `1`) | Opt-in to non-loopback bridge addresses |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_CERT` | Yes (mTLS) | Path to PEM-encoded client certificate |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_KEY` | Yes (mTLS) | Path to PEM-encoded client private key |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_CA` | Yes (mTLS) | Path to PEM-encoded CA bundle for server verification |
+| `STACK_FITNESS_FUNCTIONS_REPO_NAME` | Recommended | Logical repository name (overrides working-tree basename) |
 
-All hooks enforce HTTPS when `CALM_ALLOW_REMOTE_BRIDGE=1` is set. Connections over plain HTTP to a non-loopback address are rejected at the hook layer.
+All hooks enforce HTTPS when `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` is set. Connections over plain HTTP to a non-loopback address are rejected at the hook layer.
 
 ## CLI Tools
 
@@ -110,15 +110,15 @@ ln -sf "$(pwd)/bin"/calm-* ~/.local/bin/
 For a containerized server, configure hooks with an HTTPS endpoint, mTLS client credentials, and an optional logical repository override:
 
 ```bash
-export CALM_BRIDGE_ADDR=https://calm-governance.example:7890
-export CALM_ALLOW_REMOTE_BRIDGE=1
-export CALM_CLIENT_CERT=/path/to/client.crt
-export CALM_CLIENT_KEY=/path/to/client.key
-export CALM_CLIENT_CA=/path/to/ca.crt
-export CALM_REPO_NAME=graft
+export STACK_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890
+export STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1
+export STACK_FITNESS_FUNCTIONS_CLIENT_CERT=/path/to/client.crt
+export STACK_FITNESS_FUNCTIONS_CLIENT_KEY=/path/to/client.key
+export STACK_FITNESS_FUNCTIONS_CLIENT_CA=/path/to/ca.crt
+export STACK_FITNESS_FUNCTIONS_REPO_NAME=graft
 ```
 
-When `CALM_BRIDGE_ADDR` points at a remote server, `hooks/pre-commit.sh` sends staged content through a temporary content file and uses `CALM_REPO_NAME` or the working-tree basename as the logical `--repo` value.
+When `STACK_FITNESS_FUNCTIONS_ADDR` points at a remote server, `hooks/pre-commit.sh` sends staged content through a temporary content file and uses `STACK_FITNESS_FUNCTIONS_REPO_NAME` or the working-tree basename as the logical `--repo` value.
 
 ## Baseline Analysis
 

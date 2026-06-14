@@ -23,7 +23,7 @@ func TestPreToolUseBlocksWriteViolation(t *testing.T) {
 	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
 	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$CALM_BRIDGE_LOG"
+printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"block","violations":[{"message":"too complex"}]}\n'
 `)
 	payload := `{"tool_name":"Write","tool_input":{"file_path":"sample.go","content":"package sample\nfunc Run() {}\n"}}`
@@ -48,7 +48,7 @@ func TestPreToolUseAllowsEditAdvisory(t *testing.T) {
 	writeFile(t, filepath.Join(repo, "sample.py"), "print('old')\n")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
 	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$CALM_BRIDGE_LOG"
+printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"advisory","violations":[{"message":"warning only"}]}\n'
 `)
 	payload := `{"tool_name":"Edit","tool_input":{"file_path":"sample.py","old_string":"old","new_string":"print('new')\n"}}`
@@ -71,7 +71,7 @@ func TestPreToolUseAllowsPassWithAbsolutePath(t *testing.T) {
 	writeFile(t, path, "namespace Demo;\n")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
 	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$CALM_BRIDGE_LOG"
+printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"pass"}\n'
 `)
 	payload := `{"tool_name":"Write","tool_input":{"file_path":"` + path + `","content":"namespace Demo;\n"}}`
@@ -103,10 +103,10 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
 	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
 	calmBridge := buildCalmBridge(t)
 	daemon := startBridgeDaemon(t, calmBridge, repo)
-	t.Setenv("CALM_REPO_NAME", "repo-one")
-	t.Setenv("CALM_CLIENT_CERT", daemon.clientCertPath)
-	t.Setenv("CALM_CLIENT_KEY", daemon.clientKeyPath)
-	t.Setenv("CALM_CLIENT_CA", daemon.serverCAPath)
+	t.Setenv("STACK_FITNESS_FUNCTIONS_REPO_NAME", "repo-one")
+	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CERT", daemon.clientCertPath)
+	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_KEY", daemon.clientKeyPath)
+	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CA", daemon.serverCAPath)
 
 	badPayload := `{"tool_name":"Write","tool_input":{"file_path":"sample.go","content":"package sample\nfunc Score(kind string, retries int, urgent bool) int {\nscore := 0\nif kind == \"create\" { score++ }\nif kind == \"update\" { score++ }\nif kind == \"delete\" { score++ }\nif kind == \"manual\" { score++ }\nif kind == \"batch\" { score++ }\nif kind == \"sync\" { score++ }\nif retries > 0 { score++ }\nif retries > 1 { score++ }\nif retries > 2 { score++ }\nif urgent { score++ }\nreturn score\n}\n"}}`
 	output, err := runPreToolUseWithBin(t, repo, badPayload, calmBridge, "", "", daemon.url)
@@ -132,7 +132,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --content-file)
       shift
-      python3 - "$1" "$CALM_BRIDGE_LOG" <<'PY'
+      python3 - "$1" "$STACK_FITNESS_FUNCTIONS_LOG" <<'PY'
 import pathlib
 import sys
 
@@ -231,7 +231,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --content-file)
       shift
-      wc -c < "$1" >> "$CALM_BRIDGE_LOG"
+      wc -c < "$1" >> "$STACK_FITNESS_FUNCTIONS_LOG"
       ;;
   esac
   shift
@@ -263,13 +263,13 @@ func runPreToolUseWithBin(t *testing.T, repo, payload, calmBridge, pathDir, logP
 		env = append(env, "PATH="+pathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	}
 	if calmBridge != "" {
-		env = append(env, "CALM_BRIDGE_BIN="+calmBridge)
+		env = append(env, "STACK_FITNESS_FUNCTIONS_BIN="+calmBridge)
 	}
 	if logPath != "" {
-		env = append(env, "CALM_BRIDGE_LOG="+logPath)
+		env = append(env, "STACK_FITNESS_FUNCTIONS_LOG="+logPath)
 	}
 	if addr != "" {
-		env = append(env, "CALM_BRIDGE_ADDR="+addr)
+		env = append(env, "STACK_FITNESS_FUNCTIONS_ADDR="+addr)
 	}
 	command.Env = env
 	return command.CombinedOutput()
@@ -334,7 +334,7 @@ func startBridgeDaemon(t *testing.T, calmBridge string, repo string) bridgeDaemo
 	command.Dir = filepath.Dir(cwd)
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
-	command.Env = append(os.Environ(), "CALM_CONFIGS_DIR="+configsDir)
+	command.Env = append(os.Environ(), "STACK_FITNESS_FUNCTIONS_CONFIGS_DIR="+configsDir)
 	if err := command.Start(); err != nil {
 		t.Fatalf("start bridge daemon: %v", err)
 	}

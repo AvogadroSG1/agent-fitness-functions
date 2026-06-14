@@ -15,10 +15,10 @@ func TestValidatorPassesArchitectureAndPatternToCalmCLI(t *testing.T) {
 	logPath := filepath.Join(dir, "calm.log")
 	cli := fakeCalm(t, dir, `#!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' "$*" > "$CALM_LOG"
+printf '%s\n' "$*" > "$FINOS_CALM_LOG"
 printf '{"status":"pass"}'
 `)
-	validator := Validator{CLIPath: cli, Env: []string{"CALM_LOG=" + logPath}}
+	validator := Validator{CLIPath: cli, Env: []string{"FINOS_CALM_LOG=" + logPath}}
 
 	result, err := validator.Validate(context.Background(), "current-architecture.json", "governance.json")
 	if err != nil {

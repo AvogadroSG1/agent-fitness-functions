@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-cert_dir=${CALM_DEV_CERT_DIR:-"$repo_root/certs"}
+cert_dir=${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-"$repo_root/certs"}
 openssl_bin=${OPENSSL:-openssl}
 force=0
 

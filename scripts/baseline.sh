@@ -2,10 +2,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CALM_BRIDGE="${CALM_BRIDGE:-$ROOT/stack-fitness-functions}"
+stack_fitness_functions_bin="${STACK_FITNESS_FUNCTIONS_BIN:-$ROOT/stack-fitness-functions}"
 
-if [ ! -x "$CALM_BRIDGE" ]; then
-  (cd "$ROOT" && go build -o "$CALM_BRIDGE" ./cmd/stack-fitness-functions)
+if [ ! -x "$stack_fitness_functions_bin" ]; then
+  (cd "$ROOT" && go build -o "$stack_fitness_functions_bin" ./cmd/stack-fitness-functions)
 fi
 
-"$CALM_BRIDGE" baseline "$@"
+"$stack_fitness_functions_bin" baseline "$@"

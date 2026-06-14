@@ -2,12 +2,12 @@
 set -euo pipefail
 
 repo=$(git rev-parse --show-toplevel)
-calm_bridge=${CALM_BRIDGE_BIN:-stack-fitness-functions}
-addr=${CALM_BRIDGE_ADDR:-}
-client_cert=${CALM_CLIENT_CERT:-}
-client_key=${CALM_CLIENT_KEY:-}
-client_ca=${CALM_CLIENT_CA:-}
-repo_name=${CALM_REPO_NAME:-}
+stack_fitness_functions_bin=${STACK_FITNESS_FUNCTIONS_BIN:-stack-fitness-functions}
+addr=${STACK_FITNESS_FUNCTIONS_ADDR:-}
+client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-}
+client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-}
+client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-}
+repo_name=${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}
 repo_arg=$repo
 if [[ -n "$repo_name" ]]; then
   repo_arg=$repo_name
@@ -41,12 +41,12 @@ PYCHECK
 }
 
 if [[ -n "$addr" ]] && ! bridge_addr_is_loopback "$addr"; then
-  if [[ "${CALM_ALLOW_REMOTE_BRIDGE:-}" != "1" ]]; then
-    echo "CALM_BRIDGE_ADDR must be loopback unless CALM_ALLOW_REMOTE_BRIDGE=1 is set" >&2
+  if [[ "${STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE:-}" != "1" ]]; then
+    echo "STACK_FITNESS_FUNCTIONS_ADDR must be loopback unless STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1 is set" >&2
     exit 2
   fi
   if ! bridge_addr_is_https "$addr"; then
-    echo "remote CALM_BRIDGE_ADDR must use https" >&2
+    echo "remote STACK_FITNESS_FUNCTIONS_ADDR must use https" >&2
     exit 2
   fi
 fi
@@ -159,7 +159,7 @@ if [[ -n "$client_ca" ]]; then
   args+=(--client-ca "$client_ca")
 fi
 
-if ! result=$("$calm_bridge" "${args[@]}"); then
+if ! result=$("$stack_fitness_functions_bin" "${args[@]}"); then
   echo "CALM check failed for $file" >&2
   printf '%s\n' "$result" >&2
   exit 2

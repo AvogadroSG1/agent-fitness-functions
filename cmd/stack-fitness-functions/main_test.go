@@ -28,7 +28,7 @@ import (
 )
 
 func TestRunServeRequiresTLSForTrustedProxyHeaders(t *testing.T) {
-	t.Setenv("CALM_CONFIGS_DIR", writeMountedServeConfigDir(t))
+	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
 
 	var stderr bytes.Buffer
 	code := runServe([]string{
@@ -46,7 +46,7 @@ func TestRunServeRequiresTLSForTrustedProxyHeaders(t *testing.T) {
 }
 
 func TestRunServeRequiresTrustedProxyClientCNs(t *testing.T) {
-	t.Setenv("CALM_CONFIGS_DIR", writeMountedServeConfigDir(t))
+	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
 
 	var stderr bytes.Buffer
 	code := runServe([]string{
@@ -66,7 +66,7 @@ func TestRunServeRequiresTrustedProxyClientCNs(t *testing.T) {
 }
 
 func TestRunDispatchesServerStart(t *testing.T) {
-	t.Setenv("CALM_CONFIGS_DIR", writeMountedServeConfigDir(t))
+	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
 
 	var stderr bytes.Buffer
 	code := run([]string{
@@ -611,7 +611,7 @@ func testRunServeStopsOnSignal(t *testing.T, signal os.Signal) {
 		t.Fatalf("close listener: %v", err)
 	}
 	configDir := writeMountedServeConfigDir(t)
-	t.Setenv("CALM_CONFIGS_DIR", configDir)
+	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", configDir)
 
 	done := make(chan int, 1)
 	go func() {

@@ -121,7 +121,7 @@ func runServe(args []string, stderr io.Writer) int {
 	defer stop()
 	if err := server.ServeWithOptions(ctx, server.ServeOptions{
 		Addr:      *addr,
-		ConfigDir: os.Getenv("CALM_CONFIGS_DIR"),
+		ConfigDir: os.Getenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR"),
 		Ready:     os.Stdout,
 		NewStore:  server.NewConfigStore,
 		HandlerOptions: server.HandlerOptions{
@@ -143,16 +143,16 @@ func runServe(args []string, stderr io.Writer) int {
 	return 0
 }
 
-// buildRateLimiter creates a rate limiter from CALM_RATE_LIMIT (default 100 req/min).
+// buildRateLimiter creates a rate limiter from STACK_FITNESS_FUNCTIONS_RATE_LIMIT (default 100 req/min).
 // Returns nil when the env var is explicitly set to 0 (disables rate limiting).
 func buildRateLimiter() (server.RateLimiter, error) {
-	raw := os.Getenv("CALM_RATE_LIMIT")
+	raw := os.Getenv("STACK_FITNESS_FUNCTIONS_RATE_LIMIT")
 	if raw == "" {
 		return server.NewFixedWindowRateLimiter(100, time.Minute), nil
 	}
 	limit, err := strconv.Atoi(raw)
 	if err != nil || limit < 0 {
-		return nil, fmt.Errorf("CALM_RATE_LIMIT: expected non-negative integer, got %q", raw)
+		return nil, fmt.Errorf("STACK_FITNESS_FUNCTIONS_RATE_LIMIT: expected non-negative integer, got %q", raw)
 	}
 	if limit == 0 {
 		return nil, nil
@@ -160,19 +160,19 @@ func buildRateLimiter() (server.RateLimiter, error) {
 	return server.NewFixedWindowRateLimiter(limit, time.Minute), nil
 }
 
-// resolveAnalyzerTimeout parses CALM_ANALYZER_TIMEOUT (default 30s).
+// resolveAnalyzerTimeout parses STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT (default 30s).
 // Returns 0 when the env var is explicitly set to 0 (disables timeout).
 func resolveAnalyzerTimeout() (time.Duration, error) {
-	raw := os.Getenv("CALM_ANALYZER_TIMEOUT")
+	raw := os.Getenv("STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT")
 	if raw == "" {
 		return 30 * time.Second, nil
 	}
 	d, err := time.ParseDuration(raw)
 	if err != nil {
-		return 0, fmt.Errorf("CALM_ANALYZER_TIMEOUT: invalid duration %q: %w", raw, err)
+		return 0, fmt.Errorf("STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: invalid duration %q: %w", raw, err)
 	}
 	if d < 0 {
-		return 0, fmt.Errorf("CALM_ANALYZER_TIMEOUT: duration must be non-negative, got %q", raw)
+		return 0, fmt.Errorf("STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: duration must be non-negative, got %q", raw)
 	}
 	return d, nil
 }

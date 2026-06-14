@@ -6,16 +6,16 @@ usage() {
   echo "       calm-test --help" >&2
   echo "" >&2
   echo "  LOCAL SANDBOX ONLY: validates fitness functions against a locally running server." >&2
-  echo "  For remote container governance, configure CALM_BRIDGE_ADDR, CALM_ALLOW_REMOTE_BRIDGE=1," >&2
-  echo "  CALM_CLIENT_CERT/KEY/CA, and CALM_REPO_NAME, then run the hook directly." >&2
+  echo "  For remote container governance, configure STACK_FITNESS_FUNCTIONS_ADDR, STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1," >&2
+  echo "  STACK_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA, and STACK_FITNESS_FUNCTIONS_REPO_NAME, then run the hook directly." >&2
   echo "  Outputs a per-function status table using the repo's configured enforcement mode." >&2
   echo "" >&2
   echo "  Supported: go (.go), python (.py), csharp (.cs)" >&2
   echo "" >&2
   echo "  Environment:" >&2
-  echo "    CALM_BRIDGE_BIN   path to calm-bridge binary (default: calm-bridge on PATH)" >&2
-  echo "    CALM_BRIDGE_ADDR  bridge address (default: http://127.0.0.1:7890)" >&2
-  echo "    CALM_REPO_NAME    logical repo name override (default: derived from git root)" >&2
+  echo "    STACK_FITNESS_FUNCTIONS_BIN   path to stack-fitness-functions binary (default: stack-fitness-functions on PATH)" >&2
+  echo "    STACK_FITNESS_FUNCTIONS_ADDR  server address (default: http://127.0.0.1:7890)" >&2
+  echo "    STACK_FITNESS_FUNCTIONS_REPO_NAME    logical repo name override (default: derived from git root)" >&2
   exit 0
 }
 
@@ -23,21 +23,21 @@ usage() {
 [[ $# -ne 1 ]] && { echo "error: expected exactly one argument" >&2; usage; }
 
 file="$1"
-bridge="${CALM_BRIDGE_BIN:-calm-bridge}"
-addr="${CALM_BRIDGE_ADDR:-http://127.0.0.1:7890}"
-repo_name="${CALM_REPO_NAME:-}"
+bridge="${STACK_FITNESS_FUNCTIONS_BIN:-stack-fitness-functions}"
+addr="${STACK_FITNESS_FUNCTIONS_ADDR:-http://127.0.0.1:7890}"
+repo_name="${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}"
 
 [[ -f "$file" ]] || { echo "error: file not found: $file" >&2; exit 1; }
 if [[ "$bridge" == */* ]]; then
   [[ -x "$bridge" ]] || {
-    echo "error: calm-bridge not found at $bridge" >&2
+    echo "error: stack-fitness-functions not found at $bridge" >&2
     echo "  build it: calm-serve (or: go build -o $bridge ./cmd/stack-fitness-functions)" >&2
     exit 1
   }
 else
   command -v "$bridge" > /dev/null 2>&1 || {
-    echo "error: calm-bridge not found on PATH: $bridge" >&2
-    echo "  build it: calm-serve (or: go build -o .tmp/calm-bridge ./cmd/stack-fitness-functions && export CALM_BRIDGE_BIN=.tmp/calm-bridge)" >&2
+    echo "error: stack-fitness-functions not found on PATH: $bridge" >&2
+    echo "  build it: calm-serve (or: go build -o .tmp/stack-fitness-functions ./cmd/stack-fitness-functions && export STACK_FITNESS_FUNCTIONS_BIN=.tmp/stack-fitness-functions)" >&2
     exit 1
   }
 fi

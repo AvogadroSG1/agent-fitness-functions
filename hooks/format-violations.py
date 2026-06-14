@@ -30,7 +30,7 @@ def _load_guidance() -> dict[str, dict[str, Any]]:
 
     POC: data is inline. To externalize, replace this body with:
         import os
-        path = os.environ.get("CALM_GUIDANCE_FILE", <default_path>)
+        path = os.environ.get("STACK_FITNESS_FUNCTIONS_GUIDANCE_FILE", <default_path>)
         return yaml.safe_load(open(path))
     Call sites never change.
     """

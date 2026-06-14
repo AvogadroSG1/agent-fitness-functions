@@ -96,7 +96,7 @@ replaced by a file loader when the POC graduates.
 ```python
 def _load_guidance() -> dict[str, GuidanceEntry]:
     # POC: inline data. Replace body with file load when externalizing.
-    # Future callers: check CALM_GUIDANCE_FILE env var for override path.
+    # Future callers: check STACK_FITNESS_FUNCTIONS_GUIDANCE_FILE env var for override path.
     return { ... }
 ```
 
