@@ -54,6 +54,7 @@ bd close <id>         # Complete work
 
 ```bash
 GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test . ./configs ./cmd/stack-fitness-functions ./internal/server
+go build ./cmd/stack-fitness-functions
 
 docker build --build-arg GIT_SHA="$(git rev-parse --short HEAD)" --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t stack-fitness-functions:local .
 ```
@@ -63,6 +64,14 @@ docker build --build-arg GIT_SHA="$(git rev-parse --short HEAD)" --build-arg BUI
 ## Architecture Overview
 
 `stack-fitness-functions` is the API boundary for Architecture Fitness Function checks. Local hooks and CI clients call the server API, while the containerized service resolves governance from mounted `configs/<repo>/config.json` files and runs Go, Python, and C# analyzers inside one audited image. The container binary path is `/app/stack-fitness-functions` and the default service command is `/app/stack-fitness-functions server start --addr 0.0.0.0:7890`.
+
+## Naming Surface
+
+- Product and binary: `stack-fitness-functions`.
+- Commands: `stack-fitness-functions client validate`, `stack-fitness-functions server start`, and `stack-fitness-functions baseline`.
+- Environment variables: `STACK_FITNESS_FUNCTIONS_*`.
+- Helper scripts: `stack-fitness-functions-serve` and `stack-fitness-functions-test`.
+- FINOS CALM, `.calm/config.json`, `configs/`, the FINOS `calm` CLI, and the `calm-poc` module/repo path retain their names.
 
 ## Conventions & Patterns
 

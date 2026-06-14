@@ -1,4 +1,4 @@
-# CALM PoC — How It Works
+# Stack Fitness Functions — How It Works
 
 This document answers the questions most likely to arise when someone encounters this proof of concept for the first time. It follows the conversation that shaped the implementation.
 
@@ -8,7 +8,7 @@ This document answers the questions most likely to arise when someone encounters
 
 **stack-fitness-functions**:
 The product and binary. The single tool that validates source against architecture fitness functions, in both client and server roles.
-_Avoid_: calm-bridge, bridge (as a product name).
+_Avoid_: bridge as a product name.
 
 **client validate**:
 The command that checks one file's fitness functions against the running server. Invoked by hooks at commit time.
@@ -33,7 +33,7 @@ The wire contract spoken by both client and server — the request a client send
 _Avoid_: CheckRequest, CheckResponse.
 
 **Naming rule**:
-Always spell the product out — `stack-fitness-functions`. No abbreviations (no `sff`, no `calm-bridge`). Env vars use the derived prefix `STACK_FITNESS_FUNCTIONS_*`; bin helpers use the full name (`stack-fitness-functions-serve`, `stack-fitness-functions-test`). Descriptive over short.
+Always spell the product out — `stack-fitness-functions`. No abbreviations. Env vars use the derived prefix `STACK_FITNESS_FUNCTIONS_*`; bin helpers use the full name (`stack-fitness-functions-serve`, `stack-fitness-functions-test`). Descriptive over short.
 
 ## Relationships
 
@@ -155,7 +155,7 @@ What these metrics cannot catch: a function that is simple in isolation but orch
 |---|---|---|
 | `stack-fitness-functions` binary | `/app/stack-fitness-functions` (built from `cmd/stack-fitness-functions`) | CLI for `client validate`, `server start`, and `baseline` |
 | Container service | `docker compose up` via `bin/stack-fitness-functions-serve` (Docker Desktop) | **Primary runtime** — starts the server on `localhost:7890` |
-| Governance rules | `internal/bridge/checker.go`, `governance.json` | Thresholds and enabled functions |
+| Governance rules | `internal/server/checker.go`, `patterns/governance.json` | Thresholds and enabled functions |
 | Pre-commit hook | Embedded by `stack-fitness-functions client install-hooks` | Commit-time enforcement in governed repos |
 | `configs/<repo>/config.json` | Mounted into the container | Governance config for the logical repo |
 | `.calm/config.json` | Optional local repository sandbox | Developer sandbox only — **has no effect on container governance**; container always resolves from `configs/<repo>/config.json` |
@@ -177,4 +177,4 @@ The `client validate` path now resolves project-local namespaces with `--project
 
 **Next calibration step:** Extend `AnalyzeRepository` to pass `--project <nearest-csproj>` to the Roslyn CLI for each `.cs` file, regenerate baselines, read the resulting P10 DDC distribution, and update the `minimum` in `patterns/governance.json` accordingly.
 
-*Authored By Peter O'Connor with Assistance from Claude Code (claude-sonnet-4-6) · 2026-06-04 · CALM PoC Context & FAQ*
+*Authored By Peter O'Connor with Assistance from Claude Code (claude-sonnet-4-6) · 2026-06-04 · stack-fitness-functions Context & FAQ*

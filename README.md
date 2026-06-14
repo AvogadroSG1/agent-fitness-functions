@@ -1,6 +1,6 @@
-# Calm PoC
+# Stack Fitness Functions
 
-Calm PoC is a local proof-of-concept architecture-as-code system that uses CALM fitness functions to evaluate proposed source changes before they are written or committed.
+Stack Fitness Functions is a local proof-of-concept architecture-as-code system that uses FINOS CALM fitness functions to evaluate proposed source changes before they are written or committed. The repository path remains `calm-poc` while the product and binary surface are `stack-fitness-functions`.
 
 See [docs/spec/why-and-what.md](docs/spec/why-and-what.md) and [docs/spec/engineering-spec.md](docs/spec/engineering-spec.md) for the product and engineering specification.
 

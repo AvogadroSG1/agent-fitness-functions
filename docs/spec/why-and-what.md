@@ -27,7 +27,7 @@ The same problem applies to human developers, who introduce the same violations 
 
 This PoC uses the **FINOS Common Architecture Language Model (CALM)** as a machine-readable rules layer. Architectural fitness functions are defined as CALM patterns — JSON Schema rules that describe what "good" looks like for each module in the system.
 
-A custom bridge, `calm-bridge`, analyzes source code, translates metrics into a CALM-compliant architecture document, and calls the FINOS `calm` CLI validator. The validator returns a pass or a structured list of violations. Hooks at two interception points — Claude Code pre-tool-use and git pre-commit — capture proposed changes before they land, and either block with explanation or advise, based on per-repository enforcement configuration.
+The `stack-fitness-functions` tool analyzes source code, translates metrics into a CALM-compliant architecture document, and calls the FINOS `calm` CLI validator. The validator returns a pass or a structured list of violations. Hooks at two interception points — Claude Code pre-tool-use and git pre-commit — capture proposed changes before they land, and either block with explanation or advise, based on per-repository enforcement configuration.
 
 The result: architectural violations become as visible and actionable as syntax errors — before the code is written or committed.
 
@@ -63,7 +63,7 @@ The result: architectural violations become as visible and actionable as syntax 
 ### Should Pass
 
 4. Violation count in a repository trends down across three or more consecutive agent task iterations.
-5. Bridge latency stays at or below 500 ms for Python and Go; at or below 2 s for C# on the synchronous path.
+5. Server latency stays at or below 500 ms for Python and Go; at or below 2 s for C# on the synchronous path.
 6. Zero false positives fire against existing clean code in each repository at PoC start (post-baseline).
 
 ### Manual Demo

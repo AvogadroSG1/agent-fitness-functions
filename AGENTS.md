@@ -2,6 +2,14 @@
 
 This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
 
+## Project Naming
+
+- The product and binary MUST be spelled `stack-fitness-functions`.
+- Command examples MUST use `stack-fitness-functions client validate`, `stack-fitness-functions server start`, or `stack-fitness-functions baseline`.
+- Environment variables MUST use the `STACK_FITNESS_FUNCTIONS_*` prefix.
+- Helper scripts MUST use `stack-fitness-functions-serve` and `stack-fitness-functions-test`.
+- FINOS CALM, `.calm/config.json`, `configs/`, the FINOS `calm` CLI, and the `calm-poc` module/repo path MUST keep their existing names.
+
 ## Quick Reference
 
 ```bash

@@ -7,7 +7,7 @@ date modified: Sunday, May 18th 2026
 ---
 
 > **Historical document.** This specification describes the PoC local-only architecture
-> (single-machine daemon, `.calm/config.json` governance, loopback-only bridge).
+> (single-machine daemon, `.calm/config.json` governance, loopback-only service).
 > The current production architecture uses a containerized service with
 > `configs/<repo>/config.json` governance mounted at runtime.
 > See [CONTEXT.md](../../CONTEXT.md) and [README.md](../../README.md) for current architecture.
@@ -22,7 +22,7 @@ date modified: Sunday, May 18th 2026
 
 This document specifies the engineering design for a PoC system that enforces architectural fitness functions at two interception points: before an AI agent writes a file (Claude Code pre-tool-use hook) and before a developer commits code (git pre-commit hook).
 
-The central component — `calm-bridge` — runs as a Go HTTP daemon. It analyzes proposed source code changes against three fitness functions, translates results into a CALM-compliant architecture document, calls the FINOS `calm` CLI validator, and returns a pass, a block with explanation, or an advisory message. Enforcement behavior is configured per repository.
+The central component — `stack-fitness-functions` — runs as a Go HTTP daemon. It analyzes proposed source code changes against three fitness functions, translates results into a CALM-compliant architecture document, calls the FINOS `calm` CLI validator, and returns a pass, a block with explanation, or an advisory message. Enforcement behavior is configured per repository.
 
 The system runs entirely locally. No cloud dependencies are required.
 
@@ -44,8 +44,8 @@ graph TD
         PCH[Git Pre-Commit Hook]
     end
 
-    subgraph calm-bridge
-        CLI[CLI Client\ncalm-bridge check]
+    subgraph stack-fitness-functions
+        CLI[CLI Client\nclient validate]
         DAEMON[HTTP Daemon\nlocalhost:7890]
         DISPATCH[Analyzer Dispatcher]
     end
@@ -66,8 +66,8 @@ graph TD
 
     AGENT -->|Edit / Write| PTU
     DEV -->|git commit| PCH
-    PTU -->|calm-bridge check| CLI
-    PCH -->|calm-bridge check| CLI
+    PTU -->|stack-fitness-functions client validate| CLI
+    PCH -->|stack-fitness-functions client validate| CLI
     CLI -->|auto-start if cold\nthen POST /check| DAEMON
     DAEMON --> DISPATCH
     DISPATCH --> RADON
@@ -89,7 +89,7 @@ graph TD
 ### Flow: Synchronous Check (Python, Go)
 
 1. Hook captures proposed file content from tool input (Edit/Write) or staged diff.
-2. Hook calls `calm-bridge check --file <path> --content <proposed>`.
+2. Hook calls `stack-fitness-functions client validate --file <path> --content <proposed>`.
 3. CLI detects daemon running; POSTs to `localhost:7890/check`.
 4. Daemon writes proposed content to a temp file and invokes the language analyzer.
 5. Daemon builds a `current-architecture.json` fragment for the affected CALM node (module).
@@ -110,11 +110,11 @@ graph TD
 
 ## 3. Components
 
-### 3.1 calm-bridge
+### 3.1 stack-fitness-functions
 
-`calm-bridge` is a single Go binary providing two behaviors from one entry point:
+`stack-fitness-functions` is a single Go binary providing two behaviors from one entry point:
 
-- **CLI mode:** invoked by hooks as `calm-bridge check [flags]`. Auto-starts the daemon if not running, then delegates via HTTP.
+- **CLI mode:** invoked by hooks as `stack-fitness-functions client validate [flags]`. Auto-starts the daemon if not running, then delegates via HTTP.
 - **Daemon mode:** HTTP server on `localhost:7890`. Manages analyzer lifecycle, state, and CALM CLI invocation.
 
 **Daemon endpoints:**
@@ -227,7 +227,7 @@ Configured in `.claude/settings.json` within each test repository:
         "hooks": [
           {
             "type": "command",
-            "command": "calm-bridge check --file '$FILE' --repo '$REPO'"
+            "command": "stack-fitness-functions client validate --file '$FILE' --repo '$REPO'"
           }
         ]
       }
@@ -236,7 +236,7 @@ Configured in `.claude/settings.json` within each test repository:
 }
 ```
 
-The hook receives tool input as JSON on stdin. It extracts `file_path` and proposed content (`new_string` for Edit, `content` for Write) and passes them to `calm-bridge check`. Claude Code `PreToolUse` hooks MUST exit `2` to block the tool call; stderr is surfaced to the agent as the reason.
+The hook receives tool input as JSON on stdin. It extracts `file_path` and proposed content (`new_string` for Edit, `content` for Write) and passes them to `stack-fitness-functions client validate`. Claude Code `PreToolUse` hooks MUST exit `2` to block the tool call; stderr is surfaced to the agent as the reason.
 
 ### 3.5 Git Pre-Commit Hook
 
@@ -250,7 +250,7 @@ REPO=$(git rev-parse --show-toplevel)
 FILES=$(git diff --cached --name-only --diff-filter=ACM)
 
 for FILE in $FILES; do
-  RESULT=$(calm-bridge check --file "$FILE" --repo "$REPO" --staged)
+  RESULT=$(stack-fitness-functions client validate --file "$FILE" --repo "$REPO" --staged)
   STATUS=$(echo "$RESULT" | jq -r '.status')
 
   if [ "$STATUS" = "block" ]; then
@@ -562,7 +562,7 @@ This design prevents the agent from accumulating unresolved debt before addressi
 
 ### Step 2 — Build the Bridge
 
-**Goal:** A working `calm-bridge` binary that analyzes real files from all four test repositories and produces correct pass/fail results against Step 1 rules.
+**Goal:** A working `stack-fitness-functions` binary that analyzes real files from all four test repositories and produces correct pass/fail results against Step 1 rules.
 
 **Actions:**
 
@@ -577,7 +577,7 @@ This design prevents the agent from accumulating unresolved debt before addressi
 9. Write unit tests using scripted violation fixtures — one per language per fitness function.
 10. Run against all four repositories manually. Verify zero false positives post-baseline.
 
-**Output:** `calm-bridge` binary, unit tests passing, clean baseline run across all four repositories.
+**Output:** `stack-fitness-functions` binary, unit tests passing, clean baseline run across all four repositories.
 
 ---
 
@@ -605,7 +605,7 @@ This design prevents the agent from accumulating unresolved debt before addressi
 **Actions:**
 
 1. Enable `interface-width` and `implementation-depth` in each repository's `.calm/config.json`.
-2. Implement LDR and DDC analyzers in the Bridge.
+2. Implement LDR and DDC analyzers in the server.
 3. Enable `logic-density` and `dependency-discipline` in config.
 4. Re-run the scripted red-green demo for each new fitness function.
 5. Adjust thresholds if the false positive rate exceeds one per ten agent writes.
@@ -634,7 +634,7 @@ The 90th percentile sets a ceiling that existing clean code comfortably passes (
 ```
 calm-poc/
 ├── cmd/
-│   └── calm-bridge/
+│   └── stack-fitness-functions/
 │       └── main.go              # CLI entry point, daemon auto-start logic
 ├── internal/
 │   ├── analyzer/
@@ -642,7 +642,7 @@ calm-poc/
 │   │   ├── golang.go            # gocyclo library integration
 │   │   ├── csharp.go            # Roslyn subprocess wrapper
 │   │   └── analyzer.go          # AnalysisResult types, dispatcher interface
-│   ├── bridge/
+│   ├── server/
 │   │   ├── server.go            # HTTP daemon (port 7890)
 │   │   ├── checker.go           # Fitness function dispatch and aggregation
 │   │   └── state.go             # Outstanding violation state map

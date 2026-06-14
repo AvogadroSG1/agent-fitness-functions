@@ -1,5 +1,7 @@
 ---
 status: accepted
+implementation_status: implemented
+implemented: 2026-06-14
 ---
 
 # Rename calm-bridge to stack-fitness-functions, split bridge into client/server/fitness
@@ -19,3 +21,7 @@ The binary `calm-bridge` overloaded one name across two roles (the commit-time c
 - `client install-hooks` becomes a binary subcommand with hook scripts embedded via `go:embed`, removing the runtime dependency on a co-located source checkout. Installed hooks invoke `stack-fitness-functions client validate` on `PATH`; an env override is retained solely as a test seam.
 - The old command names (`check`, `serve`) are **not** aliased — this is a hard cutover. The caller population is small and enumerable (the `graft`, `ringstation`, `slackstatus` hooks, CI, and `docker-compose.yml`), so the rollout (PR step 5) re-runs `client install-hooks` against the governed repos rather than carrying a deprecation cycle. No zombie command names survive.
 - The `cmd/calm-bridge/` directory is renamed to `cmd/stack-fitness-functions/` so `go build ./cmd/...` yields the correctly named binary. The Go module path (`github.com/poconnor/calm-poc`) and repo name are **deliberately left unchanged for now** — that migration (push to a new repo, reclone) is deferred and tracked separately.
+
+## Implementation Status
+
+Accepted and implemented. The active product, binary, command tree, environment variables, helper scripts, container path, hook installation path, and documentation now use `stack-fitness-functions`; remaining `calm-bridge` references in this ADR are historical evidence for the rename decision.
