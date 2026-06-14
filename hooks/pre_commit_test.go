@@ -95,7 +95,7 @@ func TestPreCommitBlocksStagedViolationThroughRunningDaemon(t *testing.T) {
 	writeFile(t, filepath.Join(repo, "bad.go"), "package staged\n")
 	runGit(t, repo, "add", "bad.go")
 	writeFile(t, filepath.Join(repo, "bad.go"), "package worktree\n")
-	calmBridge := buildFitnessBin(t)
+	fitnessBin := buildFitnessBin(t)
 	var received fitness.ValidationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -119,7 +119,7 @@ func TestPreCommitBlocksStagedViolationThroughRunningDaemon(t *testing.T) {
 	command := exec.Command("bash", script)
 	command.Dir = repo
 	command.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+calmBridge,
+		"STACK_FITNESS_FUNCTIONS_BIN="+fitnessBin,
 		"STACK_FITNESS_FUNCTIONS_ADDR="+server.URL,
 	)
 	output, err := command.CombinedOutput()
