@@ -1,5 +1,5 @@
 # Go build outputs
-/calm-bridge
+/stack-fitness-functions
 /dist/
 **/obj/
 *.exe
