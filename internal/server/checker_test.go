@@ -2377,7 +2377,7 @@ func TestAnalyzeGoWithModuleContextExcludesTestFiles(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "server.go"), []byte(prodSrc), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "bridge_test.go"), []byte(testFns.String()), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "server_helpers_test.go"), []byte(testFns.String()), 0600); err != nil {
 		t.Fatal(err)
 	}
 	result, err := analyzer.AnalyzeGoFile(filepath.Join(dir, "server.go"))
