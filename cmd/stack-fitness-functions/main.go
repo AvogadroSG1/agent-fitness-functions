@@ -33,7 +33,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(string) error) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions <client validate|server start|baseline>")
+		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions <client validate|client install-hooks|server start|baseline>")
 		return 2
 	}
 
@@ -59,12 +59,21 @@ func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *ht
 
 func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(string) error) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions client <validate>")
+		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions client <validate|install-hooks>")
 		return 2
 	}
 	switch args[0] {
 	case "validate":
 		if err := client.RunCheck(args[1:], stdout, httpClient, starter); err != nil {
+			_, _ = fmt.Fprintln(stderr, err)
+			if client.IsUsageError(err) {
+				return 2
+			}
+			return 1
+		}
+		return 0
+	case "install-hooks":
+		if err := client.RunInstallHooks(args[1:], stdout, stderr); err != nil {
 			_, _ = fmt.Fprintln(stderr, err)
 			if client.IsUsageError(err) {
 				return 2
