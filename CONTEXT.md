@@ -153,7 +153,7 @@ What these metrics cannot catch: a function that is simple in isolation but orch
 
 | Component | Location | Purpose |
 |---|---|---|
-| `calm-bridge` binary | `/app/calm-bridge` (built from `cmd/calm-bridge`) | CLI for `client validate`, `server start`, and `baseline` |
+| `stack-fitness-functions` binary | `/app/stack-fitness-functions` (built from `cmd/stack-fitness-functions`) | CLI for `client validate`, `server start`, and `baseline` |
 | Container service | `docker compose up` via `bin/calm-serve` (Docker Desktop) | **Primary runtime** — starts the server on `localhost:7890` |
 | Governance rules | `internal/bridge/checker.go`, `governance.json` | Thresholds and enabled functions |
 | Pre-commit hook | `hooks/pre-commit.sh` (installed via `scripts/install-hooks.sh`) | Commit-time enforcement in governed repos |

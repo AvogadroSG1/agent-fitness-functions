@@ -14,7 +14,7 @@ COPY patterns/ patterns/
 RUN : "${TARGETOS:?TARGETOS is required}" \
     && : "${TARGETARCH:?TARGETARCH is required}" \
     && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-w -s" \
-    -o /out/calm-bridge ./cmd/stack-fitness-functions
+    -o /out/stack-fitness-functions ./cmd/stack-fitness-functions
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0.301 AS dotnet-build
 WORKDIR /src/tools/roslyn-analyzer
@@ -60,7 +60,7 @@ RUN apt-get update \
     && rm -f /tmp/requirements.lock \
     && find /var/lib/apt/lists -mindepth 1 -delete
 
-COPY --from=go-build --chown=appuser:appuser /out/calm-bridge /app/calm-bridge
+COPY --from=go-build --chown=appuser:appuser /out/stack-fitness-functions /app/stack-fitness-functions
 COPY --from=dotnet-build --chown=appuser:appuser /out/roslyn/ /app/tools/roslyn-analyzer/bin/Release/net8.0/
 
 VOLUME ["/app/configs"]
@@ -70,5 +70,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD if [ -n "$CALM_TLS_CA" ]; then curl --fail --silent --cacert "$CALM_TLS_CA" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1
 
 USER appuser
-ENTRYPOINT ["/app/calm-bridge", "server", "start"]
+ENTRYPOINT ["/app/stack-fitness-functions", "server", "start"]
 CMD ["--addr", "0.0.0.0:7890"]

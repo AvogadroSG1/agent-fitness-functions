@@ -53,16 +53,16 @@ bd close <id>         # Complete work
 ## Build & Test
 
 ```bash
-GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test . ./configs ./cmd/stack-fitness-functions ./internal/bridge
+GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test . ./configs ./cmd/stack-fitness-functions ./internal/server
 
-docker build --build-arg GIT_SHA="$(git rev-parse --short HEAD)" --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t calm-bridge:local .
+docker build --build-arg GIT_SHA="$(git rev-parse --short HEAD)" --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t stack-fitness-functions:local .
 ```
 
 `docker build` requires Docker to be installed locally or supplied by CI.
 
 ## Architecture Overview
 
-`calm-bridge` is the API boundary for Architecture Fitness Function checks. Local hooks and CI clients call the bridge API, while the containerized service resolves governance from mounted `configs/<repo>/config.json` files and runs Go, Python, and C# analyzers inside one audited image. The container binary path is `/app/calm-bridge` and the default service command is `/app/calm-bridge serve --addr 0.0.0.0:7890`.
+`stack-fitness-functions` is the API boundary for Architecture Fitness Function checks. Local hooks and CI clients call the server API, while the containerized service resolves governance from mounted `configs/<repo>/config.json` files and runs Go, Python, and C# analyzers inside one audited image. The container binary path is `/app/stack-fitness-functions` and the default service command is `/app/stack-fitness-functions server start --addr 0.0.0.0:7890`.
 
 ## Conventions & Patterns
 

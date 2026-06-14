@@ -3,7 +3,7 @@
 set -euo pipefail
 
 repo=$(git rev-parse --show-toplevel)
-calm_bridge=${CALM_BRIDGE_BIN:-calm-bridge}
+calm_bridge=${CALM_BRIDGE_BIN:-stack-fitness-functions}
 addr=${CALM_BRIDGE_ADDR:-}
 client_cert=${CALM_CLIENT_CERT:-}
 client_key=${CALM_CLIENT_KEY:-}

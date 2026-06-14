@@ -32,7 +32,7 @@ func TestDockerfileContainerContract(t *testing.T) {
 	mustContain(t, dockerfile, "org.opencontainers.image.created=$BUILD_DATE")
 	mustContain(t, dockerfile, "WORKDIR /app")
 	mustContain(t, dockerfile, "USER appuser")
-	mustContain(t, dockerfile, "ENTRYPOINT [\"/app/calm-bridge\", \"server\", \"start\"]")
+	mustContain(t, dockerfile, "ENTRYPOINT [\"/app/stack-fitness-functions\", \"server\", \"start\"]")
 	mustContain(t, dockerfile, "HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3")
 	mustContain(t, dockerfile, "nodejs")
 	mustContain(t, dockerfile, "npm")
@@ -126,8 +126,8 @@ func TestDockerComposeDeploymentContract(t *testing.T) {
 	compose := string(content)
 
 	for _, needle := range []string{
-		"calm-bridge:",
-		"image: calm-bridge:${GIT_SHA:-local}",
+		"stack-fitness-functions:",
+		"image: stack-fitness-functions:${GIT_SHA:-local}",
 		"context: .",
 		"GIT_SHA: ${GIT_SHA:-dev}",
 		"BUILD_DATE: ${BUILD_DATE:-unknown}",

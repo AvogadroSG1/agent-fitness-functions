@@ -1,4 +1,4 @@
-# Docker Compose is the local/staging deployment contract for calm-bridge.
+# Docker Compose is the local/staging deployment contract for stack-fitness-functions.
 # Compose applies restart, mounts, read_only, tmpfs, cap_drop, and security_opt locally.
 # Resource enforcement differs by runtime: local Compose treats deploy.resources as
 # advisory compatibility metadata, while Swarm has enforced deploy.resources limits.
@@ -7,8 +7,8 @@
 # Helm chart is authoritative for pod securityContext, resources.limits,
 # ConfigMaps, Secrets, and read-only mounts.
 services:
-  calm-bridge:
-    image: calm-bridge:${GIT_SHA:-local}
+  stack-fitness-functions:
+    image: stack-fitness-functions:${GIT_SHA:-local}
     build:
       context: .
       args:

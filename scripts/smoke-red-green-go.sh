@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root=$(git -C "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)" rev-parse --show-toplevel)
 tmp_dir=$(mktemp -d)
 demo_repo="$tmp_dir/go-red-green"
-bridge_bin="$tmp_dir/calm-bridge"
+bridge_bin="$tmp_dir/stack-fitness-functions"
 
 cleanup() {
   if [[ -n "${bridge_pid:-}" ]]; then

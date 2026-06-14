@@ -2,7 +2,7 @@
 """Format CALM bridge JSON as agent-readable YAML.
 
 Usage:
-  calm-bridge client validate ... | python3 hooks/format-violations.py \
+  stack-fitness-functions client validate ... | python3 hooks/format-violations.py \
       --mode <block|advisory> --file <relative/path>
 """
 from __future__ import annotations

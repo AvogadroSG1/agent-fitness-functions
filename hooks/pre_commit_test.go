@@ -367,9 +367,9 @@ func writeFile(t *testing.T, path, content string) {
 func fakeCalmBridge(t *testing.T, script string) string {
 	t.Helper()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "calm-bridge")
+	path := filepath.Join(dir, "stack-fitness-functions")
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
-		t.Fatalf("write fake calm-bridge: %v", err)
+		t.Fatalf("write fake stack-fitness-functions: %v", err)
 	}
 	return dir
 }
@@ -377,10 +377,10 @@ func fakeCalmBridge(t *testing.T, script string) string {
 func buildCalmBridge(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "calm-bridge")
+	path := filepath.Join(dir, "stack-fitness-functions")
 	command := exec.Command("go", "build", "-o", path, "../cmd/stack-fitness-functions")
 	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("build calm-bridge: %v\n%s", err, output)
+		t.Fatalf("build stack-fitness-functions: %v\n%s", err, output)
 	}
 	return path
 }
