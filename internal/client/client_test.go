@@ -77,6 +77,132 @@ func TestResolveContentReadsRelativeToRepo(t *testing.T) {
 	}
 }
 
+func TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo(t *testing.T) {
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+
+	var stdout, stderr bytes.Buffer
+	if err := RunInstallHooks([]string{repo}, &stdout, &stderr); err != nil {
+		t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
+	}
+
+	for _, hook := range []string{"pre-commit", "pre-push", "calm-git-guard"} {
+		hookPath := filepath.Join(repo, ".git", "hooks", hook)
+		info, err := os.Stat(hookPath)
+		if err != nil {
+			t.Fatalf("stat %s: %v", hookPath, err)
+		}
+		if info.Mode()&0o111 == 0 {
+			t.Fatalf("%s mode = %v, want executable", hookPath, info.Mode())
+		}
+	}
+
+	content, err := os.ReadFile(filepath.Join(repo, ".git", "hooks", "pre-commit"))
+	if err != nil {
+		t.Fatalf("read pre-commit: %v", err)
+	}
+	if !strings.Contains(string(content), "stack-fitness-functions") {
+		t.Fatalf("pre-commit does not invoke stack-fitness-functions:\n%s", content)
+	}
+	if _, err := os.Stat(filepath.Join(repo, ".git", "hooks", "format-violations.py")); err != nil {
+		t.Fatalf("formatter not installed: %v", err)
+	}
+
+	settingsPath := filepath.Join(repo, ".claude", "settings.json")
+	settingsContent, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("read settings: %v", err)
+	}
+	if !strings.Contains(string(settingsContent), "calm-git-guard") {
+		t.Fatalf("settings missing git guard entry:\n%s", settingsContent)
+	}
+}
+
+func TestRunInstallHooksIsIdempotent(t *testing.T) {
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+
+	for range 2 {
+		var stdout, stderr bytes.Buffer
+		if err := RunInstallHooks([]string{repo}, &stdout, &stderr); err != nil {
+			t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
+		}
+	}
+
+	settingsContent, err := os.ReadFile(filepath.Join(repo, ".claude", "settings.json"))
+	if err != nil {
+		t.Fatalf("read settings: %v", err)
+	}
+	if count := strings.Count(string(settingsContent), "calm-git-guard"); count != 1 {
+		t.Fatalf("calm-git-guard appears %d times, want 1:\n%s", count, settingsContent)
+	}
+}
+
+func TestRunInstallHooksRefusesExistingNonCalmHook(t *testing.T) {
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+	existingHook := filepath.Join(repo, ".git", "hooks", "pre-commit")
+	if err := os.WriteFile(existingHook, []byte("#!/usr/bin/env bash\necho custom\n"), 0o755); err != nil {
+		t.Fatalf("write existing hook: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err := RunInstallHooks([]string{repo}, &stdout, &stderr)
+	if err == nil {
+		t.Fatalf("RunInstallHooks succeeded, want refusal; stdout=%s", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1") {
+		t.Fatalf("stderr = %s, want append option", stderr.String())
+	}
+	content, err := os.ReadFile(existingHook)
+	if err != nil {
+		t.Fatalf("read existing hook: %v", err)
+	}
+	if !strings.Contains(string(content), "echo custom") {
+		t.Fatalf("existing hook was replaced:\n%s", content)
+	}
+}
+
+func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
+	t.Setenv("STACK_FITNESS_FUNCTIONS_HOOK_APPEND", "1")
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+	existingHook := filepath.Join(repo, ".git", "hooks", "pre-commit")
+	if err := os.WriteFile(existingHook, []byte("#!/usr/bin/env bash\necho custom\n"), 0o755); err != nil {
+		t.Fatalf("write existing hook: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := RunInstallHooks([]string{repo}, &stdout, &stderr); err != nil {
+		t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
+	}
+
+	sidecar := filepath.Join(repo, ".git", "hooks", "calm-pre-commit")
+	if info, err := os.Stat(sidecar); err != nil {
+		t.Fatalf("sidecar not found at %s: %v", sidecar, err)
+	} else if info.Mode()&0o111 == 0 {
+		t.Fatalf("sidecar mode = %v, want executable", info.Mode())
+	}
+	existing, err := os.ReadFile(existingHook)
+	if err != nil {
+		t.Fatalf("read existing hook: %v", err)
+	}
+	if !strings.Contains(string(existing), "echo custom") {
+		t.Fatalf("existing hook content was replaced:\n%s", existing)
+	}
+	if !strings.Contains(string(existing), "# CALM pre-commit hook (sidecar)") {
+		t.Fatalf("existing hook missing sidecar block:\n%s", existing)
+	}
+}
+
+func runGitClientTest(t *testing.T, repo string, args ...string) {
+	t.Helper()
+	command := exec.Command("git", append([]string{"-C", repo}, args...)...)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, output)
+	}
+}
+
 func projectRoot(t *testing.T) string {
 	t.Helper()
 	cwd, err := os.Getwd()
