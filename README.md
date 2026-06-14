@@ -102,8 +102,8 @@ ln -sf "$(pwd)/bin"/calm-* ~/.local/bin/
 | Command | Purpose |
 |---------|---------|
 | `calm-install-hooks [repo]` | Install the CALM pre-commit hook into a git repository |
-| `calm-serve [--build]` | Start the stack-fitness-functions server container via Docker Compose (Docker Desktop) |
-| `calm-test <file>` | Validate a file's fitness functions against the running server |
+| `stack-fitness-functions-serve [--build]` | Start the stack-fitness-functions server container via Docker Compose (Docker Desktop) |
+| `stack-fitness-functions-test <file>` | Validate a file's fitness functions against the running server |
 
 ### Remote Container Hook Mode
 

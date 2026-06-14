@@ -154,12 +154,12 @@ What these metrics cannot catch: a function that is simple in isolation but orch
 | Component | Location | Purpose |
 |---|---|---|
 | `stack-fitness-functions` binary | `/app/stack-fitness-functions` (built from `cmd/stack-fitness-functions`) | CLI for `client validate`, `server start`, and `baseline` |
-| Container service | `docker compose up` via `bin/calm-serve` (Docker Desktop) | **Primary runtime** — starts the server on `localhost:7890` |
+| Container service | `docker compose up` via `bin/stack-fitness-functions-serve` (Docker Desktop) | **Primary runtime** — starts the server on `localhost:7890` |
 | Governance rules | `internal/bridge/checker.go`, `governance.json` | Thresholds and enabled functions |
 | Pre-commit hook | `hooks/pre-commit.sh` (installed via `scripts/install-hooks.sh`) | Commit-time enforcement in governed repos |
 | `configs/<repo>/config.json` | Mounted into the container | Governance config for the logical repo |
 | `.calm/config.json` | Optional local repository sandbox | Developer sandbox only — **has no effect on container governance**; container always resolves from `configs/<repo>/config.json` |
-| `calm-test` | `~/.local/bin/calm-test` | Ad-hoc file validation without committing |
+| `stack-fitness-functions-test` | `~/.local/bin/stack-fitness-functions-test` | Ad-hoc file validation without committing |
 
 ---
 

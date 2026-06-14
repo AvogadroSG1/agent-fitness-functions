@@ -12,7 +12,7 @@ This runbook validates that CALM fitness functions block known violations in blo
 
 ## Prerequisites
 
-- Start the server container: `calm-serve` (or `calm-serve --build` to force a rebuild) — this starts the Docker Desktop container on `localhost:7890`
+- Start the server container: `stack-fitness-functions-serve` (or `stack-fitness-functions-serve --build` to force a rebuild) — this starts the Docker Desktop container on `localhost:7890`
 - Install the git hook in each target repository: `scripts/install-hooks.sh <repo>`
 - Run commits with `STACK_FITNESS_FUNCTIONS_ADDR=http://localhost:7890 STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1`
 
