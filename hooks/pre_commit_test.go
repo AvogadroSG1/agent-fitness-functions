@@ -378,7 +378,7 @@ func buildCalmBridge(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "calm-bridge")
-	command := exec.Command("go", "build", "-o", path, "../cmd/calm-bridge")
+	command := exec.Command("go", "build", "-o", path, "../cmd/stack-fitness-functions")
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("build calm-bridge: %v\n%s", err, output)
 	}

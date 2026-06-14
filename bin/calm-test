@@ -31,13 +31,13 @@ repo_name="${CALM_REPO_NAME:-}"
 if [[ "$bridge" == */* ]]; then
   [[ -x "$bridge" ]] || {
     echo "error: calm-bridge not found at $bridge" >&2
-    echo "  build it: calm-serve (or: go build -o $bridge ./cmd/calm-bridge)" >&2
+    echo "  build it: calm-serve (or: go build -o $bridge ./cmd/stack-fitness-functions)" >&2
     exit 1
   }
 else
   command -v "$bridge" > /dev/null 2>&1 || {
     echo "error: calm-bridge not found on PATH: $bridge" >&2
-    echo "  build it: calm-serve (or: go build -o .tmp/calm-bridge ./cmd/calm-bridge && export CALM_BRIDGE_BIN=.tmp/calm-bridge)" >&2
+    echo "  build it: calm-serve (or: go build -o .tmp/calm-bridge ./cmd/stack-fitness-functions && export CALM_BRIDGE_BIN=.tmp/calm-bridge)" >&2
     exit 1
   }
 fi

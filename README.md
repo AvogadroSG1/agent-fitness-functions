@@ -125,7 +125,7 @@ When `CALM_BRIDGE_ADDR` points at a remote server, `hooks/pre-commit.sh` sends s
 Generate a C# baseline from a fresh checkout with:
 
 ```bash
-go run ./cmd/calm-bridge baseline --repo /path/to/repo --language csharp --output baseline-report.json
+go run ./cmd/stack-fitness-functions baseline --repo /path/to/repo --language csharp --output baseline-report.json
 ```
 
 The Roslyn analyzer is also packageable as a local .NET tool:

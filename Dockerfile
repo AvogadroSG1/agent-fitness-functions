@@ -14,7 +14,7 @@ COPY patterns/ patterns/
 RUN : "${TARGETOS:?TARGETOS is required}" \
     && : "${TARGETARCH:?TARGETARCH is required}" \
     && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-w -s" \
-    -o /out/calm-bridge ./cmd/calm-bridge
+    -o /out/calm-bridge ./cmd/stack-fitness-functions
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0.301 AS dotnet-build
 WORKDIR /src/tools/roslyn-analyzer

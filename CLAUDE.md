@@ -53,7 +53,7 @@ bd close <id>         # Complete work
 ## Build & Test
 
 ```bash
-GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test . ./configs ./cmd/calm-bridge ./internal/bridge
+GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test . ./configs ./cmd/stack-fitness-functions ./internal/bridge
 
 docker build --build-arg GIT_SHA="$(git rev-parse --short HEAD)" --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t calm-bridge:local .
 ```

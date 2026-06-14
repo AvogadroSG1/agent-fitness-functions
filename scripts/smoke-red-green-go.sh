@@ -25,7 +25,7 @@ PY
 )
 bridge_addr="http://127.0.0.1:$free_port"
 
-go build -o "$bridge_bin" "$repo_root/cmd/calm-bridge"
+go build -o "$bridge_bin" "$repo_root/cmd/stack-fitness-functions"
 "$bridge_bin" server start --addr "127.0.0.1:$free_port" &
 bridge_pid=$!
 
