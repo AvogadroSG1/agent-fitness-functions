@@ -6,11 +6,13 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"embed"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
@@ -22,6 +24,9 @@ import (
 	"github.com/poconnor/calm-poc/internal/fitness"
 	"github.com/poconnor/calm-poc/internal/sarif"
 )
+
+//go:embed embedded_hooks/*
+var embeddedHooks embed.FS
 
 // RunCheck validates one file by posting a validation request to the daemon.
 func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter func(string) error) error {
@@ -69,6 +74,238 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 		return err
 	}
 	return writeValidationResult(stdout, *format, *repo, body)
+}
+
+// RunInstallHooks installs embedded Git and Claude hooks into a repository.
+func RunInstallHooks(args []string, stdout, stderr io.Writer) error {
+	if len(args) > 1 {
+		return usageError{err: errors.New("client install-hooks accepts at most one repository argument")}
+	}
+	repo := "."
+	if len(args) == 1 {
+		repo = args[0]
+	}
+	repoRoot, err := gitOutput(repo, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return fmt.Errorf("resolving repository root: %w", err)
+	}
+	installer := hookInstaller{
+		repoRoot: repoRoot,
+		stdout:   stdout,
+		stderr:   stderr,
+	}
+	if err := installer.installGitHook("pre-commit", "embedded_hooks/pre-commit.sh", "# CALM pre-commit hook (sidecar)"); err != nil {
+		return err
+	}
+	if err := installer.installGitHook("pre-push", "embedded_hooks/pre-push.sh", "# CALM pre-push hook (sidecar)"); err != nil {
+		return err
+	}
+	return installer.installGitGuard()
+}
+
+type hookInstaller struct {
+	repoRoot string
+	stdout   io.Writer
+	stderr   io.Writer
+}
+
+func (installer hookInstaller) installGitHook(hookName, embeddedPath, sidecarMarker string) error {
+	targetHook, err := installer.gitHookPath(hookName)
+	if err != nil {
+		return err
+	}
+	hooksDir := filepath.Dir(targetHook)
+	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
+		return fmt.Errorf("creating hooks directory: %w", err)
+	}
+	if _, err := os.Stat(targetHook); err == nil {
+		content, err := os.ReadFile(targetHook)
+		if err != nil {
+			return fmt.Errorf("reading existing %s hook: %w", hookName, err)
+		}
+		switch {
+		case bytes.Contains(content, []byte(sidecarMarker)):
+			sidecar := filepath.Join(hooksDir, "calm-"+hookName)
+			if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
+				return err
+			}
+			if err := installer.writeFormatter(hooksDir); err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintf(installer.stdout, "updated %s\n", sidecar)
+			return nil
+		case !bytes.Contains(content, []byte("CALM "+hookName+" hook")):
+			if os.Getenv("STACK_FITNESS_FUNCTIONS_HOOK_APPEND") == "1" {
+				sidecar := filepath.Join(hooksDir, "calm-"+hookName)
+				if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
+					return err
+				}
+				if err := installer.writeFormatter(hooksDir); err != nil {
+					return err
+				}
+				block := fmt.Sprintf("\n# CALM %s hook (sidecar)\n%q\n", hookName, sidecar)
+				if err := appendFile(targetHook, []byte(block)); err != nil {
+					return err
+				}
+				_, _ = fmt.Fprintf(installer.stdout, "appended CALM call to %s (sidecar: %s)\n", targetHook, sidecar)
+				return nil
+			}
+			if os.Getenv("STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE") != "1" {
+				_, _ = fmt.Fprintf(installer.stderr, "refusing to overwrite existing non-CALM %s hook: %s\n", hookName, targetHook)
+				_, _ = fmt.Fprintln(installer.stderr, "set STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1 to replace it, or STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1 to append")
+				return errors.New("refusing to overwrite existing non-CALM hook")
+			}
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("checking existing %s hook: %w", hookName, err)
+	}
+	if err := installer.writeEmbeddedExecutable(embeddedPath, targetHook); err != nil {
+		return err
+	}
+	if err := installer.writeFormatter(hooksDir); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", targetHook)
+	return nil
+}
+
+func (installer hookInstaller) installGitGuard() error {
+	guardPath, err := installer.gitHookPath("calm-git-guard")
+	if err != nil {
+		return err
+	}
+	if err := installer.writeEmbeddedExecutable("embedded_hooks/git-guard.sh", guardPath); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", guardPath)
+
+	settingsPath := filepath.Join(installer.repoRoot, ".claude", "settings.json")
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+		return fmt.Errorf("creating .claude directory: %w", err)
+	}
+	settings := map[string]any{}
+	if content, err := os.ReadFile(settingsPath); err == nil && len(bytes.TrimSpace(content)) > 0 {
+		if err := json.Unmarshal(content, &settings); err != nil {
+			return fmt.Errorf("parsing %s: %w", settingsPath, err)
+		}
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("reading %s: %w", settingsPath, err)
+	}
+	message, err := upsertGitGuard(settings, guardPath)
+	if err != nil {
+		return err
+	}
+	encoded, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encoding %s: %w", settingsPath, err)
+	}
+	encoded = append(encoded, '\n')
+	if err := os.WriteFile(settingsPath, encoded, 0o644); err != nil {
+		return fmt.Errorf("writing %s: %w", settingsPath, err)
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "%s in %s\n", message, settingsPath)
+	return nil
+}
+
+func upsertGitGuard(settings map[string]any, guardPath string) (string, error) {
+	hooks, ok := settings["hooks"].(map[string]any)
+	if !ok {
+		hooks = map[string]any{}
+		settings["hooks"] = hooks
+	}
+	preToolUse, ok := hooks["PreToolUse"].([]any)
+	if !ok {
+		preToolUse = []any{}
+	}
+	newEntry := map[string]any{
+		"hooks": []any{map[string]any{
+			"command": guardPath,
+			"type":    "command",
+		}},
+		"matcher": "Bash",
+	}
+	for index, rawEntry := range preToolUse {
+		entry, ok := rawEntry.(map[string]any)
+		if !ok {
+			continue
+		}
+		rawHooks, ok := entry["hooks"].([]any)
+		if !ok {
+			continue
+		}
+		for _, rawHook := range rawHooks {
+			hook, ok := rawHook.(map[string]any)
+			if !ok {
+				continue
+			}
+			command, _ := hook["command"].(string)
+			if strings.Contains(command, "calm-git-guard") {
+				preToolUse[index] = newEntry
+				hooks["PreToolUse"] = preToolUse
+				if command == guardPath {
+					return "calm-git-guard already configured", nil
+				}
+				return "updated calm-git-guard path", nil
+			}
+		}
+	}
+	hooks["PreToolUse"] = append(preToolUse, newEntry)
+	return "added calm-git-guard to PreToolUse hooks", nil
+}
+
+func (installer hookInstaller) writeFormatter(hooksDir string) error {
+	return installer.writeEmbeddedFile("embedded_hooks/format-violations.py", filepath.Join(hooksDir, "format-violations.py"), 0o755)
+}
+
+func (installer hookInstaller) writeEmbeddedExecutable(embeddedPath, targetPath string) error {
+	return installer.writeEmbeddedFile(embeddedPath, targetPath, 0o755)
+}
+
+func (installer hookInstaller) writeEmbeddedFile(embeddedPath, targetPath string, mode fs.FileMode) error {
+	content, err := embeddedHooks.ReadFile(embeddedPath)
+	if err != nil {
+		return fmt.Errorf("reading embedded %s: %w", embeddedPath, err)
+	}
+	if err := os.WriteFile(targetPath, content, mode); err != nil {
+		return fmt.Errorf("writing %s: %w", targetPath, err)
+	}
+	return nil
+}
+
+func (installer hookInstaller) gitHookPath(name string) (string, error) {
+	path, err := gitOutput(installer.repoRoot, "rev-parse", "--git-path", "hooks/"+name)
+	if err != nil {
+		return "", fmt.Errorf("resolving %s hook path: %w", name, err)
+	}
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+	return filepath.Join(installer.repoRoot, path), nil
+}
+
+func gitOutput(repo string, args ...string) (string, error) {
+	command := exec.Command("git", append([]string{"-C", repo}, args...)...)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		detail := strings.TrimSpace(string(output))
+		if detail == "" {
+			return "", err
+		}
+		return "", fmt.Errorf("%w: %s", err, detail)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func appendFile(path string, content []byte) error {
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		return fmt.Errorf("opening %s for append: %w", path, err)
+	}
+	defer file.Close()
+	if _, err := file.Write(content); err != nil {
+		return fmt.Errorf("appending %s: %w", path, err)
+	}
+	return nil
 }
 
 func ensureDaemon(httpClient *http.Client, addr string, starter func(string) error) error {
