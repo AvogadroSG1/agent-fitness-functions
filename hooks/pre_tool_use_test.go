@@ -22,7 +22,7 @@ func TestPreToolUseBlocksWriteViolation(t *testing.T) {
 	repo := initGitRepo(t)
 	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"block","violations":[{"message":"too complex"}]}\n'
 `)
@@ -47,7 +47,7 @@ func TestPreToolUseAllowsEditAdvisory(t *testing.T) {
 	repo := initGitRepo(t)
 	writeFile(t, filepath.Join(repo, "sample.py"), "print('old')\n")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"advisory","violations":[{"message":"warning only"}]}\n'
 `)
@@ -70,7 +70,7 @@ func TestPreToolUseAllowsPassWithAbsolutePath(t *testing.T) {
 	path := filepath.Join(repo, "src", "Widget.cs")
 	writeFile(t, path, "namespace Demo;\n")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"pass"}\n'
 `)
@@ -127,7 +127,7 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
 func TestPreToolUsePreservesEmptyAndTrailingNewlineContent(t *testing.T) {
 	repo := initGitRepo(t)
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --content-file)
@@ -210,7 +210,7 @@ func TestPreToolUseReportsMalformedJSONWithoutTraceback(t *testing.T) {
 
 func TestPreToolUseBlocksInvalidBridgeJSONWithoutTraceback(t *testing.T) {
 	repo := initGitRepo(t)
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf 'not json\n'
 `)
 	payload := `{"tool_name":"Write","tool_input":{"file_path":"sample.go","content":"package sample\n"}}`
@@ -226,7 +226,7 @@ printf 'not json\n'
 func TestPreToolUseHandlesLargeContentThroughContentFile(t *testing.T) {
 	repo := initGitRepo(t)
 	logPath := filepath.Join(t.TempDir(), "calm.log")
-	fakeBin := fakeCalmBridge(t, `#!/usr/bin/env bash
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --content-file)
