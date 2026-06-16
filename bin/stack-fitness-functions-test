@@ -12,10 +12,18 @@ usage() {
   echo "" >&2
   echo "  Supported: go (.go), python (.py), csharp (.cs)" >&2
   echo "" >&2
+  echo "  The server requires mutual TLS. By default this helper discovers dev" >&2
+  echo "  credentials in <repo>/certs (client.crt/client.key/ca.crt) created by" >&2
+  echo "  scripts/generate-dev-certs.sh. Override per-file with the CLIENT_* vars below." >&2
+  echo "" >&2
   echo "  Environment:" >&2
-  echo "    STACK_FITNESS_FUNCTIONS_BIN   path to stack-fitness-functions binary (default: stack-fitness-functions on PATH)" >&2
-  echo "    STACK_FITNESS_FUNCTIONS_ADDR  server address (default: http://127.0.0.1:7890)" >&2
+  echo "    STACK_FITNESS_FUNCTIONS_BIN          path to stack-fitness-functions binary (default: stack-fitness-functions on PATH)" >&2
+  echo "    STACK_FITNESS_FUNCTIONS_ADDR         server address (default: https://127.0.0.1:7890)" >&2
   echo "    STACK_FITNESS_FUNCTIONS_REPO_NAME    logical repo name override (default: derived from git root)" >&2
+  echo "    STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR directory holding client.crt/client.key/ca.crt (default: <repo>/certs)" >&2
+  echo "    STACK_FITNESS_FUNCTIONS_CLIENT_CERT  mTLS client certificate path (overrides cert dir)" >&2
+  echo "    STACK_FITNESS_FUNCTIONS_CLIENT_KEY   mTLS client private key path (overrides cert dir)" >&2
+  echo "    STACK_FITNESS_FUNCTIONS_CLIENT_CA    server CA bundle path (overrides cert dir)" >&2
   exit 0
 }
 
@@ -24,8 +32,34 @@ usage() {
 
 file="$1"
 bridge="${STACK_FITNESS_FUNCTIONS_BIN:-stack-fitness-functions}"
-addr="${STACK_FITNESS_FUNCTIONS_ADDR:-http://127.0.0.1:7890}"
+# The server always requires mTLS (RequireAuthentication is hardcoded on), so the
+# helper defaults to HTTPS. A plain-HTTP default would always return HTTP 401.
+addr="${STACK_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}"
 repo_name="${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}"
+
+# Resolve the mTLS client credentials the server requires.
+# Precedence (12-factor): explicit STACK_FITNESS_FUNCTIONS_CLIENT_* env vars win;
+# otherwise auto-discover a dev cert directory and use client.crt/client.key/ca.crt.
+# Cert-dir discovery order: STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR, then the source
+# repo's certs/ (STACK_FITNESS_FUNCTIONS_SRC or this script's repo root).
+script_repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cert_dir="${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-${STACK_FITNESS_FUNCTIONS_SRC:-$script_repo}/certs}"
+
+client_cert="${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/client.crt}"
+client_key="${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/client.key}"
+client_ca="${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/ca.crt}"
+
+for pair in "client certificate:$client_cert" "client key:$client_key" "CA bundle:$client_ca"; do
+  label="${pair%%:*}"
+  path="${pair#*:}"
+  [[ -f "$path" ]] || {
+    echo "error: mTLS $label not found: $path" >&2
+    echo "  the server requires mutual TLS; generate local dev certs with:" >&2
+    echo "    scripts/generate-dev-certs.sh" >&2
+    echo "  or set STACK_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA to existing credentials." >&2
+    exit 1
+  }
+done
 
 [[ -f "$file" ]] || { echo "error: file not found: $file" >&2; exit 1; }
 if [[ "$bridge" == */* ]]; then
@@ -158,7 +192,10 @@ print(json.dumps(cfg, indent=2))
       --repo "$repo_arg" \
       --file "$relative_file" \
       --content "$(cat "$file_abs")" \
-      --language "$language" 2>/dev/null
+      --language "$language" \
+      --client-cert "$client_cert" \
+      --client-key "$client_key" \
+      --client-ca "$client_ca" 2>/dev/null
   ) || response='{}'
 
   fmt_line "$response" "$enforcement_mode" "$fn" "$lang_label"
