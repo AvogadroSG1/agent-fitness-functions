@@ -191,7 +191,7 @@ func (installer hookInstaller) installGitHook(hookName, embeddedPath string) err
 }
 
 func (installer hookInstaller) installGitGuard() error {
-	guardPath, err := installer.gitHookPath("calm-git-guard")
+	guardPath, err := installer.gitHookPath(gitGuardName)
 	if err != nil {
 		return err
 	}
@@ -260,18 +260,18 @@ func upsertGitGuard(settings map[string]any, guardPath string) (string, error) {
 				continue
 			}
 			command, _ := hook["command"].(string)
-			if strings.Contains(command, "calm-git-guard") {
+			if strings.Contains(command, gitGuardName) || strings.Contains(command, legacyGitGuardName) {
 				preToolUse[index] = newEntry
 				hooks["PreToolUse"] = preToolUse
 				if command == guardPath {
-					return "calm-git-guard already configured", nil
+					return gitGuardName + " already configured", nil
 				}
-				return "updated calm-git-guard path", nil
+				return "updated " + gitGuardName + " path", nil
 			}
 		}
 	}
 	hooks["PreToolUse"] = append(preToolUse, newEntry)
-	return "added calm-git-guard to PreToolUse hooks", nil
+	return "added " + gitGuardName + " to PreToolUse hooks", nil
 }
 
 func (installer hookInstaller) writeFormatter(hooksDir string) error {

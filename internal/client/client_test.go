@@ -88,7 +88,7 @@ func TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo(t *testing.T) {
 		t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
 	}
 
-	for _, hook := range []string{"pre-commit", "pre-push", "calm-git-guard"} {
+	for _, hook := range []string{"pre-commit", "pre-push", "stack-fitness-functions-git-guard"} {
 		hookPath := filepath.Join(repo, ".git", "hooks", hook)
 		info, err := os.Stat(hookPath)
 		if err != nil {
@@ -115,7 +115,7 @@ func TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read settings: %v", err)
 	}
-	if !strings.Contains(string(settingsContent), "calm-git-guard") {
+	if !strings.Contains(string(settingsContent), "stack-fitness-functions-git-guard") {
 		t.Fatalf("settings missing git guard entry:\n%s", settingsContent)
 	}
 }
@@ -135,8 +135,8 @@ func TestRunInstallHooksIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read settings: %v", err)
 	}
-	if count := strings.Count(string(settingsContent), "calm-git-guard"); count != 1 {
-		t.Fatalf("calm-git-guard appears %d times, want 1:\n%s", count, settingsContent)
+	if count := strings.Count(string(settingsContent), "stack-fitness-functions-git-guard"); count != 1 {
+		t.Fatalf("stack-fitness-functions-git-guard appears %d times, want 1:\n%s", count, settingsContent)
 	}
 }
 
@@ -223,6 +223,36 @@ func TestRunInstallHooksUpgradesLegacyCalmHook(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(repo, ".git", "hooks", "format-violations.py")); err != nil {
 		t.Fatalf("formatter not installed during legacy upgrade: %v", err)
+	}
+}
+
+func TestRunInstallHooksUpgradesLegacyGitGuardSettings(t *testing.T) {
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+
+	claudeDir := filepath.Join(repo, ".claude")
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		t.Fatalf("mkdir .claude: %v", err)
+	}
+	legacySettings := `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/legacy/.git/hooks/calm-git-guard"}]}]}}`
+	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(legacySettings), 0o644); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := RunInstallHooks([]string{repo}, &stdout, &stderr); err != nil {
+		t.Fatalf("RunInstallHooks returned error: %v\nstderr=%s", err, stderr.String())
+	}
+
+	content, err := os.ReadFile(filepath.Join(claudeDir, "settings.json"))
+	if err != nil {
+		t.Fatalf("read settings: %v", err)
+	}
+	if strings.Contains(string(content), "calm-git-guard") {
+		t.Fatalf("legacy calm-git-guard still present after upgrade:\n%s", content)
+	}
+	if count := strings.Count(string(content), "stack-fitness-functions-git-guard"); count != 1 {
+		t.Fatalf("stack-fitness-functions-git-guard appears %d times, want 1:\n%s", count, content)
 	}
 }
 
