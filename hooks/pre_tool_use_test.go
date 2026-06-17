@@ -144,7 +144,7 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
 }`)
 	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
 	fitnessBin := buildFitnessBin(t)
-	daemon := startFitnessDaemon(t, fitnessBin, repo)
+	daemon := startFitnessDaemon(t, fitnessBin)
 	t.Setenv("STACK_FITNESS_FUNCTIONS_REPO_NAME", "repo-one")
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CERT", daemon.clientCertPath)
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_KEY", daemon.clientKeyPath)
@@ -290,6 +290,53 @@ printf '{"status":"pass"}\n'
 	}
 }
 
+func TestPreToolUseForwardsDiscoveredMTLSCerts(t *testing.T) {
+	repo := initGitRepo(t)
+	// git rev-parse --show-toplevel resolves symlinks (macOS /var -> /private/var),
+	// so resolve here too to match the cert paths the hook forwards.
+	if resolved, err := filepath.EvalSymlinks(repo); err == nil {
+		repo = resolved
+	}
+	runGit(t, repo, "config", "user.email", "t@example.com")
+	runGit(t, repo, "config", "user.name", "t")
+	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
+
+	certDir := filepath.Join(repo, "certs")
+	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
+		writeFile(t, filepath.Join(certDir, name), "x")
+	}
+
+	logPath := filepath.Join(t.TempDir(), "calls.log")
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+echo '{"status":"pass"}'
+`)
+
+	payload := `{"tool_input":{"file_path":"sample.go","content":"package sample\n"}}`
+	command := exec.Command("bash", hookScriptPathFor(t, "pre-tool-use.sh"))
+	command.Dir = repo
+	command.Stdin = strings.NewReader(payload)
+	command.Env = append(os.Environ(),
+		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+	)
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("pre-tool-use failed: %v\n%s", err, out)
+	}
+
+	got := readFile(t, logPath)
+	for _, want := range []string{
+		"--addr https://127.0.0.1:7890",
+		"--client-cert " + filepath.Join(certDir, "client.crt"),
+		"--client-key " + filepath.Join(certDir, "client.key"),
+		"--client-ca " + filepath.Join(certDir, "ca.crt"),
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in invocations:\n%s", want, got)
+		}
+	}
+}
+
 func runPreToolUse(t *testing.T, repo, payload, fakeBin, logPath, addr string) ([]byte, error) {
 	t.Helper()
 	return runPreToolUseWithBin(t, repo, payload, "", fakeBin, logPath, addr)
@@ -342,7 +389,7 @@ type fitnessDaemon struct {
 	serverCAPath   string
 }
 
-func startFitnessDaemon(t *testing.T, fitnessBin string, repo string) fitnessDaemon {
+func startFitnessDaemon(t *testing.T, fitnessBin string) fitnessDaemon {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
