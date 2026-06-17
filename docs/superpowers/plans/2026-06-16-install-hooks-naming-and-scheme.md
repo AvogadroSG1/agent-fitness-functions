@@ -150,10 +150,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com> - claude-opus-4-8"
 
 In `internal/client/client_test.go`:
 
-`TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo` — change the hook list (line ~89):
-```go
-	for _, hook := range []string{"pre-commit", "pre-push", "stack-fitness-functions-git-guard"} {
-```
+> **Do NOT change the `os.Stat` hook-list loop in `TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo`** (the `[]string{"pre-commit", "pre-push", "calm-git-guard"}` at line ~91). That loop stats the *actual installed files*, and Task 2 does **not** rename the guard file — `installGitGuard` still writes `calm-git-guard` until Task 3. Renaming the loop entry here would stat a nonexistent file and fail. Task 3 renames the guard file AND this loop entry AND the settings assertion (line ~118) together. Leave both `calm-git-guard` references in this test untouched in Task 2.
 
 `TestRunInstallHooksAppendModeInstallsSidecar` — change the sidecar path (line ~180) and marker (line ~193):
 ```go
@@ -169,7 +166,9 @@ In `internal/client/client_test.go`:
 
 - [ ] **Step 2: Add the legacy-upgrade idempotency test (also failing)**
 
-Add to `internal/client/client_test.go`. Seeds a legacy `# CALM pre-commit hook` managed hook and asserts `install-hooks` upgrades it in place (overwrites with the new product-named script) without a refusal:
+Add to `internal/client/client_test.go`. Seeds a legacy `# CALM pre-commit hook` managed hook and asserts `install-hooks` recognizes it and upgrades it in place (overwrites rather than refusing as a foreign hook).
+
+> **Scope note (resolves a cross-task ordering issue):** This test asserts only the *behavioral* upgrade — the legacy `echo legacy` body is gone. That fully proves legacy-marker recognition: if the `CALM` marker were NOT recognized as managed, `RunInstallHooks` would refuse the foreign hook and return an error (caught by the `err != nil` check), so a clean overwrite proves recognition worked. We deliberately do **not** assert the new `# stack-fitness-functions pre-commit hook` header string here, because that header lives in the embedded `pre-commit.sh`, which is not renamed until **Task 4**. Task 4 Step 1 adds the marker-string assertion to this same test (red until Task 4's header rename, green after). Keeps every task green at its own boundary.
 
 ```go
 func TestRunInstallHooksUpgradesLegacyCalmHook(t *testing.T) {
@@ -194,10 +193,7 @@ func TestRunInstallHooksUpgradesLegacyCalmHook(t *testing.T) {
 		t.Fatalf("read upgraded hook: %v", err)
 	}
 	if strings.Contains(string(content), "echo legacy") {
-		t.Fatalf("legacy hook was not overwritten:\n%s", content)
-	}
-	if !strings.Contains(string(content), "# stack-fitness-functions pre-commit hook") {
-		t.Fatalf("upgraded hook missing new marker:\n%s", content)
+		t.Fatalf("legacy hook was not overwritten (legacy CALM marker not recognized):\n%s", content)
 	}
 }
 ```
@@ -340,7 +336,12 @@ Co-Authored-By: Claude Code <noreply@anthropic.com> - claude-opus-4-8"
 
 In `internal/client/client_test.go`:
 
-`TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo` (line ~116):
+`TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo` — the `os.Stat` hook-list loop (line ~91), now that the guard file is renamed in this task:
+```go
+	for _, hook := range []string{"pre-commit", "pre-push", "stack-fitness-functions-git-guard"} {
+```
+
+`TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo` — the settings assertion (line ~118):
 ```go
 	if !strings.Contains(string(settingsContent), "stack-fitness-functions-git-guard") {
 		t.Fatalf("settings missing git guard entry:\n%s", settingsContent)
@@ -446,6 +447,18 @@ Co-Authored-By: Claude Code <noreply@anthropic.com> - claude-opus-4-8"
 **Files:**
 - Modify: `internal/client/hookassets/pre-commit.sh` AND `hooks/pre-commit.sh` (identical edits)
 - Test: `hooks/pre_commit_test.go` (add two tests)
+
+- [ ] **Step 1a: Restore the deferred marker assertion from Task 2**
+
+In `internal/client/client_test.go`, `TestRunInstallHooksUpgradesLegacyCalmHook` now gets the header-string assertion that was deferred from Task 2 (the embedded `pre-commit.sh` header gains `# stack-fitness-functions pre-commit hook` in Step 3 of this task). Add, right after the `echo legacy` check:
+
+```go
+	if !strings.Contains(string(content), "# stack-fitness-functions pre-commit hook") {
+		t.Fatalf("upgraded hook missing new marker:\n%s", content)
+	}
+```
+
+This assertion is RED until Step 3 of this task renames the header, then GREEN — verify in Step 7.
 
 - [ ] **Step 1: Write the failing cert-discovery tests**
 
@@ -616,10 +629,14 @@ Expected: `IDENTICAL` (no diff output).
 Run: `GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test ./hooks -run TestPreCommit -v`
 Expected: PASS — new cert tests pass and all existing `TestPreCommit*` tests (loopback rejection, userinfo bypass, block/advisory, unknown status) still pass. (Existing tests assert substrings like `must be loopback`, `unknown status` that are unaffected by the rename; the `https://127.0.0.1:7890` default is loopback so the loopback guard stays satisfied.)
 
+Also re-run the deferred-assertion test from Step 1a, now that the header is renamed:
+Run: `GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test ./internal/client -run TestRunInstallHooksUpgradesLegacyCalmHook -v`
+Expected: PASS (the `# stack-fitness-functions pre-commit hook` marker assertion is now satisfied by the renamed embedded header).
+
 - [ ] **Step 8: Commit**
 
 ```bash
-git add internal/client/hookassets/pre-commit.sh hooks/pre-commit.sh hooks/pre_commit_test.go
+git add internal/client/hookassets/pre-commit.sh hooks/pre-commit.sh hooks/pre_commit_test.go internal/client/client_test.go
 git commit -m "fix(hooks): pre-commit defaults to https + discovers <repo>/certs for mTLS
 
 Co-Authored-By: Peter O'Connor <poconnor@stackoverflow.com>
@@ -966,6 +983,13 @@ Change the `deny()` body (current lines 22–23):
   echo "stack-fitness-functions git-guard: $1" >&2
   echo "  Fix fitness-function violations in the code rather than bypassing enforcement." >&2
 ```
+
+Also rename the three product-surface CALM strings inside the `deny "..."` call arguments (these are product references, not FINOS CALM data surface):
+- `'git commit --no-verify' is blocked. CALM hooks must run.` → `... stack-fitness-functions hooks must run.`
+- `'git commit -n' (--no-verify shorthand) is blocked. CALM hooks must run.` → `... stack-fitness-functions hooks must run.`
+- `'git merge/pull --ff-only' is blocked when CALM enforcement is active. Use a regular merge or rebase so CALM pre-commit fires.` → `... when stack-fitness-functions enforcement is active. Use a regular merge or rebase so the stack-fitness-functions pre-commit hook fires.`
+
+After all edits, `grep -n "CALM" <both files>` MUST return zero matches.
 
 - [ ] **Step 2: Verify the two copies are byte-identical**
 
