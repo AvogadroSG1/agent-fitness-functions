@@ -221,6 +221,9 @@ func TestRunInstallHooksUpgradesLegacyCalmHook(t *testing.T) {
 	if strings.Contains(string(content), "echo legacy") {
 		t.Fatalf("legacy hook was not overwritten (legacy CALM marker not recognized):\n%s", content)
 	}
+	if !strings.Contains(string(content), "# stack-fitness-functions pre-commit hook") {
+		t.Fatalf("upgraded hook missing new marker:\n%s", content)
+	}
 	if _, err := os.Stat(filepath.Join(repo, ".git", "hooks", "format-violations.py")); err != nil {
 		t.Fatalf("formatter not installed during legacy upgrade: %v", err)
 	}
