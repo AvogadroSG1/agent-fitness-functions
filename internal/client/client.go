@@ -32,7 +32,7 @@ var embeddedHooks embed.FS
 func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter func(string) error) error {
 	flags := flag.NewFlagSet("client validate", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	addr := flags.String("addr", "http://localhost:7890", "daemon base URL")
+	addr := flags.String("addr", "https://127.0.0.1:7890", "daemon base URL")
 	file := flags.String("file", "", "file path being checked")
 	repo := flags.String("repo", "", "repository root")
 	content := flags.String("content", "", "proposed file content")

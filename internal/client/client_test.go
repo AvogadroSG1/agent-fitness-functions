@@ -3,6 +3,8 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -192,6 +194,32 @@ func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
 	}
 	if !strings.Contains(string(existing), "# CALM pre-commit hook (sidecar)") {
 		t.Fatalf("existing hook missing sidecar block:\n%s", existing)
+	}
+}
+
+type alwaysErrTransport struct{}
+
+func (alwaysErrTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("unreachable")
+}
+
+func TestRunCheckDefaultsToHTTPSLoopback(t *testing.T) {
+	var captured string
+	starter := func(addr string) error {
+		captured = addr
+		return errors.New("stop after capture")
+	}
+	client := &http.Client{Transport: alwaysErrTransport{}}
+
+	err := RunCheck(
+		[]string{"--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go"},
+		io.Discard, client, starter,
+	)
+	if err == nil {
+		t.Fatalf("RunCheck succeeded, want starter error")
+	}
+	if captured != "https://127.0.0.1:7890" {
+		t.Fatalf("daemon addr = %q, want https://127.0.0.1:7890", captured)
 	}
 }
 
