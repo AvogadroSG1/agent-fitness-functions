@@ -28,6 +28,23 @@ import (
 //go:embed hookassets/*
 var embeddedHooks embed.FS
 
+// Hook artifact naming. Generated git-hook artifacts carry the product name.
+// FINOS CALM surfaces (.calm/, configs/, calm-poc, the calm CLI) are unaffected.
+const hookProductPrefix = "stack-fitness-functions"
+
+const (
+	gitGuardName       = hookProductPrefix + "-git-guard"
+	legacyGitGuardName = "calm-git-guard"
+)
+
+func managedHookMarker(hook string) string { return hookProductPrefix + " " + hook + " hook" }
+func legacyHookMarker(hook string) string  { return "CALM " + hook + " hook" }
+func sidecarHookMarker(hook string) string {
+	return "# " + hookProductPrefix + " " + hook + " hook (sidecar)"
+}
+func legacySidecarMarker(hook string) string { return "# CALM " + hook + " hook (sidecar)" }
+func sidecarHookName(hook string) string     { return hookProductPrefix + "-" + hook }
+
 // RunCheck validates one file by posting a validation request to the daemon.
 func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter func(string) error) error {
 	flags := flag.NewFlagSet("client validate", flag.ContinueOnError)
@@ -94,10 +111,10 @@ func RunInstallHooks(args []string, stdout, stderr io.Writer) error {
 		stdout:   stdout,
 		stderr:   stderr,
 	}
-	if err := installer.installGitHook("pre-commit", "hookassets/pre-commit.sh", "# CALM pre-commit hook (sidecar)"); err != nil {
+	if err := installer.installGitHook("pre-commit", "hookassets/pre-commit.sh"); err != nil {
 		return err
 	}
-	if err := installer.installGitHook("pre-push", "hookassets/pre-push.sh", "# CALM pre-push hook (sidecar)"); err != nil {
+	if err := installer.installGitHook("pre-push", "hookassets/pre-push.sh"); err != nil {
 		return err
 	}
 	return installer.installGitGuard()
@@ -109,7 +126,7 @@ type hookInstaller struct {
 	stderr   io.Writer
 }
 
-func (installer hookInstaller) installGitHook(hookName, embeddedPath, sidecarMarker string) error {
+func (installer hookInstaller) installGitHook(hookName, embeddedPath string) error {
 	targetHook, err := installer.gitHookPath(hookName)
 	if err != nil {
 		return err
@@ -123,9 +140,13 @@ func (installer hookInstaller) installGitHook(hookName, embeddedPath, sidecarMar
 		if err != nil {
 			return fmt.Errorf("reading existing %s hook: %w", hookName, err)
 		}
+		hasSidecar := bytes.Contains(content, []byte(sidecarHookMarker(hookName))) ||
+			bytes.Contains(content, []byte(legacySidecarMarker(hookName)))
+		isManaged := bytes.Contains(content, []byte(managedHookMarker(hookName))) ||
+			bytes.Contains(content, []byte(legacyHookMarker(hookName)))
 		switch {
-		case bytes.Contains(content, []byte(sidecarMarker)):
-			sidecar := filepath.Join(hooksDir, "calm-"+hookName)
+		case hasSidecar:
+			sidecar := filepath.Join(hooksDir, sidecarHookName(hookName))
 			if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
 				return err
 			}
@@ -134,26 +155,26 @@ func (installer hookInstaller) installGitHook(hookName, embeddedPath, sidecarMar
 			}
 			_, _ = fmt.Fprintf(installer.stdout, "updated %s\n", sidecar)
 			return nil
-		case !bytes.Contains(content, []byte("CALM "+hookName+" hook")):
+		case !isManaged:
 			if os.Getenv("STACK_FITNESS_FUNCTIONS_HOOK_APPEND") == "1" {
-				sidecar := filepath.Join(hooksDir, "calm-"+hookName)
+				sidecar := filepath.Join(hooksDir, sidecarHookName(hookName))
 				if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
 					return err
 				}
 				if err := installer.writeFormatter(hooksDir); err != nil {
 					return err
 				}
-				block := fmt.Sprintf("\n# CALM %s hook (sidecar)\n%q\n", hookName, sidecar)
+				block := fmt.Sprintf("\n%s\n%q\n", sidecarHookMarker(hookName), sidecar)
 				if err := appendFile(targetHook, []byte(block)); err != nil {
 					return err
 				}
-				_, _ = fmt.Fprintf(installer.stdout, "appended CALM call to %s (sidecar: %s)\n", targetHook, sidecar)
+				_, _ = fmt.Fprintf(installer.stdout, "appended %s call to %s (sidecar: %s)\n", hookProductPrefix, targetHook, sidecar)
 				return nil
 			}
 			if os.Getenv("STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE") != "1" {
-				_, _ = fmt.Fprintf(installer.stderr, "refusing to overwrite existing non-CALM %s hook: %s\n", hookName, targetHook)
+				_, _ = fmt.Fprintf(installer.stderr, "refusing to overwrite existing unmanaged %s hook: %s\n", hookName, targetHook)
 				_, _ = fmt.Fprintln(installer.stderr, "set STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1 to replace it, or STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1 to append")
-				return errors.New("refusing to overwrite existing non-CALM hook")
+				return errors.New("refusing to overwrite existing unmanaged hook")
 			}
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {

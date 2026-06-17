@@ -179,7 +179,7 @@ func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
 		t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
 	}
 
-	sidecar := filepath.Join(repo, ".git", "hooks", "calm-pre-commit")
+	sidecar := filepath.Join(repo, ".git", "hooks", "stack-fitness-functions-pre-commit")
 	if info, err := os.Stat(sidecar); err != nil {
 		t.Fatalf("sidecar not found at %s: %v", sidecar, err)
 	} else if info.Mode()&0o111 == 0 {
@@ -192,8 +192,37 @@ func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
 	if !strings.Contains(string(existing), "echo custom") {
 		t.Fatalf("existing hook content was replaced:\n%s", existing)
 	}
-	if !strings.Contains(string(existing), "# CALM pre-commit hook (sidecar)") {
+	if !strings.Contains(string(existing), "# stack-fitness-functions pre-commit hook (sidecar)") {
 		t.Fatalf("existing hook missing sidecar block:\n%s", existing)
+	}
+}
+
+func TestRunInstallHooksUpgradesLegacyCalmHook(t *testing.T) {
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+
+	legacy := filepath.Join(repo, ".git", "hooks", "pre-commit")
+	if err := os.MkdirAll(filepath.Dir(legacy), 0o755); err != nil {
+		t.Fatalf("mkdir hooks: %v", err)
+	}
+	if err := os.WriteFile(legacy, []byte("#!/usr/bin/env bash\n# CALM pre-commit hook\necho legacy\n"), 0o755); err != nil {
+		t.Fatalf("seed legacy hook: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := RunInstallHooks([]string{repo}, &stdout, &stderr); err != nil {
+		t.Fatalf("RunInstallHooks returned error: %v\nstderr=%s", err, stderr.String())
+	}
+
+	content, err := os.ReadFile(legacy)
+	if err != nil {
+		t.Fatalf("read upgraded hook: %v", err)
+	}
+	if strings.Contains(string(content), "echo legacy") {
+		t.Fatalf("legacy hook was not overwritten (legacy CALM marker not recognized):\n%s", content)
+	}
+	if _, err := os.Stat(filepath.Join(repo, ".git", "hooks", "format-violations.py")); err != nil {
+		t.Fatalf("formatter not installed during legacy upgrade: %v", err)
 	}
 }
 
