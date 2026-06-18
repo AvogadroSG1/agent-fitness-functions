@@ -12,6 +12,7 @@ type mountedConfig struct {
 	EnforcementMode  string          `json:"enforcement-mode"`
 	EnforcementError string          `json:"enforcement-on-error"`
 	FitnessFunctions map[string]bool `json:"fitness-functions"`
+	ExcludePatterns  []string        `json:"exclude-patterns"`
 }
 
 func TestRepositoryConfigTemplates(t *testing.T) {
@@ -70,6 +71,28 @@ func TestCallerRepoBindings(t *testing.T) {
 	}
 }
 
+func TestCalmPocConfigExcludesIntentionalViolationFixtures(t *testing.T) {
+	content, err := os.ReadFile(filepath.Join("calm-poc", "config.json"))
+	if err != nil {
+		t.Fatalf("read calm-poc/config.json: %v", err)
+	}
+
+	var config mountedConfig
+	if err := json.Unmarshal(content, &config); err != nil {
+		t.Fatalf("parse calm-poc/config.json: %v", err)
+	}
+
+	wantPatterns := []string{
+		"fixtures/violations/go/*.go",
+		"fixtures/violations/python/*.py",
+	}
+	for _, want := range wantPatterns {
+		if !containsString(config.ExcludePatterns, want) {
+			t.Fatalf("calm-poc exclude-patterns = %#v, want %q", config.ExcludePatterns, want)
+		}
+	}
+}
+
 func assertMountedConfigShape(t *testing.T, path, wantMode string, requiredFitnessFunctions []string) {
 	t.Helper()
 
@@ -111,4 +134,13 @@ func assertMountedConfigShape(t *testing.T, path, wantMode string, requiredFitne
 			t.Fatalf("%s fitness functions = %+v, want %s enabled", path, config.FitnessFunctions, name)
 		}
 	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
