@@ -293,8 +293,8 @@ func TestHookInstallerFunctionsStayWithinCyclomaticComplexityBudget(t *testing.T
 	}
 
 	for _, want := range []struct {
-		name     string
-		maxCC    int
+		name  string
+		maxCC int
 	}{
 		{name: "installGitHook", maxCC: 9},
 		{name: "installGitGuard", maxCC: 9},
