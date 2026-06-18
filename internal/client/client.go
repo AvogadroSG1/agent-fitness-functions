@@ -135,50 +135,12 @@ func (installer hookInstaller) installGitHook(hookName, embeddedPath string) err
 	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
 		return fmt.Errorf("creating hooks directory: %w", err)
 	}
-	if _, err := os.Stat(targetHook); err == nil {
-		content, err := os.ReadFile(targetHook)
-		if err != nil {
-			return fmt.Errorf("reading existing %s hook: %w", hookName, err)
-		}
-		hasSidecar := bytes.Contains(content, []byte(sidecarHookMarker(hookName))) ||
-			bytes.Contains(content, []byte(legacySidecarMarker(hookName)))
-		isManaged := bytes.Contains(content, []byte(managedHookMarker(hookName))) ||
-			bytes.Contains(content, []byte(legacyHookMarker(hookName)))
-		switch {
-		case hasSidecar:
-			sidecar := filepath.Join(hooksDir, sidecarHookName(hookName))
-			if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
-				return err
-			}
-			if err := installer.writeFormatter(hooksDir); err != nil {
-				return err
-			}
-			_, _ = fmt.Fprintf(installer.stdout, "updated %s\n", sidecar)
-			return nil
-		case !isManaged:
-			if os.Getenv("STACK_FITNESS_FUNCTIONS_HOOK_APPEND") == "1" {
-				sidecar := filepath.Join(hooksDir, sidecarHookName(hookName))
-				if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
-					return err
-				}
-				if err := installer.writeFormatter(hooksDir); err != nil {
-					return err
-				}
-				block := fmt.Sprintf("\n%s\n%q\n", sidecarHookMarker(hookName), sidecar)
-				if err := appendFile(targetHook, []byte(block)); err != nil {
-					return err
-				}
-				_, _ = fmt.Fprintf(installer.stdout, "appended %s call to %s (sidecar: %s)\n", hookProductPrefix, targetHook, sidecar)
-				return nil
-			}
-			if os.Getenv("STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE") != "1" {
-				_, _ = fmt.Fprintf(installer.stderr, "refusing to overwrite existing unmanaged %s hook: %s\n", hookName, targetHook)
-				_, _ = fmt.Fprintln(installer.stderr, "set STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1 to replace it, or STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1 to append")
-				return errors.New("refusing to overwrite existing unmanaged hook")
-			}
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("checking existing %s hook: %w", hookName, err)
+	handled, err := installer.handleExistingGitHook(targetHook, hooksDir, hookName, embeddedPath)
+	if err != nil {
+		return err
+	}
+	if handled {
+		return nil
 	}
 	if err := installer.writeEmbeddedExecutable(embeddedPath, targetHook); err != nil {
 		return err
@@ -187,6 +149,84 @@ func (installer hookInstaller) installGitHook(hookName, embeddedPath string) err
 		return err
 	}
 	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", targetHook)
+	return nil
+}
+
+func (installer hookInstaller) handleExistingGitHook(targetHook, hooksDir, hookName, embeddedPath string) (bool, error) {
+	content, exists, err := readExistingHook(targetHook, hookName)
+	if err != nil || !exists {
+		return false, err
+	}
+	if hookHasSidecar(content, hookName) {
+		return true, installer.refreshHookSidecar(hooksDir, hookName, embeddedPath)
+	}
+	if hookIsManaged(content, hookName) {
+		return false, nil
+	}
+	return installer.resolveUnmanagedHook(targetHook, hooksDir, hookName, embeddedPath)
+}
+
+func readExistingHook(targetHook, hookName string) ([]byte, bool, error) {
+	if _, err := os.Stat(targetHook); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("checking existing %s hook: %w", hookName, err)
+	}
+	content, err := os.ReadFile(targetHook)
+	if err != nil {
+		return nil, false, fmt.Errorf("reading existing %s hook: %w", hookName, err)
+	}
+	return content, true, nil
+}
+
+func hookHasSidecar(content []byte, hookName string) bool {
+	return bytes.Contains(content, []byte(sidecarHookMarker(hookName))) ||
+		bytes.Contains(content, []byte(legacySidecarMarker(hookName)))
+}
+
+func hookIsManaged(content []byte, hookName string) bool {
+	return bytes.Contains(content, []byte(managedHookMarker(hookName))) ||
+		bytes.Contains(content, []byte(legacyHookMarker(hookName)))
+}
+
+func (installer hookInstaller) refreshHookSidecar(hooksDir, hookName, embeddedPath string) error {
+	sidecar := filepath.Join(hooksDir, sidecarHookName(hookName))
+	if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
+		return err
+	}
+	if err := installer.writeFormatter(hooksDir); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "updated %s\n", sidecar)
+	return nil
+}
+
+func (installer hookInstaller) resolveUnmanagedHook(targetHook, hooksDir, hookName, embeddedPath string) (bool, error) {
+	if os.Getenv("STACK_FITNESS_FUNCTIONS_HOOK_APPEND") == "1" {
+		return true, installer.appendHookSidecar(targetHook, hooksDir, hookName, embeddedPath)
+	}
+	if os.Getenv("STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE") == "1" {
+		return false, nil
+	}
+	_, _ = fmt.Fprintf(installer.stderr, "refusing to overwrite existing unmanaged %s hook: %s\n", hookName, targetHook)
+	_, _ = fmt.Fprintln(installer.stderr, "set STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1 to replace it, or STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1 to append")
+	return true, errors.New("refusing to overwrite existing unmanaged hook")
+}
+
+func (installer hookInstaller) appendHookSidecar(targetHook, hooksDir, hookName, embeddedPath string) error {
+	sidecar := filepath.Join(hooksDir, sidecarHookName(hookName))
+	if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
+		return err
+	}
+	if err := installer.writeFormatter(hooksDir); err != nil {
+		return err
+	}
+	block := fmt.Sprintf("\n%s\n%q\n", sidecarHookMarker(hookName), sidecar)
+	if err := appendFile(targetHook, []byte(block)); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "appended %s call to %s (sidecar: %s)\n", hookProductPrefix, targetHook, sidecar)
 	return nil
 }
 
@@ -201,21 +241,40 @@ func (installer hookInstaller) installGitGuard() error {
 	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", guardPath)
 
 	settingsPath := filepath.Join(installer.repoRoot, ".claude", "settings.json")
-	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
-		return fmt.Errorf("creating .claude directory: %w", err)
-	}
-	settings := map[string]any{}
-	if content, err := os.ReadFile(settingsPath); err == nil && len(bytes.TrimSpace(content)) > 0 {
-		if err := json.Unmarshal(content, &settings); err != nil {
-			return fmt.Errorf("parsing %s: %w", settingsPath, err)
-		}
-	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("reading %s: %w", settingsPath, err)
+	settings, err := loadClaudeSettings(settingsPath)
+	if err != nil {
+		return err
 	}
 	message, err := upsertGitGuard(settings, guardPath)
 	if err != nil {
 		return err
 	}
+	if err := writeClaudeSettings(settingsPath, settings); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "%s in %s\n", message, settingsPath)
+	return nil
+}
+
+func loadClaudeSettings(settingsPath string) (map[string]any, error) {
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+		return nil, fmt.Errorf("creating .claude directory: %w", err)
+	}
+	settings := map[string]any{}
+	content, err := os.ReadFile(settingsPath)
+	if errors.Is(err, os.ErrNotExist) || len(bytes.TrimSpace(content)) == 0 {
+		return settings, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", settingsPath, err)
+	}
+	if err := json.Unmarshal(content, &settings); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", settingsPath, err)
+	}
+	return settings, nil
+}
+
+func writeClaudeSettings(settingsPath string, settings map[string]any) error {
 	encoded, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encoding %s: %w", settingsPath, err)
@@ -224,54 +283,85 @@ func (installer hookInstaller) installGitGuard() error {
 	if err := os.WriteFile(settingsPath, encoded, 0o644); err != nil {
 		return fmt.Errorf("writing %s: %w", settingsPath, err)
 	}
-	_, _ = fmt.Fprintf(installer.stdout, "%s in %s\n", message, settingsPath)
 	return nil
 }
 
 func upsertGitGuard(settings map[string]any, guardPath string) (string, error) {
+	hooks := ensureHooksSection(settings)
+	preToolUse := preToolUseEntries(hooks)
+	newEntry := gitGuardHookEntry(guardPath)
+	if index, command, found := findGitGuardHookEntry(preToolUse); found {
+		preToolUse[index] = newEntry
+		hooks["PreToolUse"] = preToolUse
+		if command == guardPath {
+			return gitGuardName + " already configured", nil
+		}
+		return "updated " + gitGuardName + " path", nil
+	}
+	hooks["PreToolUse"] = append(preToolUse, newEntry)
+	return "added " + gitGuardName + " to PreToolUse hooks", nil
+}
+
+func ensureHooksSection(settings map[string]any) map[string]any {
 	hooks, ok := settings["hooks"].(map[string]any)
 	if !ok {
 		hooks = map[string]any{}
 		settings["hooks"] = hooks
 	}
+	return hooks
+}
+
+func preToolUseEntries(hooks map[string]any) []any {
 	preToolUse, ok := hooks["PreToolUse"].([]any)
 	if !ok {
-		preToolUse = []any{}
+		return []any{}
 	}
-	newEntry := map[string]any{
+	return preToolUse
+}
+
+func gitGuardHookEntry(guardPath string) map[string]any {
+	return map[string]any{
 		"hooks": []any{map[string]any{
 			"command": guardPath,
 			"type":    "command",
 		}},
 		"matcher": "Bash",
 	}
+}
+
+func findGitGuardHookEntry(preToolUse []any) (int, string, bool) {
 	for index, rawEntry := range preToolUse {
-		entry, ok := rawEntry.(map[string]any)
+		command, ok := gitGuardCommand(rawEntry)
 		if !ok {
 			continue
 		}
-		rawHooks, ok := entry["hooks"].([]any)
-		if !ok {
-			continue
-		}
-		for _, rawHook := range rawHooks {
-			hook, ok := rawHook.(map[string]any)
-			if !ok {
-				continue
-			}
-			command, _ := hook["command"].(string)
-			if strings.Contains(command, gitGuardName) || strings.Contains(command, legacyGitGuardName) {
-				preToolUse[index] = newEntry
-				hooks["PreToolUse"] = preToolUse
-				if command == guardPath {
-					return gitGuardName + " already configured", nil
-				}
-				return "updated " + gitGuardName + " path", nil
-			}
+		if strings.Contains(command, gitGuardName) || strings.Contains(command, legacyGitGuardName) {
+			return index, command, true
 		}
 	}
-	hooks["PreToolUse"] = append(preToolUse, newEntry)
-	return "added " + gitGuardName + " to PreToolUse hooks", nil
+	return 0, "", false
+}
+
+func gitGuardCommand(rawEntry any) (string, bool) {
+	entry, ok := rawEntry.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	rawHooks, ok := entry["hooks"].([]any)
+	if !ok {
+		return "", false
+	}
+	for _, rawHook := range rawHooks {
+		hook, ok := rawHook.(map[string]any)
+		if !ok {
+			continue
+		}
+		command, _ := hook["command"].(string)
+		if command != "" {
+			return command, true
+		}
+	}
+	return "", false
 }
 
 func (installer hookInstaller) writeFormatter(hooksDir string) error {
