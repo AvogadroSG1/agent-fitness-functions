@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/poconnor/calm-poc/internal/analyzer"
 	"github.com/poconnor/calm-poc/internal/fitness"
 )
 
@@ -285,6 +286,27 @@ func TestRunCheckDefaultsToHTTPSLoopback(t *testing.T) {
 	}
 }
 
+func TestHookInstallerFunctionsStayWithinCyclomaticComplexityBudget(t *testing.T) {
+	result, err := analyzer.AnalyzeGoFile(filepath.Join(projectRoot(t), "internal", "client", "client.go"))
+	if err != nil {
+		t.Fatalf("AnalyzeGoFile returned error: %v", err)
+	}
+
+	for _, want := range []struct {
+		name     string
+		maxCC    int
+	}{
+		{name: "installGitHook", maxCC: 9},
+		{name: "installGitGuard", maxCC: 9},
+		{name: "upsertGitGuard", maxCC: 9},
+	} {
+		function := findClientFunction(t, result, want.name)
+		if function.CyclomaticComplexity > want.maxCC {
+			t.Fatalf("%s cyclomatic complexity = %d, want <= %d", want.name, function.CyclomaticComplexity, want.maxCC)
+		}
+	}
+}
+
 func runGitClientTest(t *testing.T, repo string, args ...string) {
 	t.Helper()
 	command := exec.Command("git", append([]string{"-C", repo}, args...)...)
@@ -308,4 +330,15 @@ func projectRoot(t *testing.T) string {
 			t.Fatalf("could not find go.mod from %s", cwd)
 		}
 	}
+}
+
+func findClientFunction(t *testing.T, result analyzer.AnalysisResult, want string) analyzer.FunctionMetric {
+	t.Helper()
+	for _, function := range result.Functions {
+		if function.Name == want {
+			return function
+		}
+	}
+	t.Fatalf("function %q not found in %+v", want, result.Functions)
+	return analyzer.FunctionMetric{}
 }
