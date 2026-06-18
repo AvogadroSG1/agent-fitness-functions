@@ -500,17 +500,18 @@ func TestServeStartsDaemonAndRespondsToHealth(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	configDir := writeMountedServeConfigDir(t)
+	addr := reserveLoopbackAddr(t)
 
 	done := make(chan error, 1)
 	go func() {
-		done <- serveWithDependencies(ctx, "127.0.0.1:7891", configDir, io.Discard, NewConfigStore)
+		done <- serveWithDependencies(ctx, addr, configDir, io.Discard, NewConfigStore)
 	}()
 
 	client := &http.Client{Timeout: time.Second}
 	var response *http.Response
 	var err error
 	for range 40 {
-		response, err = client.Get("http://127.0.0.1:7891/health")
+		response, err = client.Get("http://" + addr + "/health")
 		if err == nil {
 			break
 		}
@@ -541,11 +542,12 @@ func TestServeStopsAfterShutdownRequest(t *testing.T) {
 	configDir := writeMountedServeConfigDir(t)
 	serverCert, serverKey, adminCert, adminKey, caPath := writeTestMutualTLSFiles(t, "governance-admin")
 	adminClient := newTestHTTPSClientWithCertificate(t, caPath, adminCert, adminKey)
+	addr := reserveLoopbackAddr(t)
 
 	done := make(chan error, 1)
 	go func() {
 		done <- serveWithOptions(ctx, ServeOptions{
-			Addr:      "127.0.0.1:7892",
+			Addr:      addr,
 			ConfigDir: configDir,
 			Ready:     io.Discard,
 			NewStore:  NewConfigStore,
@@ -557,9 +559,10 @@ func TestServeStopsAfterShutdownRequest(t *testing.T) {
 		})
 	}()
 
-	waitForHealthHTTPS(t, adminClient, "https://127.0.0.1:7892")
+	baseURL := "https://" + addr
+	waitForHealthHTTPS(t, adminClient, baseURL)
 
-	request, err := http.NewRequest(http.MethodPost, "https://127.0.0.1:7892/shutdown", nil)
+	request, err := http.NewRequest(http.MethodPost, baseURL+"/shutdown", nil)
 	if err != nil {
 		t.Fatalf("NewRequest(POST /shutdown) failed: %v", err)
 	}
@@ -662,6 +665,19 @@ func writeMountedServeConfigDir(t *testing.T) string {
 		t.Fatalf("write caller repo policy: %v", err)
 	}
 	return dir
+}
+
+func reserveLoopbackAddr(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen for loopback addr: %v", err)
+	}
+	addr := listener.Addr().String()
+	if err := listener.Close(); err != nil {
+		t.Fatalf("close loopback listener: %v", err)
+	}
+	return addr
 }
 
 type readySignalWriter struct {

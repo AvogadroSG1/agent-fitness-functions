@@ -9,6 +9,8 @@
     "dependency-discipline": true
   },
   "exclude-patterns": [
+    "fixtures/violations/go/*.go",
+    "fixtures/violations/python/*.py",
     "*_test.go",
     "test_*.py",
     "*_test.py"

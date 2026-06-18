@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# CALM pre-commit hook
+# stack-fitness-functions pre-commit hook
 set -euo pipefail
 
 repo=$(git rev-parse --show-toplevel)
 stack_fitness_functions_bin=${STACK_FITNESS_FUNCTIONS_BIN:-stack-fitness-functions}
-addr=${STACK_FITNESS_FUNCTIONS_ADDR:-}
-client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-}
-client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-}
-client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-}
+# The container/production server serves HTTPS with mandatory mTLS, so default to
+# an https loopback addr and auto-discover dev client credentials in <repo>/certs.
+# Explicit STACK_FITNESS_FUNCTIONS_CLIENT_* env vars win (12-factor precedence).
+addr=${STACK_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}
+cert_dir=${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-$repo/certs}
+client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/client.crt}
+client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/client.key}
+client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/ca.crt}
 repo_name=${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}
 remote_mode=0
 repo_arg=$repo
@@ -89,7 +93,7 @@ while IFS= read -r -d '' file; do
     content_file=$(mktemp)
     tmp_files+=("$content_file")
     if ! git -C "$repo" show ":$file" >"$content_file"; then
-      echo "CALM check failed for $file" >&2
+      echo "stack-fitness-functions check failed for $file" >&2
       blocked=1
       continue
     fi
@@ -97,27 +101,24 @@ while IFS= read -r -d '' file; do
   else
     args+=(--staged)
   fi
-  if [[ -n "$addr" ]]; then
-    args+=(--addr "$addr")
+  args+=(--addr "$addr")
+  # Pass mTLS client cert+key only as a pair (the client requires both together);
+  # omit when the files are absent so a plain-HTTP local server still works.
+  if [[ -f "$client_cert" && -f "$client_key" ]]; then
+    args+=(--client-cert "$client_cert" --client-key "$client_key")
   fi
-  if [[ -n "$client_cert" ]]; then
-    args+=(--client-cert "$client_cert")
-  fi
-  if [[ -n "$client_key" ]]; then
-    args+=(--client-key "$client_key")
-  fi
-  if [[ -n "$client_ca" ]]; then
+  if [[ -f "$client_ca" ]]; then
     args+=(--client-ca "$client_ca")
   fi
 
   if ! result=$("$stack_fitness_functions_bin" "${args[@]}"); then
-    echo "CALM check failed for $file" >&2
+    echo "stack-fitness-functions check failed for $file" >&2
     blocked=1
     continue
   fi
 
   if ! status=$(printf '%s' "$result" | json_field status 2>/dev/null); then
-    echo "CALM check returned invalid JSON for $file" >&2
+    echo "stack-fitness-functions check returned invalid JSON for $file" >&2
     blocked=1
     continue
   fi
@@ -134,7 +135,7 @@ while IFS= read -r -d '' file; do
     pass)
       ;;
     *)
-      echo "CALM check returned unknown status for $file: ${status:-<empty>}" >&2
+      echo "stack-fitness-functions check returned unknown status for $file: ${status:-<empty>}" >&2
       blocked=1
       ;;
   esac

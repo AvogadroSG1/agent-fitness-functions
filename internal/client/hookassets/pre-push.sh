@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# CALM pre-push hook
+# stack-fitness-functions pre-push hook
 set -euo pipefail
 
 repo=$(git rev-parse --show-toplevel)
 stack_fitness_functions_bin=${STACK_FITNESS_FUNCTIONS_BIN:-stack-fitness-functions}
-addr=${STACK_FITNESS_FUNCTIONS_ADDR:-}
-client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-}
-client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-}
-client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-}
+# The container/production server serves HTTPS with mandatory mTLS, so default to
+# an https loopback addr and auto-discover dev client credentials in <repo>/certs.
+# Explicit STACK_FITNESS_FUNCTIONS_CLIENT_* env vars win (12-factor precedence).
+addr=${STACK_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}
+cert_dir=${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-$repo/certs}
+client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/client.crt}
+client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/client.key}
+client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/ca.crt}
 repo_name=${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}
 remote_mode=0
 repo_arg=$repo
@@ -101,21 +105,18 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
     fi
 
     args=(client validate --file "$file" --repo "$repo_arg" --content-file "$content_file" --language "$language")
-    if [[ -n "$addr" ]]; then
-      args+=(--addr "$addr")
+    args+=(--addr "$addr")
+    # Pass mTLS client cert+key only as a pair (the client requires both together);
+    # omit when the files are absent so a plain-HTTP local server still works.
+    if [[ -f "$client_cert" && -f "$client_key" ]]; then
+      args+=(--client-cert "$client_cert" --client-key "$client_key")
     fi
-    if [[ -n "$client_cert" ]]; then
-      args+=(--client-cert "$client_cert")
-    fi
-    if [[ -n "$client_key" ]]; then
-      args+=(--client-key "$client_key")
-    fi
-    if [[ -n "$client_ca" ]]; then
+    if [[ -f "$client_ca" ]]; then
       args+=(--client-ca "$client_ca")
     fi
 
     if ! result=$("$stack_fitness_functions_bin" "${args[@]}"); then
-      echo "CALM check failed for $file" >&2
+      echo "stack-fitness-functions check failed for $file" >&2
       blocked=1
       continue
     fi
@@ -134,7 +135,7 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
       pass)
         ;;
       *)
-        echo "CALM check returned unknown status for $file: ${status:-<empty>}" >&2
+        echo "stack-fitness-functions check returned unknown status for $file: ${status:-<empty>}" >&2
         blocked=1
         ;;
     esac

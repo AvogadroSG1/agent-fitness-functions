@@ -3,6 +3,8 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/poconnor/calm-poc/internal/analyzer"
 	"github.com/poconnor/calm-poc/internal/fitness"
 )
 
@@ -86,7 +89,7 @@ func TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo(t *testing.T) {
 		t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
 	}
 
-	for _, hook := range []string{"pre-commit", "pre-push", "calm-git-guard"} {
+	for _, hook := range []string{"pre-commit", "pre-push", "stack-fitness-functions-git-guard"} {
 		hookPath := filepath.Join(repo, ".git", "hooks", hook)
 		info, err := os.Stat(hookPath)
 		if err != nil {
@@ -113,7 +116,7 @@ func TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read settings: %v", err)
 	}
-	if !strings.Contains(string(settingsContent), "calm-git-guard") {
+	if !strings.Contains(string(settingsContent), "stack-fitness-functions-git-guard") {
 		t.Fatalf("settings missing git guard entry:\n%s", settingsContent)
 	}
 }
@@ -133,8 +136,8 @@ func TestRunInstallHooksIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read settings: %v", err)
 	}
-	if count := strings.Count(string(settingsContent), "calm-git-guard"); count != 1 {
-		t.Fatalf("calm-git-guard appears %d times, want 1:\n%s", count, settingsContent)
+	if count := strings.Count(string(settingsContent), "stack-fitness-functions-git-guard"); count != 1 {
+		t.Fatalf("stack-fitness-functions-git-guard appears %d times, want 1:\n%s", count, settingsContent)
 	}
 }
 
@@ -177,7 +180,7 @@ func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
 		t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
 	}
 
-	sidecar := filepath.Join(repo, ".git", "hooks", "calm-pre-commit")
+	sidecar := filepath.Join(repo, ".git", "hooks", "stack-fitness-functions-pre-commit")
 	if info, err := os.Stat(sidecar); err != nil {
 		t.Fatalf("sidecar not found at %s: %v", sidecar, err)
 	} else if info.Mode()&0o111 == 0 {
@@ -190,8 +193,117 @@ func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
 	if !strings.Contains(string(existing), "echo custom") {
 		t.Fatalf("existing hook content was replaced:\n%s", existing)
 	}
-	if !strings.Contains(string(existing), "# CALM pre-commit hook (sidecar)") {
+	if !strings.Contains(string(existing), "# stack-fitness-functions pre-commit hook (sidecar)") {
 		t.Fatalf("existing hook missing sidecar block:\n%s", existing)
+	}
+}
+
+func TestRunInstallHooksUpgradesLegacyCalmHook(t *testing.T) {
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+
+	legacy := filepath.Join(repo, ".git", "hooks", "pre-commit")
+	if err := os.MkdirAll(filepath.Dir(legacy), 0o755); err != nil {
+		t.Fatalf("mkdir hooks: %v", err)
+	}
+	if err := os.WriteFile(legacy, []byte("#!/usr/bin/env bash\n# CALM pre-commit hook\necho legacy\n"), 0o755); err != nil {
+		t.Fatalf("seed legacy hook: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := RunInstallHooks([]string{repo}, &stdout, &stderr); err != nil {
+		t.Fatalf("RunInstallHooks returned error: %v\nstderr=%s", err, stderr.String())
+	}
+
+	content, err := os.ReadFile(legacy)
+	if err != nil {
+		t.Fatalf("read upgraded hook: %v", err)
+	}
+	if strings.Contains(string(content), "echo legacy") {
+		t.Fatalf("legacy hook was not overwritten (legacy CALM marker not recognized):\n%s", content)
+	}
+	if !strings.Contains(string(content), "# stack-fitness-functions pre-commit hook") {
+		t.Fatalf("upgraded hook missing new marker:\n%s", content)
+	}
+	if _, err := os.Stat(filepath.Join(repo, ".git", "hooks", "format-violations.py")); err != nil {
+		t.Fatalf("formatter not installed during legacy upgrade: %v", err)
+	}
+}
+
+func TestRunInstallHooksUpgradesLegacyGitGuardSettings(t *testing.T) {
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+
+	claudeDir := filepath.Join(repo, ".claude")
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		t.Fatalf("mkdir .claude: %v", err)
+	}
+	legacySettings := `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/legacy/.git/hooks/calm-git-guard"}]}]}}`
+	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(legacySettings), 0o644); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := RunInstallHooks([]string{repo}, &stdout, &stderr); err != nil {
+		t.Fatalf("RunInstallHooks returned error: %v\nstderr=%s", err, stderr.String())
+	}
+
+	content, err := os.ReadFile(filepath.Join(claudeDir, "settings.json"))
+	if err != nil {
+		t.Fatalf("read settings: %v", err)
+	}
+	if strings.Contains(string(content), "calm-git-guard") {
+		t.Fatalf("legacy calm-git-guard still present after upgrade:\n%s", content)
+	}
+	if count := strings.Count(string(content), "stack-fitness-functions-git-guard"); count != 1 {
+		t.Fatalf("stack-fitness-functions-git-guard appears %d times, want 1:\n%s", count, content)
+	}
+}
+
+type alwaysErrTransport struct{}
+
+func (alwaysErrTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("unreachable")
+}
+
+func TestRunCheckDefaultsToHTTPSLoopback(t *testing.T) {
+	var captured string
+	starter := func(addr string) error {
+		captured = addr
+		return errors.New("stop after capture")
+	}
+	client := &http.Client{Transport: alwaysErrTransport{}}
+
+	err := RunCheck(
+		[]string{"--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go"},
+		io.Discard, client, starter,
+	)
+	if err == nil {
+		t.Fatalf("RunCheck succeeded, want starter error")
+	}
+	if captured != "https://127.0.0.1:7890" {
+		t.Fatalf("daemon addr = %q, want https://127.0.0.1:7890", captured)
+	}
+}
+
+func TestHookInstallerFunctionsStayWithinCyclomaticComplexityBudget(t *testing.T) {
+	result, err := analyzer.AnalyzeGoFile(filepath.Join(projectRoot(t), "internal", "client", "client.go"))
+	if err != nil {
+		t.Fatalf("AnalyzeGoFile returned error: %v", err)
+	}
+
+	for _, want := range []struct {
+		name  string
+		maxCC int
+	}{
+		{name: "installGitHook", maxCC: 9},
+		{name: "installGitGuard", maxCC: 9},
+		{name: "upsertGitGuard", maxCC: 9},
+	} {
+		function := findClientFunction(t, result, want.name)
+		if function.CyclomaticComplexity > want.maxCC {
+			t.Fatalf("%s cyclomatic complexity = %d, want <= %d", want.name, function.CyclomaticComplexity, want.maxCC)
+		}
 	}
 }
 
@@ -218,4 +330,15 @@ func projectRoot(t *testing.T) string {
 			t.Fatalf("could not find go.mod from %s", cwd)
 		}
 	}
+}
+
+func findClientFunction(t *testing.T, result analyzer.AnalysisResult, want string) analyzer.FunctionMetric {
+	t.Helper()
+	for _, function := range result.Functions {
+		if function.Name == want {
+			return function
+		}
+	}
+	t.Fatalf("function %q not found in %+v", want, result.Functions)
+	return analyzer.FunctionMetric{}
 }

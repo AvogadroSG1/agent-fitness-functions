@@ -172,6 +172,15 @@ func TestPreCommitRemoteModeUsesBasenameRepoAndContentFile(t *testing.T) {
 	writeFile(t, filepath.Join(repo, "remote.go"), "package staged\n")
 	runGit(t, repo, "add", "remote.go")
 	writeFile(t, filepath.Join(repo, "remote.go"), "package worktree\n")
+	// The hook forwards mTLS cert flags only when the files exist on disk, so
+	// stage real credential files and point the explicit env overrides at them.
+	certDir := t.TempDir()
+	clientCert := filepath.Join(certDir, "client.crt")
+	clientKey := filepath.Join(certDir, "client.key")
+	clientCA := filepath.Join(certDir, "ca.crt")
+	for _, path := range []string{clientCert, clientKey, clientCA} {
+		writeFile(t, path, "x")
+	}
 	logPath := filepath.Join(t.TempDir(), "calm.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
@@ -194,9 +203,9 @@ printf '{"status":"pass"}\n'
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"STACK_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890",
 		"STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1",
-		"STACK_FITNESS_FUNCTIONS_CLIENT_CERT=/certs/client.crt",
-		"STACK_FITNESS_FUNCTIONS_CLIENT_KEY=/certs/client.key",
-		"STACK_FITNESS_FUNCTIONS_CLIENT_CA=/certs/ca.crt",
+		"STACK_FITNESS_FUNCTIONS_CLIENT_CERT="+clientCert,
+		"STACK_FITNESS_FUNCTIONS_CLIENT_KEY="+clientKey,
+		"STACK_FITNESS_FUNCTIONS_CLIENT_CA="+clientCA,
 		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
 	)
 	output, err := command.CombinedOutput()
@@ -208,9 +217,9 @@ printf '{"status":"pass"}\n'
 		"--addr https://calm-governance.example:7890",
 		"--repo " + filepath.Base(repo),
 		"--content-file ",
-		"--client-cert /certs/client.crt",
-		"--client-key /certs/client.key",
-		"--client-ca /certs/ca.crt",
+		"--client-cert " + clientCert,
+		"--client-key " + clientKey,
+		"--client-ca " + clientCA,
 		"content=package staged",
 	} {
 		if !strings.Contains(logContent, want) {
@@ -327,6 +336,84 @@ func TestPreCommitRejectsLoopbackUserinfoBypass(t *testing.T) {
 	}
 	if !strings.Contains(string(output), "must be loopback") {
 		t.Fatalf("output = %s, want loopback diagnostic", output)
+	}
+}
+
+func TestPreCommitForwardsDiscoveredMTLSCerts(t *testing.T) {
+	repo := initGitRepo(t)
+	// git rev-parse --show-toplevel resolves symlinks (e.g. macOS /var -> /private/var),
+	// so resolve here too to match the cert paths the hook forwards.
+	if resolved, err := filepath.EvalSymlinks(repo); err == nil {
+		repo = resolved
+	}
+	runGit(t, repo, "config", "user.email", "t@example.com")
+	runGit(t, repo, "config", "user.name", "t")
+	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
+	runGit(t, repo, "add", "sample.go")
+
+	certDir := filepath.Join(repo, "certs")
+	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
+		writeFile(t, filepath.Join(certDir, name), "x")
+	}
+
+	logPath := filepath.Join(t.TempDir(), "calls.log")
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+echo '{"status":"pass"}'
+`)
+
+	command := exec.Command("bash", hookScriptPath(t))
+	command.Dir = repo
+	command.Env = append(os.Environ(),
+		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+	)
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("pre-commit failed: %v\n%s", err, out)
+	}
+
+	got := readFile(t, logPath)
+	for _, want := range []string{
+		"--addr https://127.0.0.1:7890",
+		"--client-cert " + filepath.Join(certDir, "client.crt"),
+		"--client-key " + filepath.Join(certDir, "client.key"),
+		"--client-ca " + filepath.Join(certDir, "ca.crt"),
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in invocations:\n%s", want, got)
+		}
+	}
+}
+
+func TestPreCommitOmitsCertFlagsWhenAbsent(t *testing.T) {
+	repo := initGitRepo(t)
+	runGit(t, repo, "config", "user.email", "t@example.com")
+	runGit(t, repo, "config", "user.name", "t")
+	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
+	runGit(t, repo, "add", "sample.go")
+
+	logPath := filepath.Join(t.TempDir(), "calls.log")
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+echo '{"status":"pass"}'
+`)
+
+	command := exec.Command("bash", hookScriptPath(t))
+	command.Dir = repo
+	command.Env = append(os.Environ(),
+		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+	)
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("pre-commit failed: %v\n%s", err, out)
+	}
+
+	got := readFile(t, logPath)
+	if !strings.Contains(got, "--addr https://127.0.0.1:7890") {
+		t.Errorf("missing https default addr:\n%s", got)
+	}
+	if strings.Contains(got, "--client-cert") {
+		t.Errorf("expected no --client-cert when certs absent:\n%s", got)
 	}
 }
 

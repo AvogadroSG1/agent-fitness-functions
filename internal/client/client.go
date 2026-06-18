@@ -28,11 +28,28 @@ import (
 //go:embed hookassets/*
 var embeddedHooks embed.FS
 
+// Hook artifact naming. Generated git-hook artifacts carry the product name.
+// FINOS CALM surfaces (.calm/, configs/, calm-poc, the calm CLI) are unaffected.
+const hookProductPrefix = "stack-fitness-functions"
+
+const (
+	gitGuardName       = hookProductPrefix + "-git-guard"
+	legacyGitGuardName = "calm-git-guard"
+)
+
+func managedHookMarker(hook string) string { return hookProductPrefix + " " + hook + " hook" }
+func legacyHookMarker(hook string) string  { return "CALM " + hook + " hook" }
+func sidecarHookMarker(hook string) string {
+	return "# " + hookProductPrefix + " " + hook + " hook (sidecar)"
+}
+func legacySidecarMarker(hook string) string { return "# CALM " + hook + " hook (sidecar)" }
+func sidecarHookName(hook string) string     { return hookProductPrefix + "-" + hook }
+
 // RunCheck validates one file by posting a validation request to the daemon.
 func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter func(string) error) error {
 	flags := flag.NewFlagSet("client validate", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	addr := flags.String("addr", "http://localhost:7890", "daemon base URL")
+	addr := flags.String("addr", "https://127.0.0.1:7890", "daemon base URL")
 	file := flags.String("file", "", "file path being checked")
 	repo := flags.String("repo", "", "repository root")
 	content := flags.String("content", "", "proposed file content")
@@ -94,10 +111,10 @@ func RunInstallHooks(args []string, stdout, stderr io.Writer) error {
 		stdout:   stdout,
 		stderr:   stderr,
 	}
-	if err := installer.installGitHook("pre-commit", "hookassets/pre-commit.sh", "# CALM pre-commit hook (sidecar)"); err != nil {
+	if err := installer.installGitHook("pre-commit", "hookassets/pre-commit.sh"); err != nil {
 		return err
 	}
-	if err := installer.installGitHook("pre-push", "hookassets/pre-push.sh", "# CALM pre-push hook (sidecar)"); err != nil {
+	if err := installer.installGitHook("pre-push", "hookassets/pre-push.sh"); err != nil {
 		return err
 	}
 	return installer.installGitGuard()
@@ -109,7 +126,7 @@ type hookInstaller struct {
 	stderr   io.Writer
 }
 
-func (installer hookInstaller) installGitHook(hookName, embeddedPath, sidecarMarker string) error {
+func (installer hookInstaller) installGitHook(hookName, embeddedPath string) error {
 	targetHook, err := installer.gitHookPath(hookName)
 	if err != nil {
 		return err
@@ -118,46 +135,12 @@ func (installer hookInstaller) installGitHook(hookName, embeddedPath, sidecarMar
 	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
 		return fmt.Errorf("creating hooks directory: %w", err)
 	}
-	if _, err := os.Stat(targetHook); err == nil {
-		content, err := os.ReadFile(targetHook)
-		if err != nil {
-			return fmt.Errorf("reading existing %s hook: %w", hookName, err)
-		}
-		switch {
-		case bytes.Contains(content, []byte(sidecarMarker)):
-			sidecar := filepath.Join(hooksDir, "calm-"+hookName)
-			if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
-				return err
-			}
-			if err := installer.writeFormatter(hooksDir); err != nil {
-				return err
-			}
-			_, _ = fmt.Fprintf(installer.stdout, "updated %s\n", sidecar)
-			return nil
-		case !bytes.Contains(content, []byte("CALM "+hookName+" hook")):
-			if os.Getenv("STACK_FITNESS_FUNCTIONS_HOOK_APPEND") == "1" {
-				sidecar := filepath.Join(hooksDir, "calm-"+hookName)
-				if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
-					return err
-				}
-				if err := installer.writeFormatter(hooksDir); err != nil {
-					return err
-				}
-				block := fmt.Sprintf("\n# CALM %s hook (sidecar)\n%q\n", hookName, sidecar)
-				if err := appendFile(targetHook, []byte(block)); err != nil {
-					return err
-				}
-				_, _ = fmt.Fprintf(installer.stdout, "appended CALM call to %s (sidecar: %s)\n", targetHook, sidecar)
-				return nil
-			}
-			if os.Getenv("STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE") != "1" {
-				_, _ = fmt.Fprintf(installer.stderr, "refusing to overwrite existing non-CALM %s hook: %s\n", hookName, targetHook)
-				_, _ = fmt.Fprintln(installer.stderr, "set STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1 to replace it, or STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1 to append")
-				return errors.New("refusing to overwrite existing non-CALM hook")
-			}
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("checking existing %s hook: %w", hookName, err)
+	handled, err := installer.handleExistingGitHook(targetHook, hooksDir, hookName, embeddedPath)
+	if err != nil {
+		return err
+	}
+	if handled {
+		return nil
 	}
 	if err := installer.writeEmbeddedExecutable(embeddedPath, targetHook); err != nil {
 		return err
@@ -169,8 +152,86 @@ func (installer hookInstaller) installGitHook(hookName, embeddedPath, sidecarMar
 	return nil
 }
 
+func (installer hookInstaller) handleExistingGitHook(targetHook, hooksDir, hookName, embeddedPath string) (bool, error) {
+	content, exists, err := readExistingHook(targetHook, hookName)
+	if err != nil || !exists {
+		return false, err
+	}
+	if hookHasSidecar(content, hookName) {
+		return true, installer.refreshHookSidecar(hooksDir, hookName, embeddedPath)
+	}
+	if hookIsManaged(content, hookName) {
+		return false, nil
+	}
+	return installer.resolveUnmanagedHook(targetHook, hooksDir, hookName, embeddedPath)
+}
+
+func readExistingHook(targetHook, hookName string) ([]byte, bool, error) {
+	if _, err := os.Stat(targetHook); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("checking existing %s hook: %w", hookName, err)
+	}
+	content, err := os.ReadFile(targetHook)
+	if err != nil {
+		return nil, false, fmt.Errorf("reading existing %s hook: %w", hookName, err)
+	}
+	return content, true, nil
+}
+
+func hookHasSidecar(content []byte, hookName string) bool {
+	return bytes.Contains(content, []byte(sidecarHookMarker(hookName))) ||
+		bytes.Contains(content, []byte(legacySidecarMarker(hookName)))
+}
+
+func hookIsManaged(content []byte, hookName string) bool {
+	return bytes.Contains(content, []byte(managedHookMarker(hookName))) ||
+		bytes.Contains(content, []byte(legacyHookMarker(hookName)))
+}
+
+func (installer hookInstaller) refreshHookSidecar(hooksDir, hookName, embeddedPath string) error {
+	sidecar := filepath.Join(hooksDir, sidecarHookName(hookName))
+	if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
+		return err
+	}
+	if err := installer.writeFormatter(hooksDir); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "updated %s\n", sidecar)
+	return nil
+}
+
+func (installer hookInstaller) resolveUnmanagedHook(targetHook, hooksDir, hookName, embeddedPath string) (bool, error) {
+	if os.Getenv("STACK_FITNESS_FUNCTIONS_HOOK_APPEND") == "1" {
+		return true, installer.appendHookSidecar(targetHook, hooksDir, hookName, embeddedPath)
+	}
+	if os.Getenv("STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE") == "1" {
+		return false, nil
+	}
+	_, _ = fmt.Fprintf(installer.stderr, "refusing to overwrite existing unmanaged %s hook: %s\n", hookName, targetHook)
+	_, _ = fmt.Fprintln(installer.stderr, "set STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1 to replace it, or STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1 to append")
+	return true, errors.New("refusing to overwrite existing unmanaged hook")
+}
+
+func (installer hookInstaller) appendHookSidecar(targetHook, hooksDir, hookName, embeddedPath string) error {
+	sidecar := filepath.Join(hooksDir, sidecarHookName(hookName))
+	if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
+		return err
+	}
+	if err := installer.writeFormatter(hooksDir); err != nil {
+		return err
+	}
+	block := fmt.Sprintf("\n%s\n%q\n", sidecarHookMarker(hookName), sidecar)
+	if err := appendFile(targetHook, []byte(block)); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "appended %s call to %s (sidecar: %s)\n", hookProductPrefix, targetHook, sidecar)
+	return nil
+}
+
 func (installer hookInstaller) installGitGuard() error {
-	guardPath, err := installer.gitHookPath("calm-git-guard")
+	guardPath, err := installer.gitHookPath(gitGuardName)
 	if err != nil {
 		return err
 	}
@@ -180,21 +241,40 @@ func (installer hookInstaller) installGitGuard() error {
 	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", guardPath)
 
 	settingsPath := filepath.Join(installer.repoRoot, ".claude", "settings.json")
-	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
-		return fmt.Errorf("creating .claude directory: %w", err)
-	}
-	settings := map[string]any{}
-	if content, err := os.ReadFile(settingsPath); err == nil && len(bytes.TrimSpace(content)) > 0 {
-		if err := json.Unmarshal(content, &settings); err != nil {
-			return fmt.Errorf("parsing %s: %w", settingsPath, err)
-		}
-	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("reading %s: %w", settingsPath, err)
+	settings, err := loadClaudeSettings(settingsPath)
+	if err != nil {
+		return err
 	}
 	message, err := upsertGitGuard(settings, guardPath)
 	if err != nil {
 		return err
 	}
+	if err := writeClaudeSettings(settingsPath, settings); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "%s in %s\n", message, settingsPath)
+	return nil
+}
+
+func loadClaudeSettings(settingsPath string) (map[string]any, error) {
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+		return nil, fmt.Errorf("creating .claude directory: %w", err)
+	}
+	settings := map[string]any{}
+	content, err := os.ReadFile(settingsPath)
+	if errors.Is(err, os.ErrNotExist) || len(bytes.TrimSpace(content)) == 0 {
+		return settings, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", settingsPath, err)
+	}
+	if err := json.Unmarshal(content, &settings); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", settingsPath, err)
+	}
+	return settings, nil
+}
+
+func writeClaudeSettings(settingsPath string, settings map[string]any) error {
 	encoded, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encoding %s: %w", settingsPath, err)
@@ -203,54 +283,85 @@ func (installer hookInstaller) installGitGuard() error {
 	if err := os.WriteFile(settingsPath, encoded, 0o644); err != nil {
 		return fmt.Errorf("writing %s: %w", settingsPath, err)
 	}
-	_, _ = fmt.Fprintf(installer.stdout, "%s in %s\n", message, settingsPath)
 	return nil
 }
 
 func upsertGitGuard(settings map[string]any, guardPath string) (string, error) {
+	hooks := ensureHooksSection(settings)
+	preToolUse := preToolUseEntries(hooks)
+	newEntry := gitGuardHookEntry(guardPath)
+	if index, command, found := findGitGuardHookEntry(preToolUse); found {
+		preToolUse[index] = newEntry
+		hooks["PreToolUse"] = preToolUse
+		if command == guardPath {
+			return gitGuardName + " already configured", nil
+		}
+		return "updated " + gitGuardName + " path", nil
+	}
+	hooks["PreToolUse"] = append(preToolUse, newEntry)
+	return "added " + gitGuardName + " to PreToolUse hooks", nil
+}
+
+func ensureHooksSection(settings map[string]any) map[string]any {
 	hooks, ok := settings["hooks"].(map[string]any)
 	if !ok {
 		hooks = map[string]any{}
 		settings["hooks"] = hooks
 	}
+	return hooks
+}
+
+func preToolUseEntries(hooks map[string]any) []any {
 	preToolUse, ok := hooks["PreToolUse"].([]any)
 	if !ok {
-		preToolUse = []any{}
+		return []any{}
 	}
-	newEntry := map[string]any{
+	return preToolUse
+}
+
+func gitGuardHookEntry(guardPath string) map[string]any {
+	return map[string]any{
 		"hooks": []any{map[string]any{
 			"command": guardPath,
 			"type":    "command",
 		}},
 		"matcher": "Bash",
 	}
+}
+
+func findGitGuardHookEntry(preToolUse []any) (int, string, bool) {
 	for index, rawEntry := range preToolUse {
-		entry, ok := rawEntry.(map[string]any)
+		command, ok := gitGuardCommand(rawEntry)
 		if !ok {
 			continue
 		}
-		rawHooks, ok := entry["hooks"].([]any)
-		if !ok {
-			continue
-		}
-		for _, rawHook := range rawHooks {
-			hook, ok := rawHook.(map[string]any)
-			if !ok {
-				continue
-			}
-			command, _ := hook["command"].(string)
-			if strings.Contains(command, "calm-git-guard") {
-				preToolUse[index] = newEntry
-				hooks["PreToolUse"] = preToolUse
-				if command == guardPath {
-					return "calm-git-guard already configured", nil
-				}
-				return "updated calm-git-guard path", nil
-			}
+		if strings.Contains(command, gitGuardName) || strings.Contains(command, legacyGitGuardName) {
+			return index, command, true
 		}
 	}
-	hooks["PreToolUse"] = append(preToolUse, newEntry)
-	return "added calm-git-guard to PreToolUse hooks", nil
+	return 0, "", false
+}
+
+func gitGuardCommand(rawEntry any) (string, bool) {
+	entry, ok := rawEntry.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	rawHooks, ok := entry["hooks"].([]any)
+	if !ok {
+		return "", false
+	}
+	for _, rawHook := range rawHooks {
+		hook, ok := rawHook.(map[string]any)
+		if !ok {
+			continue
+		}
+		command, _ := hook["command"].(string)
+		if command != "" {
+			return command, true
+		}
+	}
+	return "", false
 }
 
 func (installer hookInstaller) writeFormatter(hooksDir string) error {
