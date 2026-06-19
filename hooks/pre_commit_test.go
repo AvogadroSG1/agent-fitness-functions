@@ -417,6 +417,130 @@ echo '{"status":"pass"}'
 	}
 }
 
+// calm-poc-cyd: local-mode hooks must send the logical repo name (worktree-safe)
+// as --repo while reading staged content from the actual working tree (--git-dir).
+
+func initNamedWorktree(t *testing.T) (mainRepo, worktree string) {
+	t.Helper()
+	parent := t.TempDir()
+	if resolved, err := filepath.EvalSymlinks(parent); err == nil {
+		parent = resolved
+	}
+	mainRepo = filepath.Join(parent, "relocate")
+	if err := os.MkdirAll(mainRepo, 0o755); err != nil {
+		t.Fatalf("mkdir main repo: %v", err)
+	}
+	runGit(t, mainRepo, "init")
+	runGit(t, mainRepo, "config", "user.email", "t@example.com")
+	runGit(t, mainRepo, "config", "user.name", "t")
+	writeFile(t, filepath.Join(mainRepo, "README.md"), "init\n")
+	runGit(t, mainRepo, "add", "README.md")
+	runGit(t, mainRepo, "commit", "-m", "init")
+	worktree = filepath.Join(parent, "feature+relocate-stats")
+	runGit(t, mainRepo, "worktree", "add", "-b", "feature/relocate-stats", worktree)
+	return mainRepo, worktree
+}
+
+func TestPreCommitLocalModeSendsLogicalRepoNameAndGitDir(t *testing.T) {
+	_, worktree := initNamedWorktree(t)
+	writeFile(t, filepath.Join(worktree, "bad.go"), "package sample\n")
+	runGit(t, worktree, "add", "bad.go")
+	logPath := filepath.Join(t.TempDir(), "calm.log")
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+printf '{"status":"pass"}\n'
+`)
+
+	command := exec.Command("bash", hookScriptPath(t))
+	command.Dir = worktree
+	command.Env = append(os.Environ(),
+		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+	)
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("pre-commit failed: %v\n%s", err, out)
+	}
+
+	got := readFile(t, logPath)
+	for _, want := range []string{"--repo relocate", "--git-dir " + worktree, "--staged"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in invocation:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "--repo "+worktree) || strings.Contains(got, "--repo feature+relocate-stats") {
+		t.Errorf("logical repo name leaked the worktree path/dir name:\n%s", got)
+	}
+}
+
+func TestPreCommitLocalModeReadsStagedContentFromWorktree(t *testing.T) {
+	_, worktree := initNamedWorktree(t)
+	writeFile(t, filepath.Join(worktree, "bad.go"), "package staged\n")
+	runGit(t, worktree, "add", "bad.go")
+	// Dirty the worktree so a worktree read would differ from the staged index.
+	writeFile(t, filepath.Join(worktree, "bad.go"), "package worktree\n")
+	fitnessBin := buildFitnessBin(t)
+	var received fitness.ValidationRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/check":
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+				t.Fatalf("decode check request: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{Status: fitness.StatusPass})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	command := exec.Command("bash", hookScriptPath(t))
+	command.Dir = worktree
+	command.Env = append(os.Environ(),
+		"STACK_FITNESS_FUNCTIONS_BIN="+fitnessBin,
+		"STACK_FITNESS_FUNCTIONS_ADDR="+server.URL,
+	)
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("pre-commit failed: %v\n%s", err, out)
+	}
+	if received.Repo != "relocate" {
+		t.Fatalf("received.Repo = %q, want logical name \"relocate\"", received.Repo)
+	}
+	if received.ProposedContent != "package staged\n" {
+		t.Fatalf("received.ProposedContent = %q, want staged index content from worktree", received.ProposedContent)
+	}
+}
+
+func TestPreCommitRepoNameOverrideStillWinsLocally(t *testing.T) {
+	_, worktree := initNamedWorktree(t)
+	writeFile(t, filepath.Join(worktree, "bad.go"), "package sample\n")
+	runGit(t, worktree, "add", "bad.go")
+	logPath := filepath.Join(t.TempDir(), "calm.log")
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+printf '{"status":"pass"}\n'
+`)
+
+	command := exec.Command("bash", hookScriptPath(t))
+	command.Dir = worktree
+	command.Env = append(os.Environ(),
+		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"STACK_FITNESS_FUNCTIONS_REPO_NAME=graft",
+		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+	)
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("pre-commit failed: %v\n%s", err, out)
+	}
+	got := readFile(t, logPath)
+	if !strings.Contains(got, "--repo graft") {
+		t.Errorf("missing STACK_FITNESS_FUNCTIONS_REPO_NAME override --repo graft:\n%s", got)
+	}
+	if !strings.Contains(got, "--git-dir "+worktree) {
+		t.Errorf("missing --git-dir even with name override:\n%s", got)
+	}
+}
+
 func initGitRepo(t *testing.T) string {
 	t.Helper()
 	repo := t.TempDir()

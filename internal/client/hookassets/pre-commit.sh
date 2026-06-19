@@ -51,6 +51,22 @@ sys.exit(0 if urlparse(sys.argv[1]).scheme == "https" else 1)
 PYCHECK
 }
 
+# Derive the LOGICAL repository name the server governs by, decoupled from the
+# local working directory. For a git worktree the working dir basename is the
+# worktree name (e.g. feature+relocate-stats), not the repo name, so resolve the
+# common git dir's parent (.../relocate/.git -> relocate). Falls back to the
+# working dir basename if git cannot answer. Non-standard layouts such as
+# --separate-git-dir need STACK_FITNESS_FUNCTIONS_REPO_NAME to override this.
+logical_repo_name() {
+  local common_dir
+  common_dir=$(cd "$repo" && git rev-parse --git-common-dir 2>/dev/null) || { basename "$repo"; return; }
+  case "$common_dir" in
+    /*) ;;
+    *) common_dir=$repo/$common_dir ;;
+  esac
+  basename "$(dirname "$common_dir")"
+}
+
 if [[ -n "$addr" ]] && ! bridge_addr_is_loopback "$addr"; then
   if [[ "${STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE:-}" != "1" ]]; then
     echo "STACK_FITNESS_FUNCTIONS_ADDR must be loopback unless STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1 is set" >&2
@@ -63,10 +79,12 @@ if [[ -n "$addr" ]] && ! bridge_addr_is_loopback "$addr"; then
   remote_mode=1
 fi
 
+# --repo is always the logical name; the working tree is passed separately as
+# --git-dir. STACK_FITNESS_FUNCTIONS_REPO_NAME overrides the derived name.
 if [[ -n "$repo_name" ]]; then
   repo_arg=$repo_name
-elif [[ "$remote_mode" -eq 1 ]]; then
-  repo_arg=$(basename "$repo")
+else
+  repo_arg=$(logical_repo_name)
 fi
 
 language_for_file() {
@@ -87,7 +105,7 @@ while IFS= read -r -d '' file; do
     continue
   fi
 
-  args=(client validate --file "$file" --repo "$repo_arg" --language "$language")
+  args=(client validate --file "$file" --repo "$repo_arg" --git-dir "$repo" --language "$language")
   content_file=""
   if [[ "$remote_mode" -eq 1 ]]; then
     content_file=$(mktemp)

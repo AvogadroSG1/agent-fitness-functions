@@ -2,7 +2,7 @@
   "callers": {
     "ci-runner-graft": ["graft"],
     "ci-runner-all": ["graft", "ringstation", "slackstatus"],
-    "dev-hook-pool": ["calm-poc", "graft", "ringstation", "slackstatus"]
+    "dev-hook-pool": ["calm-poc", "graft", "ringstation", "slackstatus", "relocate"]
   },
   "admins": ["dev-hook-pool"]
 }

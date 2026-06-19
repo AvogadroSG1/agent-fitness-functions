@@ -8,6 +8,42 @@ import (
 	"testing"
 )
 
+func TestPrePushLocalModeSendsLogicalRepoNameAndGitDir(t *testing.T) {
+	_, worktree := initNamedWorktree(t)
+	writeFile(t, filepath.Join(worktree, "sample.go"), "package sample\n")
+	runGit(t, worktree, "add", "sample.go")
+	runGit(t, worktree, "commit", "-m", "add sample")
+	headSHA := gitRevParse(t, worktree, "HEAD")
+	baseSHA := gitRevParse(t, worktree, "HEAD~1")
+
+	logPath := filepath.Join(t.TempDir(), "calls.log")
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+echo '{"status":"pass"}'
+`)
+
+	command := exec.Command("bash", hookScriptPathFor(t, "pre-push.sh"))
+	command.Dir = worktree
+	command.Stdin = strings.NewReader("refs/heads/main " + headSHA + " refs/heads/main " + baseSHA + "\n")
+	command.Env = append(os.Environ(),
+		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+	)
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("pre-push failed: %v\n%s", err, out)
+	}
+
+	got := readFile(t, logPath)
+	for _, want := range []string{"--repo relocate", "--git-dir " + worktree} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in invocation:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "--repo "+worktree) || strings.Contains(got, "--repo feature+relocate-stats") {
+		t.Errorf("logical repo name leaked the worktree path/dir name:\n%s", got)
+	}
+}
+
 func gitRevParse(t *testing.T, repo, rev string) string {
 	t.Helper()
 	out, err := exec.Command("git", "-C", repo, "rev-parse", rev).CombinedOutput()

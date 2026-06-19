@@ -51,7 +51,8 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 	flags.SetOutput(io.Discard)
 	addr := flags.String("addr", "https://127.0.0.1:7890", "daemon base URL")
 	file := flags.String("file", "", "file path being checked")
-	repo := flags.String("repo", "", "repository root")
+	repo := flags.String("repo", "", "logical repository name sent to the server")
+	gitDir := flags.String("git-dir", "", "local git working directory for --staged and disk reads (defaults to --repo)")
 	content := flags.String("content", "", "proposed file content")
 	contentFile := flags.String("content-file", "", "path to proposed file content")
 	language := flags.String("language", "", "source language")
@@ -77,7 +78,8 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 	if err := ensureDaemon(configuredClient, *addr, starter); err != nil {
 		return err
 	}
-	proposedContent, err := resolveContent(*repo, *file, *content, *contentFile, *staged)
+	resolvedGitDir := resolveGitDir(*gitDir, *repo)
+	proposedContent, err := resolveContent(resolvedGitDir, *file, *content, *contentFile, *staged)
 	if err != nil {
 		return err
 	}
@@ -90,7 +92,7 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 	if err != nil {
 		return err
 	}
-	return writeValidationResult(stdout, *format, *repo, body)
+	return writeValidationResult(stdout, *format, resolvedGitDir, body)
 }
 
 // RunInstallHooks installs embedded Git and Claude hooks into a repository.
@@ -535,7 +537,19 @@ func writeValidationResult(stdout io.Writer, format, repo string, body []byte) e
 	return json.NewEncoder(stdout).Encode(sarif.Convert(result, repo))
 }
 
-func resolveContent(repo, file, explicitContent, contentFile string, staged bool) (string, error) {
+// resolveGitDir picks the local working directory used to read file content.
+// --repo is the logical name sent to the server (e.g. "relocate"); --git-dir is
+// the on-disk git working tree. For git hooks and worktrees these differ. When
+// --git-dir is omitted, fall back to --repo so legacy callers that pass a
+// filesystem path as --repo keep resolving content relative to it.
+func resolveGitDir(gitDir, repo string) string {
+	if gitDir != "" {
+		return gitDir
+	}
+	return repo
+}
+
+func resolveContent(gitDir, file, explicitContent, contentFile string, staged bool) (string, error) {
 	if contentFile != "" {
 		output, err := os.ReadFile(contentFile)
 		if err != nil {
@@ -547,15 +561,15 @@ func resolveContent(repo, file, explicitContent, contentFile string, staged bool
 		return explicitContent, nil
 	}
 	if staged {
-		return resolveContentFromGit(repo, file)
+		return resolveContentFromGit(gitDir, file)
 	}
-	return resolveContentFromDisk(repo, file)
+	return resolveContentFromDisk(gitDir, file)
 }
 
-func resolveContentFromGit(repo, file string) (string, error) {
+func resolveContentFromGit(gitDir, file string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	command := exec.CommandContext(ctx, "git", "-C", repo, "show", ":"+file)
+	command := exec.CommandContext(ctx, "git", "-C", gitDir, "show", ":"+file)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		detail := strings.TrimSpace(string(output))
@@ -567,10 +581,10 @@ func resolveContentFromGit(repo, file string) (string, error) {
 	return string(output), nil
 }
 
-func resolveContentFromDisk(repo, file string) (string, error) {
+func resolveContentFromDisk(gitDir, file string) (string, error) {
 	path := file
 	if !filepath.IsAbs(path) {
-		path = filepath.Join(repo, file)
+		path = filepath.Join(gitDir, file)
 	}
 	output, err := os.ReadFile(path)
 	if err != nil {

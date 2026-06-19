@@ -60,7 +60,7 @@ func TestCallerRepoBindings(t *testing.T) {
 	wantCallers := map[string][]string{
 		"ci-runner-graft": {"graft"},
 		"ci-runner-all":   {"graft", "ringstation", "slackstatus"},
-		"dev-hook-pool":   {"calm-poc", "graft", "ringstation", "slackstatus"},
+		"dev-hook-pool":   {"calm-poc", "graft", "ringstation", "slackstatus", "relocate"},
 	}
 	if !reflect.DeepEqual(doc.Callers, wantCallers) {
 		t.Fatalf("caller bindings = %#v, want %#v", doc.Callers, wantCallers)

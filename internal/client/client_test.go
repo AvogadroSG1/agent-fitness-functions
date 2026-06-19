@@ -80,6 +80,188 @@ func TestResolveContentReadsRelativeToRepo(t *testing.T) {
 	}
 }
 
+// calm-poc-cyd: the logical repo name sent to the server must be decoupled from
+// the local git working directory used to read --staged / disk content.
+
+func TestResolveContentReadsFromGitDirNotLogicalRepoName(t *testing.T) {
+	gitDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(gitDir, "x.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	// A logical repo name like "relocate" is not a real directory; content must be
+	// read from gitDir, not joined onto the logical name.
+	content, err := resolveContent(gitDir, "x.go", "", "", false)
+	if err != nil {
+		t.Fatalf("resolveContent returned error: %v", err)
+	}
+	if content != "package main\n" {
+		t.Fatalf("content = %q, want git-dir-relative file content", content)
+	}
+}
+
+func TestRunCheckSendsLogicalRepoButReadsFromGitDir(t *testing.T) {
+	gitDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(gitDir, "x.go"), []byte("package widget\n"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	var received fitness.ValidationRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/check":
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{Status: fitness.StatusPass})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	var stdout bytes.Buffer
+	err := RunCheck([]string{"--addr", server.URL, "--file", "x.go", "--repo", "relocate", "--git-dir", gitDir, "--language", "go"}, &stdout, &http.Client{Timeout: time.Second}, func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("RunCheck returned error: %v", err)
+	}
+	if received.Repo != "relocate" {
+		t.Fatalf("received.Repo = %q, want logical name \"relocate\"", received.Repo)
+	}
+	if received.ProposedContent != "package widget\n" {
+		t.Fatalf("received.ProposedContent = %q, want content read from git-dir", received.ProposedContent)
+	}
+}
+
+func TestRunCheckGitDirDefaultsToRepo(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repo, "x.go"), []byte("package legacy\n"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	var received fitness.ValidationRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/check":
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{Status: fitness.StatusPass})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	// No --git-dir: legacy callers pass a filesystem path as --repo and expect
+	// content to resolve relative to it.
+	var stdout bytes.Buffer
+	err := RunCheck([]string{"--addr", server.URL, "--file", "x.go", "--repo", repo, "--language", "go"}, &stdout, &http.Client{Timeout: time.Second}, func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("RunCheck returned error: %v", err)
+	}
+	if received.ProposedContent != "package legacy\n" {
+		t.Fatalf("received.ProposedContent = %q, want content read relative to --repo when --git-dir omitted", received.ProposedContent)
+	}
+}
+
+func TestRunCheckStagedReadsFromGitDirWhileRepoStaysLogical(t *testing.T) {
+	gitDir := t.TempDir()
+	runGitClientTest(t, gitDir, "init")
+	runGitClientTest(t, gitDir, "config", "user.email", "t@example.com")
+	runGitClientTest(t, gitDir, "config", "user.name", "t")
+	if err := os.WriteFile(filepath.Join(gitDir, "x.go"), []byte("package staged\n"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	runGitClientTest(t, gitDir, "add", "x.go")
+	// Dirty the worktree so a worktree read would differ from the staged index.
+	if err := os.WriteFile(filepath.Join(gitDir, "x.go"), []byte("package worktree\n"), 0o644); err != nil {
+		t.Fatalf("dirty fixture: %v", err)
+	}
+	var received fitness.ValidationRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/check":
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{Status: fitness.StatusPass})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	var stdout bytes.Buffer
+	err := RunCheck([]string{"--addr", server.URL, "--file", "x.go", "--repo", "relocate", "--git-dir", gitDir, "--staged", "--language", "go"}, &stdout, &http.Client{Timeout: time.Second}, func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("RunCheck returned error: %v", err)
+	}
+	if received.Repo != "relocate" {
+		t.Fatalf("received.Repo = %q, want logical name \"relocate\"", received.Repo)
+	}
+	if received.ProposedContent != "package staged\n" {
+		t.Fatalf("received.ProposedContent = %q, want staged index content from git-dir", received.ProposedContent)
+	}
+}
+
+func TestRunCheckSarifURIsRootAtGitDir(t *testing.T) {
+	gitDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(gitDir, "x.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/check":
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{
+				Status:     fitness.StatusBlock,
+				Violations: []fitness.Violation{{FitnessFunction: "logic_density", File: filepath.Join(gitDir, "x.go"), Message: "m"}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	var stdout bytes.Buffer
+	err := RunCheck([]string{"--addr", server.URL, "--file", "x.go", "--repo", "relocate", "--git-dir", gitDir, "--format", "sarif", "--language", "go"}, &stdout, &http.Client{Timeout: time.Second}, func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("RunCheck returned error: %v", err)
+	}
+	// URI must be relative to the git-dir filesystem root ("x.go"), not the
+	// logical name "relocate".
+	if !strings.Contains(stdout.String(), `"uri":"x.go"`) {
+		t.Fatalf("sarif = %s, want uri rooted at git-dir (\"x.go\")", stdout.String())
+	}
+}
+
+func TestHookAssetsMatchSourceHooks(t *testing.T) {
+	root := projectRoot(t)
+	pairs := [][2]string{
+		{"hooks/pre-commit.sh", "internal/client/hookassets/pre-commit.sh"},
+		{"hooks/pre-push.sh", "internal/client/hookassets/pre-push.sh"},
+	}
+	for _, pair := range pairs {
+		a, err := os.ReadFile(filepath.Join(root, pair[0]))
+		if err != nil {
+			t.Fatalf("read %s: %v", pair[0], err)
+		}
+		b, err := os.ReadFile(filepath.Join(root, pair[1]))
+		if err != nil {
+			t.Fatalf("read %s: %v", pair[1], err)
+		}
+		if !bytes.Equal(a, b) {
+			t.Fatalf("twin drift: %s and %s differ; they must stay byte-identical", pair[0], pair[1])
+		}
+	}
+}
+
 func TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo(t *testing.T) {
 	repo := t.TempDir()
 	runGitClientTest(t, repo, "init")
