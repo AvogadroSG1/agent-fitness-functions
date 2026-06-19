@@ -17,17 +17,15 @@ Onboarding is two distinct acts:
 2. **Client-side wiring** — install Git hooks into the target repo and point them
    at the server.
 
-```
-┌─────────────────────────────────────────────┐
-│  Container (authoritative)                    │
-│  configs/<repo>/config.json  ← governance     │
-│  caller-repos.json           ← authorization  │
-└──────────────┬────────────────────────────────┘
-               │ HTTPS + mTLS, --repo=<name>
-       ┌───────┴────────┐
-       │                │
-  pre-commit.sh    pre-tool-use.sh
-  (developer git)  (AI agent hook)
+```mermaid
+flowchart TD
+    subgraph container["Container (authoritative)"]
+        config["configs/&lt;repo&gt;/config.json<br/>← governance"]
+        callers["caller-repos.json<br/>← authorization"]
+    end
+
+    container -- "HTTPS + mTLS, --repo=&lt;name&gt;" --> precommit["pre-commit.sh<br/>(developer git)"]
+    container -- "HTTPS + mTLS, --repo=&lt;name&gt;" --> pretooluse["pre-tool-use.sh<br/>(AI agent hook)"]
 ```
 
 **Critical:** the server resolves config **by repository name**, not by inspecting
@@ -39,6 +37,24 @@ config MUST exist server-side before client-side onboarding means anything.
 A local `.calm/config.json` is a developer sandbox only and **cannot weaken**
 container governance. When the hook connects to the container, governance is
 resolved exclusively from the mounted `configs/<repo>/config.json`.
+
+## Onboarding flow
+
+The full sequence end to end, from authoritative config to a verified commit:
+
+```mermaid
+flowchart TD
+    start([New repository]) --> step1["Step 1<br/>Create configs/&lt;repo&gt;/config.json<br/>(block mode default)"]
+    step1 --> step2["Step 2<br/>Authorize caller CN<br/>in caller-repos.json"]
+    step2 --> step3["Step 3<br/>Deploy config to server<br/>(redeploy container / sandbox hot-reload)"]
+    step3 --> step4["Step 4<br/>Install hooks in target repo<br/>client install-hooks"]
+    step4 --> step5["Step 5<br/>Point hooks at server<br/>(remote-mode env vars)"]
+    step5 --> existing{Existing<br/>codebase?}
+    existing -- "Yes" --> step6["Step 6<br/>Generate baseline<br/>decide block vs advisory"]
+    existing -- "No (greenfield)" --> step7
+    step6 --> step7["Step 7<br/>Verify with a clean commit"]
+    step7 --> done([Onboarded])
+```
 
 ## Prerequisites
 
