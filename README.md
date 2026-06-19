@@ -101,7 +101,7 @@ ln -sf "$(pwd)/bin"/stack-fitness-functions-* ~/.local/bin/
 
 | Command | Purpose |
 |---------|---------|
-| `stack-fitness-functions client install-hooks [repo]` | Install the embedded Git hooks into a repository |
+| `stack-fitness-functions client install-hooks [repo]` | Install the embedded Git hooks into a repository (see [Onboarding a New Repository](docs/runbooks/onboard-new-repository.md) for the full end-to-end flow) |
 | `stack-fitness-functions-serve [--build]` | Start the stack-fitness-functions server container via Docker Compose (Docker Desktop) |
 | `stack-fitness-functions-test <file>` | Validate a file's fitness functions against the running server |
 
