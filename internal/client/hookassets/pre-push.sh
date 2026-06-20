@@ -118,7 +118,7 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
     fi
 
     content_file="$tmpdir/${local_sha:0:8}_$(echo "$file" | tr '/' '_')"
-    if ! git show "${local_sha}:${file}" > "$content_file" 2>/dev/null; then
+    if ! git -C "$repo" show "${local_sha}:${file}" > "$content_file" 2>/dev/null; then
       continue
     fi
 
