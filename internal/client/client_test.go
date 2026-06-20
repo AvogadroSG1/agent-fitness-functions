@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -377,6 +379,48 @@ func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
 	}
 	if !strings.Contains(string(existing), "# stack-fitness-functions pre-commit hook (sidecar)") {
 		t.Fatalf("existing hook missing sidecar block:\n%s", existing)
+	}
+}
+
+func TestRunInstallHooksRefreshesLegacySidecarReferences(t *testing.T) {
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+
+	for _, hookName := range []string{"pre-commit", "pre-push"} {
+		t.Run(hookName, func(t *testing.T) {
+			targetHook := filepath.Join(repo, ".git", "hooks", hookName)
+			legacySidecar := filepath.Join(repo, ".git", "hooks", "calm-"+hookName)
+			if err := os.MkdirAll(filepath.Dir(targetHook), 0o755); err != nil {
+				t.Fatalf("mkdir hooks: %v", err)
+			}
+			if err := os.WriteFile(legacySidecar, []byte("#!/usr/bin/env bash\necho legacy\n"), 0o755); err != nil {
+				t.Fatalf("seed legacy sidecar: %v", err)
+			}
+			legacyHook := fmt.Sprintf("#!/usr/bin/env bash\n%s\n%q\n", legacySidecarMarker(hookName), legacySidecar)
+			if err := os.WriteFile(targetHook, []byte(legacyHook), 0o755); err != nil {
+				t.Fatalf("seed active hook: %v", err)
+			}
+
+			var stdout, stderr bytes.Buffer
+			if err := RunInstallHooks([]string{repo}, &stdout, &stderr); err != nil {
+				t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
+			}
+
+			content, err := os.ReadFile(targetHook)
+			if err != nil {
+				t.Fatalf("read active hook: %v", err)
+			}
+			newSidecar := filepath.Join(repo, ".git", "hooks", sidecarHookName(hookName))
+			if !strings.Contains(string(content), sidecarHookMarker(hookName)) {
+				t.Fatalf("active hook missing new marker:\n%s", content)
+			}
+			if !strings.Contains(string(content), strconv.Quote(newSidecar)) {
+				t.Fatalf("active hook missing new sidecar path %q:\n%s", newSidecar, content)
+			}
+			if strings.Contains(string(content), legacySidecar) {
+				t.Fatalf("active hook still references legacy sidecar %q:\n%s", legacySidecar, content)
+			}
+		})
 	}
 }
 
