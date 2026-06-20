@@ -160,7 +160,7 @@ func (installer hookInstaller) handleExistingGitHook(targetHook, hooksDir, hookN
 		return false, err
 	}
 	if hookHasSidecar(content, hookName) {
-		return true, installer.refreshHookSidecar(hooksDir, hookName, embeddedPath)
+		return true, installer.refreshHookSidecar(targetHook, hooksDir, hookName, embeddedPath)
 	}
 	if hookIsManaged(content, hookName) {
 		return false, nil
@@ -192,16 +192,45 @@ func hookIsManaged(content []byte, hookName string) bool {
 		bytes.Contains(content, []byte(legacyHookMarker(hookName)))
 }
 
-func (installer hookInstaller) refreshHookSidecar(hooksDir, hookName, embeddedPath string) error {
+func (installer hookInstaller) refreshHookSidecar(targetHook, hooksDir, hookName, embeddedPath string) error {
 	sidecar := filepath.Join(hooksDir, sidecarHookName(hookName))
+	legacySidecar := legacySidecarPath(hooksDir, hookName)
 	if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
+		return err
+	}
+	if err := rewriteHookSidecarReference(targetHook, hookName, sidecar); err != nil {
 		return err
 	}
 	if err := installer.writeFormatter(hooksDir); err != nil {
 		return err
 	}
+	_ = os.Remove(legacySidecar)
 	_, _ = fmt.Fprintf(installer.stdout, "updated %s\n", sidecar)
 	return nil
+}
+
+func legacySidecarPath(hooksDir, hookName string) string {
+	return filepath.Join(hooksDir, "calm-"+hookName)
+}
+
+func rewriteHookSidecarReference(targetHook, hookName, sidecar string) error {
+	content, err := os.ReadFile(targetHook)
+	if err != nil {
+		return fmt.Errorf("reading existing %s hook: %w", hookName, err)
+	}
+	rewritten, _ := rewriteLegacySidecarBlock(content, hookName, sidecar)
+	if err := os.WriteFile(targetHook, rewritten, 0o755); err != nil {
+		return fmt.Errorf("rewriting existing %s hook: %w", hookName, err)
+	}
+	return nil
+}
+
+func rewriteLegacySidecarBlock(content []byte, hookName, sidecar string) ([]byte, bool) {
+	rewritten := bytes.ReplaceAll(content, []byte(legacySidecarMarker(hookName)), []byte(sidecarHookMarker(hookName)))
+	legacyPath := []byte(fmt.Sprintf("%q", legacySidecarPath(filepath.Dir(sidecar), hookName)))
+	newPath := []byte(fmt.Sprintf("%q", sidecar))
+	rewritten = bytes.ReplaceAll(rewritten, legacyPath, newPath)
+	return rewritten, !bytes.Equal(content, rewritten)
 }
 
 func (installer hookInstaller) resolveUnmanagedHook(targetHook, hooksDir, hookName, embeddedPath string) (bool, error) {
