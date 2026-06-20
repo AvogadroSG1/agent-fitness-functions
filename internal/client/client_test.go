@@ -264,7 +264,28 @@ func TestHookAssetsMatchSourceHooks(t *testing.T) {
 	}
 }
 
+func seedInstallHooksDevCertDir(t *testing.T) string {
+	t.Helper()
+	sourceCerts := filepath.Join(t.TempDir(), "certs")
+	writeDevCertChain(t, sourceCerts)
+	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", sourceCerts)
+	return sourceCerts
+}
+
+func writeDevCertChain(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir source certs: %v", err)
+	}
+	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(name), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+}
+
 func TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo(t *testing.T) {
+	seedInstallHooksDevCertDir(t)
 	repo := t.TempDir()
 	runGitClientTest(t, repo, "init")
 
@@ -312,6 +333,7 @@ func TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo(t *testing.T) {
 }
 
 func TestRunInstallHooksIsIdempotent(t *testing.T) {
+	seedInstallHooksDevCertDir(t)
 	repo := t.TempDir()
 	runGitClientTest(t, repo, "init")
 
@@ -331,17 +353,24 @@ func TestRunInstallHooksIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestRunInstallHooksFailsWhenDevCertSourceIsMissing(t *testing.T) {
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+
+	var stdout, stderr bytes.Buffer
+	err := RunInstallHooks([]string{repo}, &stdout, &stderr)
+	if err == nil {
+		t.Fatalf("RunInstallHooks succeeded, want missing-cert-source failure; stdout=%s", stdout.String())
+	}
+	if !strings.Contains(err.Error(), "could not discover a trusted developer cert chain") {
+		t.Fatalf("err = %v, want missing trusted developer cert chain message", err)
+	}
+}
+
 func TestRunInstallHooksProvisionsSharedDevCerts(t *testing.T) {
 	sourceRepo := t.TempDir()
 	sourceCerts := filepath.Join(sourceRepo, "certs")
-	if err := os.MkdirAll(sourceCerts, 0o755); err != nil {
-		t.Fatalf("mkdir source certs: %v", err)
-	}
-	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
-		if err := os.WriteFile(filepath.Join(sourceCerts, name), []byte(name), 0o600); err != nil {
-			t.Fatalf("write %s: %v", name, err)
-		}
-	}
+	writeDevCertChain(t, sourceCerts)
 
 	repo := t.TempDir()
 	runGitClientTest(t, repo, "init")
@@ -372,19 +401,23 @@ func TestRunInstallHooksProvisionsSharedDevCerts(t *testing.T) {
 	if !strings.Contains(string(excludeContent), "certs/") {
 		t.Fatalf("info/exclude missing certs/ entry:\n%s", excludeContent)
 	}
+
+	settingsContent, err := os.ReadFile(filepath.Join(repo, ".claude", "settings.json"))
+	if err != nil {
+		t.Fatalf("read settings: %v", err)
+	}
+	if strings.Contains(string(settingsContent), "client.crt") ||
+		strings.Contains(string(settingsContent), "client.key") ||
+		strings.Contains(string(settingsContent), "ca.crt") ||
+		strings.Contains(string(settingsContent), "certs/") {
+		t.Fatalf("settings unexpectedly contains cert material:\n%s", settingsContent)
+	}
 }
 
 func TestRunInstallHooksProvisionsSharedDevCertsForWorktree(t *testing.T) {
 	sourceRepo := t.TempDir()
 	sourceCerts := filepath.Join(sourceRepo, "certs")
-	if err := os.MkdirAll(sourceCerts, 0o755); err != nil {
-		t.Fatalf("mkdir source certs: %v", err)
-	}
-	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
-		if err := os.WriteFile(filepath.Join(sourceCerts, name), []byte(name), 0o600); err != nil {
-			t.Fatalf("write %s: %v", name, err)
-		}
-	}
+	writeDevCertChain(t, sourceCerts)
 
 	mainRepo := filepath.Join(t.TempDir(), "relocate")
 	if err := os.MkdirAll(mainRepo, 0o755); err != nil {
@@ -415,19 +448,24 @@ func TestRunInstallHooksProvisionsSharedDevCertsForWorktree(t *testing.T) {
 	if target != sourceCerts {
 		t.Fatalf("worktree certs symlink = %q, want %q", target, sourceCerts)
 	}
+
+	excludePath, err := localIgnorePath(worktree)
+	if err != nil {
+		t.Fatalf("resolve worktree info/exclude: %v", err)
+	}
+	excludeContent, err := os.ReadFile(excludePath)
+	if err != nil {
+		t.Fatalf("read worktree info/exclude: %v", err)
+	}
+	if !strings.Contains(string(excludeContent), "certs/") {
+		t.Fatalf("worktree info/exclude missing certs/ entry:\n%s", excludeContent)
+	}
 }
 
 func TestRunInstallHooksProvisioningIsIdempotent(t *testing.T) {
 	sourceRepo := t.TempDir()
 	sourceCerts := filepath.Join(sourceRepo, "certs")
-	if err := os.MkdirAll(sourceCerts, 0o755); err != nil {
-		t.Fatalf("mkdir source certs: %v", err)
-	}
-	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
-		if err := os.WriteFile(filepath.Join(sourceCerts, name), []byte(name), 0o600); err != nil {
-			t.Fatalf("write %s: %v", name, err)
-		}
-	}
+	writeDevCertChain(t, sourceCerts)
 
 	repo := t.TempDir()
 	runGitClientTest(t, repo, "init")
@@ -461,17 +499,46 @@ func TestRunInstallHooksProvisioningIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestRunInstallHooksRefusesExistingNonSymlinkCertsPath(t *testing.T) {
+func TestRunInstallHooksPreservesExistingTrustedCertDirectory(t *testing.T) {
 	sourceRepo := t.TempDir()
 	sourceCerts := filepath.Join(sourceRepo, "certs")
-	if err := os.MkdirAll(sourceCerts, 0o755); err != nil {
-		t.Fatalf("mkdir source certs: %v", err)
+	writeDevCertChain(t, sourceCerts)
+
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+	t.Setenv("STACK_FITNESS_FUNCTIONS_SRC", sourceRepo)
+	repoCerts := filepath.Join(repo, "certs")
+	writeDevCertChain(t, repoCerts)
+
+	var stdout, stderr bytes.Buffer
+	if err := RunInstallHooks([]string{repo}, &stdout, &stderr); err != nil {
+		t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
 	}
-	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
-		if err := os.WriteFile(filepath.Join(sourceCerts, name), []byte(name), 0o600); err != nil {
-			t.Fatalf("write %s: %v", name, err)
-		}
+
+	info, err := os.Lstat(repoCerts)
+	if err != nil {
+		t.Fatalf("stat repo certs: %v", err)
 	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("repo certs became a symlink, want existing trusted directory preserved")
+	}
+	excludePath, err := localIgnorePath(repo)
+	if err != nil {
+		t.Fatalf("resolve info/exclude: %v", err)
+	}
+	excludeContent, err := os.ReadFile(excludePath)
+	if err != nil {
+		t.Fatalf("read info/exclude: %v", err)
+	}
+	if !strings.Contains(string(excludeContent), "certs/") {
+		t.Fatalf("info/exclude missing certs/ entry:\n%s", excludeContent)
+	}
+}
+
+func TestRunInstallHooksRefusesExistingInvalidNonSymlinkCertsPath(t *testing.T) {
+	sourceRepo := t.TempDir()
+	sourceCerts := filepath.Join(sourceRepo, "certs")
+	writeDevCertChain(t, sourceCerts)
 
 	repo := t.TempDir()
 	runGitClientTest(t, repo, "init")
@@ -485,8 +552,50 @@ func TestRunInstallHooksRefusesExistingNonSymlinkCertsPath(t *testing.T) {
 	if err == nil {
 		t.Fatalf("RunInstallHooks succeeded, want refusal; stdout=%s", stdout.String())
 	}
-	if !strings.Contains(err.Error(), "non-symlink certs path") {
-		t.Fatalf("err = %v, want non-symlink certs path refusal", err)
+	if !strings.Contains(err.Error(), "invalid non-symlink certs path") {
+		t.Fatalf("err = %v, want invalid non-symlink certs path refusal", err)
+	}
+}
+
+func TestDiscoverDevCertSourcePrefersExplicitDevCertDir(t *testing.T) {
+	explicitDir := filepath.Join(t.TempDir(), "explicit-certs")
+	writeDevCertChain(t, explicitDir)
+	sourceRepo := t.TempDir()
+	writeDevCertChain(t, filepath.Join(sourceRepo, "certs"))
+	fallbackRoot := t.TempDir()
+	writeDevCertChain(t, filepath.Join(fallbackRoot, "certs"))
+
+	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", explicitDir)
+	t.Setenv("STACK_FITNESS_FUNCTIONS_SRC", sourceRepo)
+
+	got, ok, err := discoverDevCertSourceFrom(filepath.Join(fallbackRoot, "bin", "stack-fitness-functions"))
+	if err != nil {
+		t.Fatalf("discoverDevCertSourceFrom returned error: %v", err)
+	}
+	if !ok {
+		t.Fatalf("discoverDevCertSourceFrom did not find explicit cert dir")
+	}
+	if got != explicitDir {
+		t.Fatalf("discoverDevCertSourceFrom = %q, want %q", got, explicitDir)
+	}
+}
+
+func TestDiscoverDevCertSourceFallsBackToExecutableAdjacentCerts(t *testing.T) {
+	fallbackRoot := t.TempDir()
+	expected := filepath.Join(fallbackRoot, "certs")
+	writeDevCertChain(t, expected)
+	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", "")
+	t.Setenv("STACK_FITNESS_FUNCTIONS_SRC", "")
+
+	got, ok, err := discoverDevCertSourceFrom(filepath.Join(fallbackRoot, "bin", "stack-fitness-functions"))
+	if err != nil {
+		t.Fatalf("discoverDevCertSourceFrom returned error: %v", err)
+	}
+	if !ok {
+		t.Fatalf("discoverDevCertSourceFrom did not find executable-adjacent certs")
+	}
+	if got != expected {
+		t.Fatalf("discoverDevCertSourceFrom = %q, want %q", got, expected)
 	}
 }
 
@@ -517,6 +626,7 @@ func TestRunInstallHooksRefusesExistingNonCalmHook(t *testing.T) {
 
 func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
 	t.Setenv("STACK_FITNESS_FUNCTIONS_HOOK_APPEND", "1")
+	seedInstallHooksDevCertDir(t)
 	repo := t.TempDir()
 	runGitClientTest(t, repo, "init")
 	existingHook := filepath.Join(repo, ".git", "hooks", "pre-commit")
@@ -548,6 +658,7 @@ func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
 }
 
 func TestRunInstallHooksRefreshesLegacySidecarReferences(t *testing.T) {
+	seedInstallHooksDevCertDir(t)
 	repo := t.TempDir()
 	runGitClientTest(t, repo, "init")
 	canonicalRepo, err := filepath.EvalSymlinks(repo)
@@ -598,6 +709,7 @@ func TestRunInstallHooksRefreshesLegacySidecarReferences(t *testing.T) {
 }
 
 func TestRunInstallHooksUpgradesLegacyCalmHook(t *testing.T) {
+	seedInstallHooksDevCertDir(t)
 	repo := t.TempDir()
 	runGitClientTest(t, repo, "init")
 
@@ -630,6 +742,7 @@ func TestRunInstallHooksUpgradesLegacyCalmHook(t *testing.T) {
 }
 
 func TestRunInstallHooksUpgradesLegacyGitGuardSettings(t *testing.T) {
+	seedInstallHooksDevCertDir(t)
 	repo := t.TempDir()
 	runGitClientTest(t, repo, "init")
 

@@ -101,13 +101,13 @@ ln -sf "$(pwd)/bin"/stack-fitness-functions-* ~/.local/bin/
 
 | Command | Purpose |
 |---------|---------|
-| `stack-fitness-functions client install-hooks [repo]` | Install the embedded Git hooks, provision repo-local access to the trusted dev client cert chain at `<repo>/certs` when a shared source is discoverable, and register the git guard (see [Onboarding a New Repository](docs/runbooks/onboard-new-repository.md) for the full end-to-end flow) |
+| `stack-fitness-functions client install-hooks [repo]` | Install the embedded Git hooks, require a discoverable shared trusted dev cert source so `<repo>/certs` can be provisioned, and register the git guard (see [Onboarding a New Repository](docs/runbooks/onboard-new-repository.md) for the full end-to-end flow) |
 | `stack-fitness-functions-serve [--build]` | Start the stack-fitness-functions server container via Docker Compose (Docker Desktop) |
 | `stack-fitness-functions-test <file>` | Validate a file's fitness functions against the running server |
 
 ### Remote Container Hook Mode
 
-For a containerized server, `client install-hooks` is the normal local developer path: it provisions `<repo>/certs` when it can discover the shared trusted `dev-hook-pool` chain, so the hook can auto-discover client credentials with no manual cert exports. The common remote-mode setup is then:
+For a containerized server, `client install-hooks` is the normal local developer path: it requires a discoverable shared trusted `dev-hook-pool` chain so `<repo>/certs` can be provisioned and the hook can auto-discover client credentials with no manual cert exports. The common remote-mode setup is then:
 
 ```bash
 export STACK_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890

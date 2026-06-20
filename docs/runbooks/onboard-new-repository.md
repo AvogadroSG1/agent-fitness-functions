@@ -179,8 +179,7 @@ This installs:
   (`--no-verify`, force-push, ff-only merges) and is registered in
   `.claude/settings.json` `PreToolUse` for AI-agent enforcement
 
-`client install-hooks` also provisions the local developer cert path when a
-shared trusted source is discoverable. It links `<repo>/certs` to the shared
+`client install-hooks` also requires a discoverable shared trusted source. It links `<repo>/certs` to the shared
 trusted `dev-hook-pool` chain and adds a repo-local `certs/` ignore entry so
 the key material does not appear as tracked content. The installer reuses an
 existing trusted chain; it does not mint a fresh CA.

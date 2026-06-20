@@ -138,7 +138,7 @@ func (installer hookInstaller) provisionDevCerts() error {
 		return err
 	}
 	if !ok {
-		return nil
+		return errors.New("could not discover a trusted developer cert chain; set STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR or STACK_FITNESS_FUNCTIONS_SRC")
 	}
 	if err := installer.ensureRepoCertsLink(sourceDir); err != nil {
 		return err
@@ -147,17 +147,12 @@ func (installer hookInstaller) provisionDevCerts() error {
 }
 
 func (installer hookInstaller) discoverDevCertSource() (string, bool, error) {
-	candidates := []string{
-		os.Getenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR"),
-		filepath.Join(os.Getenv("STACK_FITNESS_FUNCTIONS_SRC"), "certs"),
-	}
-	if executable, err := os.Executable(); err == nil {
-		executableDir := filepath.Dir(executable)
-		candidates = append(candidates,
-			filepath.Join(executableDir, "certs"),
-			filepath.Join(executableDir, "..", "certs"),
-		)
-	}
+	executable, _ := os.Executable()
+	return discoverDevCertSourceFrom(executable)
+}
+
+func discoverDevCertSourceFrom(executable string) (string, bool, error) {
+	candidates := devCertSourceCandidates(executable)
 	for _, candidate := range candidates {
 		if candidate == "" {
 			continue
@@ -170,12 +165,30 @@ func (installer hookInstaller) discoverDevCertSource() (string, bool, error) {
 	return "", false, nil
 }
 
+func devCertSourceCandidates(executable string) []string {
+	candidates := []string{
+		os.Getenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR"),
+		filepath.Join(os.Getenv("STACK_FITNESS_FUNCTIONS_SRC"), "certs"),
+	}
+	if executable == "" {
+		return candidates
+	}
+	executableDir := filepath.Dir(executable)
+	return append(candidates,
+		filepath.Join(executableDir, "certs"),
+		filepath.Join(executableDir, "..", "certs"),
+	)
+}
+
 func (installer hookInstaller) ensureRepoCertsLink(sourceDir string) error {
 	certsPath := filepath.Join(installer.repoRoot, "certs")
 	info, err := os.Lstat(certsPath)
 	if err == nil {
 		if info.Mode()&os.ModeSymlink == 0 {
-			return fmt.Errorf("refusing to replace existing non-symlink certs path: %s", certsPath)
+			if info.IsDir() && hasDevCertChain(certsPath) {
+				return nil
+			}
+			return fmt.Errorf("refusing to replace existing invalid non-symlink certs path: %s", certsPath)
 		}
 		target, readErr := os.Readlink(certsPath)
 		if readErr != nil {
