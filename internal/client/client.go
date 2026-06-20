@@ -166,9 +166,9 @@ func discoverDevCertSourceFrom(executable string) (string, bool, error) {
 }
 
 func devCertSourceCandidates(executable string) []string {
-	candidates := []string{
-		os.Getenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR"),
-		filepath.Join(os.Getenv("STACK_FITNESS_FUNCTIONS_SRC"), "certs"),
+	candidates := []string{os.Getenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR")}
+	if sourceRoot := os.Getenv("STACK_FITNESS_FUNCTIONS_SRC"); sourceRoot != "" {
+		candidates = append(candidates, filepath.Join(sourceRoot, "certs"))
 	}
 	if executable == "" {
 		return candidates

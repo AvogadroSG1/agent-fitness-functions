@@ -115,12 +115,20 @@ export STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1
 export STACK_FITNESS_FUNCTIONS_REPO_NAME=graft
 ```
 
-If `client install-hooks` cannot discover the shared trusted cert source, or if you need an explicit override, set the client cert variables manually:
+If you need an explicit runtime override after install-hooks has already provisioned `<repo>/certs`, set the client cert variables manually:
 
 ```bash
 export STACK_FITNESS_FUNCTIONS_CLIENT_CERT=/path/to/client.crt
 export STACK_FITNESS_FUNCTIONS_CLIENT_KEY=/path/to/client.key
 export STACK_FITNESS_FUNCTIONS_CLIENT_CA=/path/to/ca.crt
+```
+
+If the installer cannot discover the shared trusted source on its own, point it at the source before running `client install-hooks`:
+
+```bash
+export STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR=/path/to/shared/dev-hook-pool/certs
+# or
+export STACK_FITNESS_FUNCTIONS_SRC=/path/to/stack-fitness-functions
 ```
 
 When `STACK_FITNESS_FUNCTIONS_ADDR` points at a remote server, `hooks/pre-commit.sh` sends staged content through a temporary content file and uses `STACK_FITNESS_FUNCTIONS_REPO_NAME` or the working-tree basename as the logical `--repo` value.

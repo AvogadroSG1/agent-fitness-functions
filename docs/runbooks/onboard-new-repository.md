@@ -188,6 +188,16 @@ If the repo already has unrelated hooks, the installer refuses to overwrite them
 Set `STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1` to install as a sidecar alongside the
 existing hook, or `STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` to replace it.
 
+If the installer cannot find the shared trusted developer cert source via its
+executable-adjacent fallback, set one of these before running
+`client install-hooks`:
+
+```bash
+export STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR=/path/to/shared/dev-hook-pool/certs
+# or
+export STACK_FITNESS_FUNCTIONS_SRC=/path/to/stack-fitness-functions
+```
+
 ## Step 5 — Point hooks at the server
 
 ### Local sandbox
@@ -209,8 +219,8 @@ After `client install-hooks`, a fresh repo or git worktree SHOULD already have
 source is discoverable, so no manual cert exports are needed for the normal
 developer flow. Only set `STACK_FITNESS_FUNCTIONS_CLIENT_CERT`,
 `STACK_FITNESS_FUNCTIONS_CLIENT_KEY`, and `STACK_FITNESS_FUNCTIONS_CLIENT_CA`
-when you need to override the discovered cert path or when install-hooks could
-not provision `<repo>/certs`.
+when you need to override the discovered cert path after install-hooks has
+already provisioned `<repo>/certs`.
 
 > `STACK_FITNESS_FUNCTIONS_REPO_NAME` is still the logical-name override: it
 > becomes the `--repo` value the hook sends, and it MUST equal the
@@ -294,7 +304,7 @@ export STACK_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890
 export STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1
 export STACK_FITNESS_FUNCTIONS_REPO_NAME=<repo-name>
 
-# Only if install-hooks could not provision <repo>/certs, or if you need an override:
+# Only if you need a runtime override after install-hooks has already provisioned <repo>/certs:
 export STACK_FITNESS_FUNCTIONS_CLIENT_CERT=/path/to/client.crt
 export STACK_FITNESS_FUNCTIONS_CLIENT_KEY=/path/to/client.key
 export STACK_FITNESS_FUNCTIONS_CLIENT_CA=/path/to/ca.crt

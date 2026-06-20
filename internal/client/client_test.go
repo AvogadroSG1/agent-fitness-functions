@@ -599,6 +599,33 @@ func TestDiscoverDevCertSourceFallsBackToExecutableAdjacentCerts(t *testing.T) {
 	}
 }
 
+func TestDiscoverDevCertSourceDoesNotUseRelativeCwdCertsWhenSourceEnvUnset(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	temp := t.TempDir()
+	writeDevCertChain(t, filepath.Join(temp, "certs"))
+	if err := os.Chdir(temp); err != nil {
+		t.Fatalf("chdir temp: %v", err)
+	}
+	t.Cleanup(func() {
+		if chdirErr := os.Chdir(cwd); chdirErr != nil {
+			t.Fatalf("restore cwd: %v", chdirErr)
+		}
+	})
+	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", "")
+	t.Setenv("STACK_FITNESS_FUNCTIONS_SRC", "")
+
+	got, ok, err := discoverDevCertSourceFrom("")
+	if err != nil {
+		t.Fatalf("discoverDevCertSourceFrom returned error: %v", err)
+	}
+	if ok {
+		t.Fatalf("discoverDevCertSourceFrom = %q, want no discovery from relative cwd certs", got)
+	}
+}
+
 func TestRunInstallHooksRefusesExistingNonCalmHook(t *testing.T) {
 	repo := t.TempDir()
 	runGitClientTest(t, repo, "init")
