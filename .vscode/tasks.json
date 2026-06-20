@@ -4,7 +4,7 @@
     {
       "label": "CALM: Check Current File",
       "type": "shell",
-      "command": "common_dir=$(git rev-parse --git-common-dir); case \"$common_dir\" in /*) ;; *) common_dir=${workspaceFolder}/$common_dir ;; esac; repo_name=$(basename \"$(dirname \"$common_dir\")\"); mkdir -p .calm && stack-fitness-functions client validate --file ${relativeFile} --repo \"$repo_name\" --git-dir ${workspaceFolder} --format sarif > .calm/results.sarif",
+      "command": "cd \"${workspaceFolder}\" && repo_name=\"${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}\"; if [ -z \"$repo_name\" ]; then common_dir=$(git rev-parse --git-common-dir); case \"$common_dir\" in /*) ;; *) common_dir=\"${workspaceFolder}/$common_dir\" ;; esac; repo_name=$(basename \"$(dirname \"$common_dir\")\"); fi; mkdir -p .calm && stack-fitness-functions client validate --file \"${relativeFile}\" --repo \"$repo_name\" --git-dir \"${workspaceFolder}\" --format sarif > .calm/results.sarif",
       "group": "test",
       "presentation": {
         "reveal": "silent",
@@ -16,7 +16,7 @@
     {
       "label": "CALM: Watch (run on save)",
       "type": "shell",
-      "command": "common_dir=$(git rev-parse --git-common-dir); case \"$common_dir\" in /*) ;; *) common_dir=${workspaceFolder}/$common_dir ;; esac; repo_name=$(basename \"$(dirname \"$common_dir\")\"); while true; do inotifywait -e close_write ${file} 2>/dev/null || fswatch -1 ${file} 2>/dev/null; mkdir -p .calm && stack-fitness-functions client validate --file ${relativeFile} --repo \"$repo_name\" --git-dir ${workspaceFolder} --format sarif > .calm/results.sarif; done",
+      "command": "cd \"${workspaceFolder}\" && repo_name=\"${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}\"; if [ -z \"$repo_name\" ]; then common_dir=$(git rev-parse --git-common-dir); case \"$common_dir\" in /*) ;; *) common_dir=\"${workspaceFolder}/$common_dir\" ;; esac; repo_name=$(basename \"$(dirname \"$common_dir\")\"); fi; while true; do inotifywait -e close_write \"${file}\" 2>/dev/null || fswatch -1 \"${file}\" 2>/dev/null; mkdir -p .calm && stack-fitness-functions client validate --file \"${relativeFile}\" --repo \"$repo_name\" --git-dir \"${workspaceFolder}\" --format sarif > .calm/results.sarif; done",
       "isBackground": true,
       "group": "test",
       "presentation": {
