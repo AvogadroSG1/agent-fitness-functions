@@ -240,8 +240,12 @@ single file directly against the server:
 stack-fitness-functions client validate \
   --file <path> \
   --repo <repo-name> \
+  --git-dir . \
   --language <go|python|csharp>
 ```
+
+If you need to validate content detached from the current working tree, use
+`--content-file <path>` instead of `--git-dir .`.
 
 ## Troubleshooting
 
