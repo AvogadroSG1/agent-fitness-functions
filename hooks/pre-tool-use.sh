@@ -13,8 +13,21 @@ client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/client.key}
 client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/ca.crt}
 repo_name=${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}
 repo_arg=$repo
+
+logical_repo_name() {
+  local common_dir
+  common_dir=$(cd "$repo" && git rev-parse --git-common-dir 2>/dev/null) || { basename "$repo"; return; }
+  case "$common_dir" in
+    /*) ;;
+    *) common_dir=$repo/$common_dir ;;
+  esac
+  basename "$(dirname "$common_dir")"
+}
+
 if [[ -n "$repo_name" ]]; then
   repo_arg=$repo_name
+else
+  repo_arg=$(logical_repo_name)
 fi
 
 bridge_addr_is_loopback() {
@@ -191,7 +204,7 @@ if [[ "$binary" == "True" || "$binary" == "true" ]]; then
   exit 2
 fi
 
-args=(client validate --file "$file" --repo "$repo_arg" --content-file "$content_file" --language "$language")
+args=(client validate --file "$file" --repo "$repo_arg" --git-dir "$repo" --content-file "$content_file" --language "$language")
 args+=(--addr "$addr")
 # Pass mTLS client cert+key only as a pair (the client requires both together);
 # omit when the files are absent so a plain-HTTP local server still works.

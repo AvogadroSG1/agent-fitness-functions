@@ -130,6 +130,32 @@ printf '{"status":"pass"}\n'
 	}
 }
 
+func TestPreToolUseLocalModeSendsLogicalRepoNameAndGitDir(t *testing.T) {
+	_, worktree := initNamedWorktree(t)
+	writeFile(t, filepath.Join(worktree, "sample.go"), "package sample\n")
+	payload := `{"tool_input":{"file_path":"sample.go","content":"package sample\n"}}`
+	logPath := filepath.Join(t.TempDir(), "calls.log")
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+echo '{"status":"pass"}'
+`)
+
+	output, err := runPreToolUse(t, worktree, payload, fakeBin, logPath, "")
+	if err != nil {
+		t.Fatalf("pre-tool-use failed: %v\n%s", err, output)
+	}
+
+	got := readFile(t, logPath)
+	for _, want := range []string{"--repo relocate", "--git-dir " + worktree} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in invocation:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "--repo "+worktree) || strings.Contains(got, "--repo feature+relocate-stats") {
+		t.Fatalf("logical repo name leaked the worktree identity:\n%s", got)
+	}
+}
+
 func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
 	repo := initGitRepo(t)
 	writeFile(t, filepath.Join(repo, ".calm", "config.json"), `{
