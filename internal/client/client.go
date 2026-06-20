@@ -174,15 +174,14 @@ func (installer hookInstaller) ensureRepoCertsLink(sourceDir string) error {
 	certsPath := filepath.Join(installer.repoRoot, "certs")
 	info, err := os.Lstat(certsPath)
 	if err == nil {
-		if info.Mode()&os.ModeSymlink != 0 {
-			target, readErr := os.Readlink(certsPath)
-			if readErr != nil {
-				return fmt.Errorf("reading existing certs link: %w", readErr)
-			}
-			if target == sourceDir {
-				return nil
-			}
-		} else {
+		if info.Mode()&os.ModeSymlink == 0 {
+			return fmt.Errorf("refusing to replace existing non-symlink certs path: %s", certsPath)
+		}
+		target, readErr := os.Readlink(certsPath)
+		if readErr != nil {
+			return fmt.Errorf("reading existing certs link: %w", readErr)
+		}
+		if target == sourceDir {
 			return nil
 		}
 		if err := os.Remove(certsPath); err != nil {

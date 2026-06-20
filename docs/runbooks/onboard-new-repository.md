@@ -202,11 +202,16 @@ Export the remote-mode environment variables (see README for the canonical table
 ```bash
 export STACK_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890
 export STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1
-export STACK_FITNESS_FUNCTIONS_CLIENT_CERT=/path/to/client.crt
-export STACK_FITNESS_FUNCTIONS_CLIENT_KEY=/path/to/client.key
-export STACK_FITNESS_FUNCTIONS_CLIENT_CA=/path/to/ca.crt
 export STACK_FITNESS_FUNCTIONS_REPO_NAME=<repo-name>
 ```
+
+After `client install-hooks`, a fresh repo or git worktree SHOULD already have
+`<repo>/certs` linked to the shared trusted `dev-hook-pool` chain when that
+source is discoverable, so no manual cert exports are needed for the normal
+developer flow. Only set `STACK_FITNESS_FUNCTIONS_CLIENT_CERT`,
+`STACK_FITNESS_FUNCTIONS_CLIENT_KEY`, and `STACK_FITNESS_FUNCTIONS_CLIENT_CA`
+when you need to override the discovered cert path or when install-hooks could
+not provision `<repo>/certs`.
 
 > `STACK_FITNESS_FUNCTIONS_REPO_NAME` is still the logical-name override: it
 > becomes the `--repo` value the hook sends, and it MUST equal the
@@ -288,10 +293,12 @@ cd /path/to/<repo> && stack-fitness-functions client install-hooks
 # 5. Point hooks at server (remote mode)
 export STACK_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890
 export STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1
+export STACK_FITNESS_FUNCTIONS_REPO_NAME=<repo-name>
+
+# Only if install-hooks could not provision <repo>/certs, or if you need an override:
 export STACK_FITNESS_FUNCTIONS_CLIENT_CERT=/path/to/client.crt
 export STACK_FITNESS_FUNCTIONS_CLIENT_KEY=/path/to/client.key
 export STACK_FITNESS_FUNCTIONS_CLIENT_CA=/path/to/ca.crt
-export STACK_FITNESS_FUNCTIONS_REPO_NAME=<repo-name>
 
 # 6. Verify
 git add <clean-file> && git commit -m "verify onboarding"

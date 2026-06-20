@@ -78,9 +78,9 @@ The local `.calm` mode (described in the CLI tools section below) is a **sandbox
 |----------|----------|---------|
 | `STACK_FITNESS_FUNCTIONS_ADDR` | Yes | Full HTTPS URL, e.g. `https://calm-governance.example:7890` |
 | `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE` | Yes (set to `1`) | Opt-in to non-loopback server addresses |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_CERT` | Yes (mTLS) | Path to PEM-encoded client certificate |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_KEY` | Yes (mTLS) | Path to PEM-encoded client private key |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_CA` | Yes (mTLS) | Path to PEM-encoded CA bundle for server verification |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_CERT` | Auto after `client install-hooks`; otherwise yes | Path to PEM-encoded client certificate when overriding or when install-hooks could not provision `<repo>/certs` |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_KEY` | Auto after `client install-hooks`; otherwise yes | Path to PEM-encoded client private key when overriding or when install-hooks could not provision `<repo>/certs` |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_CA` | Auto after `client install-hooks`; otherwise yes | Path to PEM-encoded CA bundle for server verification when overriding or when install-hooks could not provision `<repo>/certs` |
 | `STACK_FITNESS_FUNCTIONS_REPO_NAME` | Recommended | Logical repository name (overrides working-tree basename) |
 
 All hooks enforce HTTPS when `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` is set. Connections over plain HTTP to a non-loopback address are rejected at the hook layer.
@@ -107,15 +107,20 @@ ln -sf "$(pwd)/bin"/stack-fitness-functions-* ~/.local/bin/
 
 ### Remote Container Hook Mode
 
-For a containerized server, configure hooks with an HTTPS endpoint, mTLS client credentials, and an optional logical repository override:
+For a containerized server, `client install-hooks` is the normal local developer path: it provisions `<repo>/certs` when it can discover the shared trusted `dev-hook-pool` chain, so the hook can auto-discover client credentials with no manual cert exports. The common remote-mode setup is then:
 
 ```bash
 export STACK_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890
 export STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1
+export STACK_FITNESS_FUNCTIONS_REPO_NAME=graft
+```
+
+If `client install-hooks` cannot discover the shared trusted cert source, or if you need an explicit override, set the client cert variables manually:
+
+```bash
 export STACK_FITNESS_FUNCTIONS_CLIENT_CERT=/path/to/client.crt
 export STACK_FITNESS_FUNCTIONS_CLIENT_KEY=/path/to/client.key
 export STACK_FITNESS_FUNCTIONS_CLIENT_CA=/path/to/ca.crt
-export STACK_FITNESS_FUNCTIONS_REPO_NAME=graft
 ```
 
 When `STACK_FITNESS_FUNCTIONS_ADDR` points at a remote server, `hooks/pre-commit.sh` sends staged content through a temporary content file and uses `STACK_FITNESS_FUNCTIONS_REPO_NAME` or the working-tree basename as the logical `--repo` value.

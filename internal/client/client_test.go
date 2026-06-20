@@ -303,6 +303,12 @@ func TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo(t *testing.T) {
 	if !strings.Contains(string(settingsContent), "stack-fitness-functions-git-guard") {
 		t.Fatalf("settings missing git guard entry:\n%s", settingsContent)
 	}
+	if strings.Contains(string(settingsContent), "client.crt") ||
+		strings.Contains(string(settingsContent), "client.key") ||
+		strings.Contains(string(settingsContent), "ca.crt") ||
+		strings.Contains(string(settingsContent), "certs/") {
+		t.Fatalf("settings unexpectedly contains cert material:\n%s", settingsContent)
+	}
 }
 
 func TestRunInstallHooksIsIdempotent(t *testing.T) {
@@ -452,6 +458,35 @@ func TestRunInstallHooksProvisioningIsIdempotent(t *testing.T) {
 	}
 	if count := strings.Count(string(excludeContent), "certs/"); count != 1 {
 		t.Fatalf("info/exclude contains %d certs/ entries, want 1:\n%s", count, excludeContent)
+	}
+}
+
+func TestRunInstallHooksRefusesExistingNonSymlinkCertsPath(t *testing.T) {
+	sourceRepo := t.TempDir()
+	sourceCerts := filepath.Join(sourceRepo, "certs")
+	if err := os.MkdirAll(sourceCerts, 0o755); err != nil {
+		t.Fatalf("mkdir source certs: %v", err)
+	}
+	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
+		if err := os.WriteFile(filepath.Join(sourceCerts, name), []byte(name), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+	t.Setenv("STACK_FITNESS_FUNCTIONS_SRC", sourceRepo)
+	if err := os.MkdirAll(filepath.Join(repo, "certs"), 0o755); err != nil {
+		t.Fatalf("mkdir repo certs: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err := RunInstallHooks([]string{repo}, &stdout, &stderr)
+	if err == nil {
+		t.Fatalf("RunInstallHooks succeeded, want refusal; stdout=%s", stdout.String())
+	}
+	if !strings.Contains(err.Error(), "non-symlink certs path") {
+		t.Fatalf("err = %v, want non-symlink certs path refusal", err)
 	}
 }
 
