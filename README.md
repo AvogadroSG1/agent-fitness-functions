@@ -78,9 +78,9 @@ The local `.calm` mode (described in the CLI tools section below) is a **sandbox
 |----------|----------|---------|
 | `STACK_FITNESS_FUNCTIONS_ADDR` | Yes | Full HTTPS URL, e.g. `https://calm-governance.example:7890` |
 | `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE` | Yes (set to `1`) | Opt-in to non-loopback server addresses |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_CERT` | Auto after `client install-hooks`; otherwise yes | Path to PEM-encoded client certificate when overriding or when install-hooks could not provision `<repo>/certs` |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_KEY` | Auto after `client install-hooks`; otherwise yes | Path to PEM-encoded client private key when overriding or when install-hooks could not provision `<repo>/certs` |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_CA` | Auto after `client install-hooks`; otherwise yes | Path to PEM-encoded CA bundle for server verification when overriding or when install-hooks could not provision `<repo>/certs` |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_CERT` | Runtime default after `client install-hooks`; otherwise runtime override | Path to PEM-encoded client certificate when overriding the provisioned `<repo>/certs` path |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_KEY` | Runtime default after `client install-hooks`; otherwise runtime override | Path to PEM-encoded client private key when overriding the provisioned `<repo>/certs` path |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_CA` | Runtime default after `client install-hooks`; otherwise runtime override | Path to PEM-encoded CA bundle for server verification when overriding the provisioned `<repo>/certs` path |
 | `STACK_FITNESS_FUNCTIONS_REPO_NAME` | Recommended | Logical repository name (overrides working-tree basename) |
 
 All hooks enforce HTTPS when `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` is set. Connections over plain HTTP to a non-loopback address are rejected at the hook layer.

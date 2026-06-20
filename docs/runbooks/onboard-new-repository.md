@@ -102,7 +102,7 @@ Fitness function keys: `cyclomatic-complexity`, `interface-width`,
 
 > **Block mode on a legacy codebase rejects every commit that touches a
 > pre-existing violation.** For an existing repo with unknown debt, generate a
-> baseline first (see Step 5) and consider starting in `advisory` until the team
+> baseline first (see Step 6) and consider starting in `advisory` until the team
 > has cleared the backlog, then flip to `block`. Greenfield repos can start in
 > `block` immediately.
 
