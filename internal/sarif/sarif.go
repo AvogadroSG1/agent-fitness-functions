@@ -124,6 +124,9 @@ func relURI(file, repoRoot string) string {
 	if repoRoot == "" {
 		return filepath.ToSlash(file)
 	}
+	if !filepath.IsAbs(file) {
+		return filepath.ToSlash(file)
+	}
 	rel, err := filepath.Rel(repoRoot, file)
 	if err != nil {
 		return filepath.ToSlash(file)

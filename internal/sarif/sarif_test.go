@@ -68,6 +68,20 @@ func TestConvertViolationWithFileProducesLocation(t *testing.T) {
 	}
 }
 
+func TestConvertKeepsRelativeViolationPathsStable(t *testing.T) {
+	resp := fitness.ValidationResult{
+		Status: fitness.StatusBlock,
+		Violations: []fitness.Violation{
+			{FitnessFunction: "logic_density", Message: "msg", File: "internal/foo/bar.go"},
+		},
+	}
+	out := marshalSARIF(t, sarif.Convert(resp, "repo/worktree"))
+	uri := out.Runs[0].Results[0].Locations[0].PhysicalLocation.ArtifactLocation.URI
+	if uri != "internal/foo/bar.go" {
+		t.Fatalf("uri = %q, want internal/foo/bar.go", uri)
+	}
+}
+
 func TestConvertDuplicateRulesAreDeduped(t *testing.T) {
 	resp := fitness.ValidationResult{
 		Status: fitness.StatusBlock,
