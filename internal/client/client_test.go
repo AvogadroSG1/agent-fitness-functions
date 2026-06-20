@@ -400,7 +400,7 @@ func TestRunInstallHooksRefreshesLegacySidecarReferences(t *testing.T) {
 			if err := os.WriteFile(seedLegacySidecar, []byte("#!/usr/bin/env bash\necho legacy\n"), 0o755); err != nil {
 				t.Fatalf("seed legacy sidecar: %v", err)
 			}
-			legacyHook := fmt.Sprintf("#!/usr/bin/env bash\n%s\n%q\n", legacySidecarMarker(hookName), seedLegacySidecar)
+			legacyHook := fmt.Sprintf("#!/usr/bin/env bash\necho custom\n%s\n%q\n", legacySidecarMarker(hookName), seedLegacySidecar)
 			if err := os.WriteFile(targetHook, []byte(legacyHook), 0o755); err != nil {
 				t.Fatalf("seed active hook: %v", err)
 			}
@@ -416,6 +416,9 @@ func TestRunInstallHooksRefreshesLegacySidecarReferences(t *testing.T) {
 			}
 			newSidecar := filepath.Join(canonicalRepo, ".git", "hooks", sidecarHookName(hookName))
 			legacySidecar := filepath.Join(canonicalRepo, ".git", "hooks", "calm-"+hookName)
+			if !strings.Contains(string(content), "echo custom") {
+				t.Fatalf("active hook lost existing custom body:\n%s", content)
+			}
 			if !strings.Contains(string(content), sidecarHookMarker(hookName)) {
 				t.Fatalf("active hook missing new marker:\n%s", content)
 			}

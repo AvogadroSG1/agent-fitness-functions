@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -214,7 +215,14 @@ func legacySidecarPath(hooksDir, hookName string) string {
 }
 
 func rewriteHookSidecarReference(targetHook, hookName, legacySidecar, sidecar string) error {
-	rewritten := managedSidecarHookContent(hookName, sidecar)
+	content, err := os.ReadFile(targetHook)
+	if err != nil {
+		return fmt.Errorf("reading existing %s hook: %w", hookName, err)
+	}
+	rewritten, changed := rewriteLegacySidecarBlock(content, hookName, legacySidecar, sidecar)
+	if !changed {
+		return nil
+	}
 	if err := os.WriteFile(targetHook, rewritten, 0o755); err != nil {
 		return fmt.Errorf("rewriting existing %s hook: %w", hookName, err)
 	}
@@ -226,11 +234,27 @@ func managedSidecarHookContent(hookName, sidecar string) []byte {
 }
 
 func rewriteLegacySidecarBlock(content []byte, hookName, legacySidecar, sidecar string) ([]byte, bool) {
-	rewritten := bytes.ReplaceAll(content, []byte(legacySidecarMarker(hookName)), []byte(sidecarHookMarker(hookName)))
-	legacyPath := []byte(legacySidecar)
-	newPath := []byte(sidecar)
-	rewritten = bytes.ReplaceAll(rewritten, legacyPath, newPath)
-	return rewritten, !bytes.Equal(content, rewritten)
+	lines := strings.Split(string(content), "\n")
+	newPath := strconv.Quote(sidecar)
+	for index := 0; index < len(lines)-1; index++ {
+		if lines[index] != legacySidecarMarker(hookName) && lines[index] != sidecarHookMarker(hookName) {
+			continue
+		}
+		changed := false
+		if lines[index] != sidecarHookMarker(hookName) {
+			lines[index] = sidecarHookMarker(hookName)
+			changed = true
+		}
+		if lines[index+1] != newPath {
+			lines[index+1] = newPath
+			changed = true
+		}
+		if !changed {
+			return content, false
+		}
+		return []byte(strings.Join(lines, "\n")), true
+	}
+	return content, false
 }
 
 func (installer hookInstaller) resolveUnmanagedHook(targetHook, hooksDir, hookName, embeddedPath string) (bool, error) {
