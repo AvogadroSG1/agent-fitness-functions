@@ -227,8 +227,8 @@ func rewriteHookSidecarReference(targetHook, hookName, legacySidecar, sidecar st
 
 func rewriteLegacySidecarBlock(content []byte, hookName, legacySidecar, sidecar string) ([]byte, bool) {
 	rewritten := bytes.ReplaceAll(content, []byte(legacySidecarMarker(hookName)), []byte(sidecarHookMarker(hookName)))
-	legacyPath := []byte(fmt.Sprintf("%q", legacySidecar))
-	newPath := []byte(fmt.Sprintf("%q", sidecar))
+	legacyPath := []byte(legacySidecar)
+	newPath := []byte(sidecar)
 	rewritten = bytes.ReplaceAll(rewritten, legacyPath, newPath)
 	return rewritten, !bytes.Equal(content, rewritten)
 }
