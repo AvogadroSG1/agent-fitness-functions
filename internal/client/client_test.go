@@ -393,14 +393,14 @@ func TestRunInstallHooksRefreshesLegacySidecarReferences(t *testing.T) {
 	for _, hookName := range []string{"pre-commit", "pre-push"} {
 		t.Run(hookName, func(t *testing.T) {
 			targetHook := filepath.Join(repo, ".git", "hooks", hookName)
-			legacySidecar := filepath.Join(repo, ".git", "hooks", "calm-"+hookName)
+			seedLegacySidecar := filepath.Join(repo, ".git", "hooks", "calm-"+hookName)
 			if err := os.MkdirAll(filepath.Dir(targetHook), 0o755); err != nil {
 				t.Fatalf("mkdir hooks: %v", err)
 			}
-			if err := os.WriteFile(legacySidecar, []byte("#!/usr/bin/env bash\necho legacy\n"), 0o755); err != nil {
+			if err := os.WriteFile(seedLegacySidecar, []byte("#!/usr/bin/env bash\necho legacy\n"), 0o755); err != nil {
 				t.Fatalf("seed legacy sidecar: %v", err)
 			}
-			legacyHook := fmt.Sprintf("#!/usr/bin/env bash\n%s\n%q\n", legacySidecarMarker(hookName), legacySidecar)
+			legacyHook := fmt.Sprintf("#!/usr/bin/env bash\n%s\n%q\n", legacySidecarMarker(hookName), seedLegacySidecar)
 			if err := os.WriteFile(targetHook, []byte(legacyHook), 0o755); err != nil {
 				t.Fatalf("seed active hook: %v", err)
 			}
