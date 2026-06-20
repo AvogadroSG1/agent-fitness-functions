@@ -198,7 +198,7 @@ func (installer hookInstaller) refreshHookSidecar(targetHook, hooksDir, hookName
 	if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
 		return err
 	}
-	if err := rewriteHookSidecarReference(targetHook, hookName, sidecar); err != nil {
+	if err := rewriteHookSidecarReference(targetHook, hookName, legacySidecar, sidecar); err != nil {
 		return err
 	}
 	if err := installer.writeFormatter(hooksDir); err != nil {
@@ -213,21 +213,21 @@ func legacySidecarPath(hooksDir, hookName string) string {
 	return filepath.Join(hooksDir, "calm-"+hookName)
 }
 
-func rewriteHookSidecarReference(targetHook, hookName, sidecar string) error {
+func rewriteHookSidecarReference(targetHook, hookName, legacySidecar, sidecar string) error {
 	content, err := os.ReadFile(targetHook)
 	if err != nil {
 		return fmt.Errorf("reading existing %s hook: %w", hookName, err)
 	}
-	rewritten, _ := rewriteLegacySidecarBlock(content, hookName, sidecar)
+	rewritten, _ := rewriteLegacySidecarBlock(content, hookName, legacySidecar, sidecar)
 	if err := os.WriteFile(targetHook, rewritten, 0o755); err != nil {
 		return fmt.Errorf("rewriting existing %s hook: %w", hookName, err)
 	}
 	return nil
 }
 
-func rewriteLegacySidecarBlock(content []byte, hookName, sidecar string) ([]byte, bool) {
+func rewriteLegacySidecarBlock(content []byte, hookName, legacySidecar, sidecar string) ([]byte, bool) {
 	rewritten := bytes.ReplaceAll(content, []byte(legacySidecarMarker(hookName)), []byte(sidecarHookMarker(hookName)))
-	legacyPath := []byte(fmt.Sprintf("%q", legacySidecarPath(filepath.Dir(sidecar), hookName)))
+	legacyPath := []byte(fmt.Sprintf("%q", legacySidecar))
 	newPath := []byte(fmt.Sprintf("%q", sidecar))
 	rewritten = bytes.ReplaceAll(rewritten, legacyPath, newPath)
 	return rewritten, !bytes.Equal(content, rewritten)
