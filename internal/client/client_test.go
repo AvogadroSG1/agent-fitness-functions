@@ -355,7 +355,7 @@ func TestRunInstallHooksProvisionsSharedDevCerts(t *testing.T) {
 		t.Fatalf("certs symlink = %q, want %q", target, sourceCerts)
 	}
 
-	excludePath, err := gitOutput(repo, "rev-parse", "--git-path", "info/exclude")
+	excludePath, err := localIgnorePath(repo)
 	if err != nil {
 		t.Fatalf("resolve info/exclude: %v", err)
 	}
@@ -442,7 +442,7 @@ func TestRunInstallHooksProvisioningIsIdempotent(t *testing.T) {
 		t.Fatalf("certs symlink = %q, want %q", target, sourceCerts)
 	}
 
-	excludePath, err := gitOutput(repo, "rev-parse", "--git-path", "info/exclude")
+	excludePath, err := localIgnorePath(repo)
 	if err != nil {
 		t.Fatalf("resolve info/exclude: %v", err)
 	}

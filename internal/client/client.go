@@ -120,6 +120,9 @@ func RunInstallHooks(args []string, stdout, stderr io.Writer) error {
 	if err := installer.installGitHook("pre-push", "hookassets/pre-push.sh"); err != nil {
 		return err
 	}
+	if err := installer.provisionDevCerts(); err != nil {
+		return err
+	}
 	return installer.installGitGuard()
 }
 
@@ -127,6 +130,95 @@ type hookInstaller struct {
 	repoRoot string
 	stdout   io.Writer
 	stderr   io.Writer
+}
+
+func (installer hookInstaller) provisionDevCerts() error {
+	sourceDir, ok, err := installer.discoverDevCertSource()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+	if err := installer.ensureRepoCertsLink(sourceDir); err != nil {
+		return err
+	}
+	return installer.ensureLocalIgnore("certs/")
+}
+
+func (installer hookInstaller) discoverDevCertSource() (string, bool, error) {
+	candidates := []string{
+		os.Getenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR"),
+		filepath.Join(os.Getenv("STACK_FITNESS_FUNCTIONS_SRC"), "certs"),
+	}
+	if executable, err := os.Executable(); err == nil {
+		executableDir := filepath.Dir(executable)
+		candidates = append(candidates,
+			filepath.Join(executableDir, "certs"),
+			filepath.Join(executableDir, "..", "certs"),
+		)
+	}
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		resolved := filepath.Clean(candidate)
+		if hasDevCertChain(resolved) {
+			return resolved, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+func (installer hookInstaller) ensureRepoCertsLink(sourceDir string) error {
+	certsPath := filepath.Join(installer.repoRoot, "certs")
+	info, err := os.Lstat(certsPath)
+	if err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, readErr := os.Readlink(certsPath)
+			if readErr != nil {
+				return fmt.Errorf("reading existing certs link: %w", readErr)
+			}
+			if target == sourceDir {
+				return nil
+			}
+		} else {
+			return nil
+		}
+		if err := os.Remove(certsPath); err != nil {
+			return fmt.Errorf("removing stale certs link: %w", err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("checking repo certs path: %w", err)
+	}
+	if err := os.Symlink(sourceDir, certsPath); err != nil {
+		return fmt.Errorf("linking repo certs to shared dev certs: %w", err)
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "linked %s -> %s\n", certsPath, sourceDir)
+	return nil
+}
+
+func (installer hookInstaller) ensureLocalIgnore(pattern string) error {
+	ignorePath, err := localIgnorePath(installer.repoRoot)
+	if err != nil {
+		return err
+	}
+	content, err := os.ReadFile(ignorePath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("reading %s: %w", ignorePath, err)
+	}
+	updated := ensureLine(content, pattern)
+	if bytes.Equal(updated, content) {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(ignorePath), 0o755); err != nil {
+		return fmt.Errorf("creating %s directory: %w", ignorePath, err)
+	}
+	if err := os.WriteFile(ignorePath, updated, 0o644); err != nil {
+		return fmt.Errorf("writing %s: %w", ignorePath, err)
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "updated %s with %s\n", ignorePath, pattern)
+	return nil
 }
 
 func (installer hookInstaller) installGitHook(hookName, embeddedPath string) error {
@@ -447,6 +539,42 @@ func (installer hookInstaller) gitHookPath(name string) (string, error) {
 		return path, nil
 	}
 	return filepath.Join(installer.repoRoot, path), nil
+}
+
+func hasDevCertChain(dir string) bool {
+	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
+		info, err := os.Stat(filepath.Join(dir, name))
+		if err != nil || info.IsDir() {
+			return false
+		}
+	}
+	return true
+}
+
+func localIgnorePath(repo string) (string, error) {
+	path, err := gitOutput(repo, "rev-parse", "--git-path", "info/exclude")
+	if err != nil {
+		return "", fmt.Errorf("resolving local ignore path: %w", err)
+	}
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+	return filepath.Join(repo, path), nil
+}
+
+func ensureLine(content []byte, line string) []byte {
+	trimmed := string(bytes.TrimSpace(content))
+	lines := []string{}
+	if trimmed != "" {
+		lines = strings.Split(trimmed, "\n")
+		for _, existing := range lines {
+			if existing == line {
+				return append([]byte(trimmed), '\n')
+			}
+		}
+	}
+	lines = append(lines, line)
+	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
 func gitOutput(repo string, args ...string) (string, error) {
