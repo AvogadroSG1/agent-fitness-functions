@@ -36,10 +36,10 @@ if [[ "${1:-}" == "show" ]]; then
   exit 97
 fi
 if [[ "${1:-}" == "-C" && "${3:-}" == "show" ]]; then
-  printf 'git %s\n' "$*" >> "%s"
+  printf 'git %%s\n' "$*" >> "%s"
 fi
 exec "%s" "$@"
-`, logPath, logPath, realGit)), 0o755); err != nil {
+`, logPath, realGit)), 0o755); err != nil {
 		t.Fatalf("write git shim: %v", err)
 	}
 

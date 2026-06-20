@@ -325,6 +325,136 @@ func TestRunInstallHooksIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestRunInstallHooksProvisionsSharedDevCerts(t *testing.T) {
+	sourceRepo := t.TempDir()
+	sourceCerts := filepath.Join(sourceRepo, "certs")
+	if err := os.MkdirAll(sourceCerts, 0o755); err != nil {
+		t.Fatalf("mkdir source certs: %v", err)
+	}
+	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
+		if err := os.WriteFile(filepath.Join(sourceCerts, name), []byte(name), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+	t.Setenv("STACK_FITNESS_FUNCTIONS_SRC", sourceRepo)
+
+	var stdout, stderr bytes.Buffer
+	if err := RunInstallHooks([]string{repo}, &stdout, &stderr); err != nil {
+		t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
+	}
+
+	certsPath := filepath.Join(repo, "certs")
+	target, err := os.Readlink(certsPath)
+	if err != nil {
+		t.Fatalf("readlink certs: %v", err)
+	}
+	if target != sourceCerts {
+		t.Fatalf("certs symlink = %q, want %q", target, sourceCerts)
+	}
+
+	excludePath, err := gitOutput(repo, "rev-parse", "--git-path", "info/exclude")
+	if err != nil {
+		t.Fatalf("resolve info/exclude: %v", err)
+	}
+	excludeContent, err := os.ReadFile(excludePath)
+	if err != nil {
+		t.Fatalf("read info/exclude: %v", err)
+	}
+	if !strings.Contains(string(excludeContent), "certs/") {
+		t.Fatalf("info/exclude missing certs/ entry:\n%s", excludeContent)
+	}
+}
+
+func TestRunInstallHooksProvisionsSharedDevCertsForWorktree(t *testing.T) {
+	sourceRepo := t.TempDir()
+	sourceCerts := filepath.Join(sourceRepo, "certs")
+	if err := os.MkdirAll(sourceCerts, 0o755); err != nil {
+		t.Fatalf("mkdir source certs: %v", err)
+	}
+	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
+		if err := os.WriteFile(filepath.Join(sourceCerts, name), []byte(name), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+
+	mainRepo := filepath.Join(t.TempDir(), "relocate")
+	if err := os.MkdirAll(mainRepo, 0o755); err != nil {
+		t.Fatalf("mkdir main repo: %v", err)
+	}
+	runGitClientTest(t, mainRepo, "init")
+	runGitClientTest(t, mainRepo, "config", "user.email", "t@example.com")
+	runGitClientTest(t, mainRepo, "config", "user.name", "t")
+	if err := os.WriteFile(filepath.Join(mainRepo, "README.md"), []byte("init\n"), 0o644); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	runGitClientTest(t, mainRepo, "add", "README.md")
+	runGitClientTest(t, mainRepo, "commit", "-m", "init")
+
+	worktree := filepath.Join(t.TempDir(), "feature+relocate-stats")
+	runGitClientTest(t, mainRepo, "worktree", "add", "-b", "feature/relocate-stats", worktree)
+	t.Setenv("STACK_FITNESS_FUNCTIONS_SRC", sourceRepo)
+
+	var stdout, stderr bytes.Buffer
+	if err := RunInstallHooks([]string{worktree}, &stdout, &stderr); err != nil {
+		t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
+	}
+
+	target, err := os.Readlink(filepath.Join(worktree, "certs"))
+	if err != nil {
+		t.Fatalf("readlink worktree certs: %v", err)
+	}
+	if target != sourceCerts {
+		t.Fatalf("worktree certs symlink = %q, want %q", target, sourceCerts)
+	}
+}
+
+func TestRunInstallHooksProvisioningIsIdempotent(t *testing.T) {
+	sourceRepo := t.TempDir()
+	sourceCerts := filepath.Join(sourceRepo, "certs")
+	if err := os.MkdirAll(sourceCerts, 0o755); err != nil {
+		t.Fatalf("mkdir source certs: %v", err)
+	}
+	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
+		if err := os.WriteFile(filepath.Join(sourceCerts, name), []byte(name), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+	t.Setenv("STACK_FITNESS_FUNCTIONS_SRC", sourceRepo)
+
+	for range 2 {
+		var stdout, stderr bytes.Buffer
+		if err := RunInstallHooks([]string{repo}, &stdout, &stderr); err != nil {
+			t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
+		}
+	}
+
+	target, err := os.Readlink(filepath.Join(repo, "certs"))
+	if err != nil {
+		t.Fatalf("readlink certs: %v", err)
+	}
+	if target != sourceCerts {
+		t.Fatalf("certs symlink = %q, want %q", target, sourceCerts)
+	}
+
+	excludePath, err := gitOutput(repo, "rev-parse", "--git-path", "info/exclude")
+	if err != nil {
+		t.Fatalf("resolve info/exclude: %v", err)
+	}
+	excludeContent, err := os.ReadFile(excludePath)
+	if err != nil {
+		t.Fatalf("read info/exclude: %v", err)
+	}
+	if count := strings.Count(string(excludeContent), "certs/"); count != 1 {
+		t.Fatalf("info/exclude contains %d certs/ entries, want 1:\n%s", count, excludeContent)
+	}
+}
+
 func TestRunInstallHooksRefusesExistingNonCalmHook(t *testing.T) {
 	repo := t.TempDir()
 	runGitClientTest(t, repo, "init")
