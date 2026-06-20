@@ -214,15 +214,15 @@ func legacySidecarPath(hooksDir, hookName string) string {
 }
 
 func rewriteHookSidecarReference(targetHook, hookName, legacySidecar, sidecar string) error {
-	content, err := os.ReadFile(targetHook)
-	if err != nil {
-		return fmt.Errorf("reading existing %s hook: %w", hookName, err)
-	}
-	rewritten, _ := rewriteLegacySidecarBlock(content, hookName, legacySidecar, sidecar)
+	rewritten := managedSidecarHookContent(hookName, sidecar)
 	if err := os.WriteFile(targetHook, rewritten, 0o755); err != nil {
 		return fmt.Errorf("rewriting existing %s hook: %w", hookName, err)
 	}
 	return nil
+}
+
+func managedSidecarHookContent(hookName, sidecar string) []byte {
+	return []byte(fmt.Sprintf("#!/usr/bin/env bash\n%s\n%q\n", sidecarHookMarker(hookName), sidecar))
 }
 
 func rewriteLegacySidecarBlock(content []byte, hookName, legacySidecar, sidecar string) ([]byte, bool) {
