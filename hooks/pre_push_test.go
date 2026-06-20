@@ -19,7 +19,28 @@ func TestPrePushReadsCommitContentWithRepoScopedGitShow(t *testing.T) {
 
 	logPath := filepath.Join(t.TempDir(), "calls.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
+set -euo pipefail
 printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+content_file=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --content-file)
+      content_file=$2
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+if [[ -z "$content_file" ]]; then
+  echo "missing --content-file" >&2
+  exit 1
+fi
+if ! grep -qx 'package sample' "$content_file"; then
+  echo "unexpected content-file payload" >&2
+  exit 1
+fi
 echo '{"status":"pass"}'
 `)
 

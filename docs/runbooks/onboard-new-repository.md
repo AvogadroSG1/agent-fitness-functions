@@ -179,6 +179,12 @@ This installs:
   (`--no-verify`, force-push, ff-only merges) and is registered in
   `.claude/settings.json` `PreToolUse` for AI-agent enforcement
 
+`client install-hooks` also provisions the local developer cert path when a
+shared trusted source is discoverable. It links `<repo>/certs` to the shared
+trusted `dev-hook-pool` chain and adds a repo-local `certs/` ignore entry so
+the key material does not appear as tracked content. The installer reuses an
+existing trusted chain; it does not mint a fresh CA.
+
 If the repo already has unrelated hooks, the installer refuses to overwrite them.
 Set `STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1` to install as a sidecar alongside the
 existing hook, or `STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` to replace it.
@@ -202,11 +208,11 @@ export STACK_FITNESS_FUNCTIONS_CLIENT_CA=/path/to/ca.crt
 export STACK_FITNESS_FUNCTIONS_REPO_NAME=<repo-name>
 ```
 
-> `STACK_FITNESS_FUNCTIONS_REPO_NAME` is the linchpin: it becomes the `--repo`
-> value the hook sends, and it MUST equal the `configs/<repo-name>` directory
-> from Step 1. Without it, the hook falls back to the working-tree basename,
-> which may not match the config directory name and will produce a not-found
-> error.
+> `STACK_FITNESS_FUNCTIONS_REPO_NAME` is still the logical-name override: it
+> becomes the `--repo` value the hook sends, and it MUST equal the
+> `configs/<repo-name>` directory from Step 1. Without it, the hook falls back
+> to the working-tree basename, which may not match the config directory name
+> and will produce a not-found error.
 
 ## Step 6 (optional) — Generate a baseline
 
