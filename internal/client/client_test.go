@@ -385,6 +385,10 @@ func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
 func TestRunInstallHooksRefreshesLegacySidecarReferences(t *testing.T) {
 	repo := t.TempDir()
 	runGitClientTest(t, repo, "init")
+	canonicalRepo, err := filepath.EvalSymlinks(repo)
+	if err != nil {
+		t.Fatalf("eval repo symlinks: %v", err)
+	}
 
 	for _, hookName := range []string{"pre-commit", "pre-push"} {
 		t.Run(hookName, func(t *testing.T) {
@@ -410,7 +414,8 @@ func TestRunInstallHooksRefreshesLegacySidecarReferences(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read active hook: %v", err)
 			}
-			newSidecar := filepath.Join(repo, ".git", "hooks", sidecarHookName(hookName))
+			newSidecar := filepath.Join(canonicalRepo, ".git", "hooks", sidecarHookName(hookName))
+			legacySidecar := filepath.Join(canonicalRepo, ".git", "hooks", "calm-"+hookName)
 			if !strings.Contains(string(content), sidecarHookMarker(hookName)) {
 				t.Fatalf("active hook missing new marker:\n%s", content)
 			}
