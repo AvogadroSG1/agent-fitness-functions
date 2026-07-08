@@ -16,21 +16,20 @@ services:
         BUILD_DATE: ${BUILD_DATE:-unknown}
     ports:
       - "7890:7890"
+    # TLS is configured via the STACK_FITNESS_FUNCTIONS_TLS_* env vars below, which the
+    # server reads as a fallback for --tls-cert/--tls-key/--tls-ca. Only --addr needs
+    # to be overridden here (the image default binds 0.0.0.0:7890 already).
     command:
       - --addr
       - 0.0.0.0:7890
-      - --tls-cert
-      - /app/certs/server.crt
-      - --tls-key
-      - /app/certs/server.key
-      - --tls-ca
-      - /app/certs/ca.crt
     volumes:
       - ./configs:/app/configs:ro
       - ./certs:/app/certs:ro
       - ./caller-repos.json:/app/caller-repos.json:ro
     environment:
       STACK_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs
+      # Read by `server start` for TLS (fallback for --tls-cert/--tls-key/--tls-ca) and
+      # by the healthcheck below to decide between https and http probing.
       STACK_FITNESS_FUNCTIONS_TLS_CERT: /app/certs/server.crt
       STACK_FITNESS_FUNCTIONS_TLS_KEY: /app/certs/server.key
       STACK_FITNESS_FUNCTIONS_TLS_CA: /app/certs/ca.crt

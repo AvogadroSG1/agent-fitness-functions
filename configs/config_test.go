@@ -4,9 +4,15 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"reflect"
+	"regexp"
 	"testing"
+
+	"github.com/poconnor/calm-poc/internal/server"
 )
+
+// repoNamePattern mirrors the server's repository-name grammar (config.go). Repo
+// names in caller-repos.json must satisfy it so authorizations resolve to configs.
+var repoNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 
 type mountedConfig struct {
 	EnforcementMode  string          `json:"enforcement-mode"`
@@ -43,10 +49,19 @@ func TestConfigTemplatesMatchMountedSchema(t *testing.T) {
 	assertMountedConfigShape(t, "advisory-template.json", "advisory", nil)
 }
 
+// TestCallerRepoBindings asserts structural invariants of caller-repos.json rather
+// than pinning its exact contents, so authorizing a new caller/repo during onboarding
+// does not break the test suite. The invariants: valid JSON, loadable by the server's
+// own parser, every caller/repo entry non-empty with well-formed repo names, and the
+// dev-hook-pool present as an admin (the pool the local self-governance hook uses).
 func TestCallerRepoBindings(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join("..", "caller-repos.json"))
 	if err != nil {
 		t.Fatalf("read caller-repos.json: %v", err)
+	}
+
+	if err := server.ValidateCallerRepoBindings(content); err != nil {
+		t.Fatalf("caller-repos.json is not loadable by the server: %v", err)
 	}
 
 	var doc struct {
@@ -57,17 +72,27 @@ func TestCallerRepoBindings(t *testing.T) {
 		t.Fatalf("parse caller-repos.json: %v", err)
 	}
 
-	wantCallers := map[string][]string{
-		"ci-runner-graft": {"graft"},
-		"ci-runner-all":   {"graft", "ringstation", "slackstatus"},
-		"dev-hook-pool":   {"calm-poc", "graft", "ringstation", "slackstatus"},
+	if len(doc.Callers) == 0 {
+		t.Fatal("caller-repos.json has no callers")
 	}
-	if !reflect.DeepEqual(doc.Callers, wantCallers) {
-		t.Fatalf("caller bindings = %#v, want %#v", doc.Callers, wantCallers)
+	for caller, repos := range doc.Callers {
+		if caller == "" {
+			t.Fatal("caller-repos.json contains an empty caller name")
+		}
+		for _, repo := range repos {
+			if !repoNamePattern.MatchString(repo) {
+				t.Fatalf("caller %q authorizes repo %q, which does not match the server repo-name grammar", caller, repo)
+			}
+		}
 	}
-	wantAdmins := []string{"dev-hook-pool"}
-	if !reflect.DeepEqual(doc.Admins, wantAdmins) {
-		t.Fatalf("admins = %#v, want %#v", doc.Admins, wantAdmins)
+
+	if !containsString(doc.Admins, "dev-hook-pool") {
+		t.Fatalf("admins = %#v, want dev-hook-pool present as admin", doc.Admins)
+	}
+	for _, admin := range doc.Admins {
+		if admin == "" {
+			t.Fatal("caller-repos.json contains an empty admin name")
+		}
 	}
 }
 

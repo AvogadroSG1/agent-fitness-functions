@@ -33,7 +33,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions <client validate|client install-hooks|server start|baseline|doctor>")
+		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions <client validate|client install-hooks|client onboard|server start|baseline|doctor>")
 		return 2
 	}
 
@@ -76,32 +76,33 @@ func runBaselineCommand(args []string, stdout, stderr io.Writer) int {
 
 func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions client <validate|install-hooks>")
+		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions client <validate|install-hooks|onboard>")
 		return 2
 	}
 	switch args[0] {
 	case "validate":
-		if err := client.RunCheck(args[1:], stdout, httpClient, starter); err != nil {
-			_, _ = fmt.Fprintln(stderr, err)
-			if client.IsUsageError(err) {
-				return 2
-			}
-			return 1
-		}
-		return 0
+		return clientExitCode(client.RunCheck(args[1:], stdout, httpClient, starter), stderr)
 	case "install-hooks":
-		if err := client.RunInstallHooks(args[1:], stdout, stderr); err != nil {
-			_, _ = fmt.Fprintln(stderr, err)
-			if client.IsUsageError(err) {
-				return 2
-			}
-			return 1
-		}
-		return 0
+		return clientExitCode(client.RunInstallHooks(args[1:], stdout, stderr), stderr)
+	case "onboard":
+		return clientExitCode(client.RunOnboard(args[1:], stdout, stderr, httpClient, starter), stderr)
 	default:
 		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", "client "+args[0])
 		return 2
 	}
+}
+
+// clientExitCode maps a client subcommand error to a process exit code: 0 on
+// success, 2 for usage errors, 1 otherwise, printing the error to stderr first.
+func clientExitCode(err error, stderr io.Writer) int {
+	if err == nil {
+		return 0
+	}
+	_, _ = fmt.Fprintln(stderr, err)
+	if client.IsUsageError(err) {
+		return 2
+	}
+	return 1
 }
 
 func runServer(args []string, stderr io.Writer) int {
@@ -122,9 +123,9 @@ func runServe(args []string, stderr io.Writer) int {
 	flags := flag.NewFlagSet("server start", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	addr := flags.String("addr", "localhost:7890", "daemon listen address")
-	tlsCert := flags.String("tls-cert", "", "server TLS certificate path")
-	tlsKey := flags.String("tls-key", "", "server TLS private key path")
-	tlsCA := flags.String("tls-ca", "", "client CA bundle path")
+	tlsCert := flags.String("tls-cert", "", "server TLS certificate path (overrides STACK_FITNESS_FUNCTIONS_TLS_CERT)")
+	tlsKey := flags.String("tls-key", "", "server TLS private key path (overrides STACK_FITNESS_FUNCTIONS_TLS_KEY)")
+	tlsCA := flags.String("tls-ca", "", "client CA bundle path (overrides STACK_FITNESS_FUNCTIONS_TLS_CA)")
 	configsDir := flags.String("configs-dir", "", "repository configs directory (overrides STACK_FITNESS_FUNCTIONS_CONFIGS_DIR)")
 	trustedProxyHeaders := flags.Bool("trusted-proxy-headers", false, "trust X-Client-CN headers from an authenticated proxy")
 	trustedProxyClientCNs := flags.String("trusted-proxy-client-cns", "", "comma-separated trusted proxy client certificate common names")
@@ -159,9 +160,9 @@ func runServe(args []string, stderr io.Writer) int {
 		BlockOnWarmup:   *blockOnWarmup,
 		AnalyzerTimeout: analyzerTimeout,
 		TLS: server.ServerTLSConfig{
-			CertPath: *tlsCert,
-			KeyPath:  *tlsKey,
-			CAPath:   *tlsCA,
+			CertPath: resolveTLSPath(*tlsCert, "STACK_FITNESS_FUNCTIONS_TLS_CERT"),
+			KeyPath:  resolveTLSPath(*tlsKey, "STACK_FITNESS_FUNCTIONS_TLS_KEY"),
+			CAPath:   resolveTLSPath(*tlsCA, "STACK_FITNESS_FUNCTIONS_TLS_CA"),
 		},
 	}); err != nil && !errors.Is(err, context.Canceled) {
 		_, _ = fmt.Fprintln(stderr, err)
@@ -178,6 +179,17 @@ func resolveServerConfigDir(flagValue string) string {
 		return flagValue
 	}
 	return os.Getenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR")
+}
+
+// resolveTLSPath prefers the --tls-* flag, falling back to the matching
+// STACK_FITNESS_FUNCTIONS_TLS_* env var. Without this fallback a container that sets
+// only the env vars (as docker-compose.yml/Dockerfile do) would silently listen on
+// plain HTTP and reject every authenticated client with a 401.
+func resolveTLSPath(flagValue, envName string) string {
+	if flagValue != "" {
+		return flagValue
+	}
+	return os.Getenv(envName)
 }
 
 // buildRateLimiter creates a rate limiter from STACK_FITNESS_FUNCTIONS_RATE_LIMIT (default 100 req/min).

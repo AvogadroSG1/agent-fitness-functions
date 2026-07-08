@@ -273,8 +273,7 @@ func preflightHandler(checker Checker, options HandlerOptions) http.HandlerFunc 
 }
 
 // buildPreflightResponse gathers the four readiness facts for repo directly from the
-// config store, without the loadConfig test-repo fallback, so an unconfigured repo is
-// reported honestly rather than masked by a fallback config.
+// config store, so an unconfigured repo is reported honestly rather than masked.
 func buildPreflightResponse(store *ConfigStore, caller, repo string) PreflightResponse {
 	response := PreflightResponse{
 		AuthenticatedCN:  caller,

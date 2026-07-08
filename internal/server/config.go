@@ -49,63 +49,38 @@ func loadConfig(store *ConfigStore, repo string) (Config, string, error) {
 		return Config{}, "", infrastructureError("config store is not configured", nil)
 	}
 
-	// First, check if repo is even a valid repository name as-is
-	repoName, err := validateRepoName(repo)
-	if err == nil {
-		// It's a valid name, try to look it up
-		entry, ok := store.Lookup(repoName)
-		if ok {
-			if !entry.Valid {
-				return Config{}, "", infrastructureError(
-					fmt.Sprintf("repository %q has an invalid config", repoName),
-					errors.New(entry.Error),
-				)
-			}
-			return entry.Config, repoName, nil
-		}
-		// It's valid but not found, will try fallback below
-	} else {
-		// repo is not a valid repository name as-is
-		// Check if it might be a path; if it's clearly invalid (empty, has null bytes), reject it
-		if repo == "" || strings.ContainsRune(repo, 0) {
-			return Config{}, "", inputError("invalid repository name", nil)
-		}
-		// Otherwise try to extract a name from the path
-	}
-
-	// If not found or repo was a path, try extracting a normalized name from the repository path
-	// by using the last path component (e.g., /tmp/xyz123 -> xyz123)
-	// and normalizing it to match the pattern ^[a-z][a-z0-9_-]{0,63}$
-	extractedName := extractRepositoryName(repo)
-	repoName, err = validateRepoName(extractedName)
+	repoName, err := canonicalRepoName(repo)
 	if err != nil {
-		return Config{}, "", inputError(fmt.Sprintf("invalid repository name: %s", repo), nil)
+		return Config{}, "", err
 	}
 	entry, ok := store.Lookup(repoName)
-	if ok {
-		if !entry.Valid {
-			return Config{}, "", infrastructureError(
-				fmt.Sprintf("repository %q has an invalid config", repoName),
-				errors.New(entry.Error),
-			)
-		}
-		return entry.Config, repoName, nil
+	if !ok {
+		return Config{}, "", notFoundError(fmt.Sprintf("repository %q is not configured", repoName), nil)
 	}
-
-	// If still not found, try a fallback name for testing scenarios
-	fallbackName := "test-repo"
-	if entry, ok := store.Lookup(fallbackName); ok {
-		if !entry.Valid {
-			return Config{}, "", infrastructureError(
-				fmt.Sprintf("repository %q has an invalid config", fallbackName),
-				errors.New(entry.Error),
-			)
-		}
-		// Return the fallback config but keep the original extracted name for state tracking
-		return entry.Config, repoName, nil
+	if !entry.Valid {
+		return Config{}, "", infrastructureError(
+			fmt.Sprintf("repository %q has an invalid config", repoName),
+			errors.New(entry.Error),
+		)
 	}
+	return entry.Config, repoName, nil
+}
 
-	return Config{}, "", notFoundError(fmt.Sprintf("repository %q is not configured", repoName), nil)
+// canonicalRepoName resolves a repository identifier — either a bare name or a
+// repository path — to the normalized name used as the config lookup key. A path is
+// reduced to its last component and normalized to match repoNamePattern.
+func canonicalRepoName(repo string) (string, error) {
+	if name, err := validateRepoName(repo); err == nil {
+		return name, nil
+	}
+	if repo == "" || strings.ContainsRune(repo, 0) {
+		return "", inputError("invalid repository name", nil)
+	}
+	name, err := validateRepoName(extractRepositoryName(repo))
+	if err != nil {
+		return "", inputError(fmt.Sprintf("invalid repository name: %s", repo), nil)
+	}
+	return name, nil
 }
 
 func parseConfigContent(content []byte) (Config, error) {

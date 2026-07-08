@@ -66,6 +66,87 @@ func TestRunServeRequiresTrustedProxyClientCNs(t *testing.T) {
 	}
 }
 
+func TestResolveTLSPathPrefersFlagThenEnv(t *testing.T) {
+	const envName = "STACK_FITNESS_FUNCTIONS_TLS_CERT"
+	t.Setenv(envName, "/env/server.crt")
+	if got := resolveTLSPath("/flag/server.crt", envName); got != "/flag/server.crt" {
+		t.Fatalf("resolveTLSPath with flag set = %q, want flag value to win", got)
+	}
+	if got := resolveTLSPath("", envName); got != "/env/server.crt" {
+		t.Fatalf("resolveTLSPath with only env set = %q, want env fallback", got)
+	}
+	t.Setenv(envName, "")
+	if got := resolveTLSPath("", envName); got != "" {
+		t.Fatalf("resolveTLSPath with neither set = %q, want empty", got)
+	}
+}
+
+// TestRunServeReadsTLSEnvVarsAsFallback proves the three STACK_FITNESS_FUNCTIONS_TLS_*
+// env vars are honored: with all three set (and no flags), the all-or-none validation
+// passes and failure comes from loading the bogus cert files — not from a missing-flag
+// error. Without the fallback the server would have silently started plain HTTP.
+func TestRunServeReadsTLSEnvVarsAsFallback(t *testing.T) {
+	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
+	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CERT", filepath.Join(t.TempDir(), "server.crt"))
+	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_KEY", filepath.Join(t.TempDir(), "server.key"))
+	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CA", filepath.Join(t.TempDir(), "ca.crt"))
+
+	var stderr bytes.Buffer
+	code := runServe([]string{"--addr", "127.0.0.1:0"}, &stderr)
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1; stderr = %q", code, stderr.String())
+	}
+	if strings.Contains(stderr.String(), "tls requires") {
+		t.Fatalf("stderr = %q, want a cert-load failure, not the all-or-none validation error", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "tls certificate") {
+		t.Fatalf("stderr = %q, want tls certificate load failure proving env vars were used", stderr.String())
+	}
+}
+
+// TestRunServePartialTLSEnvVarsFailValidation proves setting only some of the TLS env
+// vars fails the all-or-none check with a message naming both the flags and env vars.
+func TestRunServePartialTLSEnvVarsFailValidation(t *testing.T) {
+	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
+	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CERT", filepath.Join(t.TempDir(), "server.crt"))
+	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_KEY", "")
+	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CA", "")
+
+	var stderr bytes.Buffer
+	code := runServe([]string{"--addr", "127.0.0.1:0"}, &stderr)
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1; stderr = %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "tls requires") {
+		t.Fatalf("stderr = %q, want all-or-none TLS validation error", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "STACK_FITNESS_FUNCTIONS_TLS_CERT") {
+		t.Fatalf("stderr = %q, want validation error to mention the env vars", stderr.String())
+	}
+}
+
+// TestRunServeTLSFlagsOverrideEnvVars proves flags win over the env fallback: a flag
+// cert+key pair with only one env var still trips the all-or-none check (no CA anywhere).
+func TestRunServeTLSFlagsOverrideEnvVars(t *testing.T) {
+	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
+	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CERT", filepath.Join(t.TempDir(), "env-server.crt"))
+	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_KEY", "")
+	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CA", "")
+
+	var stderr bytes.Buffer
+	code := runServe([]string{
+		"--addr", "127.0.0.1:0",
+		"--tls-cert", filepath.Join(t.TempDir(), "flag-server.crt"),
+		"--tls-key", filepath.Join(t.TempDir(), "flag-server.key"),
+	}, &stderr)
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1; stderr = %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "tls requires") {
+		t.Fatalf("stderr = %q, want all-or-none error (flag cert+key, no ca)", stderr.String())
+	}
+}
+
 func TestRunDispatchesServerStart(t *testing.T) {
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
 
@@ -324,6 +405,17 @@ func TestRunDispatchesDoctorAndReportsFailures(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "doctor found") {
 		t.Fatalf("stderr = %q, want problem summary", stderr.String())
+	}
+}
+
+func TestRunDispatchesClientOnboardUsageError(t *testing.T) {
+	var stderr bytes.Buffer
+	code := run([]string{"client", "onboard", "--enforcement", "bogus"}, &bytes.Buffer{}, &stderr)
+	if code != 2 {
+		t.Fatalf("onboard bad-enforcement exit code = %d, want 2; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "unsupported enforcement mode") {
+		t.Fatalf("stderr = %q, want enforcement usage error", stderr.String())
 	}
 }
 

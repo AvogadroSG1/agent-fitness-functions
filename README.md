@@ -23,7 +23,9 @@ Use a Docker-enabled environment to verify the image contract:
 docker build --build-arg GIT_SHA="$(git rev-parse --short HEAD)" --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t stack-fitness-functions:local .
 ```
 
-`docker-compose.yml` provides the local/staging deployment contract. It mounts `./configs`, `./certs`, and `./caller-repos.json` read-only, runs the container as a hardened service, and passes TLS flags to `/app/stack-fitness-functions server start`.
+`docker-compose.yml` provides the local/staging deployment contract. It mounts `./configs`, `./certs`, and `./caller-repos.json` read-only, runs the container as a hardened service, and configures TLS through the `STACK_FITNESS_FUNCTIONS_TLS_CERT/KEY/CA` environment variables.
+
+`server start` resolves its TLS material from those environment variables (the `--tls-cert/--tls-key/--tls-ca` flags override them when set). All three must be provided together or the server refuses to start; setting only some — or none while expecting HTTPS — is a configuration error rather than a silent plain-HTTP fallback.
 
 Before running Compose, provide these local certificate files for the mounted TLS volume:
 

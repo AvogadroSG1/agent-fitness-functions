@@ -156,15 +156,19 @@ func TestStackFitnessFunctionsTestEnvOverridesCerts(t *testing.T) {
 	}
 }
 
-func TestStackFitnessFunctionsTestDefaultsSourceRepoToCalmPoc(t *testing.T) {
+// TestStackFitnessFunctionsTestErrorsWhenRepoNameUndetectable verifies the helper
+// fails with an explicit remediation instead of silently falling back to calm-poc
+// when the working tree has no configs/<basename> or .calm/config.json to infer the
+// governance repo name from. Regression guard against masking a misconfigured repo.
+func TestStackFitnessFunctionsTestErrorsWhenRepoNameUndetectable(t *testing.T) {
 	helper, err := filepath.Abs(filepath.Join("bin", "stack-fitness-functions-test"))
 	if err != nil {
 		t.Fatalf("abs helper path: %v", err)
 	}
-	file, err := filepath.Abs(filepath.Join("fixtures", "violations", "go", "cyclomatic-complexity.go"))
-	if err != nil {
-		t.Fatalf("abs fixture path: %v", err)
-	}
+
+	// A git repo whose basename has no server-side config and no .calm/config.json,
+	// so detection cannot infer a name.
+	_, file := newGitRepoWithFile(t)
 
 	certDir := t.TempDir()
 	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
@@ -182,6 +186,45 @@ func TestStackFitnessFunctionsTestDefaultsSourceRepoToCalmPoc(t *testing.T) {
 		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
 	)
 	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("helper succeeded, want failure when repo name is undetectable; output=%s", out)
+	}
+	if !strings.Contains(string(out), "STACK_FITNESS_FUNCTIONS_REPO_NAME") {
+		t.Fatalf("output = %s, want remediation naming STACK_FITNESS_FUNCTIONS_REPO_NAME", out)
+	}
+	if _, statErr := os.Stat(recordPath); statErr == nil {
+		t.Fatalf("stub bridge was invoked; helper should fail before calling client validate")
+	}
+}
+
+// TestStackFitnessFunctionsTestUsesExplicitRepoName verifies an explicit
+// STACK_FITNESS_FUNCTIONS_REPO_NAME is forwarded to client validate, which is the
+// supported way to name the governance repo when detection cannot infer it.
+func TestStackFitnessFunctionsTestUsesExplicitRepoName(t *testing.T) {
+	helper, err := filepath.Abs(filepath.Join("bin", "stack-fitness-functions-test"))
+	if err != nil {
+		t.Fatalf("abs helper path: %v", err)
+	}
+
+	_, file := newGitRepoWithFile(t)
+
+	certDir := t.TempDir()
+	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
+		if err := os.WriteFile(filepath.Join(certDir, name), []byte("x"), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+
+	recordPath := filepath.Join(t.TempDir(), "invocations.log")
+	bridge := stubBridge(t, t.TempDir(), recordPath)
+
+	cmd := exec.Command(helper, file)
+	cmd.Env = append(os.Environ(),
+		"STACK_FITNESS_FUNCTIONS_BIN="+bridge,
+		"STACK_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
+		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
+	)
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("helper failed: %v\n%s", err, out)
 	}
@@ -191,7 +234,7 @@ func TestStackFitnessFunctionsTestDefaultsSourceRepoToCalmPoc(t *testing.T) {
 		t.Fatalf("read invocations: %v", err)
 	}
 	if !strings.Contains(string(recorded), "--repo calm-poc") {
-		t.Fatalf("invocations = %s, want source-repo default --repo calm-poc", recorded)
+		t.Fatalf("invocations = %s, want explicit --repo calm-poc", recorded)
 	}
 }
 

@@ -19,7 +19,7 @@ usage() {
   echo "  Environment:" >&2
   echo "    STACK_FITNESS_FUNCTIONS_BIN          path to stack-fitness-functions binary (default: stack-fitness-functions on PATH)" >&2
   echo "    STACK_FITNESS_FUNCTIONS_ADDR         server address (default: https://127.0.0.1:7890)" >&2
-  echo "    STACK_FITNESS_FUNCTIONS_REPO_NAME    logical repo name override (default: git root basename; source repo falls back to calm-poc)" >&2
+  echo "    STACK_FITNESS_FUNCTIONS_REPO_NAME    logical repo name override (default: inferred from configs/<basename> or .calm/config.json; required when neither exists)" >&2
   echo "    STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR directory holding client.crt/client.key/ca.crt (default: <repo>/certs)" >&2
   echo "    STACK_FITNESS_FUNCTIONS_CLIENT_CERT  mTLS client certificate path (overrides cert dir)" >&2
   echo "    STACK_FITNESS_FUNCTIONS_CLIENT_KEY   mTLS client private key path (overrides cert dir)" >&2
@@ -37,6 +37,9 @@ bridge="${STACK_FITNESS_FUNCTIONS_BIN:-stack-fitness-functions}"
 addr="${STACK_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}"
 repo_name="${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}"
 
+# Infer the logical governance repo name from an on-disk config. A silent fallback
+# (e.g. to calm-poc) would mask a misconfigured repo as a wrong-config mystery, so
+# when nothing matches this fails and tells the caller to name the repo explicitly.
 detect_repo_name() {
   local repo_root="$1"
   local repo_base
@@ -46,11 +49,10 @@ detect_repo_name() {
     printf '%s' "$repo_base"
     return
   fi
-  if [[ -f "$repo_root/configs/calm-poc/config.json" ]]; then
-    printf 'calm-poc'
-    return
-  fi
-  printf '%s' "$repo_base"
+  echo "error: could not detect the governance repo name for $repo_root" >&2
+  echo "  no configs/$repo_base/config.json or .calm/config.json found to infer it" >&2
+  echo "  set STACK_FITNESS_FUNCTIONS_REPO_NAME=<name> to name the repo explicitly" >&2
+  return 1
 }
 
 # Resolve the mTLS client credentials the server requires.
@@ -104,9 +106,10 @@ repo=$(git -C "$(dirname "$file_abs")" rev-parse --show-toplevel 2>/dev/null) \
   || { echo "error: file is not inside a git repository" >&2; exit 1; }
 relative_file="${file_abs#"$repo"/}"
 
-repo_arg=$(detect_repo_name "$repo")
 if [[ -n "$repo_name" ]]; then
   repo_arg="$repo_name"
+else
+  repo_arg=$(detect_repo_name "$repo") || exit 1
 fi
 
 # Read enforcement mode from the repo's .calm/config.json (default: block)
