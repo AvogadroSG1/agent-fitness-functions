@@ -34,6 +34,9 @@ const hookProductPrefix = "stack-fitness-functions"
 const (
 	gitGuardName       = hookProductPrefix + "-git-guard"
 	legacyGitGuardName = "calm-git-guard"
+	// agentHookName is the installed Edit/Write content-validation hook script; it
+	// doubles as the .claude/settings.json command marker for idempotent upserts.
+	agentHookName = hookProductPrefix + "-pre-tool-use"
 )
 
 func managedHookMarker(hook string) string { return hookProductPrefix + " " + hook + " hook" }
@@ -113,7 +116,10 @@ func RunInstallHooks(args []string, stdout, stderr io.Writer) error {
 	if err := installer.installGitHook("pre-push", "hookassets/pre-push.sh"); err != nil {
 		return err
 	}
-	return installer.installGitGuard()
+	if err := installer.installGitGuard(); err != nil {
+		return err
+	}
+	return installer.installAgentHook()
 }
 
 type hookInstaller struct {
@@ -235,16 +241,38 @@ func (installer hookInstaller) installGitGuard() error {
 		return err
 	}
 	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", guardPath)
+	return installer.applyClaudeHook(gitGuardSpec(guardPath))
+}
 
+// installAgentHook installs the Edit/Write content-validation hook — the flagship
+// affordance that validates a coding agent's proposed file content before it lands.
+// The script and its formatter dependency live beside the git-guard sidecar, and a
+// second PreToolUse entry (matcher Edit|Write) is registered in .claude/settings.json.
+func (installer hookInstaller) installAgentHook() error {
+	scriptPath, err := installer.gitHookPath(agentHookName)
+	if err != nil {
+		return err
+	}
+	if err := installer.writeEmbeddedExecutable("hookassets/pre-tool-use.sh", scriptPath); err != nil {
+		return err
+	}
+	if err := installer.writeFormatter(filepath.Dir(scriptPath)); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", scriptPath)
+	return installer.applyClaudeHook(agentHookSpec(scriptPath))
+}
+
+// applyClaudeHook idempotently upserts a single PreToolUse entry into
+// .claude/settings.json, creating the file and directory when absent and surfacing
+// a clean error on malformed JSON (via loadClaudeSettings).
+func (installer hookInstaller) applyClaudeHook(spec claudeHookSpec) error {
 	settingsPath := filepath.Join(installer.repoRoot, ".claude", "settings.json")
 	settings, err := loadClaudeSettings(settingsPath)
 	if err != nil {
 		return err
 	}
-	message, err := upsertGitGuard(settings, guardPath)
-	if err != nil {
-		return err
-	}
+	message := upsertClaudeHook(settings, spec)
 	if err := writeClaudeSettings(settingsPath, settings); err != nil {
 		return err
 	}
@@ -282,20 +310,48 @@ func writeClaudeSettings(settingsPath string, settings map[string]any) error {
 	return nil
 }
 
-func upsertGitGuard(settings map[string]any, guardPath string) (string, error) {
+// claudeHookSpec describes one PreToolUse entry to upsert. markers are command
+// substrings that identify a previously installed instance of this same hook (so an
+// existing entry is updated in place rather than duplicated); name labels it in the
+// status message; command is the path used to detect an already-current entry.
+type claudeHookSpec struct {
+	entry   map[string]any
+	markers []string
+	name    string
+	command string
+}
+
+func upsertClaudeHook(settings map[string]any, spec claudeHookSpec) string {
 	hooks := ensureHooksSection(settings)
 	preToolUse := preToolUseEntries(hooks)
-	newEntry := gitGuardHookEntry(guardPath)
-	if index, command, found := findGitGuardHookEntry(preToolUse); found {
-		preToolUse[index] = newEntry
+	if index, command, found := findClaudeHookEntry(preToolUse, spec.markers); found {
+		preToolUse[index] = spec.entry
 		hooks["PreToolUse"] = preToolUse
-		if command == guardPath {
-			return gitGuardName + " already configured", nil
+		if command == spec.command {
+			return spec.name + " already configured"
 		}
-		return "updated " + gitGuardName + " path", nil
+		return "updated " + spec.name + " path"
 	}
-	hooks["PreToolUse"] = append(preToolUse, newEntry)
-	return "added " + gitGuardName + " to PreToolUse hooks", nil
+	hooks["PreToolUse"] = append(preToolUse, spec.entry)
+	return "added " + spec.name + " to PreToolUse hooks"
+}
+
+func gitGuardSpec(guardPath string) claudeHookSpec {
+	return claudeHookSpec{
+		entry:   claudeCommandEntry("Bash", guardPath),
+		markers: []string{gitGuardName, legacyGitGuardName},
+		name:    gitGuardName,
+		command: guardPath,
+	}
+}
+
+func agentHookSpec(scriptPath string) claudeHookSpec {
+	return claudeHookSpec{
+		entry:   claudeCommandEntry("Edit|Write", scriptPath),
+		markers: []string{agentHookName},
+		name:    agentHookName,
+		command: scriptPath,
+	}
 }
 
 func ensureHooksSection(settings map[string]any) map[string]any {
@@ -315,30 +371,39 @@ func preToolUseEntries(hooks map[string]any) []any {
 	return preToolUse
 }
 
-func gitGuardHookEntry(guardPath string) map[string]any {
+func claudeCommandEntry(matcher, command string) map[string]any {
 	return map[string]any{
 		"hooks": []any{map[string]any{
-			"command": guardPath,
+			"command": command,
 			"type":    "command",
 		}},
-		"matcher": "Bash",
+		"matcher": matcher,
 	}
 }
 
-func findGitGuardHookEntry(preToolUse []any) (int, string, bool) {
+func findClaudeHookEntry(preToolUse []any, markers []string) (int, string, bool) {
 	for index, rawEntry := range preToolUse {
-		command, ok := gitGuardCommand(rawEntry)
+		command, ok := hookEntryCommand(rawEntry)
 		if !ok {
 			continue
 		}
-		if strings.Contains(command, gitGuardName) || strings.Contains(command, legacyGitGuardName) {
+		if commandMatchesMarker(command, markers) {
 			return index, command, true
 		}
 	}
 	return 0, "", false
 }
 
-func gitGuardCommand(rawEntry any) (string, bool) {
+func commandMatchesMarker(command string, markers []string) bool {
+	for _, marker := range markers {
+		if strings.Contains(command, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func hookEntryCommand(rawEntry any) (string, bool) {
 	entry, ok := rawEntry.(map[string]any)
 	if !ok {
 		return "", false
