@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -52,7 +53,7 @@ func TestRunCheckPostsValidationRequestThroughPublicClientInterface(t *testing.T
 	defer server.Close()
 
 	var stdout bytes.Buffer
-	err := RunCheck([]string{"--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go"}, &stdout, &http.Client{Timeout: time.Second}, func(string) error { return nil })
+	err := RunCheck([]string{"--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go"}, &stdout, &http.Client{Timeout: time.Second}, func(DaemonStartConfig) error { return nil })
 	if err != nil {
 		t.Fatalf("RunCheck returned error: %v", err)
 	}
@@ -89,7 +90,7 @@ func TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo(t *testing.T) {
 		t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
 	}
 
-	for _, hook := range []string{"pre-commit", "pre-push", "stack-fitness-functions-git-guard"} {
+	for _, hook := range []string{"pre-commit", "pre-push", "stack-fitness-functions-git-guard", "stack-fitness-functions-pre-tool-use"} {
 		hookPath := filepath.Join(repo, ".git", "hooks", hook)
 		info, err := os.Stat(hookPath)
 		if err != nil {
@@ -119,6 +120,41 @@ func TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo(t *testing.T) {
 	if !strings.Contains(string(settingsContent), "stack-fitness-functions-git-guard") {
 		t.Fatalf("settings missing git guard entry:\n%s", settingsContent)
 	}
+	assertBothPreToolUseEntries(t, settingsContent)
+}
+
+// assertBothPreToolUseEntries verifies settings.json wires both PreToolUse entries:
+// the Bash git-guard and the Edit|Write agent content-validation hook.
+func assertBothPreToolUseEntries(t *testing.T, settingsContent []byte) {
+	t.Helper()
+	matchers := preToolUseMatchers(t, settingsContent)
+	for _, want := range []string{"Bash", "Edit|Write"} {
+		if !matchers[want] {
+			t.Fatalf("settings missing PreToolUse matcher %q:\n%s", want, settingsContent)
+		}
+	}
+	if !strings.Contains(string(settingsContent), "stack-fitness-functions-pre-tool-use") {
+		t.Fatalf("settings missing agent hook command:\n%s", settingsContent)
+	}
+}
+
+func preToolUseMatchers(t *testing.T, settingsContent []byte) map[string]bool {
+	t.Helper()
+	var settings struct {
+		Hooks struct {
+			PreToolUse []struct {
+				Matcher string `json:"matcher"`
+			} `json:"PreToolUse"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(settingsContent, &settings); err != nil {
+		t.Fatalf("parse settings: %v\n%s", err, settingsContent)
+	}
+	matchers := map[string]bool{}
+	for _, entry := range settings.Hooks.PreToolUse {
+		matchers[entry.Matcher] = true
+	}
+	return matchers
 }
 
 func TestRunInstallHooksIsIdempotent(t *testing.T) {
@@ -138,6 +174,75 @@ func TestRunInstallHooksIsIdempotent(t *testing.T) {
 	}
 	if count := strings.Count(string(settingsContent), "stack-fitness-functions-git-guard"); count != 1 {
 		t.Fatalf("stack-fitness-functions-git-guard appears %d times, want 1:\n%s", count, settingsContent)
+	}
+	if count := preToolUseEntryCount(t, settingsContent); count != 2 {
+		t.Fatalf("PreToolUse has %d entries, want 2 (git-guard + agent hook):\n%s", count, settingsContent)
+	}
+	assertBothPreToolUseEntries(t, settingsContent)
+}
+
+func preToolUseEntryCount(t *testing.T, settingsContent []byte) int {
+	t.Helper()
+	var settings struct {
+		Hooks struct {
+			PreToolUse []json.RawMessage `json:"PreToolUse"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(settingsContent, &settings); err != nil {
+		t.Fatalf("parse settings: %v\n%s", err, settingsContent)
+	}
+	return len(settings.Hooks.PreToolUse)
+}
+
+func TestRunInstallHooksAddsAgentHookToGitGuardOnlySettings(t *testing.T) {
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+
+	claudeDir := filepath.Join(repo, ".claude")
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		t.Fatalf("mkdir .claude: %v", err)
+	}
+	// Seed a settings.json that already wires only the Bash git-guard entry, as an
+	// install predating the agent hook would have left it.
+	existing := `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/x/.git/hooks/stack-fitness-functions-git-guard"}]}]}}`
+	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(existing), 0o644); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if err := RunInstallHooks([]string{repo}, &stdout, &stderr); err != nil {
+		t.Fatalf("RunInstallHooks returned error: %v\nstderr=%s", err, stderr.String())
+	}
+
+	content, err := os.ReadFile(filepath.Join(claudeDir, "settings.json"))
+	if err != nil {
+		t.Fatalf("read settings: %v", err)
+	}
+	if count := preToolUseEntryCount(t, content); count != 2 {
+		t.Fatalf("PreToolUse has %d entries, want 2:\n%s", count, content)
+	}
+	assertBothPreToolUseEntries(t, content)
+}
+
+func TestRunInstallHooksErrorsOnMalformedSettings(t *testing.T) {
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+
+	claudeDir := filepath.Join(repo, ".claude")
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		t.Fatalf("mkdir .claude: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte("{not json"), 0o644); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err := RunInstallHooks([]string{repo}, &stdout, &stderr)
+	if err == nil {
+		t.Fatalf("RunInstallHooks succeeded on malformed settings, want error; stdout=%s", stdout.String())
+	}
+	if !strings.Contains(err.Error(), "settings.json") {
+		t.Fatalf("error = %v, want mention of settings.json", err)
 	}
 }
 
@@ -260,30 +365,44 @@ func TestRunInstallHooksUpgradesLegacyGitGuardSettings(t *testing.T) {
 	}
 }
 
-type alwaysErrTransport struct{}
-
-func (alwaysErrTransport) RoundTrip(*http.Request) (*http.Response, error) {
-	return nil, errors.New("unreachable")
-}
-
-func TestRunCheckDefaultsToHTTPSLoopback(t *testing.T) {
+func TestRunCheckAutoStartsWithHTTPSLoopbackAddr(t *testing.T) {
+	// Isolate dev-cert discovery in a temp dir, and target a guaranteed-dead loopback
+	// port so the health probe is a deterministic connection-refused (not a TLS error
+	// from any foreign daemon that may occupy the default 7890). A refused probe is the
+	// zero-config path that should invoke auto-start with the https loopback addr.
+	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", t.TempDir())
+	deadAddr := "https://" + reservedDeadLoopbackAddr(t)
 	var captured string
-	starter := func(addr string) error {
-		captured = addr
+	starter := func(cfg DaemonStartConfig) error {
+		captured = cfg.Addr
 		return errors.New("stop after capture")
 	}
-	client := &http.Client{Transport: alwaysErrTransport{}}
 
 	err := RunCheck(
-		[]string{"--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go"},
-		io.Discard, client, starter,
+		[]string{"--addr", deadAddr, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go"},
+		io.Discard, &http.Client{Timeout: time.Second}, starter,
 	)
 	if err == nil {
 		t.Fatalf("RunCheck succeeded, want starter error")
 	}
-	if captured != "https://127.0.0.1:7890" {
-		t.Fatalf("daemon addr = %q, want https://127.0.0.1:7890", captured)
+	if captured != deadAddr {
+		t.Fatalf("daemon addr = %q, want %q", captured, deadAddr)
 	}
+}
+
+// reservedDeadLoopbackAddr binds an ephemeral loopback port, then closes it so nothing
+// listens there — a deterministic connection-refused target.
+func reservedDeadLoopbackAddr(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve loopback port: %v", err)
+	}
+	addr := listener.Addr().String()
+	if err := listener.Close(); err != nil {
+		t.Fatalf("close reserved listener: %v", err)
+	}
+	return addr
 }
 
 func TestHookInstallerFunctionsStayWithinCyclomaticComplexityBudget(t *testing.T) {
@@ -298,11 +417,41 @@ func TestHookInstallerFunctionsStayWithinCyclomaticComplexityBudget(t *testing.T
 	}{
 		{name: "installGitHook", maxCC: 9},
 		{name: "installGitGuard", maxCC: 9},
-		{name: "upsertGitGuard", maxCC: 9},
+		{name: "installAgentHook", maxCC: 9},
+		{name: "applyClaudeHook", maxCC: 9},
+		{name: "upsertClaudeHook", maxCC: 9},
 	} {
 		function := findClientFunction(t, result, want.name)
 		if function.CyclomaticComplexity > want.maxCC {
 			t.Fatalf("%s cyclomatic complexity = %d, want <= %d", want.name, function.CyclomaticComplexity, want.maxCC)
+		}
+	}
+}
+
+// TestEmbeddedHookAssetsMatchAuthoritativeHooks guards the embedded install-time
+// copies against drift from the authoritative scripts under hooks/. hooks/*.sh stays
+// the source of truth (this repo's own .claude/settings.json points at it); the
+// embedded twin is what `client install-hooks` writes into a governed repo. If they
+// diverge, re-copy the changed file into internal/client/hookassets/.
+func TestEmbeddedHookAssetsMatchAuthoritativeHooks(t *testing.T) {
+	hooksDir := filepath.Join(projectRoot(t), "hooks")
+	for _, name := range []string{
+		"pre-commit.sh",
+		"pre-push.sh",
+		"git-guard.sh",
+		"pre-tool-use.sh",
+		"format-violations.py",
+	} {
+		authoritative, err := os.ReadFile(filepath.Join(hooksDir, name))
+		if err != nil {
+			t.Fatalf("read hooks/%s: %v", name, err)
+		}
+		embedded, err := embeddedHooks.ReadFile("hookassets/" + name)
+		if err != nil {
+			t.Fatalf("read embedded hookassets/%s: %v", name, err)
+		}
+		if !bytes.Equal(authoritative, embedded) {
+			t.Fatalf("hookassets/%s has drifted from hooks/%s; re-copy hooks/%s into internal/client/hookassets/", name, name, name)
 		}
 	}
 }

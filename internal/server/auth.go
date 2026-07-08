@@ -92,6 +92,15 @@ func callerRepoBindingsPath(configDir string) string {
 	return filepath.Join(cleanDir, callerRepoBindingsFileName)
 }
 
+// ValidateCallerRepoBindings reports whether content is a caller-repos.json document
+// the server can load: valid JSON with well-formed caller identities and repo names.
+// Tests and tooling use it to check an authorization file without depending on the
+// unexported parser or pinning its exact contents.
+func ValidateCallerRepoBindings(content []byte) error {
+	_, err := parseCallerRepoPolicy(content)
+	return err
+}
+
 func parseCallerRepoPolicy(content []byte) (CallerRepoPolicy, error) {
 	var document callerRepoDocument
 	if err := json.Unmarshal(content, &document); err == nil && (document.Callers != nil || document.Admins != nil) {
@@ -231,7 +240,8 @@ func (c ServerTLSConfig) Validate() error {
 		return nil
 	}
 	if c.CertPath == "" || c.KeyPath == "" || c.CAPath == "" {
-		return errors.New("tls requires --tls-cert, --tls-key, and --tls-ca")
+		return errors.New("tls requires --tls-cert, --tls-key, and --tls-ca " +
+			"(or STACK_FITNESS_FUNCTIONS_TLS_CERT, STACK_FITNESS_FUNCTIONS_TLS_KEY, and STACK_FITNESS_FUNCTIONS_TLS_CA)")
 	}
 	return nil
 }

@@ -31,9 +31,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	return runWithDependencies(args, stdout, stderr, &http.Client{Timeout: 2 * time.Second}, client.StartDaemon)
 }
 
-func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(string) error) int {
+func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions <client validate|client install-hooks|server start|baseline>")
+		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions <client validate|client install-hooks|client onboard|server start|baseline|doctor>")
 		return 2
 	}
 
@@ -42,49 +42,73 @@ func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *ht
 		return runClient(args[1:], stdout, stderr, httpClient, starter)
 	case "server":
 		return runServer(args[1:], stderr)
+	case "doctor":
+		return runDoctorCommand(args[1:], stdout, stderr, httpClient)
 	case "baseline":
-		if err := runBaseline(args[1:], stdout); err != nil {
-			_, _ = fmt.Fprintln(stderr, err)
-			if isUsageError(err) {
-				return 2
-			}
-			return 1
-		}
-		return 0
+		return runBaselineCommand(args[1:], stdout, stderr)
 	default:
 		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", args[0])
 		return 2
 	}
 }
 
-func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(string) error) int {
+func runDoctorCommand(args []string, stdout, stderr io.Writer, httpClient *http.Client) int {
+	if err := client.RunDoctor(args, stdout, stderr, httpClient); err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		if client.IsUsageError(err) {
+			return 2
+		}
+		return 1
+	}
+	return 0
+}
+
+func runBaselineCommand(args []string, stdout, stderr io.Writer) int {
+	if err := runBaseline(args, stdout); err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		if isUsageError(err) {
+			return 2
+		}
+		return 1
+	}
+	return 0
+}
+
+func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions client <validate|install-hooks>")
+		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions client <validate|install-hooks|onboard>")
 		return 2
 	}
 	switch args[0] {
 	case "validate":
-		if err := client.RunCheck(args[1:], stdout, httpClient, starter); err != nil {
-			_, _ = fmt.Fprintln(stderr, err)
-			if client.IsUsageError(err) {
-				return 2
-			}
-			return 1
-		}
-		return 0
+		return clientExitCode(client.RunCheck(args[1:], stdout, httpClient, starter), stderr)
 	case "install-hooks":
-		if err := client.RunInstallHooks(args[1:], stdout, stderr); err != nil {
-			_, _ = fmt.Fprintln(stderr, err)
-			if client.IsUsageError(err) {
-				return 2
-			}
-			return 1
-		}
-		return 0
+		return clientExitCode(client.RunInstallHooks(args[1:], stdout, stderr), stderr)
+	case "onboard":
+		return clientExitCode(client.RunOnboard(args[1:], stdout, stderr, httpClient, starter), stderr)
 	default:
 		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", "client "+args[0])
 		return 2
 	}
+}
+
+// clientExitCode maps a client subcommand error to a process exit code: 0 on success,
+// InfraErrorExitCode for an infrastructure failure (already reported as a
+// machine-readable object on stdout), 2 for usage errors, 1 otherwise. It prints the
+// error to stderr for the human-facing cases but not for infra failures, whose
+// structured stdout output is what the hooks and agents consume.
+func clientExitCode(err error, stderr io.Writer) int {
+	if err == nil {
+		return 0
+	}
+	if client.IsInfraError(err) {
+		return client.InfraErrorExitCode
+	}
+	_, _ = fmt.Fprintln(stderr, err)
+	if client.IsUsageError(err) {
+		return 2
+	}
+	return 1
 }
 
 func runServer(args []string, stderr io.Writer) int {
@@ -105,9 +129,10 @@ func runServe(args []string, stderr io.Writer) int {
 	flags := flag.NewFlagSet("server start", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	addr := flags.String("addr", "localhost:7890", "daemon listen address")
-	tlsCert := flags.String("tls-cert", "", "server TLS certificate path")
-	tlsKey := flags.String("tls-key", "", "server TLS private key path")
-	tlsCA := flags.String("tls-ca", "", "client CA bundle path")
+	tlsCert := flags.String("tls-cert", "", "server TLS certificate path (overrides STACK_FITNESS_FUNCTIONS_TLS_CERT)")
+	tlsKey := flags.String("tls-key", "", "server TLS private key path (overrides STACK_FITNESS_FUNCTIONS_TLS_KEY)")
+	tlsCA := flags.String("tls-ca", "", "client CA bundle path (overrides STACK_FITNESS_FUNCTIONS_TLS_CA)")
+	configsDir := flags.String("configs-dir", "", "repository configs directory (overrides STACK_FITNESS_FUNCTIONS_CONFIGS_DIR)")
 	trustedProxyHeaders := flags.Bool("trusted-proxy-headers", false, "trust X-Client-CN headers from an authenticated proxy")
 	trustedProxyClientCNs := flags.String("trusted-proxy-client-cns", "", "comma-separated trusted proxy client certificate common names")
 	blockOnWarmup := flags.Bool("block-on-warmup", false, "block first C# check until analyzer is ready instead of optimistic pass")
@@ -130,7 +155,7 @@ func runServe(args []string, stderr io.Writer) int {
 	defer stop()
 	if err := server.ServeWithOptions(ctx, server.ServeOptions{
 		Addr:      *addr,
-		ConfigDir: os.Getenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR"),
+		ConfigDir: resolveServerConfigDir(*configsDir),
 		Ready:     os.Stdout,
 		NewStore:  server.NewConfigStore,
 		HandlerOptions: server.HandlerOptions{
@@ -141,15 +166,36 @@ func runServe(args []string, stderr io.Writer) int {
 		BlockOnWarmup:   *blockOnWarmup,
 		AnalyzerTimeout: analyzerTimeout,
 		TLS: server.ServerTLSConfig{
-			CertPath: *tlsCert,
-			KeyPath:  *tlsKey,
-			CAPath:   *tlsCA,
+			CertPath: resolveTLSPath(*tlsCert, "STACK_FITNESS_FUNCTIONS_TLS_CERT"),
+			KeyPath:  resolveTLSPath(*tlsKey, "STACK_FITNESS_FUNCTIONS_TLS_KEY"),
+			CAPath:   resolveTLSPath(*tlsCA, "STACK_FITNESS_FUNCTIONS_TLS_CA"),
 		},
 	}); err != nil && !errors.Is(err, context.Canceled) {
 		_, _ = fmt.Fprintln(stderr, err)
 		return 1
 	}
 	return 0
+}
+
+// resolveServerConfigDir prefers the --configs-dir flag, falling back to
+// STACK_FITNESS_FUNCTIONS_CONFIGS_DIR so the auto-started local daemon can be told
+// where per-repo configs live without depending on the container default.
+func resolveServerConfigDir(flagValue string) string {
+	if flagValue != "" {
+		return flagValue
+	}
+	return os.Getenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR")
+}
+
+// resolveTLSPath prefers the --tls-* flag, falling back to the matching
+// STACK_FITNESS_FUNCTIONS_TLS_* env var. Without this fallback a container that sets
+// only the env vars (as docker-compose.yml/Dockerfile do) would silently listen on
+// plain HTTP and reject every authenticated client with a 401.
+func resolveTLSPath(flagValue, envName string) string {
+	if flagValue != "" {
+		return flagValue
+	}
+	return os.Getenv(envName)
 }
 
 // buildRateLimiter creates a rate limiter from STACK_FITNESS_FUNCTIONS_RATE_LIMIT (default 100 req/min).
@@ -207,6 +253,7 @@ func runBaseline(args []string, stdout io.Writer) error {
 	repo := flags.String("repo", "", "repository root")
 	language := flags.String("language", "", "source language")
 	output := flags.String("output", "", "baseline report output path")
+	emitConfig := flags.String("emit-config", "", "additionally write a ready-to-use per-repo governance config to this path")
 	name := flags.String("name", "", "repository name for the report")
 	radon := flags.String("radon", "", "radon executable path")
 	roslyn := flags.String("roslyn", "", "Roslyn analyzer executable path")
@@ -234,7 +281,31 @@ func runBaseline(args []string, stdout io.Writer) error {
 	if err := analyzer.WriteBaselineReport(*output, repositoryName, *language, results); err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(stdout, "wrote %s (%d files)\n", *output, len(results))
+	if _, err := fmt.Fprintf(stdout, "wrote %s (%d files)\n", *output, len(results)); err != nil {
+		return err
+	}
+	if *emitConfig == "" {
+		return nil
+	}
+	return emitOnboardingConfig(*emitConfig, repositoryName, results, stdout)
+}
+
+// emitOnboardingConfig derives an enforcement-mode recommendation and threshold-delta
+// report from the analysis, writes the per-repo governance config, and prints the
+// recommendation plus the global-threshold limitation note.
+func emitOnboardingConfig(path, repository string, results []analyzer.AnalysisResult, stdout io.Writer) error {
+	rules, err := analyzer.GlobalThresholds()
+	if err != nil {
+		return err
+	}
+	recommendation := analyzer.BuildOnboardingRecommendation(repository, results, rules)
+	if err := analyzer.WriteOnboardingConfig(path, recommendation.EnforcementMode); err != nil {
+		return err
+	}
+	if err := analyzer.WriteOnboardingReport(stdout, recommendation); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "\nwrote %s (enforcement-mode: %s)\n", path, recommendation.EnforcementMode)
 	return err
 }
 

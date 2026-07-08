@@ -153,10 +153,10 @@ What these metrics cannot catch: a function that is simple in isolation but orch
 
 | Component | Location | Purpose |
 |---|---|---|
-| `stack-fitness-functions` binary | `/app/stack-fitness-functions` (built from `cmd/stack-fitness-functions`) | CLI for `client validate`, `server start`, and `baseline` |
+| `stack-fitness-functions` binary | `/app/stack-fitness-functions` (built from `cmd/stack-fitness-functions`) | CLI for `client validate`, `client install-hooks`, `client onboard`, `server start`, `baseline`, and `doctor` |
 | Container service | `docker compose up` via `bin/stack-fitness-functions-serve` (Docker Desktop) | **Primary runtime** — starts the server on `localhost:7890` |
 | Governance rules | `internal/server/checker.go`, `patterns/governance.json` | Thresholds and enabled functions |
-| Pre-commit hook | Embedded by `stack-fitness-functions client install-hooks` | Commit-time enforcement in governed repos |
+| Pre-commit and agent Edit/Write hooks | Embedded by `stack-fitness-functions client install-hooks` (or `client onboard`) | Commit-time and pre-write enforcement in governed repos; both `PreToolUse` entries are registered in `.claude/settings.json` automatically |
 | `configs/<repo>/config.json` | Mounted into the container | Governance config for the logical repo |
 | `.calm/config.json` | Optional local repository sandbox | Developer sandbox only — **has no effect on container governance**; container always resolves from `configs/<repo>/config.json` |
 | `stack-fitness-functions-test` | `~/.local/bin/stack-fitness-functions-test` | Ad-hoc file validation without committing |

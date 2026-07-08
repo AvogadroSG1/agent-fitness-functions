@@ -18,7 +18,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/poconnor/calm-poc/internal/fitness"
@@ -35,6 +34,9 @@ const hookProductPrefix = "stack-fitness-functions"
 const (
 	gitGuardName       = hookProductPrefix + "-git-guard"
 	legacyGitGuardName = "calm-git-guard"
+	// agentHookName is the installed Edit/Write content-validation hook script; it
+	// doubles as the .claude/settings.json command marker for idempotent upserts.
+	agentHookName = hookProductPrefix + "-pre-tool-use"
 )
 
 func managedHookMarker(hook string) string { return hookProductPrefix + " " + hook + " hook" }
@@ -46,7 +48,7 @@ func legacySidecarMarker(hook string) string { return "# CALM " + hook + " hook 
 func sidecarHookName(hook string) string     { return hookProductPrefix + "-" + hook }
 
 // RunCheck validates one file by posting a validation request to the daemon.
-func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter func(string) error) error {
+func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter func(DaemonStartConfig) error) error {
 	flags := flag.NewFlagSet("client validate", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	addr := flags.String("addr", "https://127.0.0.1:7890", "daemon base URL")
@@ -70,12 +72,9 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 	if !validFormats[*format] {
 		return usageError{err: fmt.Errorf("unsupported format %q: use json or sarif", *format)}
 	}
-	configuredClient, err := configureTLS(httpClient, *clientCert, *clientKey, *clientCA)
+	configuredClient, err := establishDaemon(httpClient, *addr, *repo, *file, *clientCert, *clientKey, *clientCA, starter)
 	if err != nil {
-		return err
-	}
-	if err := ensureDaemon(configuredClient, *addr, starter); err != nil {
-		return err
+		return handleValidateFailure(stdout, err, *repo)
 	}
 	proposedContent, err := resolveContent(*repo, *file, *content, *contentFile, *staged)
 	if err != nil {
@@ -88,7 +87,7 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 		Language:        *language,
 	})
 	if err != nil {
-		return err
+		return handleValidateFailure(stdout, err, *repo)
 	}
 	return writeValidationResult(stdout, *format, *repo, body)
 }
@@ -117,7 +116,10 @@ func RunInstallHooks(args []string, stdout, stderr io.Writer) error {
 	if err := installer.installGitHook("pre-push", "hookassets/pre-push.sh"); err != nil {
 		return err
 	}
-	return installer.installGitGuard()
+	if err := installer.installGitGuard(); err != nil {
+		return err
+	}
+	return installer.installAgentHook()
 }
 
 type hookInstaller struct {
@@ -239,16 +241,38 @@ func (installer hookInstaller) installGitGuard() error {
 		return err
 	}
 	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", guardPath)
+	return installer.applyClaudeHook(gitGuardSpec(guardPath))
+}
 
+// installAgentHook installs the Edit/Write content-validation hook — the flagship
+// affordance that validates a coding agent's proposed file content before it lands.
+// The script and its formatter dependency live beside the git-guard sidecar, and a
+// second PreToolUse entry (matcher Edit|Write) is registered in .claude/settings.json.
+func (installer hookInstaller) installAgentHook() error {
+	scriptPath, err := installer.gitHookPath(agentHookName)
+	if err != nil {
+		return err
+	}
+	if err := installer.writeEmbeddedExecutable("hookassets/pre-tool-use.sh", scriptPath); err != nil {
+		return err
+	}
+	if err := installer.writeFormatter(filepath.Dir(scriptPath)); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", scriptPath)
+	return installer.applyClaudeHook(agentHookSpec(scriptPath))
+}
+
+// applyClaudeHook idempotently upserts a single PreToolUse entry into
+// .claude/settings.json, creating the file and directory when absent and surfacing
+// a clean error on malformed JSON (via loadClaudeSettings).
+func (installer hookInstaller) applyClaudeHook(spec claudeHookSpec) error {
 	settingsPath := filepath.Join(installer.repoRoot, ".claude", "settings.json")
 	settings, err := loadClaudeSettings(settingsPath)
 	if err != nil {
 		return err
 	}
-	message, err := upsertGitGuard(settings, guardPath)
-	if err != nil {
-		return err
-	}
+	message := upsertClaudeHook(settings, spec)
 	if err := writeClaudeSettings(settingsPath, settings); err != nil {
 		return err
 	}
@@ -286,20 +310,48 @@ func writeClaudeSettings(settingsPath string, settings map[string]any) error {
 	return nil
 }
 
-func upsertGitGuard(settings map[string]any, guardPath string) (string, error) {
+// claudeHookSpec describes one PreToolUse entry to upsert. markers are command
+// substrings that identify a previously installed instance of this same hook (so an
+// existing entry is updated in place rather than duplicated); name labels it in the
+// status message; command is the path used to detect an already-current entry.
+type claudeHookSpec struct {
+	entry   map[string]any
+	markers []string
+	name    string
+	command string
+}
+
+func upsertClaudeHook(settings map[string]any, spec claudeHookSpec) string {
 	hooks := ensureHooksSection(settings)
 	preToolUse := preToolUseEntries(hooks)
-	newEntry := gitGuardHookEntry(guardPath)
-	if index, command, found := findGitGuardHookEntry(preToolUse); found {
-		preToolUse[index] = newEntry
+	if index, command, found := findClaudeHookEntry(preToolUse, spec.markers); found {
+		preToolUse[index] = spec.entry
 		hooks["PreToolUse"] = preToolUse
-		if command == guardPath {
-			return gitGuardName + " already configured", nil
+		if command == spec.command {
+			return spec.name + " already configured"
 		}
-		return "updated " + gitGuardName + " path", nil
+		return "updated " + spec.name + " path"
 	}
-	hooks["PreToolUse"] = append(preToolUse, newEntry)
-	return "added " + gitGuardName + " to PreToolUse hooks", nil
+	hooks["PreToolUse"] = append(preToolUse, spec.entry)
+	return "added " + spec.name + " to PreToolUse hooks"
+}
+
+func gitGuardSpec(guardPath string) claudeHookSpec {
+	return claudeHookSpec{
+		entry:   claudeCommandEntry("Bash", guardPath),
+		markers: []string{gitGuardName, legacyGitGuardName},
+		name:    gitGuardName,
+		command: guardPath,
+	}
+}
+
+func agentHookSpec(scriptPath string) claudeHookSpec {
+	return claudeHookSpec{
+		entry:   claudeCommandEntry("Edit|Write", scriptPath),
+		markers: []string{agentHookName},
+		name:    agentHookName,
+		command: scriptPath,
+	}
 }
 
 func ensureHooksSection(settings map[string]any) map[string]any {
@@ -319,30 +371,39 @@ func preToolUseEntries(hooks map[string]any) []any {
 	return preToolUse
 }
 
-func gitGuardHookEntry(guardPath string) map[string]any {
+func claudeCommandEntry(matcher, command string) map[string]any {
 	return map[string]any{
 		"hooks": []any{map[string]any{
-			"command": guardPath,
+			"command": command,
 			"type":    "command",
 		}},
-		"matcher": "Bash",
+		"matcher": matcher,
 	}
 }
 
-func findGitGuardHookEntry(preToolUse []any) (int, string, bool) {
+func findClaudeHookEntry(preToolUse []any, markers []string) (int, string, bool) {
 	for index, rawEntry := range preToolUse {
-		command, ok := gitGuardCommand(rawEntry)
+		command, ok := hookEntryCommand(rawEntry)
 		if !ok {
 			continue
 		}
-		if strings.Contains(command, gitGuardName) || strings.Contains(command, legacyGitGuardName) {
+		if commandMatchesMarker(command, markers) {
 			return index, command, true
 		}
 	}
 	return 0, "", false
 }
 
-func gitGuardCommand(rawEntry any) (string, bool) {
+func commandMatchesMarker(command string, markers []string) bool {
+	for _, marker := range markers {
+		if strings.Contains(command, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func hookEntryCommand(rawEntry any) (string, bool) {
 	entry, ok := rawEntry.(map[string]any)
 	if !ok {
 		return "", false
@@ -419,14 +480,62 @@ func appendFile(path string, content []byte) error {
 	return nil
 }
 
-func ensureDaemon(httpClient *http.Client, addr string, starter func(string) error) error {
-	if isHealthy(httpClient, addr) {
+// establishDaemon resolves dev-cert/configs discovery, provisions the zero-config
+// local TLS material when applicable, configures the mTLS client, and ensures a
+// reachable daemon. It returns the client to use for the validation request.
+func establishDaemon(httpClient *http.Client, addr, repo, file, certFlag, keyFlag, caFlag string, starter func(DaemonStartConfig) error) (*http.Client, error) {
+	repoRoot := resolveRepoRoot(repo, file)
+	certDir := resolveDevCertDir(repoRoot)
+	daemonCfg, err := prepareDaemonStart(addr, certDir, repoRoot, certFlag, keyFlag, caFlag)
+	if err != nil {
+		return nil, err
+	}
+	certPath, keyPath, caPath := resolveClientTLSPaths(certFlag, keyFlag, caFlag, certDir)
+	configuredClient, err := configureTLS(httpClient, certPath, keyPath, caPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureDaemon(configuredClient, addr, daemonCfg, starter); err != nil {
+		return nil, err
+	}
+	return configuredClient, nil
+}
+
+func ensureDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, starter func(DaemonStartConfig) error) error {
+	probeErr := probeDaemon(httpClient, addr)
+	if probeErr == nil {
 		return nil
 	}
-	if err := starter(addr); err != nil {
+	// A TLS/certificate handshake failure is not fixed by (re)starting a daemon, and
+	// auto-start would race an already-listening server. Surface it directly so it is
+	// classified as a tls_failure rather than a misleading health-wait timeout.
+	if isTLSError(probeErr) {
+		return probeErr
+	}
+	if err := starter(cfg); err != nil {
 		return fmt.Errorf("starting daemon: %w", err)
 	}
-	return waitHealthy(httpClient, addr, 500*time.Millisecond)
+	if err := waitHealthy(httpClient, addr, 5*time.Second); err != nil {
+		return describeDaemonFailure(cfg, err)
+	}
+	return nil
+}
+
+// describeDaemonFailure annotates a health-wait timeout with what auto-start
+// attempted so the user sees a setup problem, not a bare timeout.
+func describeDaemonFailure(cfg DaemonStartConfig, cause error) error {
+	tlsState := "off"
+	if cfg.TLSCert != "" {
+		tlsState = "on"
+	}
+	return fmt.Errorf("%w [addr=%s tls=%s dev-cert-dir=%s configs-dir=%s]", cause, cfg.Addr, tlsState, orNone(cfg.CertDir), orNone(cfg.ConfigsDir))
+}
+
+func orNone(value string) string {
+	if value == "" {
+		return "<none>"
+	}
+	return value
 }
 
 func postCheck(ctx context.Context, httpClient *http.Client, addr string, request fitness.ValidationRequest) ([]byte, error) {
@@ -443,16 +552,12 @@ func postCheck(ctx context.Context, httpClient *http.Client, addr string, reques
 	httpRequest.Header.Set("Content-Type", "application/json")
 	response, err := httpClient.Do(httpRequest)
 	if err != nil {
-		return nil, fmt.Errorf("posting check request: %w", err)
+		return nil, transportError{err: err}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
-		message := strings.TrimSpace(string(errBody))
-		if message == "" {
-			return nil, fmt.Errorf("check failed with HTTP %d", response.StatusCode)
-		}
-		return nil, fmt.Errorf("check failed with HTTP %d: %s", response.StatusCode, message)
+		return nil, httpStatusError{status: response.StatusCode, body: strings.TrimSpace(string(errBody))}
 	}
 	return io.ReadAll(io.LimitReader(response.Body, 10<<20))
 }
@@ -580,18 +685,28 @@ func resolveContentFromDisk(repo, file string) (string, error) {
 }
 
 func isHealthy(httpClient *http.Client, addr string) bool {
+	return probeDaemon(httpClient, addr) == nil
+}
+
+// probeDaemon performs one GET /health and returns the underlying error (dial refused,
+// TLS handshake, non-200) so callers can distinguish an unreachable server from a
+// TLS/cert problem. It returns nil only when the server answers 200.
+func probeDaemon(httpClient *http.Client, addr string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(addr, "/")+"/health", nil)
 	if err != nil {
-		return false
+		return err
 	}
 	response, err := httpClient.Do(request)
 	if err != nil {
-		return false
+		return err
 	}
 	defer response.Body.Close()
-	return response.StatusCode == http.StatusOK
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("health check returned HTTP %d", response.StatusCode)
+	}
+	return nil
 }
 
 func waitHealthy(httpClient *http.Client, addr string, timeout time.Duration) error {
@@ -603,23 +718,6 @@ func waitHealthy(httpClient *http.Client, addr string, timeout time.Duration) er
 		time.Sleep(25 * time.Millisecond)
 	}
 	return fmt.Errorf("daemon at %s did not become healthy within %s", addr, timeout)
-}
-
-// StartDaemon starts a detached daemon process using the current executable.
-func StartDaemon(addr string) error {
-	executable, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	listenAddr := strings.TrimPrefix(strings.TrimPrefix(addr, "http://"), "https://")
-	command := exec.Command(executable, "server", "start", "--addr", listenAddr)
-	command.Stdout = io.Discard
-	command.Stderr = io.Discard
-	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := command.Start(); err != nil {
-		return err
-	}
-	return command.Process.Release()
 }
 
 type usageError struct {

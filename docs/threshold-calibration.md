@@ -49,6 +49,37 @@ Exception counts from the appendix:
 
 The current C# baseline still contains many `0` values because project-local symbols cannot be fully resolved from a single-file Roslyn analysis. `patterns/governance.json` now uses the Step 5.3 PoC threshold, `0.8`, so DDC can flag unused-import slop in Go/Python and any C# files the current analyzer can resolve. Follow-up Bead `calm-poc-oeu` tracks project-aware C# import resolution before Dependency Discipline is treated as final for C# repositories.
 
+## Onboarding a New Repository
+
+To scaffold a per-repo governance config from a fresh baseline, run `baseline` with
+`--emit-config`:
+
+```bash
+stack-fitness-functions baseline \
+  --repo /path/to/repo --language go \
+  --output baseline-report.json \
+  --emit-config configs/<repo>/config.json --name <repo>
+```
+
+Alongside the usual baseline report this writes a ready-to-use
+`configs/<repo>/config.json` (all five fitness functions enabled) and prints:
+
+- an **enforcement-mode recommendation** — `block` when zero files/functions violate the
+  current global thresholds, otherwise `advisory` — with the violation count so the
+  reviewer sees why; and
+- a **threshold-delta report** listing, per fitness function, the repository's relevant
+  percentile (P90 for ceiling metrics, P10 for floor metrics), the current global
+  embedded threshold, the delta, and whether the repository's tail would need a looser
+  threshold.
+
+The threshold-delta report is a diagnostic only. Thresholds are **global** and compiled
+into the binary (`patterns/governance.json`); a per-repo `config.json` can toggle
+fitness functions and the enforcement mode but **cannot change any threshold**. If the
+report flags "needs looser? yes" for a function, either accept advisory mode for that
+repository or recalibrate the global threshold by editing `patterns/governance.json`
+(per the Calibration Rule above) and rebuilding the binary. Per-repo thresholds are a
+separate future epic.
+
 ## Human Approval
 
 Status: Approved by Peter on 2026-05-18.

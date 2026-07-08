@@ -66,6 +66,9 @@ COPY --from=dotnet-build --chown=appuser:appuser /out/roslyn/ /app/tools/roslyn-
 VOLUME ["/app/configs"]
 EXPOSE 7890
 
+# When the deployment provides STACK_FITNESS_FUNCTIONS_TLS_CERT/KEY/CA (see
+# docker-compose.yml), `server start` serves HTTPS with those certs and this probe
+# uses the CA to match; without them the server and probe both fall back to plain HTTP.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD if [ -n "$STACK_FITNESS_FUNCTIONS_TLS_CA" ]; then curl --fail --silent --cacert "$STACK_FITNESS_FUNCTIONS_TLS_CA" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1
 
