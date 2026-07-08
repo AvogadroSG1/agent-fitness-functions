@@ -85,9 +85,9 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 	if err != nil {
 		return onboarder{}, err
 	}
-	repoRoot := resolveRepoRoot(pathArg, "")
-	if repoRoot == "" {
-		return onboarder{}, errors.New("could not locate a git working tree: run onboard inside the repository or pass its path")
+	repoRoot, err := onboardRepoRoot(pathArg)
+	if err != nil {
+		return onboarder{}, err
 	}
 	repoName, err := resolveOnboardRepoName(*repo, repoRoot)
 	if err != nil {
@@ -108,6 +108,20 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 		httpClient:  httpClient,
 		starter:     starter,
 	}, nil
+}
+
+// onboardRepoRoot requires a real git working tree: onboard scaffolds certs,
+// configs, and caller bindings, so a plain directory must be rejected before
+// any files are created rather than failing midway through install-hooks.
+// resolveRepoRoot alone is too lenient here — it accepts any existing
+// directory to support cert discovery for validate.
+func onboardRepoRoot(pathArg string) (string, error) {
+	if root := resolveRepoRoot(pathArg, ""); root != "" {
+		if top, err := gitOutput(root, "rev-parse", "--show-toplevel"); err == nil {
+			return top, nil
+		}
+	}
+	return "", errors.New("could not locate a git working tree: run onboard inside the repository or pass its path")
 }
 
 func validateEnforcement(mode string) (string, error) {
@@ -292,11 +306,14 @@ func ensureCallerBinding(path, callerCN, repoName string) (bool, error) {
 func loadCallerBindings(path string) (map[string]any, error) {
 	document := map[string]any{}
 	content, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) || len(bytes.TrimSpace(content)) == 0 {
+	if errors.Is(err, os.ErrNotExist) {
 		return document, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+	if len(bytes.TrimSpace(content)) == 0 {
+		return document, nil
 	}
 	if err := json.Unmarshal(content, &document); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", path, err)

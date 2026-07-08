@@ -196,6 +196,67 @@ func TestEnsureCallerBindingIdempotentWhenPresent(t *testing.T) {
 	}
 }
 
+func TestEnsureCallerBindingSurfacesReadErrors(t *testing.T) {
+	dir := t.TempDir()
+	// A regular file where a directory is expected makes ReadFile fail with
+	// ENOTDIR — a non-ENOENT read error that must not be mistaken for an
+	// empty bindings file (and must never trigger a rewrite).
+	blocker := filepath.Join(dir, "notadir")
+	original := []byte(`{"callers":{"ci":["graft"]}}`)
+	if err := os.WriteFile(blocker, original, 0o644); err != nil {
+		t.Fatalf("write blocker file: %v", err)
+	}
+	path := filepath.Join(blocker, "caller-repos.json")
+	changed, err := ensureCallerBinding(path, "dev-hook-pool", "sample")
+	if err == nil || !strings.Contains(err.Error(), "reading") {
+		t.Fatalf("err = %v, want reading error for unreadable bindings", err)
+	}
+	if changed {
+		t.Fatalf("changed = true, want false when the bindings file cannot be read")
+	}
+	after, err := os.ReadFile(blocker)
+	if err != nil {
+		t.Fatalf("re-read blocker file: %v", err)
+	}
+	if !bytes.Equal(original, after) {
+		t.Fatalf("unreadable-bindings failure modified existing content:\nbefore=%s\nafter=%s", original, after)
+	}
+}
+
+func TestOnboardRepoRootRejectsNonGitDirectory(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := onboardRepoRoot(dir); err == nil || !strings.Contains(err.Error(), "git working tree") {
+		t.Fatalf("onboardRepoRoot(%q) err = %v, want git-working-tree error", dir, err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("onboardRepoRoot created files in a rejected directory: %v", entries)
+	}
+}
+
+func TestOnboardRepoRootAnchorsSubdirectoryToTopLevel(t *testing.T) {
+	repo := t.TempDir()
+	runGitClientTest(t, repo, "init")
+	sub := filepath.Join(repo, "pkg", "inner")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatalf("mkdir subdir: %v", err)
+	}
+	got, err := onboardRepoRoot(sub)
+	if err != nil {
+		t.Fatalf("onboardRepoRoot(%q): %v", sub, err)
+	}
+	want, wantErr := gitOutput(repo, "rev-parse", "--show-toplevel")
+	if wantErr != nil {
+		t.Fatalf("git rev-parse in fixture repo: %v", wantErr)
+	}
+	if got != want {
+		t.Fatalf("onboardRepoRoot(%q) = %q, want toplevel %q", sub, got, want)
+	}
+}
+
 func TestOnboardCallerBindingsPath(t *testing.T) {
 	tests := []struct {
 		name       string
