@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -364,33 +365,44 @@ func TestRunInstallHooksUpgradesLegacyGitGuardSettings(t *testing.T) {
 	}
 }
 
-type alwaysErrTransport struct{}
-
-func (alwaysErrTransport) RoundTrip(*http.Request) (*http.Response, error) {
-	return nil, errors.New("unreachable")
-}
-
-func TestRunCheckDefaultsToHTTPSLoopback(t *testing.T) {
-	// Isolate dev-cert discovery in a temp dir so the default https loopback path
-	// materializes its own CA and never trusts (or reaches) a real local daemon.
+func TestRunCheckAutoStartsWithHTTPSLoopbackAddr(t *testing.T) {
+	// Isolate dev-cert discovery in a temp dir, and target a guaranteed-dead loopback
+	// port so the health probe is a deterministic connection-refused (not a TLS error
+	// from any foreign daemon that may occupy the default 7890). A refused probe is the
+	// zero-config path that should invoke auto-start with the https loopback addr.
 	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", t.TempDir())
+	deadAddr := "https://" + reservedDeadLoopbackAddr(t)
 	var captured string
 	starter := func(cfg DaemonStartConfig) error {
 		captured = cfg.Addr
 		return errors.New("stop after capture")
 	}
-	client := &http.Client{Transport: alwaysErrTransport{}}
 
 	err := RunCheck(
-		[]string{"--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go"},
-		io.Discard, client, starter,
+		[]string{"--addr", deadAddr, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go"},
+		io.Discard, &http.Client{Timeout: time.Second}, starter,
 	)
 	if err == nil {
 		t.Fatalf("RunCheck succeeded, want starter error")
 	}
-	if captured != "https://127.0.0.1:7890" {
-		t.Fatalf("daemon addr = %q, want https://127.0.0.1:7890", captured)
+	if captured != deadAddr {
+		t.Fatalf("daemon addr = %q, want %q", captured, deadAddr)
 	}
+}
+
+// reservedDeadLoopbackAddr binds an ephemeral loopback port, then closes it so nothing
+// listens there — a deterministic connection-refused target.
+func reservedDeadLoopbackAddr(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve loopback port: %v", err)
+	}
+	addr := listener.Addr().String()
+	if err := listener.Close(); err != nil {
+		t.Fatalf("close reserved listener: %v", err)
+	}
+	return addr
 }
 
 func TestHookInstallerFunctionsStayWithinCyclomaticComplexityBudget(t *testing.T) {

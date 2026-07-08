@@ -438,7 +438,7 @@ func TestRunClientValidateReturnsUsageExitCodeForMissingFlags(t *testing.T) {
 	}
 }
 
-func TestRunClientValidateIncludesDaemonErrorBody(t *testing.T) {
+func TestRunClientValidateReportsInfraErrorForDaemonFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
@@ -451,13 +451,18 @@ func TestRunClientValidateIncludesDaemonErrorBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	var stderr bytes.Buffer
-	code := run([]string{"client", "validate", "--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n"}, &bytes.Buffer{}, &stderr)
-	if code != 1 {
-		t.Fatalf("exit code = %d, want 1", code)
+	// A daemon-side failure is an infrastructure error, not a fitness-function block:
+	// it exits with the reserved infra code (3) and emits a machine-readable error
+	// object — carrying kind and the daemon's response body — on stdout.
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"client", "validate", "--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n"}, &stdout, &stderr)
+	if code != client.InfraErrorExitCode {
+		t.Fatalf("exit code = %d, want %d (infra error)", code, client.InfraErrorExitCode)
 	}
-	if !strings.Contains(stderr.String(), "invalid check request") {
-		t.Fatalf("stderr = %q, want daemon response body", stderr.String())
+	for _, want := range []string{`"status":"error"`, `"error_kind":"invalid_request"`, "invalid check request"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout = %q, want to contain %q", stdout.String(), want)
+		}
 	}
 }
 
@@ -607,6 +612,68 @@ func TestRunBaselineWritesReport(t *testing.T) {
 	}
 	if !strings.Contains(string(content), `"repository": "sample"`) {
 		t.Fatalf("baseline report = %s, want repository name", content)
+	}
+}
+
+func TestRunBaselineEmitConfigWritesConfigAndReport(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repo, "x.go"), []byte("package sample\n\nfunc Run() string { return \"ok\" }\n"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	output := filepath.Join(t.TempDir(), "baseline.json")
+	configPath := filepath.Join(t.TempDir(), "config.json")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run([]string{
+		"baseline", "--repo", repo, "--language", "go",
+		"--output", output, "--emit-config", configPath, "--name", "selftest",
+	}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+
+	out := stdout.String()
+	if !strings.Contains(out, "Onboarding recommendation for \"selftest\"") {
+		t.Fatalf("stdout missing recommendation header:\n%s", out)
+	}
+	if !strings.Contains(out, "Threshold delta") || !strings.Contains(out, "GLOBAL and compiled into the binary") {
+		t.Fatalf("stdout missing threshold-delta report or limitation note:\n%s", out)
+	}
+	if !strings.Contains(out, "enforcement-mode:") {
+		t.Fatalf("stdout missing enforcement recommendation:\n%s", out)
+	}
+
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read emitted config: %v", err)
+	}
+	for _, needle := range []string{
+		`"enforcement-mode"`,
+		`"enforcement-on-error": "block"`,
+		`"cyclomatic-complexity": true`,
+		`"dependency-discipline": true`,
+	} {
+		if !strings.Contains(string(content), needle) {
+			t.Fatalf("emitted config missing %q:\n%s", needle, content)
+		}
+	}
+}
+
+func TestRunBaselineWithoutEmitConfigSkipsConfig(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repo, "x.go"), []byte("package sample\n\nfunc Run() {}\n"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	output := filepath.Join(t.TempDir(), "baseline.json")
+
+	var stdout bytes.Buffer
+	code := run([]string{"baseline", "--repo", repo, "--language", "go", "--output", output, "--name", "sample"}, &stdout, &bytes.Buffer{})
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
+	}
+	if strings.Contains(stdout.String(), "Onboarding recommendation") {
+		t.Fatalf("stdout should not include onboarding report without --emit-config:\n%s", stdout.String())
 	}
 }
 

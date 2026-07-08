@@ -92,11 +92,17 @@ func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client,
 	}
 }
 
-// clientExitCode maps a client subcommand error to a process exit code: 0 on
-// success, 2 for usage errors, 1 otherwise, printing the error to stderr first.
+// clientExitCode maps a client subcommand error to a process exit code: 0 on success,
+// InfraErrorExitCode for an infrastructure failure (already reported as a
+// machine-readable object on stdout), 2 for usage errors, 1 otherwise. It prints the
+// error to stderr for the human-facing cases but not for infra failures, whose
+// structured stdout output is what the hooks and agents consume.
 func clientExitCode(err error, stderr io.Writer) int {
 	if err == nil {
 		return 0
+	}
+	if client.IsInfraError(err) {
+		return client.InfraErrorExitCode
 	}
 	_, _ = fmt.Fprintln(stderr, err)
 	if client.IsUsageError(err) {
@@ -247,6 +253,7 @@ func runBaseline(args []string, stdout io.Writer) error {
 	repo := flags.String("repo", "", "repository root")
 	language := flags.String("language", "", "source language")
 	output := flags.String("output", "", "baseline report output path")
+	emitConfig := flags.String("emit-config", "", "additionally write a ready-to-use per-repo governance config to this path")
 	name := flags.String("name", "", "repository name for the report")
 	radon := flags.String("radon", "", "radon executable path")
 	roslyn := flags.String("roslyn", "", "Roslyn analyzer executable path")
@@ -274,7 +281,31 @@ func runBaseline(args []string, stdout io.Writer) error {
 	if err := analyzer.WriteBaselineReport(*output, repositoryName, *language, results); err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(stdout, "wrote %s (%d files)\n", *output, len(results))
+	if _, err := fmt.Fprintf(stdout, "wrote %s (%d files)\n", *output, len(results)); err != nil {
+		return err
+	}
+	if *emitConfig == "" {
+		return nil
+	}
+	return emitOnboardingConfig(*emitConfig, repositoryName, results, stdout)
+}
+
+// emitOnboardingConfig derives an enforcement-mode recommendation and threshold-delta
+// report from the analysis, writes the per-repo governance config, and prints the
+// recommendation plus the global-threshold limitation note.
+func emitOnboardingConfig(path, repository string, results []analyzer.AnalysisResult, stdout io.Writer) error {
+	rules, err := analyzer.GlobalThresholds()
+	if err != nil {
+		return err
+	}
+	recommendation := analyzer.BuildOnboardingRecommendation(repository, results, rules)
+	if err := analyzer.WriteOnboardingConfig(path, recommendation.EnforcementMode); err != nil {
+		return err
+	}
+	if err := analyzer.WriteOnboardingReport(stdout, recommendation); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "\nwrote %s (enforcement-mode: %s)\n", path, recommendation.EnforcementMode)
 	return err
 }
 

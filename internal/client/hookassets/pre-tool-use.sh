@@ -72,6 +72,37 @@ json_field() {
   python3 -c 'import json,sys; print(json.load(sys.stdin).get(sys.argv[1], ""))' "$1"
 }
 
+# On-error policy for infrastructure/setup failures (server down, cert/TLS problem,
+# repo not configured, auth rejected): fail-closed (block) by default, or non-blocking
+# when STACK_FITNESS_FUNCTIONS_ON_ERROR=advisory — mirroring the server-side
+# enforcement-on-error setting. Real architecture violations are unaffected.
+on_error_mode=${STACK_FITNESS_FUNCTIONS_ON_ERROR:-block}
+
+# is_infra_error reports whether a client failure is an infrastructure/setup problem
+# (client exit code 3, or a {"status":"error"} object) rather than a real violation.
+is_infra_error() {
+  local rc=$1 payload=$2
+  [[ "$rc" -eq 3 ]] && return 0
+  printf '%s' "$payload" | grep -q '"status":"error"'
+}
+
+# report_infra_error prints the client's machine-readable setup-failure object to
+# stderr as a clearly labeled SETUP problem with its remediation, so the coding agent
+# is told exactly what to run next instead of mistaking it for an architecture block.
+report_infra_error() {
+  local file=$1 payload=$2
+  local kind message remediation
+  kind=$(printf '%s' "$payload" | json_field error_kind 2>/dev/null || true)
+  message=$(printf '%s' "$payload" | json_field message 2>/dev/null || true)
+  remediation=$(printf '%s' "$payload" | json_field remediation 2>/dev/null || true)
+  {
+    echo "stack-fitness-functions SETUP problem for $file (infrastructure/configuration, NOT an architecture violation)"
+    if [[ -n "$kind" ]]; then echo "  kind: $kind"; fi
+    if [[ -n "$message" ]]; then echo "  detail: $message"; fi
+    if [[ -n "$remediation" ]]; then echo "  fix: $remediation"; fi
+  } >&2
+}
+
 
 payload=$(cat)
 payload_file=$(mktemp)
@@ -206,7 +237,20 @@ if [[ -f "$client_ca" ]]; then
   args+=(--client-ca "$client_ca")
 fi
 
-if ! result=$("$stack_fitness_functions_bin" "${args[@]}"); then
+if result=$("$stack_fitness_functions_bin" "${args[@]}"); then
+  rc=0
+else
+  rc=$?
+fi
+if [[ "$rc" -ne 0 ]]; then
+  if is_infra_error "$rc" "$result"; then
+    report_infra_error "$file" "$result"
+    if [[ "$on_error_mode" == "advisory" ]]; then
+      echo "  STACK_FITNESS_FUNCTIONS_ON_ERROR=advisory: allowing this edit despite the setup failure" >&2
+      exit 0
+    fi
+    exit 2
+  fi
   echo "stack-fitness-functions check failed for $file" >&2
   printf '%s\n' "$result" >&2
   exit 2

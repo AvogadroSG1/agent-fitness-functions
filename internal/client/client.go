@@ -74,7 +74,7 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 	}
 	configuredClient, err := establishDaemon(httpClient, *addr, *repo, *file, *clientCert, *clientKey, *clientCA, starter)
 	if err != nil {
-		return err
+		return handleValidateFailure(stdout, err, *repo)
 	}
 	proposedContent, err := resolveContent(*repo, *file, *content, *contentFile, *staged)
 	if err != nil {
@@ -87,7 +87,7 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 		Language:        *language,
 	})
 	if err != nil {
-		return err
+		return handleValidateFailure(stdout, err, *repo)
 	}
 	return writeValidationResult(stdout, *format, *repo, body)
 }
@@ -502,8 +502,15 @@ func establishDaemon(httpClient *http.Client, addr, repo, file, certFlag, keyFla
 }
 
 func ensureDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, starter func(DaemonStartConfig) error) error {
-	if isHealthy(httpClient, addr) {
+	probeErr := probeDaemon(httpClient, addr)
+	if probeErr == nil {
 		return nil
+	}
+	// A TLS/certificate handshake failure is not fixed by (re)starting a daemon, and
+	// auto-start would race an already-listening server. Surface it directly so it is
+	// classified as a tls_failure rather than a misleading health-wait timeout.
+	if isTLSError(probeErr) {
+		return probeErr
 	}
 	if err := starter(cfg); err != nil {
 		return fmt.Errorf("starting daemon: %w", err)
@@ -545,16 +552,12 @@ func postCheck(ctx context.Context, httpClient *http.Client, addr string, reques
 	httpRequest.Header.Set("Content-Type", "application/json")
 	response, err := httpClient.Do(httpRequest)
 	if err != nil {
-		return nil, fmt.Errorf("posting check request: %w", err)
+		return nil, transportError{err: err}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
-		message := strings.TrimSpace(string(errBody))
-		if message == "" {
-			return nil, fmt.Errorf("check failed with HTTP %d", response.StatusCode)
-		}
-		return nil, fmt.Errorf("check failed with HTTP %d: %s", response.StatusCode, message)
+		return nil, httpStatusError{status: response.StatusCode, body: strings.TrimSpace(string(errBody))}
 	}
 	return io.ReadAll(io.LimitReader(response.Body, 10<<20))
 }
@@ -682,18 +685,28 @@ func resolveContentFromDisk(repo, file string) (string, error) {
 }
 
 func isHealthy(httpClient *http.Client, addr string) bool {
+	return probeDaemon(httpClient, addr) == nil
+}
+
+// probeDaemon performs one GET /health and returns the underlying error (dial refused,
+// TLS handshake, non-200) so callers can distinguish an unreachable server from a
+// TLS/cert problem. It returns nil only when the server answers 200.
+func probeDaemon(httpClient *http.Client, addr string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(addr, "/")+"/health", nil)
 	if err != nil {
-		return false
+		return err
 	}
 	response, err := httpClient.Do(request)
 	if err != nil {
-		return false
+		return err
 	}
 	defer response.Body.Close()
-	return response.StatusCode == http.StatusOK
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("health check returned HTTP %d", response.StatusCode)
+	}
+	return nil
 }
 
 func waitHealthy(httpClient *http.Client, addr string, timeout time.Duration) error {
