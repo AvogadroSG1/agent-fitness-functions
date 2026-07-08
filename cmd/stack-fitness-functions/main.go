@@ -33,7 +33,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions <client validate|client install-hooks|server start|baseline>")
+		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions <client validate|client install-hooks|server start|baseline|doctor>")
 		return 2
 	}
 
@@ -42,19 +42,36 @@ func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *ht
 		return runClient(args[1:], stdout, stderr, httpClient, starter)
 	case "server":
 		return runServer(args[1:], stderr)
+	case "doctor":
+		return runDoctorCommand(args[1:], stdout, stderr, httpClient)
 	case "baseline":
-		if err := runBaseline(args[1:], stdout); err != nil {
-			_, _ = fmt.Fprintln(stderr, err)
-			if isUsageError(err) {
-				return 2
-			}
-			return 1
-		}
-		return 0
+		return runBaselineCommand(args[1:], stdout, stderr)
 	default:
 		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", args[0])
 		return 2
 	}
+}
+
+func runDoctorCommand(args []string, stdout, stderr io.Writer, httpClient *http.Client) int {
+	if err := client.RunDoctor(args, stdout, stderr, httpClient); err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		if client.IsUsageError(err) {
+			return 2
+		}
+		return 1
+	}
+	return 0
+}
+
+func runBaselineCommand(args []string, stdout, stderr io.Writer) int {
+	if err := runBaseline(args, stdout); err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		if isUsageError(err) {
+			return 2
+		}
+		return 1
+	}
+	return 0
 }
 
 func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {

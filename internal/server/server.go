@@ -28,6 +28,18 @@ type StateResponse struct {
 	Violations []fitness.Violation `json:"violations"`
 }
 
+// PreflightResponse is the JSON response returned by GET /preflight for one
+// repository. Unlike /check, this endpoint never fails on an unauthorized caller or
+// an unconfigured repo: it reports those facts so a client-side doctor can surface
+// them as distinct, actionable check results instead of a single blocked commit.
+type PreflightResponse struct {
+	AuthenticatedCN  string          `json:"authenticated_cn"`
+	RepoConfigured   bool            `json:"repo_configured"`
+	RepoConfigValid  bool            `json:"repo_config_valid"`
+	CallerAuthorized bool            `json:"caller_authorized"`
+	EnforcementMode  EnforcementMode `json:"enforcement_mode"`
+}
+
 // ConfigsResponse is the JSON response returned by GET /configs.
 type ConfigsResponse struct {
 	Version  string                         `json:"version"`
@@ -86,6 +98,7 @@ func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOpti
 	})
 	mux.HandleFunc("/check", withAuthenticatedCaller(checkHandler(checker, options), options))
 	mux.HandleFunc("/state", withAuthenticatedCaller(stateHandler(checker, options), options))
+	mux.HandleFunc("/preflight", withAuthenticatedCaller(preflightHandler(checker, options), options))
 	mux.HandleFunc("/configs", withAuthenticatedCaller(configsHandler(checker, options), options))
 	mux.HandleFunc("/shutdown", withAuthenticatedCaller(shutdownHandler(checker, options, cancelDeferred, shutdown), options))
 	return mux
@@ -225,6 +238,58 @@ func resolveAuthorizedRepo(w http.ResponseWriter, store *ConfigStore, caller, re
 		return "", false
 	}
 	return authorizedRepo, true
+}
+
+// preflightHandler answers "am I ready?" for the ?repo= parameter. Any authenticated
+// caller may call it (not admin-gated like /configs). It deliberately does not 403 an
+// unauthorized caller nor 404 an unconfigured repo — those are reported as JSON facts.
+func preflightHandler(checker Checker, options HandlerOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		caller := ""
+		if options.RequireAuthentication {
+			var ok bool
+			caller, ok = authenticatedCaller(r)
+			if !ok {
+				writeUnauthorized(w)
+				return
+			}
+		}
+		repo := r.URL.Query().Get("repo")
+		if repo == "" {
+			http.Error(w, "preflight requires repo", http.StatusBadRequest)
+			return
+		}
+		repoName, err := validateRepoName(repo)
+		if err != nil {
+			writeCheckError(w, err)
+			return
+		}
+		writeJSON(w, buildPreflightResponse(checker.ConfigStore, caller, repoName))
+	}
+}
+
+// buildPreflightResponse gathers the four readiness facts for repo directly from the
+// config store, without the loadConfig test-repo fallback, so an unconfigured repo is
+// reported honestly rather than masked by a fallback config.
+func buildPreflightResponse(store *ConfigStore, caller, repo string) PreflightResponse {
+	response := PreflightResponse{
+		AuthenticatedCN:  caller,
+		CallerAuthorized: store.CallerAllowed(caller, repo),
+	}
+	entry, ok := store.Lookup(repo)
+	if !ok {
+		return response
+	}
+	response.RepoConfigured = true
+	response.RepoConfigValid = entry.Valid
+	if entry.Valid {
+		response.EnforcementMode = entry.Config.EnforcementMode
+	}
+	return response
 }
 
 func configsHandler(checker Checker, options HandlerOptions) http.HandlerFunc {

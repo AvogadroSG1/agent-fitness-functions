@@ -313,6 +313,28 @@ func TestRunClientValidateStartsDaemonWhenCold(t *testing.T) {
 	}
 }
 
+func TestRunDispatchesDoctorAndReportsFailures(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"doctor", "--addr", "https://127.0.0.1:1", "--repo", "calm-poc"}, &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("doctor exit code = %d, want 1 (unreachable server); stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "server reachable") {
+		t.Fatalf("stdout = %q, want doctor check output", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "doctor found") {
+		t.Fatalf("stderr = %q, want problem summary", stderr.String())
+	}
+}
+
+func TestRunDoctorRejectsUnknownFlagWithUsageCode(t *testing.T) {
+	var stderr bytes.Buffer
+	code := run([]string{"doctor", "--nope"}, &bytes.Buffer{}, &stderr)
+	if code != 2 {
+		t.Fatalf("doctor unknown-flag exit code = %d, want 2", code)
+	}
+}
+
 func TestRunClientValidateReturnsUsageExitCodeForMissingFlags(t *testing.T) {
 	var stderr bytes.Buffer
 	code := run([]string{"client", "validate", "--file", "x.go"}, &bytes.Buffer{}, &stderr)
