@@ -1,6 +1,6 @@
-# Project Instructions for AI Agents
+# CLAUDE.md
 
-This file provides instructions and context for AI coding agents working on this project.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker
@@ -49,30 +49,85 @@ bd close <id>         # Complete work
 - If push fails, resolve and retry until it succeeds
 <!-- END BEADS INTEGRATION -->
 
-
 ## Build & Test
 
+Use the repo-local Go caches so builds work in sandboxed environments:
+
 ```bash
+# Quality gate (run before ending a session with code changes)
 GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test . ./configs ./cmd/stack-fitness-functions ./internal/server
+
+# Full suite
+GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test ./...
+
+# Single test
+GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test -run TestName ./internal/server
+
+# Build the binary
 go build ./cmd/stack-fitness-functions
 
+# Container image (requires Docker locally or in CI)
 docker build --build-arg GIT_SHA="$(git rev-parse --short HEAD)" --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t stack-fitness-functions:local .
 ```
 
-`docker build` requires Docker to be installed locally or supplied by CI.
+### External tool dependencies for tests
+
+Several tests shell out to external tools. Integration tests (`*_integration_test.go`) skip themselves when `calm`, `radon`, or `dotnet` are missing, but some regular tests in `./hooks`, `./fixtures`, and `./internal/server` still require the FINOS `calm` CLI on `PATH`. A 503 response with body `running CALM validation` in a test failure means the `calm` CLI is missing from the environment — not a code bug.
+
+- FINOS CALM CLI 1.40.0: `npm install -g @finos/calm-cli@1.40.0`
+- `radon` 6.0.1 (Python analysis), .NET 8 SDK (C# analysis via `tools/roslyn-analyzer`)
+- `pyyaml` for hook violation formatting: `python3 -m pip install -r hooks/requirements.txt`
+
+### Other common commands
+
+```bash
+scripts/generate-dev-certs.sh        # dev TLS + mTLS client certs into certs/ (gitignored)
+docker compose config --quiet && docker compose up --build   # verify/run the service container
+go run ./cmd/stack-fitness-functions baseline --repo /path/to/repo --language csharp --output baseline-report.json
+```
+
+Helper scripts live in `bin/` (`stack-fitness-functions-serve`, `stack-fitness-functions-test`); add `bin/` to `PATH`.
 
 ## Architecture Overview
 
-`stack-fitness-functions` is the API boundary for Architecture Fitness Function checks. Local hooks and CI clients call the server API, while the containerized service resolves governance from mounted `configs/<repo>/config.json` files and runs Go, Python, and C# analyzers inside one audited image. The container binary path is `/app/stack-fitness-functions` and the default service command is `/app/stack-fitness-functions server start --addr 0.0.0.0:7890`.
+`stack-fitness-functions` is the API boundary for Architecture Fitness Function checks: a single Go binary (module path `github.com/poconnor/calm-poc` — the legacy name is retained deliberately) with three roles selected by subcommand:
+
+- `client validate` — sends one file's content to the server, prints the verdict. Invoked by Git hooks at commit time. `client install-hooks` installs the embedded hooks into a governed repo.
+- `server start` — the authoritative governance HTTP daemon (`POST /check`, `GET /state`, `GET /configs`). The containerized service is the **primary production path**; default command is `/app/stack-fitness-functions server start --addr 0.0.0.0:7890`.
+- `baseline` — offline calibration; bulk-analyzes a repository to derive thresholds. Belongs to neither client nor server.
+
+### Request flow
+
+Hook (`hooks/pre-commit.sh` or `hooks/pre-tool-use.sh`) → `client validate` → server `POST /check` → per-repo config resolved from `configs/<repo>/config.json` → language analyzer computes metrics → generated architecture doc validated by the FINOS `calm` CLI against `patterns/governance.json` → `ValidationResult` (pass / advisory / block). All five fitness functions (cyclomatic complexity, interface width, implementation depth, logic density, dependency discipline) are intra-file metrics — the server never touches the repository on disk.
+
+### Package layout
+
+- `internal/fitness` — the shared wire contract (`ValidationRequest`, `ValidationResult`, `Violation`). Both client and server depend on it; it depends on neither. Do not introduce names like CheckRequest/CheckResponse.
+- `internal/server` — HTTP daemon, `Checker`, `ConfigStore` (fsnotify-watched mounted configs), mTLS auth against `caller-repos.json`, rate limiting.
+- `internal/client` — validate/install-hooks commands and local daemon auto-start.
+- `internal/analyzer` — per-language analyzers: Go (native + gocyclo), Python (shells to `radon`), C# (shells to the Roslyn CLI in `tools/roslyn-analyzer`); plus repository-wide baseline scanning.
+- `internal/calm` — thin wrapper that shells out to `calm validate`.
+- `internal/report` / `internal/sarif` — architecture document generation and SARIF output.
+- `patterns/governance.json` — CALM pattern holding the calibrated thresholds, embedded via `patterns/embed.go`.
+- `configs/<repo>/config.json` — per-repo governance (enforcement-mode, enabled functions) mounted into the container; this is the source of truth. A repo-local `.calm/config.json` is a developer sandbox only and never affects container governance.
+- `fixtures/green/` and `fixtures/violations/` — calibrated fixture files that must pass/fail specific fitness functions (enforced by `fixtures/fixtures_test.go`).
+- Root-level tests (`bin_helpers_test.go`, `bin_helper_mtls_test.go`, `docker_contract_test.go`) lock the helper-script and Docker image contracts.
+
+### Self-governance hook
+
+`.claude/settings.json` registers a `PreToolUse` hook that runs `hooks/pre-tool-use.sh` on Edit/Write — this repo validates its own edits against a local stack-fitness-functions server when one is running. If the hook blocks an edit, read the reported violation rather than working around the hook.
 
 ## Naming Surface
 
-- Product and binary: `stack-fitness-functions`.
-- Commands: `stack-fitness-functions client validate`, `stack-fitness-functions server start`, and `stack-fitness-functions baseline`.
+- Product and binary: `stack-fitness-functions` — always spelled out in full, no abbreviations.
+- Commands: `stack-fitness-functions client validate`, `stack-fitness-functions server start`, `stack-fitness-functions baseline` (not "check"/"serve").
 - Environment variables: `STACK_FITNESS_FUNCTIONS_*`.
 - Helper scripts: `stack-fitness-functions-serve` and `stack-fitness-functions-test`.
-- FINOS CALM, `.calm/config.json`, `configs/`, the FINOS `calm` CLI, and the `calm-poc` module/repo path retain their names.
+- FINOS CALM, `.calm/config.json`, `configs/`, the FINOS `calm` CLI, and the `calm-poc` module/repo path retain their names — CALM is the external standard being enforced, never the product name.
 
-## Conventions & Patterns
+## Key Documentation
 
-_Add your project-specific conventions here_
+- `CONTEXT.md` — vocabulary, how validation works end to end, CALM vs. linter rationale
+- `docs/spec/why-and-what.md` and `docs/spec/engineering-spec.md` — product and engineering specification
+- `docs/runbooks/onboard-new-repository.md` — end-to-end flow for governing a new repo (server-side config + caller authorization + client hook wiring)
+- `docs/threshold-calibration.md` / `docs/threshold-exceptions.md` — how thresholds were derived
