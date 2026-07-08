@@ -4,6 +4,12 @@ Stack Fitness Functions is a local proof-of-concept architecture-as-code system 
 
 See [docs/spec/why-and-what.md](docs/spec/why-and-what.md) and [docs/spec/engineering-spec.md](docs/spec/engineering-spec.md) for the product and engineering specification.
 
+**New to the tool?** The [5-minute quickstart](docs/quickstart-0-to-governed.md) takes a
+fresh repo to a governed coding agent with one command
+(`stack-fitness-functions client onboard`). The
+[onboarding runbook](docs/runbooks/onboard-new-repository.md) is the authoritative
+operator reference for both local and production onboarding.
+
 ## Tool Requirements
 
 - Go 1.22 or newer for the `stack-fitness-functions` binary
@@ -80,12 +86,30 @@ The local `.calm` mode (described in the CLI tools section below) is a **sandbox
 |----------|----------|---------|
 | `STACK_FITNESS_FUNCTIONS_ADDR` | Yes | Full HTTPS URL, e.g. `https://calm-governance.example:7890` |
 | `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE` | Yes (set to `1`) | Opt-in to non-loopback server addresses |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_CERT` | Yes (mTLS) | Path to PEM-encoded client certificate |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_KEY` | Yes (mTLS) | Path to PEM-encoded client private key |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_CA` | Yes (mTLS) | Path to PEM-encoded CA bundle for server verification |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_CERT` | Optional (mTLS) | Path to PEM-encoded client certificate; falls back to `<repo>/certs/client.crt` |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_KEY` | Optional (mTLS) | Path to PEM-encoded client private key; falls back to `<repo>/certs/client.key` |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_CA` | Optional (mTLS) | Path to PEM-encoded CA bundle for server verification; falls back to `<repo>/certs/ca.crt` |
+| `STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR` | Optional | Directory the client and hooks auto-discover dev certs from (default `<repo>/certs`) |
 | `STACK_FITNESS_FUNCTIONS_REPO_NAME` | Recommended | Logical repository name (overrides working-tree basename) |
+| `STACK_FITNESS_FUNCTIONS_ON_ERROR` | Optional | `block` (default) or `advisory` — whether an infrastructure/setup failure blocks the commit or agent edit. Mirrors the server's `enforcement-on-error`; distinct from a real architecture violation. |
+
+The client and hooks auto-discover mTLS material with **flag > `STACK_FITNESS_FUNCTIONS_CLIENT_*`
+env > `<repo>/certs`** precedence, so the three `CLIENT_*` variables are only needed when
+credentials live outside `<repo>/certs`. `client onboard` generates dev certs (CN
+`dev-hook-pool`) into `<repo>/certs` automatically.
 
 All hooks enforce HTTPS when `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` is set. Connections over plain HTTP to a non-loopback address are rejected at the hook layer.
+
+### Setup failures vs. architecture violations
+
+Infrastructure/setup failures (server unreachable, TLS/cert problem, unauthenticated,
+unauthorized, repo not configured) are **distinct from** fitness-function blocks. `client
+validate` exits `3` with a machine-readable
+`{"status":"error","error_kind":...,"message":...,"remediation":...}` object, and the
+hooks print a labeled `stack-fitness-functions SETUP problem ... (NOT an architecture
+violation)` block with the fix. A real block is a successful check (exit 0, status
+`block`). Run `stack-fitness-functions doctor` to diagnose setup failures; the error-kind
+table is in the [onboarding runbook](docs/runbooks/onboard-new-repository.md).
 
 ## CLI Tools
 
@@ -103,7 +127,9 @@ ln -sf "$(pwd)/bin"/stack-fitness-functions-* ~/.local/bin/
 
 | Command | Purpose |
 |---------|---------|
-| `stack-fitness-functions client install-hooks [repo]` | Install the embedded Git hooks into a repository (see [Onboarding a New Repository](docs/runbooks/onboard-new-repository.md) for the full end-to-end flow) |
+| `stack-fitness-functions client onboard [repo]` | **Single-command 0-to-governed** — dev certs, per-repo config scaffold, caller authorization, hook installation, local daemon auto-start, and a `doctor` gate. Idempotent. Flags: `--repo`, `--enforcement advisory\|block` (default `advisory`), `--addr`. See the [quickstart](docs/quickstart-0-to-governed.md). |
+| `stack-fitness-functions doctor` | Ordered ✔/✘/⚠ readiness checks (binary, python3/pyyaml, client cert, CA, server reachability, `/preflight` facts, installed hooks), each with a one-line remediation. Run it anytime to diagnose setup. Flags: `--addr`, `--repo`, `--client-cert/--client-key/--client-ca`. |
+| `stack-fitness-functions client install-hooks [repo]` | Install the embedded Git hooks **and** the agent Edit/Write validation hook into a repository, registering both `PreToolUse` entries in `.claude/settings.json` (no manual settings authoring). See [Onboarding a New Repository](docs/runbooks/onboard-new-repository.md). |
 | `stack-fitness-functions-serve [--build]` | Start the stack-fitness-functions server container via Docker Compose (Docker Desktop) |
 | `stack-fitness-functions-test <file>` | Validate a file's fitness functions against the running server |
 

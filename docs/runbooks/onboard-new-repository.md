@@ -1,21 +1,26 @@
 # Onboarding a New Repository
 
-This runbook describes how to onboard a brand new repository to the
-`stack-fitness-functions` governance system with its own per-repo settings.
+This runbook is the authoritative operator reference for onboarding a repository to
+the `stack-fitness-functions` governance system. It covers both paths:
 
-It covers the steps the [README](../../README.md) leaves implicit: creating the
-authoritative server-side config and authorizing the caller. The README documents
-hook installation and remote-mode environment variables; this runbook documents
-the full onboarding sequence end to end.
+- **Local / developer path** — one command, `stack-fitness-functions client onboard`,
+  which provisions everything for a locally governed repo. For the hurried version see
+  the [5-minute quickstart](../quickstart-0-to-governed.md).
+- **Production path** — the server-side steps that remain: getting the per-repo config
+  and the caller authorization into the shared container deployment, then redeploying.
+
+The tooling now automates what this runbook previously walked through by hand
+(config scaffolding, caller-authorization edits, hook installation, cert generation,
+daemon start). What remains genuinely manual is the production redeploy.
 
 ## Mental model
 
-Onboarding is two distinct acts:
+Onboarding is still two distinct acts:
 
-1. **Server-side governance** — create the authoritative config the container
-   serves for this repo, and authorize the caller identity that may check it.
-2. **Client-side wiring** — install Git hooks into the target repo and point them
-   at the server.
+1. **Server-side governance** — the authoritative config the container serves for this
+   repo, and the caller identity authorized to check it.
+2. **Client-side wiring** — the Git and agent hooks installed into the target repo,
+   pointed at the server.
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -27,50 +32,138 @@ Onboarding is two distinct acts:
        ┌───────┴────────┐
        │                │
   pre-commit.sh    pre-tool-use.sh
-  (developer git)  (AI agent hook)
+  (developer git)  (AI agent Edit/Write hook)
 ```
 
-**Critical:** the server resolves config **by repository name**, not by inspecting
-the repo's contents (`internal/server/config.go` `loadConfig`). The hook sends
-`--repo <name>`; the server looks up `configs/<name>/config.json`. A repo with no
-matching config directory receives a not-found error and its checks fail. The
-config MUST exist server-side before client-side onboarding means anything.
+For **local** development both acts happen on your machine and `client onboard`
+performs all of them. For **production** the server-side act happens in the container
+deployment; the client-side act is `client install-hooks` in the governed repo with the
+remote-mode environment variables set (`client onboard` is the local convenience that
+also auto-starts a daemon and generates dev certs — neither is wanted against a shared
+container).
 
-A local `.calm/config.json` is a developer sandbox only and **cannot weaken**
-container governance. When the hook connects to the container, governance is
-resolved exclusively from the mounted `configs/<repo>/config.json`.
+**Critical:** the server resolves config **by repository name**, not by inspecting the
+repo's contents (`internal/server/config.go` `loadConfig`). The hook sends `--repo
+<name>`; the server looks up `configs/<name>/config.json`. A repo with no matching
+config directory receives a not-found error (surfaced as the `not_configured`
+error-kind — see the table below). The config MUST exist server-side before
+client-side wiring means anything.
+
+A local `.calm/config.json` is a developer sandbox only and **cannot weaken** container
+governance. When the hook connects to the container, governance is resolved exclusively
+from the mounted `configs/<repo>/config.json`.
 
 ## Prerequisites
 
-- The repository name MUST match `^[a-z][a-z0-9_-]{0,63}$` (lowercase letter
-  first, then lowercase alphanumerics, hyphens, or underscores; max 64 chars).
-- Write access to the `configs/` and `caller-repos.json` deployment artifacts.
-- For remote/container mode: mTLS client credentials issued for an authorized
-  caller CN (see `scripts/generate-dev-certs.sh` for the `dev-hook-pool` dev CN).
+- The repository name MUST match `^[a-z][a-z0-9_-]{0,63}$` (lowercase letter first,
+  then lowercase alphanumerics, hyphens, or underscores; max 64 chars). `client
+  onboard` validates this and, when the working-tree basename is not a valid name, tells
+  you to pass `--repo <name>`.
+- The `stack-fitness-functions` binary on `PATH`.
+- `python3` with `pyyaml` for the hooks and violation formatter:
+  `python3 -m pip install -r hooks/requirements.txt`.
+- The FINOS `calm` CLI 1.40.0 on `PATH` for the server (`npm install -g
+  @finos/calm-cli@1.40.0`).
+- For production: write access to the deployment's `configs/` and `caller-repos.json`
+  artifacts, and mTLS client credentials issued for an authorized caller CN.
 
-## Step 1 — Create the per-repo governance config
-
-Create `configs/<repo-name>/config.json`. New repositories start in `block` mode
-(fail-closed) per the project default.
+## Local / developer path — one command
 
 ```bash
-mkdir -p configs/<repo-name>
-cat > configs/<repo-name>/config.json <<'EOF'
-{
-  "enforcement-mode": "block",
-  "enforcement-on-error": "block",
-  "fitness-functions": {
-    "cyclomatic-complexity": true,
-    "interface-width": true,
-    "implementation-depth": true,
-    "logic-density": true,
-    "dependency-discipline": true
-  }
-}
-EOF
+cd /path/to/<repo>
+stack-fitness-functions client onboard
 ```
 
-### Config schema
+This runs the whole 0-to-governed sequence and gates on `doctor` at the end:
+
+1. **Dev certificates** — generated in-process into `<repo>/certs` (no `openssl`,
+   no `scripts/generate-dev-certs.sh` needed) with client CN `dev-hook-pool`.
+   `STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR` overrides the location.
+2. **Server-side config scaffold** — `<configs-dir>/<repo>/config.json` from the
+   embedded template, with all five fitness functions enabled. The configs directory is
+   `STACK_FITNESS_FUNCTIONS_CONFIGS_DIR` if set, else `<repo>/configs`. An existing
+   config is left unchanged.
+3. **Caller authorization** — merges CN `dev-hook-pool → <repo>` into
+   `caller-repos.json` (a sibling of the `configs/` directory), preserving all other
+   callers and admins.
+4. **Hook installation** — `install-hooks` (see below).
+5. **Local daemon auto-start** — a TLS daemon on `https://127.0.0.1:7890` (generating
+   dev certs and pointing at the resolved configs directory); a healthy daemon is a
+   no-op. The health wait is 5 seconds.
+6. **`doctor` (final gate)** — the ordered checks below. Onboard fails (non-zero exit)
+   if any non-advisory check fails.
+
+Flags:
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--repo <name>` | working-tree basename | Governance repo name (validated against the grammar) |
+| `--enforcement <advisory\|block>` | `advisory` | Enforcement mode written into the scaffolded config |
+| `--addr <url>` | `https://127.0.0.1:7890` | Governance daemon base URL |
+| `[path]` | `.` | Repository path |
+
+`onboard` is idempotent. When it finishes it prints the one remaining manual step for
+production governance (copy the config + caller entry to the deployment, redeploy).
+
+> **Enforcement default is `advisory`.** The scaffolded config starts in `advisory`
+> (report, don't block) so a first onboarding never blocks day-one commits on latent
+> debt. Pass `--enforcement block` for a greenfield repo you want fail-closed from the
+> start, or flip the config to `block` once the team has cleared the backlog. For an
+> existing codebase, prefer `baseline --emit-config` (below), which recommends the mode
+> from the actual violation count.
+
+### What `install-hooks` installs
+
+`client onboard` calls `install-hooks`; you can also run it directly:
+
+```bash
+cd /path/to/<repo>
+stack-fitness-functions client install-hooks
+```
+
+It installs and registers, with zero manual settings authoring:
+
+- `.git/hooks/pre-commit` — validates staged files at commit time.
+- `.git/hooks/pre-push` — push-time hook.
+- `.git/hooks/stack-fitness-functions-git-guard` — blocks bypass commands
+  (`--no-verify`, force-push, ff-only merges), registered as a Bash `PreToolUse` entry
+  in `.claude/settings.json`.
+- `.git/hooks/stack-fitness-functions-pre-tool-use` (+ `format-violations.py`) — the
+  agent Edit/Write content-validation hook, registered as an `Edit|Write` `PreToolUse`
+  entry in `.claude/settings.json`.
+
+Both `.claude/settings.json` entries are upserted idempotently. If the repo already has
+unrelated Git hooks the installer refuses to overwrite them; set
+`STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1` (sidecar) or
+`STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` (replace).
+
+## Production path — server-side onboarding
+
+Production governance is served by the shared container. Two artifacts must reach that
+deployment.
+
+### Step 1 — Produce the per-repo config
+
+For a greenfield repo, the config `onboard` scaffolded (or a hand-written one) is
+enough. For an **existing** codebase, produce it from a baseline so the enforcement
+mode is chosen from real data:
+
+```bash
+stack-fitness-functions baseline \
+  --repo /path/to/<repo> --language <go|python|csharp> \
+  --output baseline-report-<repo>.json \
+  --emit-config configs/<repo>/config.json --name <repo>
+```
+
+`--emit-config` writes a ready-to-use `configs/<repo>/config.json` (all five functions
+enabled) and prints an enforcement-mode recommendation — `block` when zero files
+violate the current global thresholds, otherwise `advisory` — plus a threshold-delta
+report. Thresholds remain **global** and compiled into `patterns/governance.json`; a
+per-repo config toggles functions and enforcement mode but cannot change a threshold.
+See [threshold-calibration.md](../threshold-calibration.md) for the full behavior and
+the recalibration procedure.
+
+#### Config schema
 
 Defined by `Config` in `internal/server/config.go`:
 
@@ -84,17 +177,11 @@ Defined by `Config` in `internal/server/config.go`:
 Fitness function keys: `cyclomatic-complexity`, `interface-width`,
 `implementation-depth`, `logic-density`, `dependency-discipline`.
 
-> **Block mode on a legacy codebase rejects every commit that touches a
-> pre-existing violation.** For an existing repo with unknown debt, generate a
-> baseline first (see Step 5) and consider starting in `advisory` until the team
-> has cleared the backlog, then flip to `block`. Greenfield repos can start in
-> `block` immediately.
-
-### Optional: exclude patterns example
+Example with exclude patterns:
 
 ```json
 {
-  "enforcement-mode": "block",
+  "enforcement-mode": "advisory",
   "enforcement-on-error": "block",
   "fitness-functions": {
     "cyclomatic-complexity": true,
@@ -103,19 +190,14 @@ Fitness function keys: `cyclomatic-complexity`, `interface-width`,
     "logic-density": true,
     "dependency-discipline": true
   },
-  "exclude-patterns": [
-    "*_test.go",
-    "test_*.py",
-    "fixtures/**"
-  ]
+  "exclude-patterns": ["*_test.go", "test_*.py", "fixtures/**"]
 }
 ```
 
-## Step 2 — Authorize the caller
+### Step 2 — Authorize the caller
 
-If the server enforces mTLS (the production path), the caller's certificate CN
-MUST be authorized for the new repo name in `caller-repos.json`. Add the repo to
-the relevant caller's list:
+The caller's certificate CN MUST be authorized for the repo name in
+`caller-repos.json`. Add the repo to the relevant caller's list:
 
 ```json
 {
@@ -128,54 +210,38 @@ the relevant caller's list:
 }
 ```
 
-- `dev-hook-pool` is the CN that `scripts/generate-dev-certs.sh` issues developer
-  hook certs for. Add the new repo here for local developer commits.
+- `dev-hook-pool` is the CN that `client onboard` / `scripts/generate-dev-certs.sh`
+  issue developer hook certs for. Add the new repo here for local developer commits.
 - Add a CI caller CN (e.g. `ci-runner-<repo-name>`) for the repo's pipeline.
+- `admins` lists CNs allowed to call the admin-gated `GET /configs` endpoint.
 
-Without a matching caller entry, an authenticated request is rejected even when
-the config exists.
+Without a matching caller entry, an authenticated request is rejected (the
+`unauthorized` error-kind) even when the config exists.
 
-## Step 3 — Deploy the config to the server
+> Authorizing a new caller no longer breaks the test suite: `configs/config_test.go`
+> no longer pins the exact `caller-repos.json` contents.
 
-How the config reaches the running server depends on the mode:
+### Step 3 — Deploy the config to the server
 
-- **Container (production):** `configs/` and `caller-repos.json` are mounted
-  read-only (`docker-compose.yml`). Changes take effect by redeploying the
-  service with the updated mounts/image.
-- **Local sandbox server:** the server watches the configs directory with
-  `fsnotify` (`internal/server/configstore.go`) and hot-reloads both repo configs
-  and the caller policy. No restart is required for a locally running server.
+- **Container (production):** `configs/` and `caller-repos.json` are mounted read-only
+  (`docker-compose.yml`). Changes take effect by redeploying the service with the
+  updated mounts/image.
+- **Local sandbox server:** the server watches the configs directory with `fsnotify`
+  (`internal/server/configstore.go`) and hot-reloads both repo configs and the caller
+  policy. No restart is required.
 
-## Step 4 — Install hooks in the target repository
+The server itself must be started with TLS material. `server start` reads
+`STACK_FITNESS_FUNCTIONS_TLS_CERT`, `STACK_FITNESS_FUNCTIONS_TLS_KEY`, and
+`STACK_FITNESS_FUNCTIONS_TLS_CA` (the `--tls-cert/--tls-key/--tls-ca` flags override
+them). All three must be provided together or the server refuses to start — there is no
+silent plain-HTTP fallback.
 
-From inside the target repo (or pass its path):
+### Step 4 — Point the repo's hooks at the container
 
-```bash
-cd /path/to/<repo>
-stack-fitness-functions client install-hooks
-```
-
-This installs:
-
-- `.git/hooks/pre-commit` — validates staged files at commit time
-- `.git/hooks/pre-push` — push-time hook
-- `.git/hooks/stack-fitness-functions-git-guard` — blocks bypass commands
-  (`--no-verify`, force-push, ff-only merges) and is registered in
-  `.claude/settings.json` `PreToolUse` for AI-agent enforcement
-
-If the repo already has unrelated hooks, the installer refuses to overwrite them.
-Set `STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1` to install as a sidecar alongside the
-existing hook, or `STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` to replace it.
-
-## Step 5 — Point hooks at the server
-
-### Local sandbox
-
-No configuration needed. The client defaults to `https://127.0.0.1:7890`.
-
-### Remote container (production)
-
-Export the remote-mode environment variables (see README for the canonical table):
+From inside the governed repo, run `client install-hooks` and export the remote-mode
+variables so the hooks reach the container instead of a local daemon (use
+`install-hooks`, not `onboard`, here — `onboard`'s daemon auto-start and dev-cert
+generation are for the local path):
 
 ```bash
 export STACK_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890
@@ -186,89 +252,157 @@ export STACK_FITNESS_FUNCTIONS_CLIENT_CA=/path/to/ca.crt
 export STACK_FITNESS_FUNCTIONS_REPO_NAME=<repo-name>
 ```
 
-> `STACK_FITNESS_FUNCTIONS_REPO_NAME` is the linchpin: it becomes the `--repo`
-> value the hook sends, and it MUST equal the `configs/<repo-name>` directory
-> from Step 1. Without it, the hook falls back to the working-tree basename,
-> which may not match the config directory name and will produce a not-found
-> error.
+> `STACK_FITNESS_FUNCTIONS_REPO_NAME` is the linchpin in remote mode: it becomes the
+> `--repo` value the hooks send and MUST equal the `configs/<repo-name>` directory from
+> Step 1. Without it the hooks fall back to the working-tree basename, which may not
+> match the config directory name and will produce a `not_configured` error. When the
+> `STACK_FITNESS_FUNCTIONS_CLIENT_*` variables are unset, the client and hooks
+> auto-discover credentials from `<repo>/certs`.
 
-## Step 6 (optional) — Generate a baseline
+## Verification
 
-For an existing codebase, capture current metrics before enforcing:
+Run `doctor` from inside the repo — it is the single verification entry point:
 
 ```bash
-stack-fitness-functions baseline \
-  --repo /path/to/<repo> \
-  --language <go|python|csharp> \
-  --output baseline-report-<repo-name>.json \
-  --name <repo-name>
+stack-fitness-functions doctor            # local
+stack-fitness-functions doctor \
+  --addr https://calm-governance.example:7890 --repo <repo-name>   # remote
 ```
 
-Use the baseline to decide whether to start in `block` or `advisory`, and to
-track debt reduction over time.
+`doctor` runs these ordered checks (offline checks first, so a stopped server never
+hides a missing dependency), each with a `→` remediation on failure:
 
-## Step 7 — Verify
+1. `binary` — the resolved executable and build revision.
+2. `python3` / `pyyaml` — present and importable.
+3. `client certificate` — resolved, parseable, CN, and not expired.
+4. `server CA bundle` — resolved and contains PEM certificates.
+5. `server reachable` — `GET /health` returns 200 over TLS.
+6. `server authentication` — the authenticated `GET /preflight?repo=<name>` succeeds
+   (401 here means the client certificate was not accepted).
+7. `repo configured server-side` — from `/preflight` facts.
+8. `caller authorized for repo` — from `/preflight` facts.
+9. `enforcement mode` — from `/preflight` facts (advisory `⚠` when unknown).
+10. `git pre-commit hook`, `git pre-push hook`, `agent git-guard hook` (required), and
+    `agent Edit/Write hook (optional)` (advisory `⚠` if absent).
+
+### `GET /preflight?repo=<name>` — the caller-facing "am I ready?" endpoint
+
+Client-certificate authenticated, **not** admin-gated. It never 403s an unauthorized
+caller or 404s an unconfigured repo — it reports those as JSON facts so `doctor` can
+render them as distinct checks:
+
+```json
+{
+  "authenticated_cn": "dev-hook-pool",
+  "repo_configured": true,
+  "repo_config_valid": true,
+  "caller_authorized": true,
+  "enforcement_mode": "advisory"
+}
+```
+
+### `GET /configs` — the operator inventory endpoint
+
+Admin-gated (the caller CN must be in `caller-repos.json` `admins`). Returns the loaded
+config snapshot for every repo — status, enforcement mode, enabled functions, and any
+parse error — for auditing what the running server actually serves:
+
+```json
+{
+  "version": "...",
+  "loaded_at": "2026-07-08T...",
+  "repos": {
+    "<repo-name>": {
+      "status": "valid",
+      "enforcement-mode": "advisory",
+      "fitness-functions": { "cyclomatic-complexity": true }
+    }
+  }
+}
+```
+
+### End-to-end smoke test
 
 ```bash
 cd /path/to/<repo>
-# Stage a file that should pass and commit
 git add <clean-file>
 git commit -m "verify fitness-function onboarding"
 ```
 
 Expected: the pre-commit hook runs, prints nothing for clean files (or the
-`block`/`advisory` verdict for violations), and the commit succeeds. To verify a
-single file directly against the server:
+`block`/`advisory` verdict for violations), and the commit succeeds. To validate one
+file directly against the server:
 
 ```bash
 stack-fitness-functions client validate \
-  --file <path> \
-  --repo <repo-name> \
-  --language <go|python|csharp>
+  --file <path> --repo <repo-name> --language <go|python|csharp>
 ```
 
-## Troubleshooting
+## Troubleshooting — infrastructure error kinds
 
-- **`repository "<name>" is not configured`** — the `configs/<name>/` directory
-  is missing on the server, or `STACK_FITNESS_FUNCTIONS_REPO_NAME` does not match
-  the config directory name.
-- **`invalid repository name`** — the name violates `^[a-z][a-z0-9_-]{0,63}$`.
-  Rename the config directory and the `REPO_NAME` value to match.
-- **401 / unauthorized** — the caller CN is not authorized for this repo in
-  `caller-repos.json`, or mTLS credentials are missing/incorrect.
+Infrastructure/setup failures are now distinct from architecture violations. `client
+validate` exits **3** and prints a machine-readable object,
+`{"status":"error","error_kind":"...","message":"...","remediation":"..."}`; the hooks
+render it as a labeled `stack-fitness-functions SETUP problem ... (NOT an architecture
+violation)` block. A real block is a *successful* check whose status is `block` (exit
+0) — so the exit code alone distinguishes "fix your setup" from "fix your architecture."
+
+| `error_kind` | Trigger | Meaning | Fix |
+|--------------|---------|---------|-----|
+| `server_unreachable` | dial refused / timeout / daemon auto-start failure | The governance server could not be reached at all | Run `stack-fitness-functions doctor`; the local daemon auto-starts on `client validate` when dev certs and a repo config exist |
+| `tls_failure` | TLS handshake / certificate-material error | The client and server did not agree on TLS | Run `doctor`; regenerate dev certs with `scripts/generate-dev-certs.sh --force` |
+| `unauthenticated` | HTTP 401 | The server rejected the client certificate | Run `doctor`; regenerate dev certs, or set `STACK_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA` to a trusted pair |
+| `unauthorized` | HTTP 403 | The certificate's CN is not authorized for this repo | Add the CN to `caller-repos.json` for the repo on the server, then redeploy |
+| `not_configured` | HTTP 404 | No `configs/<repo>/config.json` on the server, or `--repo`/`STACK_FITNESS_FUNCTIONS_REPO_NAME` does not match the config directory | Run `client onboard`, or create `configs/<repo>/config.json` on the server |
+| `invalid_request` | HTTP 400 | The server rejected the request (e.g. malformed `--repo` name or unsupported `--language`) | Check `--repo` (grammar `^[a-z][a-z0-9_-]{0,63}$`) and `--language`; run `doctor` |
+| `server_error` | other non-200 | The server could not produce a verdict | Check the server logs; retry, or run `doctor` |
+
+### On-error policy
+
+Infrastructure errors fail **closed** (block) by default. Set
+`STACK_FITNESS_FUNCTIONS_ON_ERROR=advisory` to let commits and agent edits proceed
+despite a setup failure while you fix it — mirroring the server-side
+`enforcement-on-error` config field. `block` is the default; `advisory` is the only
+other accepted value at the hook layer.
+
+### Other issues
+
 - **`STACK_FITNESS_FUNCTIONS_ADDR must be loopback`** — set
-  `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` for a trusted remote server, and use
-  an `https://` URL.
-- **Hook installation refuses to overwrite** — inspect the existing hook, then
-  use `STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1` (sidecar) or
+  `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` for a trusted remote server, and use an
+  `https://` URL.
+- **Hook installation refuses to overwrite** — inspect the existing hook, then use
+  `STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1` (sidecar) or
   `STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` (replace).
 - **Config change not picked up (container)** — container mounts are read-only;
-  redeploy the service. A locally running sandbox server hot-reloads via fsnotify.
+  redeploy the service. A locally running sandbox server hot-reloads via `fsnotify`.
 
 ## Quick reference
 
 ```bash
-# 1. Server-side config (block mode default)
-mkdir -p configs/<repo-name>
-# ...write configs/<repo-name>/config.json (see Step 1)
+# Local: one command (advisory mode by default)
+cd /path/to/<repo> && stack-fitness-functions client onboard
 
-# 2. Authorize caller in caller-repos.json (see Step 2)
+# Re-check anytime
+stack-fitness-functions doctor
 
-# 3. Deploy/redeploy server (container) — local sandbox hot-reloads
+# Production: derive a config from a baseline, then deploy it
+stack-fitness-functions baseline --repo /path/to/<repo> --language <go|python|csharp> \
+  --output baseline-report-<repo>.json --emit-config configs/<repo>/config.json --name <repo>
+#   1. copy configs/<repo>/config.json to the deployment
+#   2. authorize the caller CN in caller-repos.json
+#   3. redeploy the container (local sandbox hot-reloads)
 
-# 4. Install hooks in the target repo
-cd /path/to/<repo> && stack-fitness-functions client install-hooks
-
-# 5. Point hooks at server (remote mode)
+# Point a repo's hooks at the container
 export STACK_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890
 export STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1
 export STACK_FITNESS_FUNCTIONS_CLIENT_CERT=/path/to/client.crt
 export STACK_FITNESS_FUNCTIONS_CLIENT_KEY=/path/to/client.key
 export STACK_FITNESS_FUNCTIONS_CLIENT_CA=/path/to/ca.crt
 export STACK_FITNESS_FUNCTIONS_REPO_NAME=<repo-name>
-
-# 6. Verify
-git add <clean-file> && git commit -m "verify onboarding"
+cd /path/to/<repo> && stack-fitness-functions client install-hooks
 ```
 
-*Authored By Peter O'Connor with Assistance from Claude Code (databricks-claude-opus-4-8[1m]) · 2026-06-19 · Onboarding a New Repository runbook*
+See the [5-minute quickstart](../quickstart-0-to-governed.md) for the developer-facing
+walkthrough.
+
+*Authored By Peter O'Connor with Assistance from Claude Code (databricks-claude-opus-4-8[1m]) · 2026-07-08 · Onboarding a New Repository runbook*
