@@ -1,0 +1,5 @@
+{
+  "enforcement-mode": "block",
+  "enforcement-on-error": "block",
+  "fitness-functions": {}
+}

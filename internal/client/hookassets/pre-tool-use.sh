@@ -12,9 +12,13 @@ client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/client.crt}
 client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/client.key}
 client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/ca.crt}
 repo_name=${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}
-repo_arg=$repo
+# Default the governance repo name to the working-tree basename (consistent with
+# pre-commit.sh); the absolute worktree path is not a valid ^[a-z][a-z0-9_-]{0,63}$
+# repo name, so a freshly onboarded repo would otherwise send an invalid --repo.
 if [[ -n "$repo_name" ]]; then
   repo_arg=$repo_name
+else
+  repo_arg=$(basename "$repo")
 fi
 
 bridge_addr_is_loopback() {
