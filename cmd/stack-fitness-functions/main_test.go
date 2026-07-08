@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/poconnor/calm-poc/internal/client"
 	"github.com/poconnor/calm-poc/internal/fitness"
 )
 
@@ -184,7 +185,7 @@ func TestRunClientValidateRequiresClientCertAndKeyTogether(t *testing.T) {
 		&bytes.Buffer{},
 		&stderr,
 		&http.Client{Timeout: time.Second},
-		func(string) error {
+		func(client.DaemonStartConfig) error {
 			starterCalled = true
 			return nil
 		},
@@ -293,7 +294,7 @@ func TestRunClientValidateStartsDaemonWhenCold(t *testing.T) {
 		&stdout,
 		&bytes.Buffer{},
 		&http.Client{Timeout: time.Second},
-		func(string) error {
+		func(client.DaemonStartConfig) error {
 			go func() {
 				_ = server.Serve(listener)
 			}()

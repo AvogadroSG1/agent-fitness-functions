@@ -31,7 +31,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	return runWithDependencies(args, stdout, stderr, &http.Client{Timeout: 2 * time.Second}, client.StartDaemon)
 }
 
-func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(string) error) int {
+func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
 	if len(args) == 0 {
 		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions <client validate|client install-hooks|server start|baseline>")
 		return 2
@@ -57,7 +57,7 @@ func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *ht
 	}
 }
 
-func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(string) error) int {
+func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
 	if len(args) == 0 {
 		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions client <validate|install-hooks>")
 		return 2
@@ -108,6 +108,7 @@ func runServe(args []string, stderr io.Writer) int {
 	tlsCert := flags.String("tls-cert", "", "server TLS certificate path")
 	tlsKey := flags.String("tls-key", "", "server TLS private key path")
 	tlsCA := flags.String("tls-ca", "", "client CA bundle path")
+	configsDir := flags.String("configs-dir", "", "repository configs directory (overrides STACK_FITNESS_FUNCTIONS_CONFIGS_DIR)")
 	trustedProxyHeaders := flags.Bool("trusted-proxy-headers", false, "trust X-Client-CN headers from an authenticated proxy")
 	trustedProxyClientCNs := flags.String("trusted-proxy-client-cns", "", "comma-separated trusted proxy client certificate common names")
 	blockOnWarmup := flags.Bool("block-on-warmup", false, "block first C# check until analyzer is ready instead of optimistic pass")
@@ -130,7 +131,7 @@ func runServe(args []string, stderr io.Writer) int {
 	defer stop()
 	if err := server.ServeWithOptions(ctx, server.ServeOptions{
 		Addr:      *addr,
-		ConfigDir: os.Getenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR"),
+		ConfigDir: resolveServerConfigDir(*configsDir),
 		Ready:     os.Stdout,
 		NewStore:  server.NewConfigStore,
 		HandlerOptions: server.HandlerOptions{
@@ -150,6 +151,16 @@ func runServe(args []string, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// resolveServerConfigDir prefers the --configs-dir flag, falling back to
+// STACK_FITNESS_FUNCTIONS_CONFIGS_DIR so the auto-started local daemon can be told
+// where per-repo configs live without depending on the container default.
+func resolveServerConfigDir(flagValue string) string {
+	if flagValue != "" {
+		return flagValue
+	}
+	return os.Getenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR")
 }
 
 // buildRateLimiter creates a rate limiter from STACK_FITNESS_FUNCTIONS_RATE_LIMIT (default 100 req/min).

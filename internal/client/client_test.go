@@ -52,7 +52,7 @@ func TestRunCheckPostsValidationRequestThroughPublicClientInterface(t *testing.T
 	defer server.Close()
 
 	var stdout bytes.Buffer
-	err := RunCheck([]string{"--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go"}, &stdout, &http.Client{Timeout: time.Second}, func(string) error { return nil })
+	err := RunCheck([]string{"--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go"}, &stdout, &http.Client{Timeout: time.Second}, func(DaemonStartConfig) error { return nil })
 	if err != nil {
 		t.Fatalf("RunCheck returned error: %v", err)
 	}
@@ -267,9 +267,12 @@ func (alwaysErrTransport) RoundTrip(*http.Request) (*http.Response, error) {
 }
 
 func TestRunCheckDefaultsToHTTPSLoopback(t *testing.T) {
+	// Isolate dev-cert discovery in a temp dir so the default https loopback path
+	// materializes its own CA and never trusts (or reaches) a real local daemon.
+	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", t.TempDir())
 	var captured string
-	starter := func(addr string) error {
-		captured = addr
+	starter := func(cfg DaemonStartConfig) error {
+		captured = cfg.Addr
 		return errors.New("stop after capture")
 	}
 	client := &http.Client{Transport: alwaysErrTransport{}}

@@ -18,7 +18,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/poconnor/calm-poc/internal/fitness"
@@ -46,7 +45,7 @@ func legacySidecarMarker(hook string) string { return "# CALM " + hook + " hook 
 func sidecarHookName(hook string) string     { return hookProductPrefix + "-" + hook }
 
 // RunCheck validates one file by posting a validation request to the daemon.
-func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter func(string) error) error {
+func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter func(DaemonStartConfig) error) error {
 	flags := flag.NewFlagSet("client validate", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	addr := flags.String("addr", "https://127.0.0.1:7890", "daemon base URL")
@@ -70,11 +69,8 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 	if !validFormats[*format] {
 		return usageError{err: fmt.Errorf("unsupported format %q: use json or sarif", *format)}
 	}
-	configuredClient, err := configureTLS(httpClient, *clientCert, *clientKey, *clientCA)
+	configuredClient, err := establishDaemon(httpClient, *addr, *repo, *file, *clientCert, *clientKey, *clientCA, starter)
 	if err != nil {
-		return err
-	}
-	if err := ensureDaemon(configuredClient, *addr, starter); err != nil {
 		return err
 	}
 	proposedContent, err := resolveContent(*repo, *file, *content, *contentFile, *staged)
@@ -419,14 +415,55 @@ func appendFile(path string, content []byte) error {
 	return nil
 }
 
-func ensureDaemon(httpClient *http.Client, addr string, starter func(string) error) error {
+// establishDaemon resolves dev-cert/configs discovery, provisions the zero-config
+// local TLS material when applicable, configures the mTLS client, and ensures a
+// reachable daemon. It returns the client to use for the validation request.
+func establishDaemon(httpClient *http.Client, addr, repo, file, certFlag, keyFlag, caFlag string, starter func(DaemonStartConfig) error) (*http.Client, error) {
+	repoRoot := resolveRepoRoot(repo, file)
+	certDir := resolveDevCertDir(repoRoot)
+	daemonCfg, err := prepareDaemonStart(addr, certDir, repoRoot, certFlag, keyFlag, caFlag)
+	if err != nil {
+		return nil, err
+	}
+	certPath, keyPath, caPath := resolveClientTLSPaths(certFlag, keyFlag, caFlag, certDir)
+	configuredClient, err := configureTLS(httpClient, certPath, keyPath, caPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureDaemon(configuredClient, addr, daemonCfg, starter); err != nil {
+		return nil, err
+	}
+	return configuredClient, nil
+}
+
+func ensureDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, starter func(DaemonStartConfig) error) error {
 	if isHealthy(httpClient, addr) {
 		return nil
 	}
-	if err := starter(addr); err != nil {
+	if err := starter(cfg); err != nil {
 		return fmt.Errorf("starting daemon: %w", err)
 	}
-	return waitHealthy(httpClient, addr, 500*time.Millisecond)
+	if err := waitHealthy(httpClient, addr, 5*time.Second); err != nil {
+		return describeDaemonFailure(cfg, err)
+	}
+	return nil
+}
+
+// describeDaemonFailure annotates a health-wait timeout with what auto-start
+// attempted so the user sees a setup problem, not a bare timeout.
+func describeDaemonFailure(cfg DaemonStartConfig, cause error) error {
+	tlsState := "off"
+	if cfg.TLSCert != "" {
+		tlsState = "on"
+	}
+	return fmt.Errorf("%w [addr=%s tls=%s dev-cert-dir=%s configs-dir=%s]", cause, cfg.Addr, tlsState, orNone(cfg.CertDir), orNone(cfg.ConfigsDir))
+}
+
+func orNone(value string) string {
+	if value == "" {
+		return "<none>"
+	}
+	return value
 }
 
 func postCheck(ctx context.Context, httpClient *http.Client, addr string, request fitness.ValidationRequest) ([]byte, error) {
@@ -603,23 +640,6 @@ func waitHealthy(httpClient *http.Client, addr string, timeout time.Duration) er
 		time.Sleep(25 * time.Millisecond)
 	}
 	return fmt.Errorf("daemon at %s did not become healthy within %s", addr, timeout)
-}
-
-// StartDaemon starts a detached daemon process using the current executable.
-func StartDaemon(addr string) error {
-	executable, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	listenAddr := strings.TrimPrefix(strings.TrimPrefix(addr, "http://"), "https://")
-	command := exec.Command(executable, "server", "start", "--addr", listenAddr)
-	command.Stdout = io.Discard
-	command.Stderr = io.Discard
-	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := command.Start(); err != nil {
-		return err
-	}
-	return command.Process.Release()
 }
 
 type usageError struct {
