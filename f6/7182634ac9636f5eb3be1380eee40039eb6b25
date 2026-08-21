@@ -1,0 +1,16 @@
+internal/server/checker_csharp_integration_test.go
+  h_56c22cd4a131f7 17
+internal/server/checker_integration_test.go
+  h_56c22cd4a131f7 15-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f67182634ac9636f5eb3be1380eee40039eb6b25",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
