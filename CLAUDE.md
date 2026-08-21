@@ -90,7 +90,7 @@ Helper scripts live in `bin/` (`stack-fitness-functions-serve`, `stack-fitness-f
 
 ## Architecture Overview
 
-`stack-fitness-functions` is the API boundary for Architecture Fitness Function checks: a single Go binary (module path `github.com/poconnor/calm-poc` — the legacy name is retained deliberately) with three roles selected by subcommand:
+`stack-fitness-functions` is the API boundary for Architecture Fitness Function checks: a single Go binary (module path `github.com/AvogadroSG1/agent-fitness-functions` — the legacy name is retained deliberately) with three roles selected by subcommand:
 
 - `client validate` — sends one file's content to the server, prints the verdict. Invoked by Git hooks at commit time. `client install-hooks` installs the embedded hooks into a governed repo.
 - `server start` — the authoritative governance HTTP daemon (`POST /check`, `GET /state`, `GET /configs`). The containerized service is the **primary production path**; default command is `/app/stack-fitness-functions server start --addr 0.0.0.0:7890`.
@@ -123,7 +123,7 @@ Hook (`hooks/pre-commit.sh` or `hooks/pre-tool-use.sh`) → `client validate` �
 - Commands: `stack-fitness-functions client validate`, `stack-fitness-functions server start`, `stack-fitness-functions baseline` (not "check"/"serve").
 - Environment variables: `STACK_FITNESS_FUNCTIONS_*`.
 - Helper scripts: `stack-fitness-functions-serve` and `stack-fitness-functions-test`.
-- FINOS CALM, `.calm/config.json`, `configs/`, the FINOS `calm` CLI, and the `calm-poc` module/repo path retain their names — CALM is the external standard being enforced, never the product name.
+- FINOS CALM, `.calm/config.json`, `configs/`, and the FINOS `calm` CLI retain their names. The source repository and Go module are `github.com/AvogadroSG1/agent-fitness-functions`; the logical governance key `calm-poc` remains unchanged. CALM is the external standard being enforced, never the product name.
 
 ## Key Documentation
 

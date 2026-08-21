@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/calm"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 	"github.com/fsnotify/fsnotify"
-	"github.com/poconnor/calm-poc/internal/calm"
-	"github.com/poconnor/calm-poc/internal/fitness"
 )
 
 func TestHandlerHealthReturnsOK(t *testing.T) {

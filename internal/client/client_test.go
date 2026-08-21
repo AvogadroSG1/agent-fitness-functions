@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/poconnor/calm-poc/internal/analyzer"
-	"github.com/poconnor/calm-poc/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
 func TestPackageImportsFitnessContractNotServerInternals(t *testing.T) {
@@ -27,10 +27,10 @@ func TestPackageImportsFitnessContractNotServerInternals(t *testing.T) {
 		t.Fatalf("go list internal/client: %v\n%s", err, output)
 	}
 	imports := string(output)
-	if !strings.Contains(imports, "github.com/poconnor/calm-poc/internal/fitness") {
+	if !strings.Contains(imports, "github.com/AvogadroSG1/agent-fitness-functions/internal/fitness") {
 		t.Fatalf("imports = %s, want internal/fitness", imports)
 	}
-	if strings.Contains(imports, "github.com/poconnor/calm-poc/internal/server") {
+	if strings.Contains(imports, "github.com/AvogadroSG1/agent-fitness-functions/internal/server") {
 		t.Fatalf("imports = %s, must not include internal/server", imports)
 	}
 }

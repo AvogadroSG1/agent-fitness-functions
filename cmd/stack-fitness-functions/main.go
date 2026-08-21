@@ -18,9 +18,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/poconnor/calm-poc/internal/analyzer"
-	"github.com/poconnor/calm-poc/internal/client"
-	"github.com/poconnor/calm-poc/internal/server"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/client"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/server"
 )
 
 func main() {

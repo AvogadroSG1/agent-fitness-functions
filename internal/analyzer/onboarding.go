@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/poconnor/calm-poc/internal/calm"
-	"github.com/poconnor/calm-poc/patterns"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/calm"
+	"github.com/AvogadroSG1/agent-fitness-functions/patterns"
 )
 
 // EmittedConfig mirrors the mounted governance config shape written to

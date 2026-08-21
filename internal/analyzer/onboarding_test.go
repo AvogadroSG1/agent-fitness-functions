@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poconnor/calm-poc/internal/calm"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/calm"
 )
 
 func testRules() map[string]calm.FitnessRule {

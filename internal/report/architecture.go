@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/poconnor/calm-poc/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
 )
 
 // ArchitectureDocument is the CALM architecture document submitted to calm validate.

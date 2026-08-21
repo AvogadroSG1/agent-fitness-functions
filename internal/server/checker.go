@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/poconnor/calm-poc/internal/analyzer"
-	"github.com/poconnor/calm-poc/internal/calm"
-	"github.com/poconnor/calm-poc/internal/fitness"
-	"github.com/poconnor/calm-poc/internal/report"
-	"github.com/poconnor/calm-poc/patterns"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/calm"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/report"
+	"github.com/AvogadroSG1/agent-fitness-functions/patterns"
 )
 
 // Validator runs CALM validation for generated architecture documents.

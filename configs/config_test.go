@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/poconnor/calm-poc/internal/server"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/server"
 )
 
 // repoNamePattern mirrors the server's repository-name grammar (config.go). Repo

@@ -24,8 +24,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/poconnor/calm-poc/internal/client"
-	"github.com/poconnor/calm-poc/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/client"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
 func TestRunServeRequiresTLSForTrustedProxyHeaders(t *testing.T) {

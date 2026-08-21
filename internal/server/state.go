@@ -5,7 +5,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/poconnor/calm-poc/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
 // State stores outstanding violations by repository and file.

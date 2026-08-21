@@ -8,7 +8,7 @@ This project uses **bd** (beads) for issue tracking. Run `bd prime` for full wor
 - Command examples MUST use `stack-fitness-functions client validate`, `stack-fitness-functions server start`, or `stack-fitness-functions baseline`.
 - Environment variables MUST use the `STACK_FITNESS_FUNCTIONS_*` prefix.
 - Helper scripts MUST use `stack-fitness-functions-serve` and `stack-fitness-functions-test`.
-- FINOS CALM, `.calm/config.json`, `configs/`, the FINOS `calm` CLI, and the `calm-poc` module/repo path MUST keep their existing names.
+- FINOS CALM, `.calm/config.json`, `configs/`, and the FINOS `calm` CLI MUST keep their existing names. The source repository and Go module MUST be `github.com/AvogadroSG1/agent-fitness-functions`; the logical governance key `calm-poc` MUST remain unchanged.
 
 ## Quick Reference
 

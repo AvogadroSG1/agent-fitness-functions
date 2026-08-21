@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poconnor/calm-poc/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
 func TestPreCommitBlocksStagedViolations(t *testing.T) {

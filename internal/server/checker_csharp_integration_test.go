@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/poconnor/calm-poc/internal/calm"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/calm"
 )
 
 func TestCheckerWithDefaultRoslynAnalyzerDefersThenBlocksCSharpFixture(t *testing.T) {

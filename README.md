@@ -1,6 +1,6 @@
 # Stack Fitness Functions
 
-Stack Fitness Functions is a local proof-of-concept architecture-as-code system that uses FINOS CALM fitness functions to evaluate proposed source changes before they are written or committed. The repository path remains `calm-poc` while the product and binary surface are `stack-fitness-functions`.
+Stack Fitness Functions is a local proof-of-concept architecture-as-code system that uses FINOS CALM fitness functions to evaluate proposed source changes before they are written or committed. The source repository and Go module are `github.com/AvogadroSG1/agent-fitness-functions`; the logical governance key remains `calm-poc`, while the product and binary surface are `stack-fitness-functions`.
 
 See [docs/spec/why-and-what.md](docs/spec/why-and-what.md) and [docs/spec/engineering-spec.md](docs/spec/engineering-spec.md) for the product and engineering specification.
 

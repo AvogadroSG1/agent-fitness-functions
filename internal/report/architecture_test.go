@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poconnor/calm-poc/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
 )
 
 func TestBuildArchitectureMapsAnalysisMetricsToCALMNodeFitness(t *testing.T) {

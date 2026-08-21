@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/poconnor/calm-poc/internal/fitness"
-	"github.com/poconnor/calm-poc/internal/sarif"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/sarif"
 )
 
 //go:embed hookassets/*
