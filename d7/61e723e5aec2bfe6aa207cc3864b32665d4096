@@ -1,0 +1,16 @@
+docs/adr/0002-rename-stack-fitness-functions-to-agent-fitness-functions.md
+  h_56c22cd4a131f7 1-297
+docs/escalation/q8d1-direct-root-certificate-publication.md
+  h_56c22cd4a131f7 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d761e723e5aec2bfe6aa207cc3864b32665d4096",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
