@@ -1,0 +1,16 @@
+docs/escalation/phk6-rename-inventory.md
+  h_56c22cd4a131f7 1-996
+docs/escalation/phk6-rename-madr-sequencing.md
+  h_56c22cd4a131f7 1-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ecca52dc7d2204b15cb88286706d44893558ab98",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
