@@ -1,0 +1,16 @@
+docs/adr/0003-canonical-agent-fitness-functions-repository-and-module.md
+  h_56c22cd4a131f7 1-314
+docs/escalation/q8d1-module-identity-inventory-addendum.md
+  h_56c22cd4a131f7 1-280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "734ccc5cc505f7b1cc70c57ae3ce16441eb333ad",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
