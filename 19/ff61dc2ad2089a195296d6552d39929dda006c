@@ -1,0 +1,64 @@
+AGENTS.md
+  h_56c22cd4a131f7 11
+CLAUDE.md
+  h_56c22cd4a131f7 93,126
+CONTEXT.md
+  h_56c22cd4a131f7 25
+README.md
+  h_56c22cd4a131f7 3
+cmd/stack-fitness-functions/main.go
+  h_56c22cd4a131f7 21-23
+cmd/stack-fitness-functions/main_test.go
+  h_56c22cd4a131f7 27-28
+configs/config_test.go
+  h_56c22cd4a131f7 10
+fixtures/fixtures_test.go
+  h_56c22cd4a131f7 11
+go.mod
+  h_56c22cd4a131f7 1
+hooks/pre_commit_test.go
+  h_56c22cd4a131f7 13
+internal/analyzer/onboarding.go
+  h_56c22cd4a131f7 10-11
+internal/analyzer/onboarding_test.go
+  h_56c22cd4a131f7 10
+internal/client/client.go
+  h_56c22cd4a131f7 23-24
+internal/client/client_test.go
+  h_56c22cd4a131f7 18-19,30,33
+internal/report/architecture.go
+  h_56c22cd4a131f7 8
+internal/report/architecture_test.go
+  h_56c22cd4a131f7 8
+internal/sarif/sarif.go
+  h_56c22cd4a131f7 7
+internal/sarif/sarif_test.go
+  h_56c22cd4a131f7 8-9
+internal/server/abuse_test.go
+  h_56c22cd4a131f7 16-18
+internal/server/checker.go
+  h_56c22cd4a131f7 16-20
+internal/server/checker_csharp_integration_test.go
+  h_56c22cd4a131f7 16
+internal/server/checker_python_integration_test.go
+  h_56c22cd4a131f7 17-20
+internal/server/checker_test.go
+  h_56c22cd4a131f7 20-22
+internal/server/server.go
+  h_56c22cd4a131f7 17
+internal/server/server_test.go
+  h_56c22cd4a131f7 23-24
+internal/server/state.go
+  h_56c22cd4a131f7 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "19ff61dc2ad2089a195296d6552d39929dda006c",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
