@@ -20,18 +20,24 @@ func TestCheckerWithRealCALMBlocksGraftCyclomaticComplexityFixture(t *testing.T)
 	if _, err := exec.LookPath("calm"); err != nil {
 		t.Skip("calm CLI not installed")
 	}
+	repo := "graft"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{
+		"cyclomatic-complexity": true,
+	})
 	source, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "violations", "go", "graft-migrate-chain.go"))
 	if err != nil {
 		t.Fatalf("read graft fixture: %v", err)
 	}
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: filepath.Join("..", "..", "patterns", "governance.json"),
 	}, nil))
 	defer server.Close()
 
 	start := time.Now()
 	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
-		"repo": "/Users/poconnor/peter_code/graft",
+		"repo": `+jsonString(repo)+`,
 		"file": "internal/migrate/migrate.go",
 		"language": "go",
 		"proposed_content": `+jsonString(string(source))+`
