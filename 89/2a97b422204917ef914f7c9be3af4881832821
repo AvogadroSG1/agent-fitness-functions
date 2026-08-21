@@ -1,0 +1,14 @@
+docs/escalation/phk1-gofmt-import-order.md
+  h_56c22cd4a131f7 1-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "892a97b422204917ef914f7c9be3af4881832821",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
