@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
 func TestCheckerWithRealCALMBlocksGraftCyclomaticComplexityFixture(t *testing.T) {
