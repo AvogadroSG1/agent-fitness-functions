@@ -1,0 +1,830 @@
+hooks/infra_error_test.go
+  h_56c22cd4a131f7 15,30,96
+internal/client/doctor.go
+  h_56c22cd4a131f7 154,213,262,270,329,443,453,463,470
+docs/superpowers/plans/2026-05-24-hook-feedback.md
+  h_56c22cd4a131f7 122,129,263,270,276,328,438,559,569,572
+internal/server/abuse_test.go
+  h_56c22cd4a131f7 16-18
+AGENTS.md
+  h_56c22cd4a131f7 7-10
+hooks/git-guard.sh
+  h_56c22cd4a131f7 2,22,29,42,52
+.gitignore
+  h_56c22cd4a131f7 2
+  h_56c22cd4a131f7 38-41
+docs/superpowers/specs/2026-05-24-hook-feedback-design.md
+  h_56c22cd4a131f7 99
+internal/client/hookassets/format-violations.py
+  h_56c22cd4a131f7 5,33,157,167,170
+  h_56c22cd4a131f7 2,16,21,125,217,271
+internal/server/server_test.go
+  h_56c22cd4a131f7 24-25
+docs/runbooks/red-green-demo.md
+  h_56c22cd4a131f7 2,15-17,19,22,84,127-128
+  h_56c22cd4a131f7 9
+hooks/pre_push_test.go
+  h_56c22cd4a131f7 47,56
+.beads/issues.jsonl
+  h_56c22cd4a131f7 4,19,24,26,29-30,33-39,47,55-61,64,66,146,153
+LEGACY_REFERENCES.md
+  h_56c22cd4a131f7 10,12,17,36,38-40,48,71
+internal/analyzer/baseline_test.go
+  h_56c22cd4a131f7 14,45,72
+internal/client/hookassets/pre-tool-use.sh
+  h_56c22cd4a131f7 5,8-14,52-53,57,77,79,99,164,170,225,240,249,254,260,276
+internal/client/failure.go
+  h_56c22cd4a131f7 122,134,140,146,159,165
+hooks/pre_commit_test.go
+  h_56c22cd4a131f7 13,24,37,64,73,122-123,145,158-159,186,191,204-209,240,249-252,260,273-274,280,314,332,361,369,397,405,457,459,467-468,470
+bin_helper_mtls_test.go
+  h_56c22cd4a131f7 11,16,59,66,79-81,110,113,132-136,164,185-186,192-193,201,204,223-225,242,257,267-269
+  h_56c22cd4a131f7 1,53,58,109,112,159,163,200,203,241
+internal/report/architecture.go
+  h_56c22cd4a131f7 8,79,87,100
+internal/server/state.go
+  h_56c22cd4a131f7 8
+fixtures/fixtures_test.go
+  h_56c22cd4a131f7 11
+patterns/governance.json
+  h_56c22cd4a131f7 3-4
+hooks/format-violations.py
+  h_56c22cd4a131f7 5,16,33,157,167,170,271
+  h_56c22cd4a131f7 2,21,125,217
+docs/superpowers/plans/2026-06-16-install-hooks-naming-and-scheme.md
+  h_56c22cd4a131f7 5,7,13,27,53-54,56,58-59,157,160,171,213,275,290,292,310,321,341,346,353-354,388-389,437,453,456,482,490,518,526,553,558-562,566,569-574,611,613,616,619,634,700,709,742,745,779,781,784,833,843,874-878,882,885-890,925,927,930,933,936,939,942,975,983,988-990,1001,1008,1027,1054-1056,1059,1064,1083
+  h_56c22cd4a131f7 465
+docs/superpowers/specs/2026-06-16-install-hooks-naming-and-scheme-design.md
+  h_56c22cd4a131f7 6,10-11,22,33,41,43,51-53,61,63-64,66,75,78-79,81,83,89,94,99-100,114,119-120
+  h_56c22cd4a131f7 130
+cover.html
+  h_56c22cd4a131f7 58,60,62,64,66,68,87,175,180,184,459,664,757,920
+internal/analyzer/onboarding.go
+  h_56c22cd4a131f7 10-11
+bin_helpers_test.go
+  h_56c22cd4a131f7 24-26,29-30,53-54,56-57
+  h_56c22cd4a131f7 1,11
+internal/fitness/contract_test.go
+  h_56c22cd4a131f7 29,41
+docs/spec/why-and-what.md
+  h_56c22cd4a131f7 30
+  h_56c22cd4a131f7 2-4,9
+docs/superpowers/specs/2026-05-29-calm-bridge-container-design.md
+  h_56c22cd4a131f7 42,46,55,187,206,208,419-424,457-460,463,561
+internal/server/server.go
+  h_56c22cd4a131f7 17,70,75,357,373
+.dockerignore
+  h_56c22cd4a131f7 14
+internal/calm/pattern.go
+  h_56c22cd4a131f7 9
+docs/spec/engineering-spec.md
+  h_56c22cd4a131f7 25,47,69-70,92,113,115,117,148,164,230,239,253,426,563,565,580,637
+  h_56c22cd4a131f7 2-4,15,385
+internal/sarif/sarif_test.go
+  h_56c22cd4a131f7 8-9
+internal/analyzer/onboarding_test.go
+  h_56c22cd4a131f7 10,25
+internal/client/hookassets/pre-push.sh
+  h_56c22cd4a131f7 2,6,9-15,48-49,53,80,82,102,114,160,170,189
+Dockerfile
+  h_56c22cd4a131f7 17,63,69,73,76
+docs/runbooks/onboard-new-repository.md
+  h_56c22cd4a131f7 4,6,62,74,81,84,121,128,131,137-138,152,234-235,247-252,255,259,267-268,337,346,352,354,356,363,370-371,374-375,383,386,389,396-402
+CLAUDE.md
+  h_56c22cd4a131f7 58,67,70,86,89,93,96,118,122-125
+docs/superpowers/plans/2026-05-28-fix-bridge-calm-violations.md
+  h_56c22cd4a131f7 114,378,580,658,831
+opencode.jsonc
+  h_56c22cd4a131f7 1-123
+docs/superpowers/plans/2026-06-04-csharp-project-aware-ddc.md
+  h_56c22cd4a131f7 280,353
+internal/report/architecture_test.go
+  h_56c22cd4a131f7 8,11,13
+scripts/baseline.sh
+  h_56c22cd4a131f7 5,7-8,11
+hooks/pre-push.sh
+  h_56c22cd4a131f7 2,6,9-15,48-49,53,80,82,102,114,160,170,189
+scripts/smoke-red-green-go.sh
+  h_56c22cd4a131f7 7,28,43,103,116
+hooks/test_format_violations.py
+  h_56c22cd4a131f7 39,46,180,187,193,200,245
+internal/analyzer/python.go
+  h_56c22cd4a131f7 76,169,332
+internal/server/checker_python_integration_test.go
+  h_56c22cd4a131f7 17-20,88,175,223
+internal/server/checker.go
+  h_56c22cd4a131f7 16-20,221,501,509,526,532,548,554,568,592,676
+configs/config_test.go
+  h_56c22cd4a131f7 10
+docs/quickstart-0-to-governed.md
+  h_56c22cd4a131f7 4,15,34,41,77,106,117,133,138,142,157
+internal/client/hookassets/pre-commit.sh
+  h_56c22cd4a131f7 2,6,9-15,55-56,60,87,89,109,121,138,156,166,172,189
+internal/client/daemon.go
+  h_56c22cd4a131f7 16-20,103,116,160
+internal/sarif/sarif.go
+  h_56c22cd4a131f7 7,77
+internal/fitness/contract.go
+  h_56c22cd4a131f7 34
+docs/threshold-calibration.md
+  h_56c22cd4a131f7 58
+  h_56c22cd4a131f7 1
+internal/server/checker_csharp_integration_test.go
+  h_56c22cd4a131f7 16,41
+  h_56c22cd4a131f7 17
+.claude/settings.json
+  h_56c22cd4a131f7 8
+docker-compose.yml
+  h_56c22cd4a131f7 1,10-11,19,30,33-37,39
+internal/client/hookassets/git-guard.sh
+  h_56c22cd4a131f7 2,22,29,42,52
+internal/server/checker_test.go
+  h_56c22cd4a131f7 20-22,84,434-435,482,511,570,1088,1169,1189,1265,2299,2607,2656
+  h_56c22cd4a131f7 184-186,217-219,765-767,787-789
+docker_contract_test.go
+  h_56c22cd4a131f7 35,129-130,141-147
+  h_56c22cd4a131f7 1
+docs/ux-evaluation-0-to-governed.md
+  h_56c22cd4a131f7 4,9,64,82,84,88,119,133,141,158,160
+tools/roslyn-analyzer/Program.cs
+  h_56c22cd4a131f7 74,234,308-309
+caller-repos.json
+  h_56c22cd4a131f7 3-5
+CONTEXT.md
+  h_56c22cd4a131f7 9,36,55,101,107,113,156-157,159,162,180
+  h_56c22cd4a131f7 1
+README.md
+  h_56c22cd4a131f7 3,9,15,18,24,29,32,63,72,87-96,101,109,111,125,130-134,141-146,149,156
+  h_56c22cd4a131f7 1
+internal/analyzer/golang.go
+  h_56c22cd4a131f7 64
+hooks/pre-tool-use.sh
+  h_56c22cd4a131f7 5,8-14,52-53,57,77,79,99,164,170,225,240,249,254,260,276
+docs/superpowers/plans/2026-06-01-container-governance-alignment.md
+  h_56c22cd4a131f7 20,22,24-25,156-161,163,284,291-292,349,359-364,397-398,402,526,542,564-565,574-575,579,622,633,665,672-673,676,681-682,688-690,705-706,712-713,719-721,764,773,776,914,938
+internal/server/auth.go
+  h_56c22cd4a131f7 244
+go.mod
+  h_56c22cd4a131f7 1
+internal/analyzer/analyzer.go
+  h_56c22cd4a131f7 6,94,99,103
+internal/analyzer/csharp_test.go
+  h_56c22cd4a131f7 26,104,167,245,281
+scripts/demo-agent-governed-edit.sh
+  h_56c22cd4a131f7 19,35,107,144,146,173-174
+hooks/pre_tool_use_test.go
+  h_56c22cd4a131f7 26,51,91,116,152-155,181,280,315,325,359,362,365,430,477
+  h_56c22cd4a131f7 134-137
+internal/client/client_test.go
+  h_56c22cd4a131f7 18-19,30,33,93,108-109,120,136,175-176,207,262,275,288,301,330,363-364,373
+internal/analyzer/golang_test.go
+  h_56c22cd4a131f7 55-56
+scripts/generate-dev-certs.sh
+  h_56c22cd4a131f7 5,89
+  h_56c22cd4a131f7 100
+internal/client/client.go
+  h_56c22cd4a131f7 1,23-24,32,208,211,215
+internal/client/onboard.go
+  h_56c22cd4a131f7 167
+hooks/pre-commit.sh
+  h_56c22cd4a131f7 2,6,9-15,55-56,60,87,89,109,121,138,156,166,172,189
+.beads/.auto-import-issues.jsonl
+  h_56c22cd4a131f7 1
+.codex/skills/ask-matt/PHASE-BOUNDARIES.md
+  h_56c22cd4a131f7 1,3,5,7,9-15,17,19,21,23,25,27,29-32,34,36,38,40,42,44,46-49,51,53,55
+.codex/skills/ask-matt/SKILL.md
+  h_56c22cd4a131f7 1-90
+.codex/skills/ask-matt/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.codex/skills/code-review/SKILL.md
+  h_56c22cd4a131f7 1-4,6,8-9,11,13,15,17,19,21,23,25,27,29-32,34,36,38,40-41,43,45-56,58,60,62-64,66,68-70,72,74,76,78,80,82,84-85,87
+.codex/skills/code-review/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.codex/skills/codebase-design/DEEPENING.md
+  h_56c22cd4a131f7 1-37
+.codex/skills/codebase-design/DESIGN-IT-TWICE.md
+  h_56c22cd4a131f7 1-44
+.codex/skills/codebase-design/SKILL.md
+  h_56c22cd4a131f7 1-4,6,8-32,44,54,59-114
+.codex/skills/codebase-design/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.codex/skills/coverage-analysis/skillrun.yaml
+  h_56c22cd4a131f7 1-11
+.codex/skills/csharp-scripts/SKILL.md
+  h_56c22cd4a131f7 2-3,7,11-13,17-20,26,30,32,34,36,38-44,47,49-56,59-62,65,67,69,71,73-74,76,78-79,81,83,86-88,91,94-109,111-112,115,117,120-123,126,128-133,135-137,140,143-145,148-151,153,156,158-173,176-180,182-184,187-188,190,194-197,199,201,203-204,207,209,211,213-216,218-222,224,226-228,230,232-234,237-238,240-242,244-245,247,249-250,253,255,257-258,261,263,265-267,269-298
+.codex/skills/csharp/SKILL.md
+  h_56c22cd4a131f7 2-3,6-87,90,92,96-99,101,103-105,107,109-119,121,123-126,128-131,133-135,139,141-145,147,149-153,155,157-158,160-163,165-167,169,172-182,184,187,189-193,195,197-198,200,202,205,207-209,211-213,215,217-219,221-227,231-242,244-246
+.codex/skills/diagnosing-bugs/SKILL.md
+  h_56c22cd4a131f7 1-138
+.codex/skills/diagnosing-bugs/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.codex/skills/diagnosing-bugs/scripts/hitl-loop.template.sh
+  h_56c22cd4a131f7 1-4,6-7,9-16,20-23,25-30,32,34,36,38,40,42-44
+.codex/skills/docker/SKILL.md
+  h_56c22cd4a131f7 1-54,56-66,68,70,72-79,81-89,91,93,95,97-99,101,103-105,107-109,111-112,114-115,117-119,121,123-138,141,143,145-147,149-150,152-153,155-156,158-159,161-162,165,167-169,171-172,174-175,177-178,180-181,183-184,186-187,189-190,192-197,200,203-204,206-207,209-212,214-216,218-219,221-222,224-229,231-232,234-242,245-256,258-259,261-265,268,271-278,280-281,283-284,287,290-301,303-307,310,312,314-319,321-370,373,376-383,385-412,415-426,428-456,458-459,461-462,465-541,543-616,618,620-623,625-630,632-644,646-657,659,661,663-698,701-703,706-708,710-712,714,716-718,720-721,723-724,726-727,729-730,733,735-761,764-773,776,778-794,797-803,805,807-813,815,817-819,822-827,829-832,834,836,839-844,846-847,849-850,852-853,855-856,859,861-875,877,879-880,882-886,889-897,899-903,905-906,908-912,914-920,923-925,928-929,931-933,936-943,945-951,954-965,967-1016
+.codex/skills/domain-modeling/CONTEXT-FORMAT.md
+  h_56c22cd4a131f7 13,27-28
+.codex/skills/domain-modeling/SKILL.md
+  h_56c22cd4a131f7 2-3,6,8,10,64
+.codex/skills/domain-modeling/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.codex/skills/git-pushing/.opencode/commands/telemetry-inspect.md
+  h_56c22cd4a131f7 1-10
+.codex/skills/git-pushing/.opencode/commands/telemetry-report.md
+  h_56c22cd4a131f7 1-3,5,8
+.codex/skills/git-pushing/SKILL.md
+  h_56c22cd4a131f7 2-3,6,8,10,12,14-19,21,23,25-26,28,30,32,34-47,50-57,59,61-69,72-78,81,83,85,87,89-94,96,98,100,102-109
+.codex/skills/git-pushing/scripts/smart_commit.sh
+  h_56c22cd4a131f7 1-228,231-247,250-266,269-397
+.codex/skills/git-pushing/skillrun.yaml
+  h_56c22cd4a131f7 1-14
+.codex/skills/golang-context/SKILL.md
+  h_56c22cd4a131f7 3,6,9,18-19,34,85
+.codex/skills/golang-context/evals/evals.json
+  h_56c22cd4a131f7 103-105,107-111
+.codex/skills/golang-context/references/cancellation.md
+  h_56c22cd4a131f7 31,40
+.codex/skills/golang-data-structures/SKILL.md
+  h_56c22cd4a131f7 6,9,11,17-19,161
+.codex/skills/golang-data-structures/evals/evals.json
+  h_56c22cd4a131f7 5-6,8-10,16-17,19-21,31,82-83,85-88
+.codex/skills/golang-data-structures/references/containers.md
+  h_56c22cd4a131f7 12,88
+.codex/skills/golang-documentation/SKILL.md
+  h_56c22cd4a131f7 6,9,18-19,24-25,41-54,97,171,177,180
+.codex/skills/golang-documentation/evals/evals.json
+  h_56c22cd4a131f7 10-29,38-57,66-77,79-82,91-110,119-138,147-166,172-173,175-194,203-222,231-250,256-257,259-278,284-285,287-306,315-334,343-362,368-369,371-390,399-418,427-446,452-453,455-474,483-502,508-509,511-530,537,539-558,567-578
+.codex/skills/golang-documentation/references/application.md
+  h_56c22cd4a131f7 135-136
+.codex/skills/golang-documentation/references/code-comments.md
+  h_56c22cd4a131f7 35-45,192
+.codex/skills/golang-documentation/references/library.md
+  h_56c22cd4a131f7 46,154-155
+.codex/skills/golang-gopls/SKILL.md
+  h_56c22cd4a131f7 2-3,6,9,11,16,19-24,27,29,31,33,35,37-39,41,43,45,47,49-54,56,58,60,62,64-67,69,71-77,79,81-84,86,88,90-92,94
+.codex/skills/golang-gopls/references/cli.md
+  h_56c22cd4a131f7 1,3,5,7-15,17,19,21-22,25-26,29,31,33-42,44,46,48,50-55,57,59,61-74,76,78-80,82,84,86-90,92,94,96-100,103-104,106-107,109-110,112-116,118-121,124,126-132,135-176
+.codex/skills/golang-gopls/references/features.md
+  h_56c22cd4a131f7 1-136
+.codex/skills/golang-gopls/references/matrix.md
+  h_56c22cd4a131f7 1-35
+.codex/skills/golang-gopls/references/mcp.md
+  h_56c22cd4a131f7 1,3,5-9,11,13,15-16,19,21,23,25-26,29,31,33,35-44,46,48,50,52,54-56,58,60-66,68,70,72,74,76,78-79,81
+.codex/skills/golang-gopls/references/settings.md
+  h_56c22cd4a131f7 1,3,5,7-12,14-16,18-22,24,26,28-31,33,35,37-42,44,46,48-52,54,56-60,62-66,69,71-76,78,80
+.codex/skills/golang-how-to/SKILL.md
+  h_56c22cd4a131f7 2-3,6,9,11,16,19-21,24,28-154,156,158,160
+.codex/skills/golang-how-to/assets/cursor-go-skills.mdc
+  h_56c22cd4a131f7 1-14
+.codex/skills/golang-how-to/references/by-category.md
+  h_56c22cd4a131f7 1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71,73,75,77,79,81,83,85,87,89,91,93,95,97,99,101,103,105,107,109,111,113,115,117,119,121,123,125,127,129,131,133,135,137,139,141,143,145,147,149,151,153,155,157,159,161,163,165,167,169,171,173,175,177,179,181,183,185,187,189,191,193,195,197-383
+.codex/skills/golang-how-to/references/disambiguation.md
+  h_56c22cd4a131f7 1,3,7,9,11-16,18,20-23,27,29,31-37,39,41-44,48,50,52-56,58,60-63,65,69,71-75,77,79-81,85,87,89-94,96,98-101,105,107-111,113,115-118,122,124-127,129,131-133,137,139,141-144,146,148,150-153,155,159,161,163-166,168,170,172-174,176,180,182,184-187,189,191-194,196,198,200,202,204-207,209,211,213-216,220,222,224-229,231,233,235-240,242,244,248,250,252-259,261,263,265-269
+.codex/skills/golang-how-to/references/project-config.md
+  h_56c22cd4a131f7 1,3,5-6,8,10-13,15,17,19-22,25,27-28,30,32-35,37,40,43,45,47,49-55,57,59,61,64-65,68,70,72,74,76,78-89,92,94-99,101,103,105,107-108,110,112-116,119,121,123-125,127,129,131,133,135,137-149,152-155
+.codex/skills/golang-performance/SKILL.md
+  h_56c22cd4a131f7 2-3,6,9,11,16-23,26,28,30,32,34-36,38,40,42,44,46-48,50,52,54,56,58,60,62-69,71,73,75,77-86,88,90-98,100,102-107,109,111,115-121
+.codex/skills/golang-performance/assets/prometheus-alerts.yml
+  h_56c22cd4a131f7 1-20
+.codex/skills/golang-performance/evals/evals.json
+  h_56c22cd4a131f7 4-7,9-13,18-21,23-27,32-35,37-41,46-49,51-54,59-62,64-66,71-74,76-77,82-85,87-90,95-98,100-103,108-111,113-116,121-124,126-128,133-136,138-141,146-149,151-155,160-163,165-169,174-177,179-182,187-190,192-196,201-204,206-209,214-217,219-222,227-230,232-236,241-244,246-249,254-257,259-262,267-270,272-276,281-284,286-290,295-298,300-303,308-311,313-317,322-325,327-330,335-338,340-342,347-350,352-356,361-364,366-368,373-376,378-381,386-389,391-393,398-401,403-406,411-414,416-420,425-428,430-433,438-441,443-446,451-454,456-460,465-468,470-473,478-481,483-486,491-494,496-499,504-507,509-512,517-885
+.codex/skills/golang-performance/references/caching.md
+  h_56c22cd4a131f7 1-183
+.codex/skills/golang-performance/references/cpu.md
+  h_56c22cd4a131f7 1,3,5,7,9,12-16,18,21-24,28,30-32,35-37,39,42-43,45-46,49,51,53,55,57,60-64,67-70,75,77,79,82-89,92-94,97-104,107,109,111,114-119,122-126,129-136,140,142,144,146,149-160,163,165,167,169,171,173,175-178,180-181,183-186,188,190,192-194,196-200,202,204,206,209-222,224-229,231-235,238,240,242,245-246,248,250-253,255-256,258,260-265,267,269-272,275,277,279-281,283,285,287,289,291,294-300,303,305-307,309,311,313-316,318,321-331,334,336-337,339,341,343,345-347,350-359,361,363,365,367-368,370-375
+.codex/skills/golang-performance/references/io-networking.md
+  h_56c22cd4a131f7 1,3,5,7,9,11,14-28,31,34-35,39,41,44-51,54,56,58-62,65,67,69,71,74-82,85-89,92-96,100,102,104,106,108-111,113-119,122-124,126-131,134,136,138,140,143-144,146-150,152,154,156,158,160,162-167,169,171-175,178,181-208,211,213,215,217-220,222,224-227,229,231,233,235,237,239,242-258,261-265,268-271,273-276,279,281,283-299
+.codex/skills/golang-performance/references/memory.md
+  h_56c22cd4a131f7 1,3,5,7,9,11,14-18,21,23,26-28,30-32,35,37,39,42-43,45-46,49,51,53-54,57,59,62,64-66,70,72,74,77-78,80-81,83-84,87,89,91,93,96-97,99-103,107-109,112-116,119,121,124-128,132-136,138,140-144,147-163,167-174,176,178,180,182,185-198,202,204,206-208,211-215,218,220,222,224,226-231,233
+.codex/skills/golang-performance/references/observability.md
+  h_56c22cd4a131f7 1,3,5,7,9,11,13,15-19,21,23-27,29,31-34,36,38-41,43,45-48,50,52,54,56,58,60,62,64-69,71,73-74,76-87,90,92,94,96,98-101
+.codex/skills/golang-performance/references/runtime.md
+  h_56c22cd4a131f7 1-28,31,33,35-36,38-44,46,48-49,52,54,56,58,60-64,66-67,70,72-77,79,81,83,85-87,89-93,96-109,111,113-116,118,120,122-139,142-155,157,159,161-163,165,167-169,171,173-175,177-201,204-206,208,210,212-215,217-219,222
+.codex/skills/grill-me/SKILL.md
+  h_56c22cd4a131f7 3-4,7
+.codex/skills/grill-me/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.codex/skills/grill-with-docs/SKILL.md
+  h_56c22cd4a131f7 1-7
+.codex/skills/grill-with-docs/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.codex/skills/grilling/SKILL.md
+  h_56c22cd4a131f7 1-22
+.codex/skills/grilling/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.codex/skills/handoff/SKILL.md
+  h_56c22cd4a131f7 1-16
+.codex/skills/handoff/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.codex/skills/implement/SKILL.md
+  h_56c22cd4a131f7 1-5,7,9,11,13,15
+.codex/skills/implement/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.codex/skills/improve-codebase-architecture/HTML-REPORT.md
+  h_56c22cd4a131f7 1-33,36,38,40,42,44,46-53,55,57,59,61,63,65-75,78,80,82,84,86,88,90,92,94,96-100,102,104,106,108,110,112,114,116-119,121,123
+.codex/skills/improve-codebase-architecture/SKILL.md
+  h_56c22cd4a131f7 2-4,7,9,11,13-14,16,18,20,22-23,25,27,29-33,35,37,39,41,43,45-50,52,54,56,58,60,62,64,66,68-71
+.codex/skills/improve-codebase-architecture/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.codex/skills/k8s-manifest-generator/SKILL.md
+  h_56c22cd4a131f7 1-4,6,8,10,12,14,16,18-24,26,28,30,32-39,41,43-49,51,53,55-107,110,112-117,119,121,123,125,127-144,146,148-167,169,171,173,175-189,192,194-198,200,202,204,206-225,227,229-233,235,237,241,243-244,246-251,254,258-268,271-281,285-286,288-300,303,305-310,312,314-316,318-324,327,329-336,339,341-343,346-355,358-362,365,367-393,396-400,402-403,405-406,408-409,412,414-420,422,424,426,428,430-434,436,438,440,442-452,454,456-459,461,463,465,467-470,472-498,502-534
+.codex/skills/k8s-manifest-generator/assets/configmap-template.yaml
+  h_56c22cd4a131f7 1-296
+.codex/skills/k8s-manifest-generator/assets/deployment-template.yaml
+  h_56c22cd4a131f7 1-2,7-18,20-22,25-36,40-47,49-69,71-74,76-83,85-144,146,148-151,153-203
+.codex/skills/k8s-manifest-generator/assets/service-template.yaml
+  h_56c22cd4a131f7 1,3-25,27-59,61-79,81-98,100-133,135-156,158-171
+.codex/skills/k8s-manifest-generator/references/deployment-spec.md
+  h_56c22cd4a131f7 1,3,7,9,11-239,242,244,246,248-250,252,254-256,258,260,262,264-266,268,270-272,274,276,278-279,281,283-284,286,288-290,292,295-311,314,316,318-320,322,324-326,328,330,332-337,339,341-343,345,347-352,355,357,359-366,369-430,432-454,457,459-463,465,467,469-478,481,483-495,498,500-504,506,508,510-541,543,545,547-563,566,568-587,590,592-601,604,606,608-631,634,636-654,657,659-685,688,690,692-703,705,707,709-715,718,721-726,729,731-741,744,746,748,750-755,757,759-761,763,765-768,770,772-774,776,778-780
+.codex/skills/k8s-manifest-generator/references/service-spec.md
+  h_56c22cd4a131f7 1,3,7-31,33-59,61-96,98,100,102-108,111,113-117,119,121-124,127,129,131-140,143-213,215,217,219,221,223-233,236-247,249-265,268,270,272,274-276,279,281,283-288,291-295,297,299,301,303-305,308-310,312,314-316,319-322,324,326-328,331,333,335,337-348,351,353-356,358,360-361,363,365,367,370,373,375-376,379,381-382,385,387-388,391,393,395-398,400-402,404,406,408,410,412,414-427,429,431,433-443,445-474,476-502,505-527,529-542,544-562,564,566-595,597-619,621-644,646-682,685,687-693,695,697,699-701,703-704,706-707,709-711,713,715-718,720,723-724,726-728,731,734-735,737-738,740-741,744,746-748
+.codex/skills/k8s-manifest-generator/skillrun.yaml
+  h_56c22cd4a131f7 1-10
+.codex/skills/plannotator-compound/SKILL.md
+  h_56c22cd4a131f7 1-9,11,13-15,17-18,20,22,24-27,29-36,38-39,41,43,45-46,48-49,51,53-58,61-63,65-67,69,71-78,80,82-86,88-89,91-92,94,96-97,99-106,108-111,113-114,116-120,123-125,127-131,133-135,137,139-142,144,146-147,149-151,153-156,158-161,163,165-167,169,171-172,174-175,177-178,180-184,186-187,189,191-193,195-197,199-200,202,204-205,208-247,250,252-254,256-258,260,262-264,266,268,270-271,273,275-278,280-283,285-291,294-295,297,299-302,304-305,307,309-310,313-523,525-575
+.codex/skills/plannotator-compound/assets/report-template.html
+  h_56c22cd4a131f7 1-795
+.codex/skills/plannotator-compound/references/claude-code-fallback.md
+  h_56c22cd4a131f7 1,3,5-6,8,10-12,14,16,18,20,22-23,25,27-29,31-32,34,36,38-39,42,44,47-50,53,55-58,60,62,64,66,68-72,74,76,78,80-90,92,94-95,97,99-102,104-105,107,109-113,115-116,118,120,122,124-126,128-129,131-132,134-136,138-178,180-182,184,186,188-195,197-199,201,203-206,208-209,211,213,215,217-221,223,225,227,229-231,233,235,237-238,240,242-244,246,248-250,252,254,256-262,264,266-268,270,272,274-279,282
+.codex/skills/plannotator-compound/scripts/extract_exit_plan_mode_outcomes.py
+  h_56c22cd4a131f7 1-323,325-537,541-820
+.codex/skills/plannotator-setup-goal/SKILL.md
+  h_56c22cd4a131f7 1-5,7,9,11,13,15,17,19-21,23,25,27,29-30,32-36,38,40,42,44,46-53,55,57,59,61-78,80,84,86,88-90,92,94-96,98,100,102-104,106,108,110-130,134,136-138,140,142-144,146,148,150,152,154,156-159,161,163-164,167,169,171,173-176,178,180-182
+.codex/skills/plannotator-setup-goal/SKILL.test.ts
+  h_56c22cd4a131f7 1-40
+.codex/skills/plannotator-setup-goal/agents/openai.yaml
+  h_56c22cd4a131f7 1-4
+.codex/skills/plannotator-visual-explainer/SKILL.md
+  h_56c22cd4a131f7 1-9,11,13,15,17,19,21,23,25-33,35,38-41,43,45,47,49-51,53,55-62,64,66,68,70,72,74,76-78,80,82-89,91,93,95,97,99,101-117
+.codex/skills/plannotator-visual-explainer/SKILL.test.ts
+  h_56c22cd4a131f7 1-25,28-47,49-51,53,56-104,106-150,152-157,159-184,186-197
+.codex/skills/plannotator-visual-explainer/references/design-system.md
+  h_56c22cd4a131f7 1-560
+.codex/skills/plannotator-visual-explainer/references/pr-components.md
+  h_56c22cd4a131f7 1-30,32-41,43-45,47,49-56,58-67,69-77,79-83,86-121,123-143,145-153,155-163,165-180,182-185,187-191,193-200,202-204,206-210,213-220,222-241,243-248,251-263,265-267,269-273,275-279,281-285,287-289,291,294-352,354-363,365-366,368-371,373-376,379-385,387-394,396-402,404-405,409-434,436-438,440-445,447-449,451-458,460-461,463-466,470-503,505-518,520-525,527-532,534-549,551-557,559-567,570-578,580-583,585-594,598-639,641-644,646-650,652-674,676-677,679-684,686-697,699-705,707-710,712-717
+.codex/skills/plannotator-visual-explainer/references/svg-patterns.md
+  h_56c22cd4a131f7 1-40,43,45,47,49,51-61,64-77,80,82-86,88-91,93-97,100,102,104-107,110-163,166,168,170-175,178,180-185,188,190-195,198-215,218,220,222-225,228-247,250,252-259,262-319,322-368
+.codex/skills/plannotator-visual-explainer/references/theme-override.md
+  h_56c22cd4a131f7 1,3,5,7,9-10,13-51,54-128,131-154,158,160,162-168,170-175,177-181,184,186-192,195-200
+.codex/skills/prototype/LOGIC.md
+  h_56c22cd4a131f7 1,3,5,7,9-12,14,16,18,20,22,24,26,28-31,33,35,37,39,41,43-46,48,50,52,54,56,58,60,62-67
+.codex/skills/prototype/SKILL.md
+  h_56c22cd4a131f7 1-26
+.codex/skills/prototype/UI.md
+  h_56c22cd4a131f7 1,3,5-38,40,42-70,73-96,98,100,102-103,105,107,109-112
+.codex/skills/prototype/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.codex/skills/research/SKILL.md
+  h_56c22cd4a131f7 1-12
+.codex/skills/research/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.codex/skills/resolving-merge-conflicts/SKILL.md
+  h_56c22cd4a131f7 1-14
+.codex/skills/resolving-merge-conflicts/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.codex/skills/setup-matt-pocock-skills/SKILL.md
+  h_56c22cd4a131f7 2-4,7,9,11-13,15,17,19,21,23-30,32,34,36,38,40,42,44-47,49,51,53,55,57,59,61,63,65-72,74,76-78,80,82,84,86-87,89,91-100,102,104,106-110,112,114,116
+.codex/skills/setup-matt-pocock-skills/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.codex/skills/setup-matt-pocock-skills/domain.md
+  h_56c22cd4a131f7 1,3,5,7-9,11,13,15,18-23,26,29-38,41,43,45,47,49,51
+.codex/skills/setup-matt-pocock-skills/issue-tracker-github.md
+  h_56c22cd4a131f7 1-45
+.codex/skills/setup-matt-pocock-skills/issue-tracker-gitlab.md
+  h_56c22cd4a131f7 1,3,5,7-13,15,17,19-46
+.codex/skills/setup-matt-pocock-skills/issue-tracker-local.md
+  h_56c22cd4a131f7 1,3,5,7-11,13,15,17,19,21,23,25-30
+.codex/skills/setup-matt-pocock-skills/triage-labels.md
+  h_56c22cd4a131f7 1-15
+.codex/skills/tdd/SKILL.md
+  h_56c22cd4a131f7 3,8,10,12,14,18,20,22,24,26,28,30-32,34,36-38
+.codex/skills/tdd/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.codex/skills/tdd/tests.md
+  h_56c22cd4a131f7 62-77
+.codex/skills/teach/GLOSSARY-FORMAT.md
+  h_56c22cd4a131f7 1,3,5,7-8,10,12,14-16,18-20,22-25,27,29-35
+.codex/skills/teach/LEARNING-RECORD-FORMAT.md
+  h_56c22cd4a131f7 1-46
+.codex/skills/teach/MISSION-FORMAT.md
+  h_56c22cd4a131f7 1,3,5,7-8,10-11,13-16,18-19,21-22,25,27-31
+.codex/skills/teach/RESOURCES-FORMAT.md
+  h_56c22cd4a131f7 1-32
+.codex/skills/teach/SKILL.md
+  h_56c22cd4a131f7 1-6,8,10,12,14-20,22,24,26-28,30,32,34,36,38-39,41,43-45,47,49,51,53,55,57,59,61,63,65,67,69-140
+.codex/skills/teach/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.codex/skills/to-questionnaire/SKILL.md
+  h_56c22cd4a131f7 1-53
+.codex/skills/to-questionnaire/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.codex/skills/to-spec/SKILL.md
+  h_56c22cd4a131f7 1-5,7,9,11,13,15,17,19,21,23,25-75
+.codex/skills/to-spec/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.codex/skills/to-tickets/SKILL.md
+  h_56c22cd4a131f7 2-4,7,9,11,17,21,23,25,27,30-31,33-35,38-41,44,47-48,53-54,58-75,77,79-82,85,88,92,101,105
+.codex/skills/to-tickets/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.codex/skills/triage/AGENT-BRIEF.md
+  h_56c22cd4a131f7 1-207
+.codex/skills/triage/OUT-OF-SCOPE.md
+  h_56c22cd4a131f7 1,3,5-6,8,10-14,17,19,21,23-24,26,28-35,37-45,49,51-54,56,58,60,62,64-66,68,70,72,74-76,78,80-82,84,86,88,90,92-97,99,101,103-105
+.codex/skills/triage/SKILL.md
+  h_56c22cd4a131f7 2-4,7,9,11,13,15-17,19,21-22,24,26,28-29,31,33-37,39,41,43,45,47,49-56,58,60-62,64,66,68,70,72,74,76,78-86,88,90,92,94-95,97-106,108,110,112
+.codex/skills/triage/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.codex/skills/wait-what/SKILL.md
+  h_56c22cd4a131f7 1-7
+.codex/skills/wait-what/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.codex/skills/wayfinder/SKILL.md
+  h_56c22cd4a131f7 1-128
+.codex/skills/wayfinder/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.codex/skills/wizard/SKILL.md
+  h_56c22cd4a131f7 1-4,6,8,10,12,14,16,18,20-21,23,25,27,29,31,33,35,37,39,41-44
+.codex/skills/wizard/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.codex/skills/wizard/template.sh
+  h_56c22cd4a131f7 1-35,37-204
+.codex/skills/writing-for-agents/SKILL-MECHANICS.md
+  h_56c22cd4a131f7 1,3,5,7,9-10,12,14,16,18,20,22
+.codex/skills/writing-for-agents/SKILL.md
+  h_56c22cd4a131f7 2-3,6,8,10,12,14,16-18,20,22,24-25,27,29,31,33-35,37,39,41,43,45,47,49-50,52,54,56,58-59,61,63,65,67,69-70,72,74,76,78-81
+.codex/skills/writing-for-agents/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.opencode/commands/telemetry-inspect.md
+  h_56c22cd4a131f7 1-10
+.opencode/commands/telemetry-report.md
+  h_56c22cd4a131f7 1-3,5,8
+.opencode/skills/analyzing-dotnet-performance/SKILL.md
+  h_56c22cd4a131f7 2-7,11,13,17-20,24-25,31-34,38,40,42,44,46,48-54,56,58-61,63,65,67,69-94,96-100,102,104,106,108,110,112-115,117,119,121-125,127-130,132-136,138,140,142,144-172,176-182,186-196
+.opencode/skills/analyzing-dotnet-performance/references/async-patterns.md
+  h_56c22cd4a131f7 1,3-4,6-14,17,19-74,77-103,106-107,109-112
+.opencode/skills/analyzing-dotnet-performance/references/collections-and-linq.md
+  h_56c22cd4a131f7 1,3-4,6,8,10-11,13,15-16,18-19,22,24-25,27,29-30,32,34-37,39,41-42,44-47,49,51-52,55,57-58,60-67,70,72-73,75,77-87,89,91-92,94-98,100,102-107,109,111-112,114-116,118,120-123,126,128-129,131-134,136,138,142,144-145,147,149-150,152-154,156-158,160-161,163-164,166-167,169-171,175,177,179,181-183,185-186,188-189,191-192,194-195,197-198,201,203,205-207
+.opencode/skills/analyzing-dotnet-performance/references/critical-patterns.md
+  h_56c22cd4a131f7 1,3,5,7-8,10,12-13,15,17-18,20,22-23,25,27-33,35-37,39-40,42,44,46-50,52-53,55,57-65,67-68,70-73,75-80,82-83,85,87-93,95,97-98,100-102,104,106,108,110-111,113-117,119-121,123,125-126,128-131,133,135-136,138,140-141,143,145-151,153-154,156-166,168-169,171-179,181,183-184,186,188-197,199,201-202,204-206,208-214,216-217,219,221-228,230,232-233,235-238,240-246,248,250-251,253,255,257,259-260,262,264,266,268-270,272-273,275-276,278-279
+.opencode/skills/analyzing-dotnet-performance/references/io-and-serialization.md
+  h_56c22cd4a131f7 1,3-4,6-15,17,19-20,22-29,31-33,35,37-38,40-43,45-48,51,53-54,56-65,68,70-71,73-76,78-81,83-84,87,89-90,92-98,100-108,110,112,115-119,121-124
+.opencode/skills/analyzing-dotnet-performance/references/memory-and-strings.md
+  h_56c22cd4a131f7 1,3-4,6-14,16,18-19,21-29,32,34-35,37-45,48,50-51,53-55,57-59,61,65,67-68,70-77,79,81-82,84-94,97,99-100,102-110,113,115-116,118,120-128,130,132-139,142,144-155,158,160-161,163-165,167-178,181,183,185,188-189,191-192,194-195,197-198,200-205
+.opencode/skills/analyzing-dotnet-performance/references/regex-patterns.md
+  h_56c22cd4a131f7 1-95
+.opencode/skills/analyzing-dotnet-performance/references/structural-patterns.md
+  h_56c22cd4a131f7 1,3,5-6,8,10,12-14,16-17,20,22-25,27-30,33,35-38
+.opencode/skills/ask-matt/PHASE-BOUNDARIES.md
+  h_56c22cd4a131f7 1-55
+.opencode/skills/ask-matt/SKILL.md
+  h_56c22cd4a131f7 1-90
+.opencode/skills/ask-matt/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.opencode/skills/code-review/SKILL.md
+  h_56c22cd4a131f7 1-87
+.opencode/skills/code-review/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.opencode/skills/codebase-design/DEEPENING.md
+  h_56c22cd4a131f7 1-37
+.opencode/skills/codebase-design/DESIGN-IT-TWICE.md
+  h_56c22cd4a131f7 1-44
+.opencode/skills/codebase-design/SKILL.md
+  h_56c22cd4a131f7 1-67,71,83,95-114
+.opencode/skills/codebase-design/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.opencode/skills/coverage-analysis/SKILL.md
+  h_56c22cd4a131f7 2-15,18,20,22,24-27,29,31,33,35,37-40,42,44-50,52,54-57,59,61-63,65,67,69-71,73,75,77,79,81,83-84,86-97,101-117,121-129,132-168,171,174-177,179,181-185,188,190,192,194-199,201-210,214-216,218-219,221,223-236,238-239,241,243,245,247,249-252,254-283,285,287-297,299-306,311,313,315-316,318,320-329,331-356,358,360-371,373-383,385,387-389,391,393-398,401,403-404,406,408,410,412,414,416-421,423,425,427,429-435,437,439,441,443,445-448,450,452,454,456,458,460-462,464,466-489,492,495,497,499-507,509-511,515-523,527-532
+.opencode/skills/coverage-analysis/references/guidelines.md
+  h_56c22cd4a131f7 1,3,5,7,9,11,13,15,17,19,21,23-25,27,29,31,33,35,37,39,41-44,46-57,59
+.opencode/skills/coverage-analysis/references/output-format.md
+  h_56c22cd4a131f7 1,3,5-6,8-14,16,18-24,26-49,51-84,86-87
+.opencode/skills/coverage-analysis/scripts/Compute-CrapScores.ps1
+  h_56c22cd4a131f7 1-20,23-38,41-45,48-53,55-59,62-95,100-127,129-146,149-154,157-164
+.opencode/skills/coverage-analysis/scripts/Extract-MethodCoverage.ps1
+  h_56c22cd4a131f7 1-193
+.opencode/skills/coverage-analysis/skillrun.yaml
+  h_56c22cd4a131f7 1-11
+.opencode/skills/csharp-scripts/SKILL.md
+  h_56c22cd4a131f7 2-3,7,11-13,17-20,26,30-211,213-216,218,220-222,224,226-228,230,232,234,236-238,240-242,244-245,247,249-251,253,255,257-259,261,263,265-268,270,274-279,285-298
+.opencode/skills/csharp/SKILL.md
+  h_56c22cd4a131f7 1-87,90,92-94,96-99,101,103-105,107,109-119,121,123-126,128-131,133-135,139,141-145,147,149-153,155,157-158,160-163,165-167,169-170,172-176,178-182,184,187,189-193,195,197-198,200,202,205,207-209,211-215,217-219,221-227,231-242,244-246
+.opencode/skills/diagnosing-bugs/SKILL.md
+  h_56c22cd4a131f7 1-138
+.opencode/skills/diagnosing-bugs/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.opencode/skills/diagnosing-bugs/scripts/hitl-loop.template.sh
+  h_56c22cd4a131f7 1-16,18,20-23,25-30,32-44
+.opencode/skills/docker/SKILL.md
+  h_56c22cd4a131f7 1-21,23,25-30,32-43,45-50,52-456,458-504,506-519,522-529,531-541,543-549,551-555,558,560,562-580,582-593,595,597-601,604,606-614,616,618-630,632-637,639-641,644,646-657,659,661,663-664,666-668,670-698,701-718,720-721,723-724,726-727,729-730,733-745,747,749-755,757-758,761,763-770,772-774,776,778-783,785-786,788-789,792-803,805,807-809,811-813,815,817-820,822,824-827,829-831,834-836,838-841,843-844,846-847,849-850,852-856,859-869,871-875,877-880,882-883,885-886,889-897,899-906,908-912,914-917,919-920,923-925,927-929,931-934,936,938-948,950-1016
+.opencode/skills/domain-modeling/ADR-FORMAT.md
+  h_56c22cd4a131f7 1-47
+.opencode/skills/domain-modeling/CONTEXT-FORMAT.md
+  h_56c22cd4a131f7 1-60
+.opencode/skills/domain-modeling/SKILL.md
+  h_56c22cd4a131f7 1-4,6,8,10,12,14-21,24,27-37,40,42,44,46,48,50,52,54,56,58,60,62,64,66-72,74
+.opencode/skills/domain-modeling/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.opencode/skills/git-pushing/.opencode/commands/telemetry-inspect.md
+  h_56c22cd4a131f7 1-10
+.opencode/skills/git-pushing/.opencode/commands/telemetry-report.md
+  h_56c22cd4a131f7 1-9
+.opencode/skills/git-pushing/SKILL.md
+  h_56c22cd4a131f7 1-109
+.opencode/skills/git-pushing/scripts/smart_commit.sh
+  h_56c22cd4a131f7 1-397
+.opencode/skills/git-pushing/skillrun.yaml
+  h_56c22cd4a131f7 1-14
+.opencode/skills/golang-context/SKILL.md
+  h_56c22cd4a131f7 2-3,6,9,11,18-19,22,24,26,28,30-40,42,44-50,52,54,56-60,62-66,68,70,72,74,78-85
+.opencode/skills/golang-context/evals/evals.json
+  h_56c22cd4a131f7 4-7,9-13,18-21,23-27,32-35,37-41,46-49,51-55,60-63,65-69,74-77,79-83,88-91,93-97,102-105,107-111,116-119,121-125,130-133,135-139
+.opencode/skills/golang-context/references/cancellation.md
+  h_56c22cd4a131f7 1,3,5,8-10,12-17,19-23,25,29,31,34-38,40-44,48-51,53-55,57,61,64-72,74,78,80,83-85,87-89,92,94,96,99-109,114,116-124,126,128,132,134,137-147,149,151,153-155,157-161,163-166,168,172
+.opencode/skills/golang-context/references/http-services.md
+  h_56c22cd4a131f7 1,3,5,8-9,11,13-16,20-21,25,27,30-54,57-59,61,64-70,74,76,79-82,85-87,89,91,95-100,102-107
+.opencode/skills/golang-context/references/values-tracing.md
+  h_56c22cd4a131f7 1,3,5,7,9-11,13-16,18-20,22-24,29-33,35-42,44,46,48-66,68-74,77-78
+.opencode/skills/golang-data-structures/SKILL.md
+  h_56c22cd4a131f7 2-3,6,9,11,17-19,22,24,26,30-37,39,41,43,45-47,49,52-53,55-56,58-59,62,64,66,68,70,72,75,78,80-85,87,89,91-93,96-98,101,103,105-110,112,114,116,118,120,123-126,129,131,133-137,139,141,143-151,153,155,157-159,161,165-170,176-186
+.opencode/skills/golang-data-structures/evals/evals.json
+  h_56c22cd4a131f7 4-6,8-10,15-17,19-21,26-28,30-32,37-39,41-43,48-50,52-54,59-61,63-65,70-72,74-76,81-83,85-88,93-95,97-99,104-106,108-110,115-117,119-121,126-128,130-132,137-139,141-145,150-152,154-158,163-165,167-171,176-178,180-184,189-197
+.opencode/skills/golang-data-structures/references/containers.md
+  h_56c22cd4a131f7 1,3,5,7,9-16,18,20-22,24,26,28,30-33,35,37,39,41-48,50,52,54,56-61,63,65,68-72,75-78,80-81,84,86,88,90,92,94,96,98
+.opencode/skills/golang-data-structures/references/generics.md
+  h_56c22cd4a131f7 1,3,5,7-12,14,16-20,22-26,29,31,33-34,36-42,44-47,49-58,61,63-67,70,72,74-77,81,83-86,88,90
+.opencode/skills/golang-data-structures/references/map-internals.md
+  h_56c22cd4a131f7 1,3,5,7-10,12,14,16-20,22,24-26,28-30,32,34,36,38-40,42-44,46,48,50-54,56,58,60-67
+.opencode/skills/golang-data-structures/references/pointers.md
+  h_56c22cd4a131f7 1,3,5,7,10-12,15-17,21,23,25,27-29,32,34,36,38,40,43-45,48,50-53,55,58,61,64,67,69-73,75-77,79,81-87,89,91,93,96-97,99-102,106,108-109,111-118
+.opencode/skills/golang-data-structures/references/slice-internals.md
+  h_56c22cd4a131f7 1,3,5,7-9,11,13,15,17-18,20,22,24-28,31-34,38,40-46,48,50-55
+.opencode/skills/golang-documentation/SKILL.md
+  h_56c22cd4a131f7 2-3,6,9,11,16-19,22,24,28-29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61-62,64,66-67,69,71,73,75,77-91,93,95,97,99-101,103,105,107,110-139,143,145,147,149-157,159,161-162,165,167,169,171,173,175,177-182,184,186,188,190-192,194,196,198,200-204,206,208,210,212-215,217,219,221,224,227,229-231,233-234,236-237,239-240
+.opencode/skills/golang-documentation/assets/templates/CHANGELOG.md
+  h_56c22cd4a131f7 1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33-36
+.opencode/skills/golang-documentation/assets/templates/CONTRIBUTING.md
+  h_56c22cd4a131f7 1,3,5,7-9,11,14-16,18-19,21-22,24-25,27-28,31,33-39,41,43-46,48,50-55
+.opencode/skills/golang-documentation/assets/templates/README.md
+  h_56c22cd4a131f7 1,3,5,7-11,13,15-17,19-20,23,25,27-28,31-32,34,36-37,41,43,45,47-53,55,57-58,61,64-65,68,71,74,77,80,82,84-86,88,90,92,94,96,98-107,109-110,112-114,116,118
+.opencode/skills/golang-documentation/assets/templates/llms.txt
+  h_56c22cd4a131f7 1,3,5,7,9,11-12,18,20-21,25-36,38-45,48,51,54,57-60,62,64-67
+.opencode/skills/golang-documentation/evals/evals.json
+  h_56c22cd4a131f7 2,6-29,34-57,62-82,87-110,115-138,143-166,171-194,199-222,227-250,255-278,283-306,311-334,339-362,367-390,395-418,423-446,451-474,479-502,507-530,535-558,563-578
+.opencode/skills/golang-documentation/references/application.md
+  h_56c22cd4a131f7 1,3,5,7,9-32,35,37,39,41-42,44,46-49,51,53-58,60-72,74,76,78,80,82-88,91,93-94,96,98,100,102-107,110,112,114,116,118-130,132-136,139-161,163,165,167-168,170-174,176-188,192-197,199,201,203-210
+.opencode/skills/golang-documentation/references/code-comments.md
+  h_56c22cd4a131f7 1,3,5,7,9,11-14,16,19-20,23,26-32,35,37-44,46,48,51,54,56,59-84,87,89-97,99,101,103,106-118,121,123,126-129,132,134,137-156,160,163-171,174,176,179-187,190,192,195-204,206,208,210,212,214-215,218-223,226,229-246,249,251,254-298,301,303,305-309,311,313,316-328
+.opencode/skills/golang-documentation/references/library.md
+  h_56c22cd4a131f7 1,3,5,7,9-22,24,26,28,30,32,35-43,46-56,58,60,63-70,72-78,81-85,89,91-95,97,99,101,103,106-125,128,130,132,134,136-142,144,146-156,159,161,163,165,167-168,170,172,174,176-182,184,186,188,190,192,194-197
+.opencode/skills/golang-documentation/references/project-docs.md
+  h_56c22cd4a131f7 1,3,5,7,9,11,13-20,22,24,26,28,30,32,34,36-42,44,46,48,50,52-53,55,57,59,61,63,65,67,69,71,74,76-81,83,85,87,89,91,93-96,98,100,102-109,111-114
+.opencode/skills/golang-gopls/SKILL.md
+  h_56c22cd4a131f7 2-3,6,9,11,16,18-24,27,29,31,33,35,37-39,41,43,45,47,49-54,56,58,60,62,64-67,69,71-77,79,81-84,86,88,90-92,94
+.opencode/skills/golang-gopls/references/cli.md
+  h_56c22cd4a131f7 1,3,5,7-15,17,19,21-26,29,31,33-42,44,46,48,50-80,82,84,86-90,92,94,96,98-121,124,126,128-141,143,145,148-176
+.opencode/skills/golang-gopls/references/features.md
+  h_56c22cd4a131f7 1-136
+.opencode/skills/golang-gopls/references/matrix.md
+  h_56c22cd4a131f7 1-35
+.opencode/skills/golang-gopls/references/mcp.md
+  h_56c22cd4a131f7 1,3,5-9,11,13,15-17,19,21,23,25-26,29,31,33,35-44,46,48,50,52,54-56,58,60-66,68,70,72,74,76,78-79,81
+.opencode/skills/golang-gopls/references/settings.md
+  h_56c22cd4a131f7 1,3,5,7-12,14,16-22,24,26,28-31,33,35,37-42,44,46,48-52,54,56-58,60,62-66,69,71,73-76,80
+.opencode/skills/golang-how-to/SKILL.md
+  h_56c22cd4a131f7 2-3,6,9,11,16,19-21,24,28-30,32,34,36,38,40,42-154,156,158,160
+.opencode/skills/golang-how-to/assets/cursor-go-skills.mdc
+  h_56c22cd4a131f7 1-14
+.opencode/skills/golang-how-to/references/by-category.md
+  h_56c22cd4a131f7 1-383
+.opencode/skills/golang-how-to/references/disambiguation.md
+  h_56c22cd4a131f7 1,3,5,7,9,11-16,18,20-23,25,27,29,31-37,39,41-44,46,48,50,52-56,58,60-63,65,67,69,71-75,77,79-81,83,85,87,89-94,96,98-101,103,105,107-111,113,115-118,120,122,124-127,129,131-133,135,137,139,141-144,146,148,150-153,155,157,159,161,163-166,168,170,172-174,176,178,180,182,184-187,189,191-194,196,198,200,202,204-207,209,211,213-216,218,220,222,224-229,231,233,235-240,242,244,246,248,250,252-259,261,263,265-269
+.opencode/skills/golang-how-to/references/project-config.md
+  h_56c22cd4a131f7 1,3,5-6,8,10-13,15,17,19,21-22,25,27-28,30,32-33,35,37,39-40,43,45,47,49-55,57,59,61,63-66,68,70,72,74,76,78-89,92,94-99,101,103,105,107-108,110,112,114-117,119,121,123-125,127,129,131,133,135,137,139-143,145,147,149,151-153,155
+.opencode/skills/golang-performance/SKILL.md
+  h_56c22cd4a131f7 2-3,6,9,11,16-23,26,28,30,32,34-36,38,40,42,44,46-48,50,52,54,56,58,60,62-69,71,73,75,77-86,92-98,100,102-107,109-113,115-121
+.opencode/skills/golang-performance/assets/prometheus-alerts.yml
+  h_56c22cd4a131f7 1-20
+.opencode/skills/golang-performance/evals/evals.json
+  h_56c22cd4a131f7 4-7,9-13,18-21,23-27,32-35,37-41,46-49,51-54,59-62,64-66,71-74,76-77,82-85,87-90,95-98,100-103,108-111,113-116,121-124,126-128,133-136,138-141,146-149,151-155,160-163,165-169,174-177,179-182,187-190,192-196,201-204,206-209,214-217,219-222,227-230,232-236,241-244,246-249,254-257,259-262,267-270,272-276,281-284,286-290,295-298,300-303,308-311,313-317,322-325,327-330,335-338,340-342,347-350,352-356,361-364,366-368,373-376,378-381,386-389,391-393,398-401,403-406,411-414,416-420,425-428,430-433,438-441,443-446,451-454,456-460,465-468,470-473,478-885
+.opencode/skills/golang-performance/references/caching.md
+  h_56c22cd4a131f7 1-183
+.opencode/skills/golang-performance/references/cpu.md
+  h_56c22cd4a131f7 1-375
+.opencode/skills/golang-performance/references/io-networking.md
+  h_56c22cd4a131f7 1,3,5,7,9,11,13-29,31,34-36,39-52,54,56,59-62,65,67-71,74-82,85,87,89,92-96,100,102,104,106,108-111,113,115,117-119,122-124,127-131,134,136,138,140,143-149,152,154,156,158,160,162-166,169,171-178,181-208,211,213,215,217-220,222,224-227,229,231-239,242-258,261,263,265,267-272,274-277,279,281,283-299
+.opencode/skills/golang-performance/references/memory.md
+  h_56c22cd4a131f7 1,3,5,7,9,11,14-15,17-18,21,23,26-28,30-32,35,37,39,42-46,49-51,54,57,59,62,64-66,70,72,74,77-78,80-81,83-84,87,89,91,93,96-97,99-103,107,109,112-116,119,121,123-128,132,134,136,138,140-142,144,147-151,154-157,159,161-164,167,169-172,174,176,178,180,182,185-199,202,204,206,208,211-212,214-215,218,220,222,224,226,229-230,233
+.opencode/skills/golang-performance/references/observability.md
+  h_56c22cd4a131f7 1,3,5,7,9,11,13,15-19,21,23-27,29,31-34,36,38-41,43,45-48,50-52,54,56,58,60-87,90,92,94,96,98-101
+.opencode/skills/golang-performance/references/runtime.md
+  h_56c22cd4a131f7 1-222
+.opencode/skills/grill-me/SKILL.md
+  h_56c22cd4a131f7 1-5,7
+.opencode/skills/grill-me/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.opencode/skills/grill-with-docs/SKILL.md
+  h_56c22cd4a131f7 1-7
+.opencode/skills/grill-with-docs/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.opencode/skills/grilling/SKILL.md
+  h_56c22cd4a131f7 1-22
+.opencode/skills/grilling/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.opencode/skills/handoff/SKILL.md
+  h_56c22cd4a131f7 1-16
+.opencode/skills/handoff/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.opencode/skills/implement/SKILL.md
+  h_56c22cd4a131f7 1-15
+.opencode/skills/implement/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.opencode/skills/improve-codebase-architecture/HTML-REPORT.md
+  h_56c22cd4a131f7 1-34,36,38,40,42,44,46-53,55,57,59,61,63,65-76,78,80,82,84,86,88,90,92,94,96-100,102,104,106,108,110,112,114,116-119,121,123
+.opencode/skills/improve-codebase-architecture/SKILL.md
+  h_56c22cd4a131f7 1-71
+.opencode/skills/improve-codebase-architecture/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.opencode/skills/k8s-manifest-generator/SKILL.md
+  h_56c22cd4a131f7 2-3,6,8-12,16-108,110-144,146-167,169-190,192-225,227-252,254-269,271-301,303,305-310,312,314,316-324,327,329-336,339,341,343,345-363,365,368-376,378-388,391,393,395-397,399-400,402-403,405-406,408-409,412,414-420,422,424-485,489-534
+.opencode/skills/k8s-manifest-generator/assets/configmap-template.yaml
+  h_56c22cd4a131f7 1-296
+.opencode/skills/k8s-manifest-generator/assets/deployment-template.yaml
+  h_56c22cd4a131f7 1-203
+.opencode/skills/k8s-manifest-generator/assets/service-template.yaml
+  h_56c22cd4a131f7 1-171
+.opencode/skills/k8s-manifest-generator/references/deployment-spec.md
+  h_56c22cd4a131f7 1-780
+.opencode/skills/k8s-manifest-generator/references/service-spec.md
+  h_56c22cd4a131f7 1-748
+.opencode/skills/k8s-manifest-generator/skillrun.yaml
+  h_56c22cd4a131f7 1-10
+.opencode/skills/plannotator-compound/SKILL.md
+  h_56c22cd4a131f7 1-575
+.opencode/skills/plannotator-compound/assets/report-template.html
+  h_56c22cd4a131f7 1-795
+.opencode/skills/plannotator-compound/references/claude-code-fallback.md
+  h_56c22cd4a131f7 1,3,5-6,8,10-12,14,16,18,20-29,31-36,39,42,44,46-51,53,55-58,60,62,64,66,68-72,74,76,78,80-90,92,94-95,97,99-102,104-105,107,109-113,115-116,118,120,122,124-126,128-129,131-136,138-178,180-181,184,186,188-195,197-199,201,203-206,208-209,211,213,215,217-221,223,225,227,229-231,233,235,237-238,240,242-244,246,248-250,252,254,256-262,264,266-268,270,272-280,282
+.opencode/skills/plannotator-compound/scripts/extract_exit_plan_mode_outcomes.py
+  h_56c22cd4a131f7 1-820
+.opencode/skills/plannotator-setup-goal/SKILL.md
+  h_56c22cd4a131f7 1-182
+.opencode/skills/plannotator-setup-goal/SKILL.test.ts
+  h_56c22cd4a131f7 1-40
+.opencode/skills/plannotator-setup-goal/agents/openai.yaml
+  h_56c22cd4a131f7 1-4
+.opencode/skills/plannotator-visual-explainer/SKILL.md
+  h_56c22cd4a131f7 1-117
+.opencode/skills/plannotator-visual-explainer/SKILL.test.ts
+  h_56c22cd4a131f7 1-197
+.opencode/skills/plannotator-visual-explainer/references/design-system.md
+  h_56c22cd4a131f7 1-560
+.opencode/skills/plannotator-visual-explainer/references/pr-components.md
+  h_56c22cd4a131f7 1-717
+.opencode/skills/plannotator-visual-explainer/references/svg-patterns.md
+  h_56c22cd4a131f7 1-41,43,45,47,49,51-62,64-77,79-97,100,102,104-108,110-163,165-175,178,180-186,188,190-195,197-215,218,220-368
+.opencode/skills/plannotator-visual-explainer/references/theme-override.md
+  h_56c22cd4a131f7 1,3,5,7,9-10,13-51,54-128,131-155,158-181,184-200
+.opencode/skills/prototype/LOGIC.md
+  h_56c22cd4a131f7 1-67
+.opencode/skills/prototype/SKILL.md
+  h_56c22cd4a131f7 1-26
+.opencode/skills/prototype/UI.md
+  h_56c22cd4a131f7 1-112
+.opencode/skills/prototype/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.opencode/skills/python-anti-patterns/SKILL.md
+  h_56c22cd4a131f7 2-3,6,8,12-16,18,20,22,24-39,41,43-48,50,52-57,59,61,64-66,68-69,72,75-76,78-80,82-83,85,87,90-93,96,98-104,106,108-116,119,122-127,130,132,135-139,142,144-154,156,159-160,162-163,166,168,170-180,183,185-189,191,194-197,200,202,205-208,211-218,220,223-227,229-236,239-241,244-247,249-262,265,267-271,273,275,277-282,284,286-300,302,304-312,314-349
+.opencode/skills/python-code-style/SKILL.md
+  h_56c22cd4a131f7 2-3,6,8,12-17,21,23,25,27,29,31,33,35,39-49,54-75,77-80,82,84-91,93-105,108,110-114,116-120,122-131,134-139,141-142,144-147,150-156,159,161,163-167,169-172,174-176,179,181-183,185-186,191,193-195,198-201,203-233,236,239-262,265,267,269-293,296,298,300-301,303,305,307-309,311,313-314,316-318,320-324,326-329,332-347,351-360
+.opencode/skills/python-configuration/SKILL.md
+  h_56c22cd4a131f7 2-3,6,8,12-17,21,23,25,27,29,31,33,35,40-48,53,55,58-73,75-86,88-104,107,109,112-114,116-119,121-134,137,139-141,144-147,149-151,153-156,159,161-166,168,170,172-187,189-191,194-195,198,200,203-204,206-208,210-214,216-221,224,226-234,237-239,241-244,246-250,252-253,255-258,260-263,265-269,272,274,277-298,302,304-311,313,315,317-320,322-324,326-329,331,333,335,337-354,359-368
+.opencode/skills/python-performance-optimization/SKILL.md
+  h_56c22cd4a131f7 2-3,6,8,12-20,24,26-29,31,33-36,38,40-44,48,50-51,53-55,57-58,60-62,64-71,74,76,78-81,83-88,90-92,94-98,100-103,105,107,109-112,114-115,118,120-128,131,134-147,150,153,155-161,164-165,167,169-170,172,175,178,180,182-186,188-189,191-192,194,196-197,199-200,203,206,208-209,211-212,214-218,221,223-254,257-270,272-280,282,284-313,315,317-348,350,352-380,382,384-410,413-437
+.opencode/skills/python-performance-optimization/references/advanced-patterns.md
+  h_56c22cd4a131f7 1,3,5,7,9-11,13-15,17-19,21,23-24,26-28,30-35,37-41,43-44,46-49,51,54-55,57-61,63-68,70-71,73-74,76-77,79-80,83,86,88-93,95-97,99-102,104-106,108-109,111-117,119,122-150,153,156-198,201,203,206-244,247,250-253,255-258,260-261,263-272,275,277,280-289,291,293-322,325-339,342,344-373,375-377,380-381,383-398,400-401,403,405-406,408-411,413-416,418
+.opencode/skills/python-pro/SKILL.md
+  h_56c22cd4a131f7 1-149
+.opencode/skills/python-type-safety/SKILL.md
+  h_56c22cd4a131f7 2-3,6,8,12-17,21,23,25,27,29,31,33,35,40-48,53,55,58-60,62-67,69-71,73-75,77-78,80-83,85,87,89,91-97,99-102,106,108,111-112,114-115,117-121,123-128,130,132,134-135,137-138,140-141,143-151,153-182,187,189,192-193,195-221,223,225-229,232,234,237-238,240,242-255,258,260,263,265-267,269-270,272-274,276-280,282-320,322-327,330-332,334,337-339,341-361,363-384,387-388,390-394,396,398,400-409,412-420,423-432
+.opencode/skills/research/SKILL.md
+  h_56c22cd4a131f7 1-12
+.opencode/skills/research/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.opencode/skills/resolving-merge-conflicts/SKILL.md
+  h_56c22cd4a131f7 1-14
+.opencode/skills/resolving-merge-conflicts/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.opencode/skills/setup-matt-pocock-skills/SKILL.md
+  h_56c22cd4a131f7 1-5,7,9,11-13,15,17,19,21,23-30,32,34,36,38,40,42,44-47,49,51,53,55,57,59,61,63,65,67-68,70,72,74,76-78,80,82,84,86-87,89,91,93,95,97,99-100,102,104,106-110,112,114,116
+.opencode/skills/setup-matt-pocock-skills/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.opencode/skills/setup-matt-pocock-skills/domain.md
+  h_56c22cd4a131f7 1-51
+.opencode/skills/setup-matt-pocock-skills/issue-tracker-github.md
+  h_56c22cd4a131f7 1-45
+.opencode/skills/setup-matt-pocock-skills/issue-tracker-gitlab.md
+  h_56c22cd4a131f7 1-46
+.opencode/skills/setup-matt-pocock-skills/issue-tracker-local.md
+  h_56c22cd4a131f7 1-30
+.opencode/skills/setup-matt-pocock-skills/triage-labels.md
+  h_56c22cd4a131f7 1-15
+.opencode/skills/tdd/SKILL.md
+  h_56c22cd4a131f7 1-4,6,8,10,12,14,16,18,20,22,24,26,28,30-32,34,36-38
+.opencode/skills/tdd/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.opencode/skills/tdd/mocking.md
+  h_56c22cd4a131f7 1,3,5-8,10,12-14,16,18,20,22,24-28,30-34,37,39,41-47,49-52,55-59
+.opencode/skills/tdd/tests.md
+  h_56c22cd4a131f7 1,3,5,7-15,17,19-23,25,27,30-35,38,40-45,48-60,63,66-76
+.opencode/skills/teach/GLOSSARY-FORMAT.md
+  h_56c22cd4a131f7 1-35
+.opencode/skills/teach/LEARNING-RECORD-FORMAT.md
+  h_56c22cd4a131f7 1-46
+.opencode/skills/teach/MISSION-FORMAT.md
+  h_56c22cd4a131f7 1-31
+.opencode/skills/teach/RESOURCES-FORMAT.md
+  h_56c22cd4a131f7 1-32
+.opencode/skills/teach/SKILL.md
+  h_56c22cd4a131f7 1-140
+.opencode/skills/teach/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.opencode/skills/to-questionnaire/SKILL.md
+  h_56c22cd4a131f7 1-53
+.opencode/skills/to-questionnaire/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.opencode/skills/to-spec/SKILL.md
+  h_56c22cd4a131f7 1-75
+.opencode/skills/to-spec/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.opencode/skills/to-tickets/SKILL.md
+  h_56c22cd4a131f7 2-4,7,9,11,13,15,17,19,21,23,25,27,29,31-34,36,38,40,42,44,46-48,50,52-54,56,58,60,62-63,65,67,69,71,73,75,77,79-80,82,84,86,88,90,92,94,96-97,99,101,103,105
+.opencode/skills/to-tickets/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.opencode/skills/triage/AGENT-BRIEF.md
+  h_56c22cd4a131f7 1-207
+.opencode/skills/triage/OUT-OF-SCOPE.md
+  h_56c22cd4a131f7 1-105
+.opencode/skills/triage/SKILL.md
+  h_56c22cd4a131f7 1-112
+.opencode/skills/triage/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.opencode/skills/wait-what/SKILL.md
+  h_56c22cd4a131f7 1-7
+.opencode/skills/wait-what/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.opencode/skills/wayfinder/SKILL.md
+  h_56c22cd4a131f7 1-128
+.opencode/skills/wayfinder/agents/openai.yaml
+  h_56c22cd4a131f7 1-5
+.opencode/skills/wizard/SKILL.md
+  h_56c22cd4a131f7 1-44
+.opencode/skills/wizard/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.opencode/skills/wizard/template.sh
+  h_56c22cd4a131f7 1-204
+.opencode/skills/writing-for-agents/SKILL-MECHANICS.md
+  h_56c22cd4a131f7 1,3,5,7,9-10,12,14,16,18,20,22
+.opencode/skills/writing-for-agents/SKILL.md
+  h_56c22cd4a131f7 1-4,6,8,10,12,14,16-18,20,22,24-25,27,29,31,33-35,37,39,41,43,45,47,49-50,52,54,56,58-59,61,63,65,67-81
+.opencode/skills/writing-for-agents/agents/openai.yaml
+  h_56c22cd4a131f7 1-3
+.vscode/settings.json
+  h_56c22cd4a131f7 1-3
+.vscode/tasks.json
+  h_56c22cd4a131f7 7,19
+apm.lock.yaml
+  h_56c22cd4a131f7 1-7533
+apm.yml
+  h_56c22cd4a131f7 1-55
+bin/agent-fitness-functions-serve
+  h_56c22cd4a131f7 5-6,8,15,31,33-35,39,42,47-48
+bin/agent-fitness-functions-test
+  h_56c22cd4a131f7 5-6,9-10,20-26,34,37-38,54,59,61-62,64,66-68,77,85-86,91-92,219
+cmd/agent-fitness-functions/main.go
+  h_56c22cd4a131f7 21-23,36,79,116,132-135,169-171,181,187,191,201,204,210,218,221,227,230
+cmd/agent-fitness-functions/main_test.go
+  h_56c22cd4a131f7 27-28,32,50,70,84,89-92,110-113,123,131-134,151,698,796
+configs/instill/config.json
+  h_56c22cd4a131f7 2-9
+docs/adr/0001-rename-calm-bridge-to-agent-fitness-functions.md
+  h_56c22cd4a131f7 7,9,20-21,23,27
+docs/threshold-exceptions.md
+  h_56c22cd4a131f7 1
+internal/client/devcerts.go
+  h_56c22cd4a131f7 29
+internal/server/checker_integration_test.go
+  h_56c22cd4a131f7 15-16,27-28,30
+requirements.lock
+  h_56c22cd4a131f7 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "55df0f87fb9af5334d36bcf9148c66817b98c426",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
