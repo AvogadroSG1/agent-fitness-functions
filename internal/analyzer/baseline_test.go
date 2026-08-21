@@ -2,10 +2,65 @@ package analyzer
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestCommittedBaselineReportsPreserveCALMNodeWireContract(t *testing.T) {
+	reports, err := filepath.Glob(filepath.Join("..", "..", "baseline-report-*.json"))
+	if err != nil {
+		t.Fatalf("filepath.Glob(baseline reports) error = %v, want nil", err)
+	}
+	if len(reports) == 0 {
+		t.Fatal("baseline reports = 0, want at least 1")
+	}
+	for _, path := range reports {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			content, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("os.ReadFile(%q) error = %v, want nil", path, err)
+			}
+			var report BaselineReport
+			if err := json.Unmarshal(content, &report); err != nil {
+				t.Fatalf("json.Unmarshal(BaselineReport) error = %v, want nil", err)
+			}
+			var raw struct {
+				Results []map[string]json.RawMessage `json:"results"`
+			}
+			if err := json.Unmarshal(content, &raw); err != nil {
+				t.Fatalf("json.Unmarshal(raw baseline report) error = %v, want nil", err)
+			}
+			if len(report.Results) == 0 || len(report.Results) != len(raw.Results) {
+				t.Fatalf("decoded results = %d, raw results = %d, want equal non-zero counts", len(report.Results), len(raw.Results))
+			}
+			for i, result := range report.Results {
+				if _, ok := raw.Results[i]["stack_node"]; ok {
+					t.Fatalf("results[%d] contains stack_node, want only calm_node", i)
+				}
+				calmNode, ok := raw.Results[i]["calm_node"]
+				if !ok || string(calmNode) == `""` || string(calmNode) == "null" {
+					t.Fatalf("raw results[%d] calm_node = %s, %v, want non-empty value", i, calmNode, ok)
+				}
+				encoded, err := json.Marshal(result)
+				if err != nil {
+					t.Fatalf("json.Marshal(results[%d]) error = %v, want nil", i, err)
+				}
+				var roundTrip map[string]json.RawMessage
+				if err := json.Unmarshal(encoded, &roundTrip); err != nil {
+					t.Fatalf("json.Unmarshal(results[%d] round trip) error = %v, want nil", i, err)
+				}
+				if string(roundTrip["calm_node"]) != string(calmNode) {
+					t.Fatalf("round-trip results[%d] calm_node = %s, want %s", i, roundTrip["calm_node"], calmNode)
+				}
+				if _, ok := roundTrip["stack_node"]; ok {
+					t.Fatalf("round-trip results[%d] contains stack_node, want only calm_node", i)
+				}
+			}
+		})
+	}
+}
 
 func TestWriteBaselineReportSummarizesResults(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "baseline-report.json")

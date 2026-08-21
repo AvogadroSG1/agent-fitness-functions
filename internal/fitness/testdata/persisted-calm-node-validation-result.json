@@ -1,0 +1,14 @@
+{
+  "status": "block",
+  "violations": [
+    {
+      "fitness_function": "cyclomatic_complexity",
+      "calm_node": "go-module",
+      "file": "internal/parser/parser.go",
+      "function": "Parse",
+      "value": 10,
+      "limit": 9,
+      "message": "too complex"
+    }
+  ]
+}

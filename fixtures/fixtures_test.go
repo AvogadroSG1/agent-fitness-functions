@@ -2,6 +2,7 @@ package fixtures
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -52,6 +53,7 @@ func TestViolationAndGreenFixturesAreCalibrated(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			result := analyzeFixture(t, tc.language, tc.path)
+			assertAnalysisResultCALMNodeWireContract(t, result)
 			violates := violatesRule(result, tc.rule)
 			if violates != tc.red {
 				t.Fatalf("%s violation = %v, want %v; metrics = %+v %+v %+v", tc.rule, violates, tc.red, result.FileMetric, result.ModuleMetric, result.Imports)
@@ -60,6 +62,25 @@ func TestViolationAndGreenFixturesAreCalibrated(t *testing.T) {
 				t.Fatalf("DDC red fixture has no unused import list: %+v", result.Imports)
 			}
 		})
+	}
+}
+
+func assertAnalysisResultCALMNodeWireContract(t *testing.T, result analyzer.AnalysisResult) {
+	t.Helper()
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("json.Marshal(AnalysisResult) error = %v, want nil", err)
+	}
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("json.Unmarshal(AnalysisResult) error = %v, want nil", err)
+	}
+	if _, ok := payload["stack_node"]; ok {
+		t.Errorf("serialized AnalysisResult contains stack_node, want only calm_node: %s", encoded)
+	}
+	calmNode, ok := payload["calm_node"]
+	if !ok || string(calmNode) == `""` || string(calmNode) == "null" {
+		t.Errorf("serialized AnalysisResult calm_node = %s, %v, want non-empty value", calmNode, ok)
 	}
 }
 

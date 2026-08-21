@@ -52,7 +52,9 @@ def _viol(
 def _run(stdin_data: str, extra_args: list[str] | None = None) -> tuple[str, str, int]:
     """Run format-violations.py as a subprocess. Returns (stdout, stderr, returncode)."""
     cmd = [sys.executable, str(_SCRIPT_PATH)] + (extra_args or [])
-    result = subprocess.run(cmd, input=stdin_data, capture_output=True, text=True)
+    result = subprocess.run(
+        cmd, input=stdin_data, capture_output=True, text=True, check=False
+    )
     return result.stdout, result.stderr, result.returncode
 
 
@@ -199,7 +201,9 @@ def test_build_output_location_is_only_calm_node_when_no_function() -> None:
     assert result["violations"][0]["location"] == "mymodule"
 
 
-def test_build_output_unknown_function_omits_guidance(capsys: pytest.CaptureFixture[str]) -> None:
+def test_build_output_unknown_function_omits_guidance(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     v = _viol(fitness_function="unknown_function")
     result = _fmt._build_output([v], "sample.go", "block", "block")
     assert result is not None
@@ -211,7 +215,11 @@ def test_build_output_unknown_function_omits_guidance(capsys: pytest.CaptureFixt
 
 
 def test_build_output_skips_malformed_entry_continues_with_good() -> None:
-    malformed: dict[str, Any] = {"fitness_function": None, "value": object(), "limit": None}
+    malformed: dict[str, Any] = {
+        "fitness_function": None,
+        "value": object(),
+        "limit": None,
+    }
     good = _viol()
     result = _fmt._build_output([malformed, good], "sample.go", "block", "block")
     assert result is not None
@@ -220,7 +228,11 @@ def test_build_output_skips_malformed_entry_continues_with_good() -> None:
 
 
 def test_build_output_all_malformed_returns_none() -> None:
-    malformed: dict[str, Any] = {"fitness_function": None, "value": object(), "limit": None}
+    malformed: dict[str, Any] = {
+        "fitness_function": None,
+        "value": object(),
+        "limit": None,
+    }
     result = _fmt._build_output([malformed], "sample.go", "block", "block")
     assert result is None
 
@@ -231,22 +243,28 @@ def test_build_output_all_malformed_returns_none() -> None:
 
 
 def test_main_pass_status_produces_no_output() -> None:
-    stdout, _, code = _run('{"status":"pass"}', ["--mode", "block", "--file", "sample.go"])
+    stdout, _, code = _run(
+        '{"status":"pass"}', ["--mode", "block", "--file", "sample.go"]
+    )
     assert code == 0
     assert stdout == ""
 
 
 def test_main_block_produces_valid_yaml() -> None:
-    payload = json.dumps({
-        "status": "block",
-        "violations": [{
-            "fitness_function": "cyclomatic_complexity",
-            "value": 15.0,
-            "limit": 10.0,
-            "function": "Run",
-            "calm_node": "checker",
-        }],
-    })
+    payload = json.dumps(
+        {
+            "status": "block",
+            "violations": [
+                {
+                    "fitness_function": "cyclomatic_complexity",
+                    "value": 15.0,
+                    "limit": 10.0,
+                    "function": "Run",
+                    "calm_node": "checker",
+                }
+            ],
+        }
+    )
     stdout, _, code = _run(payload, ["--mode", "block", "--file", "checker.go"])
     assert code == 0
     assert "calm_check:" in stdout
@@ -255,15 +273,34 @@ def test_main_block_produces_valid_yaml() -> None:
     assert "result: 15" in stdout
 
 
+def test_main_formats_persisted_calm_node_validation_result() -> None:
+    fixture = (
+        Path(__file__).parents[1]
+        / "internal/fitness/testdata/persisted-calm-node-validation-result.json"
+    ).read_text()
+
+    stdout, _, code = _run(
+        fixture,
+        ["--mode", "block", "--file", "internal/parser/parser.go"],
+    )
+
+    assert code == 0
+    assert "location: Parse (go-module)" in stdout
+
+
 def test_main_advisory_produces_yaml_with_advisory_label() -> None:
-    payload = json.dumps({
-        "status": "advisory",
-        "violations": [{
-            "fitness_function": "logic_density",
-            "value": 0.15,
-            "limit": 0.20,
-        }],
-    })
+    payload = json.dumps(
+        {
+            "status": "advisory",
+            "violations": [
+                {
+                    "fitness_function": "logic_density",
+                    "value": 0.15,
+                    "limit": 0.20,
+                }
+            ],
+        }
+    )
     stdout, _, code = _run(payload, ["--mode", "advisory", "--file", "sample.go"])
     assert code == 0
     assert "calm_check:" in stdout
@@ -277,12 +314,16 @@ def test_main_invalid_json_exits_zero_with_warning() -> None:
 
 
 def test_main_violations_wrong_type_exits_zero() -> None:
-    _, _, code = _run('{"status":"block","violations":"bad"}', ["--mode", "block", "--file", "x.go"])
+    _, _, code = _run(
+        '{"status":"block","violations":"bad"}', ["--mode", "block", "--file", "x.go"]
+    )
     assert code == 0
 
 
 def test_main_empty_violations_exits_zero_with_no_output() -> None:
-    stdout, _, code = _run('{"status":"block","violations":[]}', ["--mode", "block", "--file", "x.go"])
+    stdout, _, code = _run(
+        '{"status":"block","violations":[]}', ["--mode", "block", "--file", "x.go"]
+    )
     assert code == 0
     assert stdout == ""
 
