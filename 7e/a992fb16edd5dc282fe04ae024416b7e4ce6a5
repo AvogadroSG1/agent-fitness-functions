@@ -1,0 +1,14 @@
+.beads/config.yaml
+  h_56c22cd4a131f7 55-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "7ea992fb16edd5dc282fe04ae024416b7e4ce6a5",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
