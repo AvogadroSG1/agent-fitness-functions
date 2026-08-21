@@ -1,0 +1,24 @@
+fixtures/fixtures_test.go
+  h_56c22cd4a131f7 5,56,68-86
+hooks/test_format_violations.py
+  h_56c22cd4a131f7 55-57,204-206,218-222,231-235,246-248,254-267,276-290,292-303,317-319,324-326
+internal/analyzer/baseline_test.go
+  h_56c22cd4a131f7 5,11-64
+internal/analyzer/csharp_test.go
+  h_56c22cd4a131f7 5,14-50
+internal/fitness/contract_test.go
+  h_56c22cd4a131f7 5,47-80
+internal/fitness/testdata/persisted-calm-node-validation-result.json
+  h_56c22cd4a131f7 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "78bd1d67d6a0fa37a390f549d44f74534bc571d7",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
