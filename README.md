@@ -1,35 +1,35 @@
-# Stack Fitness Functions
+# agent-fitness-functions
 
-Stack Fitness Functions is a local proof-of-concept architecture-as-code system that uses FINOS CALM fitness functions to evaluate proposed source changes before they are written or committed. The repository path remains `calm-poc` while the product and binary surface are `stack-fitness-functions`.
+agent-fitness-functions is an architecture-as-code system that uses FINOS CALM fitness functions to evaluate proposed source changes before they are written or committed. The CALM self-governance configuration key remains `calm-poc`; the product and binary surface are `agent-fitness-functions`.
 
 See [docs/spec/why-and-what.md](docs/spec/why-and-what.md) and [docs/spec/engineering-spec.md](docs/spec/engineering-spec.md) for the product and engineering specification.
 
 **New to the tool?** The [5-minute quickstart](docs/quickstart-0-to-governed.md) takes a
 fresh repo to a governed coding agent with one command
-(`stack-fitness-functions client onboard`). The
+(`agent-fitness-functions client onboard`). The
 [onboarding runbook](docs/runbooks/onboard-new-repository.md) is the authoritative
 operator reference for both local and production onboarding.
 
 ## Tool Requirements
 
-- Go 1.22 or newer for the `stack-fitness-functions` binary
+- Go 1.22 or newer for the `agent-fitness-functions` binary
 - FINOS CALM CLI 1.40.0 via `npm install -g @finos/calm-cli@1.40.0`
 - `radon` 6.0.1 on `PATH`, or pass `--radon <path>`, for Python baseline analysis
-- .NET 8 SDK for `tools/roslyn-analyzer`; `stack-fitness-functions baseline --language csharp` builds the local analyzer automatically when `--roslyn <path>` is omitted
+- .NET 8 SDK for `tools/roslyn-analyzer`; `agent-fitness-functions baseline --language csharp` builds the local analyzer automatically when `--roslyn <path>` is omitted
 - `pyyaml` 6+ for hook violation formatting: `python3 -m pip install -r hooks/requirements.txt`
 - Docker with BuildKit for validating the container image; the image packages the Go server, FINOS CALM CLI 1.40.0, Python `radon==6.0.1`, and the self-contained .NET 8 Roslyn analyzer.
 
 ## Container Image
 
-The repository includes a multi-stage `Dockerfile` for the containerized stack-fitness-functions service. It builds the Go server, publishes the .NET analyzer, installs FINOS CALM CLI 1.40.0, installs Python plus `radon==6.0.1`, runs as non-root `appuser` uid 1001, and starts with `/app/stack-fitness-functions server start`.
+The repository includes a multi-stage `Dockerfile` for the containerized agent-fitness-functions service. It builds the Go server, publishes the .NET analyzer, installs FINOS CALM CLI 1.40.0, installs Python plus `radon==6.0.1`, runs as non-root `appuser` uid 1001, and starts with `/app/agent-fitness-functions server start`.
 
 Use a Docker-enabled environment to verify the image contract:
 
 ```bash
-docker build --build-arg GIT_SHA="$(git rev-parse --short HEAD)" --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t stack-fitness-functions:local .
+docker build --build-arg GIT_SHA="$(git rev-parse --short HEAD)" --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t agent-fitness-functions:local .
 ```
 
-`docker-compose.yml` provides the local/staging deployment contract. It mounts `./configs`, `./certs`, and `./caller-repos.json` read-only, runs the container as a hardened service, and configures TLS through the `STACK_FITNESS_FUNCTIONS_TLS_CERT/KEY/CA` environment variables.
+`docker-compose.yml` provides the local/staging deployment contract. It mounts `./configs`, `./certs`, and `./caller-repos.json` read-only, runs the container as a hardened service, and configures TLS through the `AGENT_FITNESS_FUNCTIONS_TLS_CERT/KEY/CA` environment variables.
 
 `server start` resolves its TLS material from those environment variables (the `--tls-cert/--tls-key/--tls-ca` flags override them when set). All three must be provided together or the server refuses to start; setting only some — or none while expecting HTTPS — is a configuration error rather than a silent plain-HTTP fallback.
 
@@ -60,7 +60,7 @@ Compose resource limits are local/staging guidance; Swarm enforces `deploy.resou
 
 ## Governance Layer Deployment
 
-The stack-fitness-functions server is an enterprise organization-wide governance layer. The containerized service is the **primary production path**. Every governed repository connects to a shared, centrally operated container instance; governance thresholds and enforcement configuration are authoritative only when served from the container.
+The agent-fitness-functions server is an enterprise organization-wide governance layer. The containerized service is the **primary production path**. Every governed repository connects to a shared, centrally operated container instance; governance thresholds and enforcement configuration are authoritative only when served from the container.
 
 The local `.calm` mode (described in the CLI tools section below) is a **sandbox environment** for developer iteration and demonstration. It does not substitute for the container layer in any production or CI context.
 
@@ -69,7 +69,7 @@ The local `.calm` mode (described in the CLI tools section below) is a **sandbox
 ```
 ┌─────────────────────────────────┐
 │  Container (authoritative)      │
-│  stack-fitness-functions server start │
+│  agent-fitness-functions server start │
 │  configs/<repo>/config.json  ←─ governance source of truth
 │  certs/{server,ca}.{crt,key}    │
 └──────────────┬──────────────────┘
@@ -84,21 +84,21 @@ The local `.calm` mode (described in the CLI tools section below) is a **sandbox
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `STACK_FITNESS_FUNCTIONS_ADDR` | Yes | Full HTTPS URL, e.g. `https://calm-governance.example:7890` |
-| `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE` | Yes (set to `1`) | Opt-in to non-loopback server addresses |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_CERT` | Optional (mTLS) | Path to PEM-encoded client certificate; falls back to `<repo>/certs/client.crt` |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_KEY` | Optional (mTLS) | Path to PEM-encoded client private key; falls back to `<repo>/certs/client.key` |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_CA` | Optional (mTLS) | Path to PEM-encoded CA bundle for server verification; falls back to `<repo>/certs/ca.crt` |
-| `STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR` | Optional | Directory the client and hooks auto-discover dev certs from (default `<repo>/certs`) |
-| `STACK_FITNESS_FUNCTIONS_REPO_NAME` | Recommended | Logical repository name (overrides working-tree basename) |
-| `STACK_FITNESS_FUNCTIONS_ON_ERROR` | Optional | `block` (default) or `advisory` — whether an infrastructure/setup failure blocks the commit or agent edit. Mirrors the server's `enforcement-on-error`; distinct from a real architecture violation. |
+| `AGENT_FITNESS_FUNCTIONS_ADDR` | Yes | Full HTTPS URL, e.g. `https://calm-governance.example:7890` |
+| `AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE` | Yes (set to `1`) | Opt-in to non-loopback server addresses |
+| `AGENT_FITNESS_FUNCTIONS_CLIENT_CERT` | Optional (mTLS) | Path to PEM-encoded client certificate; falls back to `<repo>/certs/client.crt` |
+| `AGENT_FITNESS_FUNCTIONS_CLIENT_KEY` | Optional (mTLS) | Path to PEM-encoded client private key; falls back to `<repo>/certs/client.key` |
+| `AGENT_FITNESS_FUNCTIONS_CLIENT_CA` | Optional (mTLS) | Path to PEM-encoded CA bundle for server verification; falls back to `<repo>/certs/ca.crt` |
+| `AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR` | Optional | Directory the client and hooks auto-discover dev certs from (default `<repo>/certs`) |
+| `AGENT_FITNESS_FUNCTIONS_REPO_NAME` | Recommended | Logical repository name (overrides working-tree basename) |
+| `AGENT_FITNESS_FUNCTIONS_ON_ERROR` | Optional | `block` (default) or `advisory` — whether an infrastructure/setup failure blocks the commit or agent edit. Mirrors the server's `enforcement-on-error`; distinct from a real architecture violation. |
 
-The client and hooks auto-discover mTLS material with **flag > `STACK_FITNESS_FUNCTIONS_CLIENT_*`
+The client and hooks auto-discover mTLS material with **flag > `AGENT_FITNESS_FUNCTIONS_CLIENT_*`
 env > `<repo>/certs`** precedence, so the three `CLIENT_*` variables are only needed when
 credentials live outside `<repo>/certs`. `client onboard` generates dev certs (CN
 `dev-hook-pool`) into `<repo>/certs` automatically.
 
-All hooks enforce HTTPS when `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` is set. Connections over plain HTTP to a non-loopback address are rejected at the hook layer.
+All hooks enforce HTTPS when `AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` is set. Connections over plain HTTP to a non-loopback address are rejected at the hook layer.
 
 ### Setup failures vs. architecture violations
 
@@ -106,9 +106,9 @@ Infrastructure/setup failures (server unreachable, TLS/cert problem, unauthentic
 unauthorized, repo not configured) are **distinct from** fitness-function blocks. `client
 validate` exits `3` with a machine-readable
 `{"status":"error","error_kind":...,"message":...,"remediation":...}` object, and the
-hooks print a labeled `stack-fitness-functions SETUP problem ... (NOT an architecture
+hooks print a labeled `agent-fitness-functions SETUP problem ... (NOT an architecture
 violation)` block with the fix. A real block is a successful check (exit 0, status
-`block`). Run `stack-fitness-functions doctor` to diagnose setup failures; the error-kind
+`block`). Run `agent-fitness-functions doctor` to diagnose setup failures; the error-kind
 table is in the [onboarding runbook](docs/runbooks/onboard-new-repository.md).
 
 ## CLI Tools
@@ -122,38 +122,38 @@ export PATH="$(pwd)/bin:$PATH"
 Or symlink into `~/.local/bin` for a permanent install:
 
 ```bash
-ln -sf "$(pwd)/bin"/stack-fitness-functions-* ~/.local/bin/
+ln -sf "$(pwd)/bin"/agent-fitness-functions-* ~/.local/bin/
 ```
 
 | Command | Purpose |
 |---------|---------|
-| `stack-fitness-functions client onboard [repo]` | **Single-command 0-to-governed** — dev certs, per-repo config scaffold, caller authorization, hook installation, local daemon auto-start, and a `doctor` gate. Idempotent. Flags: `--repo`, `--enforcement advisory\|block` (default `advisory`), `--addr`. See the [quickstart](docs/quickstart-0-to-governed.md). |
-| `stack-fitness-functions doctor` | Ordered ✔/✘/⚠ readiness checks (binary, python3/pyyaml, client cert, CA, server reachability, `/preflight` facts, installed hooks), each with a one-line remediation. Run it anytime to diagnose setup. Flags: `--addr`, `--repo`, `--client-cert/--client-key/--client-ca`. |
-| `stack-fitness-functions client install-hooks [repo]` | Install the embedded Git hooks **and** the agent Edit/Write validation hook into a repository, registering both `PreToolUse` entries in `.claude/settings.json` (no manual settings authoring). See [Onboarding a New Repository](docs/runbooks/onboard-new-repository.md). |
-| `stack-fitness-functions-serve [--build]` | Start the stack-fitness-functions server container via Docker Compose (Docker Desktop) |
-| `stack-fitness-functions-test <file>` | Validate a file's fitness functions against the running server |
+| `agent-fitness-functions client onboard [repo]` | **Single-command 0-to-governed** — dev certs, per-repo config scaffold, caller authorization, hook installation, local daemon auto-start, and a `doctor` gate. Idempotent. Flags: `--repo`, `--enforcement advisory\|block` (default `advisory`), `--addr`. See the [quickstart](docs/quickstart-0-to-governed.md). |
+| `agent-fitness-functions doctor` | Ordered ✔/✘/⚠ readiness checks (binary, python3/pyyaml, client cert, CA, server reachability, `/preflight` facts, installed hooks), each with a one-line remediation. Run it anytime to diagnose setup. Flags: `--addr`, `--repo`, `--client-cert/--client-key/--client-ca`. |
+| `agent-fitness-functions client install-hooks [repo]` | Install the embedded Git hooks **and** the agent Edit/Write validation hook into a repository, registering both `PreToolUse` entries in `.claude/settings.json` (no manual settings authoring). See [Onboarding a New Repository](docs/runbooks/onboard-new-repository.md). |
+| `agent-fitness-functions-serve [--build]` | Start the agent-fitness-functions server container via Docker Compose (Docker Desktop) |
+| `agent-fitness-functions-test <file>` | Validate a file's fitness functions against the running server |
 
 ### Remote Container Hook Mode
 
 For a containerized server, configure hooks with an HTTPS endpoint, mTLS client credentials, and an optional logical repository override:
 
 ```bash
-export STACK_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890
-export STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1
-export STACK_FITNESS_FUNCTIONS_CLIENT_CERT=/path/to/client.crt
-export STACK_FITNESS_FUNCTIONS_CLIENT_KEY=/path/to/client.key
-export STACK_FITNESS_FUNCTIONS_CLIENT_CA=/path/to/ca.crt
-export STACK_FITNESS_FUNCTIONS_REPO_NAME=graft
+export AGENT_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890
+export AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1
+export AGENT_FITNESS_FUNCTIONS_CLIENT_CERT=/path/to/client.crt
+export AGENT_FITNESS_FUNCTIONS_CLIENT_KEY=/path/to/client.key
+export AGENT_FITNESS_FUNCTIONS_CLIENT_CA=/path/to/ca.crt
+export AGENT_FITNESS_FUNCTIONS_REPO_NAME=graft
 ```
 
-When `STACK_FITNESS_FUNCTIONS_ADDR` points at a remote server, `hooks/pre-commit.sh` sends staged content through a temporary content file and uses `STACK_FITNESS_FUNCTIONS_REPO_NAME` or the working-tree basename as the logical `--repo` value.
+When `AGENT_FITNESS_FUNCTIONS_ADDR` points at a remote server, `hooks/pre-commit.sh` sends staged content through a temporary content file and uses `AGENT_FITNESS_FUNCTIONS_REPO_NAME` or the working-tree basename as the logical `--repo` value.
 
 ## Baseline Analysis
 
 Generate a C# baseline from a fresh checkout with:
 
 ```bash
-go run ./cmd/stack-fitness-functions baseline --repo /path/to/repo --language csharp --output baseline-report.json
+go run ./cmd/agent-fitness-functions baseline --repo /path/to/repo --language csharp --output baseline-report.json
 ```
 
 The Roslyn analyzer is also packageable as a local .NET tool:

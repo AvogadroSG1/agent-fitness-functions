@@ -26,7 +26,7 @@ const (
 	devClientCertName = "client.crt"
 	devClientKeyName  = "client.key"
 
-	devCACommonName     = "calm-poc-dev-ca"
+	devCACommonName     = "agent-fitness-functions-dev-ca"
 	devServerCommonName = "localhost"
 	devClientCommonName = "dev-hook-pool"
 

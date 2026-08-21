@@ -2,16 +2,16 @@
 set -euo pipefail
 
 repo=$(git rev-parse --show-toplevel)
-stack_fitness_functions_bin=${STACK_FITNESS_FUNCTIONS_BIN:-stack-fitness-functions}
+AGENT_FITNESS_FUNCTIONS_bin=${AGENT_FITNESS_FUNCTIONS_BIN:-agent-fitness-functions}
 # The container/production server serves HTTPS with mandatory mTLS, so default to
 # an https loopback addr and auto-discover dev client credentials in <repo>/certs.
-# Explicit STACK_FITNESS_FUNCTIONS_CLIENT_* env vars win (12-factor precedence).
-addr=${STACK_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}
-cert_dir=${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-$repo/certs}
-client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/client.crt}
-client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/client.key}
-client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/ca.crt}
-repo_name=${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}
+# Explicit AGENT_FITNESS_FUNCTIONS_CLIENT_* env vars win (12-factor precedence).
+addr=${AGENT_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}
+cert_dir=${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR:-$repo/certs}
+client_cert=${AGENT_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/client.crt}
+client_key=${AGENT_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/client.key}
+client_ca=${AGENT_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/ca.crt}
+repo_name=${AGENT_FITNESS_FUNCTIONS_REPO_NAME:-}
 # Default the governance repo name to the working-tree basename (consistent with
 # pre-commit.sh); the absolute worktree path is not a valid ^[a-z][a-z0-9_-]{0,63}$
 # repo name, so a freshly onboarded repo would otherwise send an invalid --repo.
@@ -49,12 +49,12 @@ PYCHECK
 }
 
 if [[ -n "$addr" ]] && ! bridge_addr_is_loopback "$addr"; then
-  if [[ "${STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE:-}" != "1" ]]; then
-    echo "STACK_FITNESS_FUNCTIONS_ADDR must be loopback unless STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1 is set" >&2
+  if [[ "${AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE:-}" != "1" ]]; then
+    echo "AGENT_FITNESS_FUNCTIONS_ADDR must be loopback unless AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1 is set" >&2
     exit 2
   fi
   if ! bridge_addr_is_https "$addr"; then
-    echo "remote STACK_FITNESS_FUNCTIONS_ADDR must use https" >&2
+    echo "remote AGENT_FITNESS_FUNCTIONS_ADDR must use https" >&2
     exit 2
   fi
 fi
@@ -74,9 +74,9 @@ json_field() {
 
 # On-error policy for infrastructure/setup failures (server down, cert/TLS problem,
 # repo not configured, auth rejected): fail-closed (block) by default, or non-blocking
-# when STACK_FITNESS_FUNCTIONS_ON_ERROR=advisory — mirroring the server-side
+# when AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory — mirroring the server-side
 # enforcement-on-error setting. Real architecture violations are unaffected.
-on_error_mode=${STACK_FITNESS_FUNCTIONS_ON_ERROR:-block}
+on_error_mode=${AGENT_FITNESS_FUNCTIONS_ON_ERROR:-block}
 
 # is_infra_error reports whether a client failure is an infrastructure/setup problem
 # (client exit code 3, or a {"status":"error"} object) rather than a real violation.
@@ -96,7 +96,7 @@ report_infra_error() {
   message=$(printf '%s' "$payload" | json_field message 2>/dev/null || true)
   remediation=$(printf '%s' "$payload" | json_field remediation 2>/dev/null || true)
   {
-    echo "stack-fitness-functions SETUP problem for $file (infrastructure/configuration, NOT an architecture violation)"
+    echo "agent-fitness-functions SETUP problem for $file (infrastructure/configuration, NOT an architecture violation)"
     if [[ -n "$kind" ]]; then echo "  kind: $kind"; fi
     if [[ -n "$message" ]]; then echo "  detail: $message"; fi
     if [[ -n "$remediation" ]]; then echo "  fix: $remediation"; fi
@@ -161,13 +161,13 @@ PY
 )
     ;;
   *)
-    echo "Skipping stack-fitness-functions check for file outside repository: $file_path" >&2
+    echo "Skipping agent-fitness-functions check for file outside repository: $file_path" >&2
     exit 0
     ;;
 esac
 
 if ! language=$(language_for_file "$file"); then
-  echo "Skipping stack-fitness-functions check for unsupported file type: $file" >&2
+  echo "Skipping agent-fitness-functions check for unsupported file type: $file" >&2
   exit 0
 fi
 
@@ -222,7 +222,7 @@ fi
 binary=$(printf '%s' "$content_result" | json_field binary)
 
 if [[ "$binary" == "True" || "$binary" == "true" ]]; then
-  echo "stack-fitness-functions check blocked binary content for supported source file: $file" >&2
+  echo "agent-fitness-functions check blocked binary content for supported source file: $file" >&2
   exit 2
 fi
 
@@ -237,7 +237,7 @@ if [[ -f "$client_ca" ]]; then
   args+=(--client-ca "$client_ca")
 fi
 
-if result=$("$stack_fitness_functions_bin" "${args[@]}"); then
+if result=$("$AGENT_FITNESS_FUNCTIONS_bin" "${args[@]}"); then
   rc=0
 else
   rc=$?
@@ -246,18 +246,18 @@ if [[ "$rc" -ne 0 ]]; then
   if is_infra_error "$rc" "$result"; then
     report_infra_error "$file" "$result"
     if [[ "$on_error_mode" == "advisory" ]]; then
-      echo "  STACK_FITNESS_FUNCTIONS_ON_ERROR=advisory: allowing this edit despite the setup failure" >&2
+      echo "  AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory: allowing this edit despite the setup failure" >&2
       exit 0
     fi
     exit 2
   fi
-  echo "stack-fitness-functions check failed for $file" >&2
+  echo "agent-fitness-functions check failed for $file" >&2
   printf '%s\n' "$result" >&2
   exit 2
 fi
 
 if ! status=$(printf '%s' "$result" | json_field status 2>/dev/null); then
-  echo "stack-fitness-functions check returned invalid JSON for $file" >&2
+  echo "agent-fitness-functions check returned invalid JSON for $file" >&2
   exit 2
 fi
 case "$status" in
@@ -273,7 +273,7 @@ case "$status" in
   pass)
     ;;
   *)
-    echo "stack-fitness-functions check returned unknown status for $file: ${status:-<empty>}" >&2
+    echo "agent-fitness-functions check returned unknown status for $file: ${status:-<empty>}" >&2
     exit 2
     ;;
 esac

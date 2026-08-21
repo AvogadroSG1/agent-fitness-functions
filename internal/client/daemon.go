@@ -13,11 +13,11 @@ import (
 )
 
 const (
-	envClientCert = "STACK_FITNESS_FUNCTIONS_CLIENT_CERT"
-	envClientKey  = "STACK_FITNESS_FUNCTIONS_CLIENT_KEY"
-	envClientCA   = "STACK_FITNESS_FUNCTIONS_CLIENT_CA"
-	envDevCertDir = "STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR"
-	envConfigsDir = "STACK_FITNESS_FUNCTIONS_CONFIGS_DIR"
+	envClientCert = "AGENT_FITNESS_FUNCTIONS_CLIENT_CERT"
+	envClientKey  = "AGENT_FITNESS_FUNCTIONS_CLIENT_KEY"
+	envClientCA   = "AGENT_FITNESS_FUNCTIONS_CLIENT_CA"
+	envDevCertDir = "AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR"
+	envConfigsDir = "AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR"
 )
 
 // DaemonStartConfig describes how the auto-started local daemon must be launched so
@@ -100,7 +100,7 @@ func resolveRepoRoot(repo, file string) string {
 	return ""
 }
 
-// resolveDevCertDir mirrors the shell hooks: STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR
+// resolveDevCertDir mirrors the shell hooks: AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR
 // wins, otherwise <repo-root>/certs.
 func resolveDevCertDir(repoRoot string) string {
 	if dir := os.Getenv(envDevCertDir); dir != "" {
@@ -113,7 +113,7 @@ func resolveDevCertDir(repoRoot string) string {
 }
 
 // resolveConfigsDir locates the repository configs directory the auto-started daemon
-// must serve. STACK_FITNESS_FUNCTIONS_CONFIGS_DIR wins; otherwise <repo-root>/configs
+// must serve. AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR wins; otherwise <repo-root>/configs
 // is used when it exists. An empty result is surfaced to the user at start time.
 func resolveConfigsDir(repoRoot string) string {
 	if dir := os.Getenv(envConfigsDir); dir != "" {
@@ -157,7 +157,7 @@ func daemonStartArgs(cfg DaemonStartConfig) []string {
 // StartDaemon starts a detached daemon process using the current executable.
 func StartDaemon(cfg DaemonStartConfig) error {
 	if cfg.Local && cfg.ConfigsDir == "" {
-		return errors.New("no repository configs directory found: set STACK_FITNESS_FUNCTIONS_CONFIGS_DIR or add <repo>/configs/<repo>/config.json before auto-starting the local daemon")
+		return errors.New("no repository configs directory found: set AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR or add <repo>/configs/<repo>/config.json before auto-starting the local daemon")
 	}
 	executable, err := os.Executable()
 	if err != nil {

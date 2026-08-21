@@ -16,7 +16,7 @@
 #          git-guard PreToolUse hook BLOCKS that too (exit 2).
 #
 # Everything runs against a THROWAWAY git repo in a temp dir, onboarded with
-# `stack-fitness-functions client onboard --enforcement block` on a private, non-default
+# `agent-fitness-functions client onboard --enforcement block` on a private, non-default
 # port so it never collides with a real governance daemon on :7890.
 #
 # Requirements: the built binary (built into .tmp/ if absent), python3, and git.
@@ -32,7 +32,7 @@
 set -euo pipefail
 
 repo_root=$(git -C "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)" rev-parse --show-toplevel)
-bin=${STACK_FITNESS_FUNCTIONS_BIN:-$repo_root/.tmp/stack-fitness-functions}
+bin=${AGENT_FITNESS_FUNCTIONS_BIN:-$repo_root/.tmp/agent-fitness-functions}
 
 tmp_dir=$(mktemp -d)
 # A valid governance repo name matches ^[a-z][a-z0-9_-]{0,63}$, so give the throwaway
@@ -104,7 +104,7 @@ run_hook() {
   local hook=$1 payload=$2
   set +e
   HOOK_OUT=$(cd "$demo_repo" && \
-    env STACK_FITNESS_FUNCTIONS_BIN="$bin" STACK_FITNESS_FUNCTIONS_ADDR="$addr" \
+    env AGENT_FITNESS_FUNCTIONS_BIN="$bin" AGENT_FITNESS_FUNCTIONS_ADDR="$addr" \
     "$hook" <"$payload" 2>&1)
   HOOK_RC=$?
   set -e
@@ -141,9 +141,9 @@ PY
 # Setup: build the binary if needed, create + onboard the throwaway governed repo.
 # -------------------------------------------------------------------------------------
 if [[ ! -x "$bin" ]]; then
-  echo "Building stack-fitness-functions into $bin ..."
+  echo "Building agent-fitness-functions into $bin ..."
   GOCACHE="$repo_root/.tmp/go-build" GOMODCACHE="$repo_root/.tmp/go-mod" \
-    go build -o "$bin" "$repo_root/cmd/stack-fitness-functions"
+    go build -o "$bin" "$repo_root/cmd/agent-fitness-functions"
 fi
 
 banner "SETUP — onboard a throwaway repo to block-mode governance"
@@ -170,8 +170,8 @@ JSON
 echo
 echo "Onboarding complete: '$repo_name' is governed in block mode."
 
-agent_hook="$demo_repo/.git/hooks/stack-fitness-functions-pre-tool-use"
-git_guard="$demo_repo/.git/hooks/stack-fitness-functions-git-guard"
+agent_hook="$demo_repo/.git/hooks/agent-fitness-functions-pre-tool-use"
+git_guard="$demo_repo/.git/hooks/agent-fitness-functions-git-guard"
 target_file="internal/pricing/shipping.go"
 
 # -------------------------------------------------------------------------------------

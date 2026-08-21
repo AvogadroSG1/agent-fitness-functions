@@ -1,4 +1,4 @@
-# Docker Compose is the local/staging deployment contract for stack-fitness-functions.
+# Docker Compose is the local/staging deployment contract for agent-fitness-functions.
 # Compose applies restart, mounts, read_only, tmpfs, cap_drop, and security_opt locally.
 # Resource enforcement differs by runtime: local Compose treats deploy.resources as
 # advisory compatibility metadata, while Swarm has enforced deploy.resources limits.
@@ -7,8 +7,8 @@
 # Helm chart is authoritative for pod securityContext, resources.limits,
 # ConfigMaps, Secrets, and read-only mounts.
 services:
-  stack-fitness-functions:
-    image: stack-fitness-functions:${GIT_SHA:-local}
+  agent-fitness-functions:
+    image: agent-fitness-functions:${GIT_SHA:-local}
     build:
       context: .
       args:
@@ -16,7 +16,7 @@ services:
         BUILD_DATE: ${BUILD_DATE:-unknown}
     ports:
       - "7890:7890"
-    # TLS is configured via the STACK_FITNESS_FUNCTIONS_TLS_* env vars below, which the
+    # TLS is configured via the AGENT_FITNESS_FUNCTIONS_TLS_* env vars below, which the
     # server reads as a fallback for --tls-cert/--tls-key/--tls-ca. Only --addr needs
     # to be overridden here (the image default binds 0.0.0.0:7890 already).
     command:
@@ -27,16 +27,16 @@ services:
       - ./certs:/app/certs:ro
       - ./caller-repos.json:/app/caller-repos.json:ro
     environment:
-      STACK_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs
+      AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs
       # Read by `server start` for TLS (fallback for --tls-cert/--tls-key/--tls-ca) and
       # by the healthcheck below to decide between https and http probing.
-      STACK_FITNESS_FUNCTIONS_TLS_CERT: /app/certs/server.crt
-      STACK_FITNESS_FUNCTIONS_TLS_KEY: /app/certs/server.key
-      STACK_FITNESS_FUNCTIONS_TLS_CA: /app/certs/ca.crt
-      STACK_FITNESS_FUNCTIONS_RATE_LIMIT: "100"
-      STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"
+      AGENT_FITNESS_FUNCTIONS_TLS_CERT: /app/certs/server.crt
+      AGENT_FITNESS_FUNCTIONS_TLS_KEY: /app/certs/server.key
+      AGENT_FITNESS_FUNCTIONS_TLS_CA: /app/certs/ca.crt
+      AGENT_FITNESS_FUNCTIONS_RATE_LIMIT: "100"
+      AGENT_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"
     healthcheck:
-      test: ["CMD-SHELL", "if [ -n \"$$STACK_FITNESS_FUNCTIONS_TLS_CA\" ]; then curl --fail --silent --cacert \"$$STACK_FITNESS_FUNCTIONS_TLS_CA\" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1"]
+      test: ["CMD-SHELL", "if [ -n \"$$AGENT_FITNESS_FUNCTIONS_TLS_CA\" ]; then curl --fail --silent --cacert \"$$AGENT_FITNESS_FUNCTIONS_TLS_CA\" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1"]
       interval: 30s
       timeout: 5s
       start_period: 15s

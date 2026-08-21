@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poconnor/calm-poc/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
 func TestPreCommitBlocksStagedViolations(t *testing.T) {
@@ -21,7 +21,7 @@ func TestPreCommitBlocksStagedViolations(t *testing.T) {
 	runGit(t, repo, "add", "warn.py")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+printf '%s\n' "$*" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
 if [[ "$*" == *"bad.go"* ]]; then
 printf '{"status":"block","violations":[{"message":"too complex"}]}\n'
 else
@@ -34,7 +34,7 @@ fi
 	command.Dir = repo
 	command.Env = append(os.Environ(),
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+		"AGENT_FITNESS_FUNCTIONS_LOG="+logPath,
 	)
 	output, err := command.CombinedOutput()
 	if err == nil {
@@ -61,7 +61,7 @@ func TestPreCommitAllowsAdvisoryStagedViolations(t *testing.T) {
 	runGit(t, repo, "add", "warn.py")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+printf '%s\n' "$*" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"advisory","violations":[{"message":"warning only"}]}\n'
 `)
 	script := hookScriptPath(t)
@@ -70,7 +70,7 @@ printf '{"status":"advisory","violations":[{"message":"warning only"}]}\n'
 	command.Dir = repo
 	command.Env = append(os.Environ(),
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+		"AGENT_FITNESS_FUNCTIONS_LOG="+logPath,
 	)
 	output, err := command.CombinedOutput()
 	if err != nil {
@@ -119,8 +119,8 @@ func TestPreCommitBlocksStagedViolationThroughRunningDaemon(t *testing.T) {
 	command := exec.Command("bash", script)
 	command.Dir = repo
 	command.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+fitnessBin,
-		"STACK_FITNESS_FUNCTIONS_ADDR="+server.URL,
+		"AGENT_FITNESS_FUNCTIONS_BIN="+fitnessBin,
+		"AGENT_FITNESS_FUNCTIONS_ADDR="+server.URL,
 	)
 	output, err := command.CombinedOutput()
 	if err == nil {
@@ -142,7 +142,7 @@ func TestPreCommitForwardsAddressToRunningDaemon(t *testing.T) {
 	runGit(t, repo, "add", "warn.go")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+printf '%s\n' "$*" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
 if [[ "$*" != *"--addr http://127.0.0.1:9999"* ]]; then
   echo "missing addr" >&2
   exit 1
@@ -155,8 +155,8 @@ printf '{"status":"advisory","violations":[{"message":"configured advisory"}]}\n
 	command.Dir = repo
 	command.Env = append(os.Environ(),
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"STACK_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:9999",
-		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+		"AGENT_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:9999",
+		"AGENT_FITNESS_FUNCTIONS_LOG="+logPath,
 	)
 	output, err := command.CombinedOutput()
 	if err != nil {
@@ -183,12 +183,12 @@ func TestPreCommitRemoteModeUsesBasenameRepoAndContentFile(t *testing.T) {
 	}
 	logPath := filepath.Join(t.TempDir(), "calm.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+printf '%s\n' "$*" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --content-file)
       shift
-      printf 'content=%s\n' "$(cat "$1")" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+      printf 'content=%s\n' "$(cat "$1")" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
       ;;
   esac
   shift
@@ -201,12 +201,12 @@ printf '{"status":"pass"}\n'
 	command.Dir = repo
 	command.Env = append(os.Environ(),
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"STACK_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890",
-		"STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1",
-		"STACK_FITNESS_FUNCTIONS_CLIENT_CERT="+clientCert,
-		"STACK_FITNESS_FUNCTIONS_CLIENT_KEY="+clientKey,
-		"STACK_FITNESS_FUNCTIONS_CLIENT_CA="+clientCA,
-		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+		"AGENT_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890",
+		"AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1",
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT="+clientCert,
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_KEY="+clientKey,
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CA="+clientCA,
+		"AGENT_FITNESS_FUNCTIONS_LOG="+logPath,
 	)
 	output, err := command.CombinedOutput()
 	if err != nil {
@@ -237,7 +237,7 @@ func TestPreCommitRemoteModeUsesCALMRepoNameOverride(t *testing.T) {
 	runGit(t, repo, "add", "remote.go")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+printf '%s\n' "$*" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"pass"}\n'
 `)
 	script := hookScriptPath(t)
@@ -246,10 +246,10 @@ printf '{"status":"pass"}\n'
 	command.Dir = repo
 	command.Env = append(os.Environ(),
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"STACK_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890",
-		"STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1",
-		"STACK_FITNESS_FUNCTIONS_REPO_NAME=graft",
-		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+		"AGENT_FITNESS_FUNCTIONS_ADDR=https://calm-governance.example:7890",
+		"AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1",
+		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=graft",
+		"AGENT_FITNESS_FUNCTIONS_LOG="+logPath,
 	)
 	output, err := command.CombinedOutput()
 	if err != nil {
@@ -257,7 +257,7 @@ printf '{"status":"pass"}\n'
 	}
 	logContent := readFile(t, logPath)
 	if !strings.Contains(logContent, "--repo graft") {
-		t.Fatalf("calm log = %s, want STACK_FITNESS_FUNCTIONS_REPO_NAME override", logContent)
+		t.Fatalf("calm log = %s, want AGENT_FITNESS_FUNCTIONS_REPO_NAME override", logContent)
 	}
 }
 
@@ -270,14 +270,14 @@ func TestPreCommitRejectsRemoteHTTPBridge(t *testing.T) {
 	command := exec.Command("bash", script)
 	command.Dir = repo
 	command.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_ADDR=http://calm-governance.example:7890",
-		"STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1",
+		"AGENT_FITNESS_FUNCTIONS_ADDR=http://calm-governance.example:7890",
+		"AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1",
 	)
 	output, err := command.CombinedOutput()
 	if err == nil {
 		t.Fatalf("pre-commit accepted remote HTTP bridge, want rejection; output=%s", output)
 	}
-	if !strings.Contains(string(output), "remote STACK_FITNESS_FUNCTIONS_ADDR must use https") {
+	if !strings.Contains(string(output), "remote AGENT_FITNESS_FUNCTIONS_ADDR must use https") {
 		t.Fatalf("output = %s, want HTTPS diagnostic", output)
 	}
 }
@@ -311,7 +311,7 @@ func TestPreCommitRejectsRemoteBridgeWithoutOptIn(t *testing.T) {
 
 	command := exec.Command("bash", script)
 	command.Dir = repo
-	command.Env = append(os.Environ(), "STACK_FITNESS_FUNCTIONS_ADDR=https://example.com")
+	command.Env = append(os.Environ(), "AGENT_FITNESS_FUNCTIONS_ADDR=https://example.com")
 	output, err := command.CombinedOutput()
 	if err == nil {
 		t.Fatalf("pre-commit succeeded, want remote bridge rejection; output=%s", output)
@@ -329,7 +329,7 @@ func TestPreCommitRejectsLoopbackUserinfoBypass(t *testing.T) {
 
 	command := exec.Command("bash", script)
 	command.Dir = repo
-	command.Env = append(os.Environ(), "STACK_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:80@evil.example")
+	command.Env = append(os.Environ(), "AGENT_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:80@evil.example")
 	output, err := command.CombinedOutput()
 	if err == nil {
 		t.Fatalf("pre-commit succeeded, want userinfo bypass rejection; output=%s", output)
@@ -358,7 +358,7 @@ func TestPreCommitForwardsDiscoveredMTLSCerts(t *testing.T) {
 
 	logPath := filepath.Join(t.TempDir(), "calls.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+printf '%s\n' "$*" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
 echo '{"status":"pass"}'
 `)
 
@@ -366,7 +366,7 @@ echo '{"status":"pass"}'
 	command.Dir = repo
 	command.Env = append(os.Environ(),
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+		"AGENT_FITNESS_FUNCTIONS_LOG="+logPath,
 	)
 	if out, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("pre-commit failed: %v\n%s", err, out)
@@ -394,7 +394,7 @@ func TestPreCommitOmitsCertFlagsWhenAbsent(t *testing.T) {
 
 	logPath := filepath.Join(t.TempDir(), "calls.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+printf '%s\n' "$*" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
 echo '{"status":"pass"}'
 `)
 
@@ -402,7 +402,7 @@ echo '{"status":"pass"}'
 	command.Dir = repo
 	command.Env = append(os.Environ(),
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+		"AGENT_FITNESS_FUNCTIONS_LOG="+logPath,
 	)
 	if out, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("pre-commit failed: %v\n%s", err, out)
@@ -454,9 +454,9 @@ func writeFile(t *testing.T, path, content string) {
 func fakeFitnessBin(t *testing.T, script string) string {
 	t.Helper()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "stack-fitness-functions")
+	path := filepath.Join(dir, "agent-fitness-functions")
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
-		t.Fatalf("write fake stack-fitness-functions: %v", err)
+		t.Fatalf("write fake agent-fitness-functions: %v", err)
 	}
 	return dir
 }
@@ -464,10 +464,10 @@ func fakeFitnessBin(t *testing.T, script string) string {
 func buildFitnessBin(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "stack-fitness-functions")
-	command := exec.Command("go", "build", "-o", path, "../cmd/stack-fitness-functions")
+	path := filepath.Join(dir, "agent-fitness-functions")
+	command := exec.Command("go", "build", "-o", path, "../cmd/agent-fitness-functions")
 	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("build stack-fitness-functions: %v\n%s", err, output)
+		t.Fatalf("build agent-fitness-functions: %v\n%s", err, output)
 	}
 	return path
 }

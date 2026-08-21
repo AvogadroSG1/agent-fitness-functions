@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# stack-fitness-functions pre-push hook
+# agent-fitness-functions pre-push hook
 set -euo pipefail
 
 repo=$(git rev-parse --show-toplevel)
-stack_fitness_functions_bin=${STACK_FITNESS_FUNCTIONS_BIN:-stack-fitness-functions}
+AGENT_FITNESS_FUNCTIONS_bin=${AGENT_FITNESS_FUNCTIONS_BIN:-agent-fitness-functions}
 # The container/production server serves HTTPS with mandatory mTLS, so default to
 # an https loopback addr and auto-discover dev client credentials in <repo>/certs.
-# Explicit STACK_FITNESS_FUNCTIONS_CLIENT_* env vars win (12-factor precedence).
-addr=${STACK_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}
-cert_dir=${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-$repo/certs}
-client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/client.crt}
-client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/client.key}
-client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/ca.crt}
-repo_name=${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}
+# Explicit AGENT_FITNESS_FUNCTIONS_CLIENT_* env vars win (12-factor precedence).
+addr=${AGENT_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}
+cert_dir=${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR:-$repo/certs}
+client_cert=${AGENT_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/client.crt}
+client_key=${AGENT_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/client.key}
+client_ca=${AGENT_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/ca.crt}
+repo_name=${AGENT_FITNESS_FUNCTIONS_REPO_NAME:-}
 remote_mode=0
 repo_arg=$repo
 blocked=0
@@ -45,12 +45,12 @@ PYCHECK
 }
 
 if [[ -n "$addr" ]] && ! bridge_addr_is_loopback "$addr"; then
-  if [[ "${STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE:-}" != "1" ]]; then
-    echo "STACK_FITNESS_FUNCTIONS_ADDR must be loopback unless STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1 is set" >&2
+  if [[ "${AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE:-}" != "1" ]]; then
+    echo "AGENT_FITNESS_FUNCTIONS_ADDR must be loopback unless AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1 is set" >&2
     exit 1
   fi
   if ! bridge_addr_is_https "$addr"; then
-    echo "remote STACK_FITNESS_FUNCTIONS_ADDR must use https" >&2
+    echo "remote AGENT_FITNESS_FUNCTIONS_ADDR must use https" >&2
     exit 1
   fi
   remote_mode=1
@@ -77,9 +77,9 @@ json_field() {
 
 # On-error policy for infrastructure/setup failures (server down, cert/TLS problem,
 # repo not configured, auth rejected): fail-closed (block) by default, or non-blocking
-# when STACK_FITNESS_FUNCTIONS_ON_ERROR=advisory — mirroring the server-side
+# when AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory — mirroring the server-side
 # enforcement-on-error setting. Real architecture violations are unaffected.
-on_error_mode=${STACK_FITNESS_FUNCTIONS_ON_ERROR:-block}
+on_error_mode=${AGENT_FITNESS_FUNCTIONS_ON_ERROR:-block}
 
 # is_infra_error reports whether a client failure is an infrastructure/setup problem
 # (client exit code 3, or a {"status":"error"} object) rather than a real violation.
@@ -99,7 +99,7 @@ report_infra_error() {
   message=$(printf '%s' "$payload" | json_field message 2>/dev/null || true)
   remediation=$(printf '%s' "$payload" | json_field remediation 2>/dev/null || true)
   {
-    echo "stack-fitness-functions SETUP problem for $file (infrastructure/configuration, NOT an architecture violation)"
+    echo "agent-fitness-functions SETUP problem for $file (infrastructure/configuration, NOT an architecture violation)"
     if [[ -n "$kind" ]]; then echo "  kind: $kind"; fi
     if [[ -n "$message" ]]; then echo "  detail: $message"; fi
     if [[ -n "$remediation" ]]; then echo "  fix: $remediation"; fi
@@ -111,7 +111,7 @@ handle_infra_error() {
   local file=$1 payload=$2
   report_infra_error "$file" "$payload"
   if [[ "$on_error_mode" == "advisory" ]]; then
-    echo "  STACK_FITNESS_FUNCTIONS_ON_ERROR=advisory: not blocking this setup failure" >&2
+    echo "  AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory: not blocking this setup failure" >&2
   else
     blocked=1
   fi
@@ -157,7 +157,7 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
       args+=(--client-ca "$client_ca")
     fi
 
-    if result=$("$stack_fitness_functions_bin" "${args[@]}"); then
+    if result=$("$AGENT_FITNESS_FUNCTIONS_bin" "${args[@]}"); then
       rc=0
     else
       rc=$?
@@ -167,7 +167,7 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
         handle_infra_error "$file" "$result"
         continue
       fi
-      echo "stack-fitness-functions check failed for $file" >&2
+      echo "agent-fitness-functions check failed for $file" >&2
       blocked=1
       continue
     fi
@@ -186,7 +186,7 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
       pass)
         ;;
       *)
-        echo "stack-fitness-functions check returned unknown status for $file: ${status:-<empty>}" >&2
+        echo "agent-fitness-functions check returned unknown status for $file: ${status:-<empty>}" >&2
         blocked=1
         ;;
     esac

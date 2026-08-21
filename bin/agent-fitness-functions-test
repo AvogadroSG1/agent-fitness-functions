@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "usage: agent-fitness-functions-test <file>" >&2
+  echo "       agent-fitness-functions-test --help" >&2
+  echo "" >&2
+  echo "  LOCAL SANDBOX ONLY: validates fitness functions against a locally running server." >&2
+  echo "  For remote container governance, configure AGENT_FITNESS_FUNCTIONS_ADDR, AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1," >&2
+  echo "  AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA, and AGENT_FITNESS_FUNCTIONS_REPO_NAME, then run the hook directly." >&2
+  echo "  Outputs a per-function status table using the repo's configured enforcement mode." >&2
+  echo "" >&2
+  echo "  Supported: go (.go), python (.py), csharp (.cs)" >&2
+  echo "" >&2
+  echo "  The server requires mutual TLS. By default this helper discovers dev" >&2
+  echo "  credentials in <repo>/certs (client.crt/client.key/ca.crt) created by" >&2
+  echo "  scripts/generate-dev-certs.sh. Override per-file with the CLIENT_* vars below." >&2
+  echo "" >&2
+  echo "  Environment:" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_BIN          path to agent-fitness-functions binary (default: agent-fitness-functions on PATH)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_ADDR         server address (default: https://127.0.0.1:7890)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_REPO_NAME    logical repo name override (default: inferred from configs/<basename> or .calm/config.json; required when neither exists)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR directory holding client.crt/client.key/ca.crt (default: <repo>/certs)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_CLIENT_CERT  mTLS client certificate path (overrides cert dir)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_CLIENT_KEY   mTLS client private key path (overrides cert dir)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_CLIENT_CA    server CA bundle path (overrides cert dir)" >&2
+  exit 0
+}
+
+[[ "${1:-}" == "--help" || "${1:-}" == "-h" ]] && usage
+[[ $# -ne 1 ]] && { echo "error: expected exactly one argument" >&2; usage; }
+
+file="$1"
+bridge="${AGENT_FITNESS_FUNCTIONS_BIN:-agent-fitness-functions}"
+# The server always requires mTLS (RequireAuthentication is hardcoded on), so the
+# helper defaults to HTTPS. A plain-HTTP default would always return HTTP 401.
+addr="${AGENT_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}"
+repo_name="${AGENT_FITNESS_FUNCTIONS_REPO_NAME:-}"
+
+# Infer the logical governance repo name from an on-disk config. A silent fallback
+# (e.g. to calm-poc) would mask a misconfigured repo as a wrong-config mystery, so
+# when nothing matches this fails and tells the caller to name the repo explicitly.
+detect_repo_name() {
+  local repo_root="$1"
+  local repo_base
+  repo_base=$(basename "$repo_root")
+
+  if [[ -f "$repo_root/configs/$repo_base/config.json" || -f "$repo_root/.calm/config.json" ]]; then
+    printf '%s' "$repo_base"
+    return
+  fi
+  echo "error: could not detect the governance repo name for $repo_root" >&2
+  echo "  no configs/$repo_base/config.json or .calm/config.json found to infer it" >&2
+  echo "  set AGENT_FITNESS_FUNCTIONS_REPO_NAME=<name> to name the repo explicitly" >&2
+  return 1
+}
+
+# Resolve the mTLS client credentials the server requires.
+# Precedence (12-factor): explicit AGENT_FITNESS_FUNCTIONS_CLIENT_* env vars win;
+# otherwise auto-discover a dev cert directory and use client.crt/client.key/ca.crt.
+# Cert-dir discovery order: AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR, then the source
+# repo's certs/ (AGENT_FITNESS_FUNCTIONS_SRC or this script's repo root).
+script_repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cert_dir="${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR:-${AGENT_FITNESS_FUNCTIONS_SRC:-$script_repo}/certs}"
+
+client_cert="${AGENT_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/client.crt}"
+client_key="${AGENT_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/client.key}"
+client_ca="${AGENT_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/ca.crt}"
+
+for pair in "client certificate:$client_cert" "client key:$client_key" "CA bundle:$client_ca"; do
+  label="${pair%%:*}"
+  path="${pair#*:}"
+  [[ -f "$path" ]] || {
+    echo "error: mTLS $label not found: $path" >&2
+    echo "  the server requires mutual TLS; generate local dev certs with:" >&2
+    echo "    scripts/generate-dev-certs.sh" >&2
+    echo "  or set AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA to existing credentials." >&2
+    exit 1
+  }
+done
+
+[[ -f "$file" ]] || { echo "error: file not found: $file" >&2; exit 1; }
+if [[ "$bridge" == */* ]]; then
+  [[ -x "$bridge" ]] || {
+    echo "error: agent-fitness-functions not found at $bridge" >&2
+    echo "  build it: agent-fitness-functions-serve (or: go build -o $bridge ./cmd/agent-fitness-functions)" >&2
+    exit 1
+  }
+else
+  command -v "$bridge" > /dev/null 2>&1 || {
+    echo "error: agent-fitness-functions not found on PATH: $bridge" >&2
+    echo "  build it: agent-fitness-functions-serve (or: go build -o .tmp/agent-fitness-functions ./cmd/agent-fitness-functions && export AGENT_FITNESS_FUNCTIONS_BIN=.tmp/agent-fitness-functions)" >&2
+    exit 1
+  }
+fi
+
+case "$file" in
+  *.go) language="go" ;;
+  *.py) language="python" ;;
+  *.cs) language="csharp" ;;
+  *)    echo "error: unsupported file type (supported: .go .py .cs)" >&2; exit 1 ;;
+esac
+
+file_abs=$(cd "$(dirname "$file")" && pwd)/$(basename "$file")
+repo=$(git -C "$(dirname "$file_abs")" rev-parse --show-toplevel 2>/dev/null) \
+  || { echo "error: file is not inside a git repository" >&2; exit 1; }
+relative_file="${file_abs#"$repo"/}"
+
+if [[ -n "$repo_name" ]]; then
+  repo_arg="$repo_name"
+else
+  repo_arg=$(detect_repo_name "$repo") || exit 1
+fi
+
+# Read enforcement mode from the repo's .calm/config.json (default: block)
+enforcement_mode="block"
+if [[ -f "$repo/.calm/config.json" ]]; then
+  enforcement_mode=$(python3 -c '
+import json, sys
+print(json.load(open(sys.argv[1])).get("enforcement-mode", "block"))
+' "$repo/.calm/config.json")
+fi
+
+# Read enabled fitness functions from the repo's .calm/config.json.
+# Only functions explicitly set to true are checked — mirrors what the hook enforces.
+# Falls back to the full language-appropriate list if no config exists.
+if [[ -f "$repo/.calm/config.json" ]]; then
+  functions=()
+  while IFS= read -r fn; do
+    functions+=("$fn")
+  done < <(python3 -c '
+import json, sys
+cfg = json.load(open(sys.argv[1]))
+fns = cfg.get("fitness-functions", {})
+for name, enabled in fns.items():
+    if enabled:
+        print(name)
+' "$repo/.calm/config.json")
+else
+  case "$language" in
+    go|python) functions=(cyclomatic-complexity interface-width logic-density dependency-discipline) ;;
+    csharp)    functions=(cyclomatic-complexity interface-width implementation-depth logic-density dependency-discipline) ;;
+  esac
+fi
+
+if [[ ${#functions[@]} -eq 0 ]]; then
+  echo "warning: no fitness functions enabled in $repo/.calm/config.json" >&2
+  exit 0
+fi
+
+lang_label=$(python3 -c "print({'go':'Go','python':'Python','csharp':'C#'}.get('$language','$language'))")
+
+tmp_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir"' EXIT
+mkdir -p "$tmp_dir/.calm"
+
+# Render one result line. Args: <json> <enforcement_mode> <function_name> <lang_label>
+fmt_line() {
+  python3 - "$1" "$2" "$3" "$4" <<'PY'
+import json, sys
+
+raw, enforcement, fn, lang = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+
+try:
+    data = json.loads(raw)
+except Exception:
+    print(f"  {'ERROR':<9}  {fn:<32}  [{lang}]  (could not parse response)")
+    sys.exit(0)
+
+if data.get("warming"):
+    print(f"  {'WARMING':<9}  {fn:<32}  [{lang}]  (C# analyzer still warming up — retry in a moment)")
+    sys.exit(0)
+
+violations = data.get("violations", [])
+viol = next((v for v in violations if v.get("fitness_function", "").replace("_", "-") == fn), None)
+
+if viol is None:
+    print(f"  {'PASS':<9}  {fn:<32}  [{lang}]")
+else:
+    val, lim = float(viol["value"]), float(viol["limit"])
+    op  = "≤" if val > lim else "≥"
+    fmt = lambda n: str(int(n)) if n == int(n) else f"{n:.3f}"
+    metrics = f"(Actual: {fmt(val)} | Target: {op} {fmt(lim)})"
+    label   = "BLOCKED" if enforcement == "block" else "ADVISORY"
+    print(f"  {label:<9}  {fn:<32}  [{lang}]  {metrics}")
+PY
+}
+
+echo "File:  $relative_file"
+echo "Mode:  $enforcement_mode"
+echo ""
+echo "Testing: $lang_label fitness functions"
+echo ""
+
+for fn in "${functions[@]}"; do
+  # Build a per-function config in advisory mode so every validation returns data.
+  # The label (BLOCKED/ADVISORY) is derived from the repo's real enforcement mode.
+  python3 -c "
+import json
+all_fns = ['cyclomatic-complexity','interface-width','implementation-depth','logic-density','dependency-discipline']
+cfg = {
+  'enforcement-mode': 'advisory',
+  'fitness-functions': {f: (f == '$fn') for f in all_fns}
+}
+print(json.dumps(cfg, indent=2))
+" > "$tmp_dir/.calm/config.json"
+
+  response=$(
+    "$bridge" client validate \
+      --addr "$addr" \
+      --repo "$repo_arg" \
+      --file "$relative_file" \
+      --content "$(cat "$file_abs")" \
+      --language "$language" \
+      --client-cert "$client_cert" \
+      --client-key "$client_key" \
+      --client-ca "$client_ca" 2>&1
+  ) || {
+    echo "agent-fitness-functions check failed for $relative_file" >&2
+    printf '%s\n' "$response" >&2
+    exit 1
+  }
+
+  fmt_line "$response" "$enforcement_mode" "$fn" "$lang_label"
+done
+
+echo ""

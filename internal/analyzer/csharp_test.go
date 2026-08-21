@@ -23,7 +23,7 @@ func TestAnalyzeCSharpFileParsesRoslynCLIOutput(t *testing.T) {
 		t.Fatalf("AnalyzeCSharpFile returned error: %v", err)
 	}
 
-	if result.Language != "csharp" || result.CALMNode != "Example" {
+	if result.Language != "csharp" || result.StackNode != "Example" {
 		t.Fatalf("result identity = %+v, want csharp Example", result)
 	}
 	if len(result.Functions) != 1 || result.Functions[0].Name != "Run" || result.Functions[0].CyclomaticComplexity != 4 {
@@ -101,7 +101,7 @@ public class Example
 		t.Fatalf("AnalyzeCSharpFile returned error: %v", err)
 	}
 
-	if result.Language != "csharp" || result.CALMNode != "Sample.App" || result.File != sourcePath {
+	if result.Language != "csharp" || result.StackNode != "Sample.App" || result.File != sourcePath {
 		t.Fatalf("result identity = %+v, want csharp Sample.App", result)
 	}
 	assertFunction(t, result.Functions, "Run", 3, true)
@@ -164,7 +164,7 @@ func TestAnalyzeCSharpFileIgnoresSuccessfulStderrDiagnostics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AnalyzeCSharpFile returned error: %v", err)
 	}
-	if result.Language != "csharp" || result.CALMNode != "Example" {
+	if result.Language != "csharp" || result.StackNode != "Example" {
 		t.Fatalf("result = %+v, want valid JSON parsed despite stderr", result)
 	}
 }
@@ -242,7 +242,7 @@ func fakeRoslyn(t *testing.T, dir string) string {
 set -euo pipefail
 cat <<JSON
 {
-  "calm_node": "Example",
+  "stack_node": "Example",
   "language": "csharp",
   "file": "$1",
   "functions": [{"name":"Run","cyclomatic_complexity":4,"is_public":true,"loc":12}],
@@ -278,7 +278,7 @@ func fakeStderrRoslyn(t *testing.T, dir string) string {
 echo "host warning" >&2
 cat <<JSON
 {
-  "calm_node": "Example",
+  "stack_node": "Example",
   "language": "csharp",
   "file": "$1",
   "functions": [],

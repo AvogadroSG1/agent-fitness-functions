@@ -241,7 +241,7 @@ func (c ServerTLSConfig) Validate() error {
 	}
 	if c.CertPath == "" || c.KeyPath == "" || c.CAPath == "" {
 		return errors.New("tls requires --tls-cert, --tls-key, and --tls-ca " +
-			"(or STACK_FITNESS_FUNCTIONS_TLS_CERT, STACK_FITNESS_FUNCTIONS_TLS_KEY, and STACK_FITNESS_FUNCTIONS_TLS_CA)")
+			"(or AGENT_FITNESS_FUNCTIONS_TLS_CERT, AGENT_FITNESS_FUNCTIONS_TLS_KEY, and AGENT_FITNESS_FUNCTIONS_TLS_CA)")
 	}
 	return nil
 }

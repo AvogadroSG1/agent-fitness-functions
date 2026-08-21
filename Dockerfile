@@ -14,7 +14,7 @@ COPY patterns/ patterns/
 RUN : "${TARGETOS:?TARGETOS is required}" \
     && : "${TARGETARCH:?TARGETARCH is required}" \
     && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-w -s" \
-    -o /out/stack-fitness-functions ./cmd/stack-fitness-functions
+    -o /out/agent-fitness-functions ./cmd/agent-fitness-functions
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0.301 AS dotnet-build
 WORKDIR /src/tools/roslyn-analyzer
@@ -60,18 +60,18 @@ RUN apt-get update \
     && rm -f /tmp/requirements.lock \
     && find /var/lib/apt/lists -mindepth 1 -delete
 
-COPY --from=go-build --chown=appuser:appuser /out/stack-fitness-functions /app/stack-fitness-functions
+COPY --from=go-build --chown=appuser:appuser /out/agent-fitness-functions /app/agent-fitness-functions
 COPY --from=dotnet-build --chown=appuser:appuser /out/roslyn/ /app/tools/roslyn-analyzer/bin/Release/net8.0/
 
 VOLUME ["/app/configs"]
 EXPOSE 7890
 
-# When the deployment provides STACK_FITNESS_FUNCTIONS_TLS_CERT/KEY/CA (see
+# When the deployment provides AGENT_FITNESS_FUNCTIONS_TLS_CERT/KEY/CA (see
 # docker-compose.yml), `server start` serves HTTPS with those certs and this probe
 # uses the CA to match; without them the server and probe both fall back to plain HTTP.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD if [ -n "$STACK_FITNESS_FUNCTIONS_TLS_CA" ]; then curl --fail --silent --cacert "$STACK_FITNESS_FUNCTIONS_TLS_CA" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1
+    CMD if [ -n "$AGENT_FITNESS_FUNCTIONS_TLS_CA" ]; then curl --fail --silent --cacert "$AGENT_FITNESS_FUNCTIONS_TLS_CA" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1
 
 USER appuser
-ENTRYPOINT ["/app/stack-fitness-functions", "server", "start"]
+ENTRYPOINT ["/app/agent-fitness-functions", "server", "start"]
 CMD ["--addr", "0.0.0.0:7890"]

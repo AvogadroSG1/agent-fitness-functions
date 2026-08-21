@@ -31,7 +31,7 @@ type ValidationResult struct {
 // Violation describes one architectural fitness function failure.
 type Violation struct {
 	FitnessFunction string  `json:"fitness_function"`
-	CALMNode        string  `json:"calm_node"`
+	StackNode        string  `json:"stack_node"`
 	File            string  `json:"file,omitempty"`
 	Function        string  `json:"function,omitempty"`
 	Value           float64 `json:"value"`

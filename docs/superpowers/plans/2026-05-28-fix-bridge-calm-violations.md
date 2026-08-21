@@ -111,7 +111,7 @@ for _, entry := range dirEntries {
     if err != nil {
         return analyzer.AnalysisResult{}, err
     }
-    if existing.CALMNode == proposed.CALMNode {
+    if existing.StackNode == proposed.StackNode {
         results = append(results, existing)
     }
 }
@@ -375,7 +375,7 @@ func analyzeGoWithModuleContext(ctx context.Context, request AnalysisRequest) (a
         if err != nil {
             return analyzer.AnalysisResult{}, err
         }
-        if existing.CALMNode == proposed.CALMNode {
+        if existing.StackNode == proposed.StackNode {
             results = append(results, existing)
         }
     }
@@ -577,7 +577,7 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request CheckReque
     }
     result = analyzer.EnsureModuleMetric(result)
     result.File = request.File
-    result.CALMNode = calmNodeForRequest(request, result.CALMNode)
+    result.StackNode = calmNodeForRequest(request, result.StackNode)
     return c.runValidationAndScore(ctx, result, repo, request.File, patternPath, config, state)
 }
 ```
@@ -655,7 +655,7 @@ func TestCheckWithCSharpWarmGuardPassesWhileWarming(t *testing.T) {
         Analyzers: map[string]SourceAnalyzer{
             "csharp": AnalyzerFunc(func(_ context.Context, _ AnalysisRequest) (analyzer.AnalysisResult, error) {
                 return analyzer.AnalysisResult{
-                    CALMNode:  "warmup",
+                    StackNode:  "warmup",
                     Language:  "csharp",
                     Functions: []analyzer.FunctionMetric{{Name: "Run", CyclomaticComplexity: 1, IsPublic: true, LOC: 5}},
                 }, nil
@@ -828,7 +828,7 @@ func TestStartDeferredCheckPrintsReadyOnSuccess(t *testing.T) {
         Analyzers: map[string]SourceAnalyzer{
             "csharp": AnalyzerFunc(func(_ context.Context, _ AnalysisRequest) (analyzer.AnalysisResult, error) {
                 return analyzer.AnalysisResult{
-                    CALMNode:  "warmup",
+                    StackNode:  "warmup",
                     Language:  "csharp",
                     Functions: []analyzer.FunctionMetric{{Name: "Run", CyclomaticComplexity: 1, IsPublic: true, LOC: 5}},
                 }, nil

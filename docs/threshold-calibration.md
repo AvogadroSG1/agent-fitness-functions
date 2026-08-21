@@ -1,4 +1,4 @@
-# CALM PoC Threshold Calibration
+# agent-fitness-functions Threshold Calibration
 
 This document records the proposed governance thresholds derived from the four baseline reports generated on 2026-05-18. It is the HITL review artifact for `patterns/governance.json`.
 
@@ -55,7 +55,7 @@ To scaffold a per-repo governance config from a fresh baseline, run `baseline` w
 `--emit-config`:
 
 ```bash
-stack-fitness-functions baseline \
+agent-fitness-functions baseline \
   --repo /path/to/repo --language go \
   --output baseline-report.json \
   --emit-config configs/<repo>/config.json --name <repo>

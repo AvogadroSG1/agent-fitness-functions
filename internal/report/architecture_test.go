@@ -5,12 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poconnor/calm-poc/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
 )
 
-func TestBuildArchitectureMapsAnalysisMetricsToCALMNodeFitness(t *testing.T) {
+func TestBuildArchitectureMapsAnalysisMetricsToStackNodeFitness(t *testing.T) {
 	document := BuildArchitecture(analyzer.AnalysisResult{
-		CALMNode: "parser",
+		StackNode: "parser",
 		Language: "go",
 		File:     "internal/parser/parser.go",
 		Functions: []analyzer.FunctionMetric{

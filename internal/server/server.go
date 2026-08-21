@@ -14,7 +14,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/poconnor/calm-poc/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
 const (
@@ -67,12 +67,12 @@ type ServeOptions struct {
 	AnalyzerTimeout time.Duration
 }
 
-// NewHandler builds the stack-fitness-functions HTTP daemon routes.
+// NewHandler builds the agent-fitness-functions HTTP daemon routes.
 func NewHandler(configStore *ConfigStore, shutdown func()) http.Handler {
 	return NewHandlerWithOptions(Checker{ConfigStore: configStore}, shutdown, HandlerOptions{})
 }
 
-// NewHandlerWithChecker builds the stack-fitness-functions HTTP daemon routes with injected check dependencies.
+// NewHandlerWithChecker builds the agent-fitness-functions HTTP daemon routes with injected check dependencies.
 func NewHandlerWithChecker(checker Checker, shutdown func()) http.Handler {
 	return NewHandlerWithOptions(checker, shutdown, HandlerOptions{})
 }
@@ -354,7 +354,7 @@ func shutdownHandler(checker Checker, options HandlerOptions, cancelDeferred fun
 func Serve(ctx context.Context, addr string) error {
 	return ServeWithOptions(ctx, ServeOptions{
 		Addr:      addr,
-		ConfigDir: os.Getenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR"),
+		ConfigDir: os.Getenv("AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR"),
 		Ready:     os.Stdout,
 		NewStore:  NewConfigStore,
 	})
@@ -370,7 +370,7 @@ func applyServeDefaults(options *ServeOptions) {
 		options.Addr = "localhost:7890"
 	}
 	if options.ConfigDir == "" {
-		options.ConfigDir = os.Getenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR")
+		options.ConfigDir = os.Getenv("AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR")
 	}
 	if options.Ready == nil {
 		options.Ready = os.Stdout

@@ -1,12 +1,12 @@
 ---
-title: "CALM PoC: Why and What"
-aliases: ["CALM PoC: Why and What"]
-linter-yaml-title-alias: "CALM PoC: Why and What"
+title: "agent-fitness-functions: Why and What"
+aliases: ["agent-fitness-functions: Why and What"]
+linter-yaml-title-alias: "agent-fitness-functions: Why and What"
 date created: Sunday, May 18th 2026
 date modified: Sunday, May 18th 2026
 ---
 
-# CALM PoC: Why and What
+# agent-fitness-functions: Why and What
 
 > Engineering detail: [engineering-spec.md](engineering-spec.md)
 > Original concept: [CALM: The Architectural Compass for AI-Driven Development](../../../../ObsidianNotes/Work/drafts/Week%20of%2020260510/CALM%20AaC.md)
@@ -27,7 +27,7 @@ The same problem applies to human developers, who introduce the same violations 
 
 This PoC uses the **FINOS Common Architecture Language Model (CALM)** as a machine-readable rules layer. Architectural fitness functions are defined as CALM patterns — JSON Schema rules that describe what "good" looks like for each module in the system.
 
-The `stack-fitness-functions` tool analyzes source code, translates metrics into a CALM-compliant architecture document, and calls the FINOS `calm` CLI validator. The validator returns a pass or a structured list of violations. Hooks at two interception points — Claude Code pre-tool-use and git pre-commit — capture proposed changes before they land, and either block with explanation or advise, based on per-repository enforcement configuration.
+The `agent-fitness-functions` tool analyzes source code, translates metrics into a CALM-compliant architecture document, and calls the FINOS `calm` CLI validator. The validator returns a pass or a structured list of violations. Hooks at two interception points — Claude Code pre-tool-use and git pre-commit — capture proposed changes before they land, and either block with explanation or advise, based on per-repository enforcement configuration.
 
 The result: architectural violations become as visible and actionable as syntax errors — before the code is written or committed.
 

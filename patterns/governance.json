@@ -1,7 +1,7 @@
 {
   "$schema": "https://calm.finos.org/release/1.2/meta/calm.json",
-  "$id": "https://stackoverflow.com/calm-poc/patterns/governance.json",
-  "title": "CALM PoC Fitness Functions",
+  "$id": "https://github.com/AvogadroSG1/agent-fitness-functions/patterns/governance.json",
+  "title": "Agent Fitness Functions",
   "description": "CALM JSON Schema pattern enforcing the PoC architecture fitness functions.",
   "type": "object",
   "properties": {

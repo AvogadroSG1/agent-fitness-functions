@@ -1,4 +1,4 @@
-package calm_poc_test
+package agent_fitness_functions_test
 
 import (
 	"os"
@@ -32,7 +32,7 @@ func TestDockerfileContainerContract(t *testing.T) {
 	mustContain(t, dockerfile, "org.opencontainers.image.created=$BUILD_DATE")
 	mustContain(t, dockerfile, "WORKDIR /app")
 	mustContain(t, dockerfile, "USER appuser")
-	mustContain(t, dockerfile, "ENTRYPOINT [\"/app/stack-fitness-functions\", \"server\", \"start\"]")
+	mustContain(t, dockerfile, "ENTRYPOINT [\"/app/agent-fitness-functions\", \"server\", \"start\"]")
 	mustContain(t, dockerfile, "HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3")
 	mustContain(t, dockerfile, "nodejs")
 	mustContain(t, dockerfile, "npm")
@@ -126,28 +126,25 @@ func TestDockerComposeDeploymentContract(t *testing.T) {
 	compose := string(content)
 
 	for _, needle := range []string{
-		"stack-fitness-functions:",
-		"image: stack-fitness-functions:${GIT_SHA:-local}",
+		"agent-fitness-functions:",
+		"image: agent-fitness-functions:${GIT_SHA:-local}",
 		"context: .",
 		"GIT_SHA: ${GIT_SHA:-dev}",
 		"BUILD_DATE: ${BUILD_DATE:-unknown}",
 		`"7890:7890"`,
-		"--tls-cert",
 		"/app/certs/server.crt",
-		"--tls-key",
 		"/app/certs/server.key",
-		"--tls-ca",
 		"/app/certs/ca.crt",
 		"./configs:/app/configs:ro",
 		"./certs:/app/certs:ro",
 		"./caller-repos.json:/app/caller-repos.json:ro",
-		"STACK_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs",
-		"STACK_FITNESS_FUNCTIONS_TLS_CERT: /app/certs/server.crt",
-		"STACK_FITNESS_FUNCTIONS_TLS_KEY: /app/certs/server.key",
-		"STACK_FITNESS_FUNCTIONS_TLS_CA: /app/certs/ca.crt",
-		`STACK_FITNESS_FUNCTIONS_RATE_LIMIT: "100"`,
-		`STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"`,
-		`test: ["CMD-SHELL", "if [ -n \"$$STACK_FITNESS_FUNCTIONS_TLS_CA\" ]; then curl --fail --silent --cacert \"$$STACK_FITNESS_FUNCTIONS_TLS_CA\" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1"]`,
+		"AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs",
+		"AGENT_FITNESS_FUNCTIONS_TLS_CERT: /app/certs/server.crt",
+		"AGENT_FITNESS_FUNCTIONS_TLS_KEY: /app/certs/server.key",
+		"AGENT_FITNESS_FUNCTIONS_TLS_CA: /app/certs/ca.crt",
+		`AGENT_FITNESS_FUNCTIONS_RATE_LIMIT: "100"`,
+		`AGENT_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"`,
+		`test: ["CMD-SHELL", "if [ -n \"$$AGENT_FITNESS_FUNCTIONS_TLS_CA\" ]; then curl --fail --silent --cacert \"$$AGENT_FITNESS_FUNCTIONS_TLS_CA\" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1"]`,
 		"interval: 30s",
 		"timeout: 5s",
 		"start_period: 15s",

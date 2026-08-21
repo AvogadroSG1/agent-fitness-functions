@@ -61,7 +61,7 @@ func AnalyzeGoFile(file string) (AnalysisResult, error) {
 	}
 	importMetric := goImportMetric(parsed)
 	return AnalysisResult{
-		CALMNode:     parsed.Name.Name,
+		StackNode:     parsed.Name.Name,
 		Language:     "go",
 		File:         file,
 		Functions:    functions,

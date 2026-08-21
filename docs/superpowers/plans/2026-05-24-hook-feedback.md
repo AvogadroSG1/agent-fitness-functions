@@ -119,14 +119,14 @@ def _viol(
     value: float = 15.0,
     limit: float = 10.0,
     function: str = "ProcessRequest",
-    calm_node: str = "handler",
+    stack_node: str = "handler",
 ) -> dict[str, Any]:
     return {
         "fitness_function": fitness_function,
         "value": value,
         "limit": limit,
         "function": function,
-        "calm_node": calm_node,
+        "stack_node": stack_node,
     }
 
 
@@ -260,20 +260,20 @@ def test_build_output_no_location_when_no_function_or_node() -> None:
         "value": 20.0,
         "limit": 15.0,
         "function": "",
-        "calm_node": "",
+        "stack_node": "",
     }
     result = _fmt._build_output([v], "sample.go", "block", "block")
     assert result is not None
     assert "location" not in result["violations"][0]
 
 
-def test_build_output_location_is_only_calm_node_when_no_function() -> None:
+def test_build_output_location_is_only_stack_node_when_no_function() -> None:
     v: dict[str, Any] = {
         "fitness_function": "interface_width",
         "value": 20.0,
         "limit": 15.0,
         "function": "",
-        "calm_node": "mymodule",
+        "stack_node": "mymodule",
     }
     result = _fmt._build_output([v], "sample.go", "block", "block")
     assert result is not None
@@ -325,7 +325,7 @@ def test_main_block_produces_valid_yaml() -> None:
             "value": 15.0,
             "limit": 10.0,
             "function": "Run",
-            "calm_node": "checker",
+            "stack_node": "checker",
         }],
     })
     stdout, _, code = _run(payload, ["--mode", "block", "--file", "checker.go"])
@@ -435,7 +435,7 @@ def _load_guidance() -> dict[str, dict[str, Any]]:
 
     POC: data is inline. To externalize, replace this body with:
         import os
-        path = os.environ.get("STACK_FITNESS_FUNCTIONS_GUIDANCE_FILE", <default_path>)
+        path = os.environ.get("AGENT_FITNESS_FUNCTIONS_GUIDANCE_FILE", <default_path>)
         return yaml.safe_load(open(path))
     Call sites never change.
     """
@@ -556,7 +556,7 @@ def _build_output(
             value = v.get("value", 0)
             limit = v.get("limit", 0)
             function_name = v.get("function", "") or ""
-            calm_node = v.get("calm_node", "") or ""
+            stack_node = v.get("stack_node", "") or ""
             fn_guidance = guidance.get(fn, {})
             operator = fn_guidance.get("operator", "<=")
 
@@ -566,10 +566,10 @@ def _build_output(
                     file=sys.stderr,
                 )
 
-            location = calm_node
+            location = stack_node
             if function_name:
                 location = (
-                    f"{function_name} ({calm_node})" if calm_node else function_name
+                    f"{function_name} ({stack_node})" if stack_node else function_name
                 )
 
             # sort_keys=False preserves this insertion order — agent reads top to bottom

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Format CALM bridge JSON as agent-readable YAML.
+"""Format CALM validation JSON as agent-readable YAML.
 
 Usage:
-  stack-fitness-functions client validate ... | python3 hooks/format-violations.py \
+  agent-fitness-functions client validate ... | python3 hooks/format-violations.py \
       --mode <block|advisory> --file <relative/path>
 """
 from __future__ import annotations
@@ -13,12 +13,12 @@ import sys
 from typing import Any
 
 try:
-    import yaml
+    import yaml # type: ignore
     _YAML_AVAILABLE = True
 except ImportError:
     _YAML_AVAILABLE = False
 
-# Maps bridge enforcement mode to agent-readable display label.
+# Maps validation enforcement mode to an agent-readable display label.
 _MODE_LABELS: dict[str, str] = {
     "block": "blocking",
     "advisory": "advisory",
@@ -30,7 +30,7 @@ def _load_guidance() -> dict[str, dict[str, Any]]:
 
     POC: data is inline. To externalize, replace this body with:
         import os
-        path = os.environ.get("STACK_FITNESS_FUNCTIONS_GUIDANCE_FILE", <default_path>)
+        path = os.environ.get("AGENT_FITNESS_FUNCTIONS_GUIDANCE_FILE", <default_path>)
         return yaml.safe_load(open(path))
     Call sites never change.
     """
@@ -122,7 +122,7 @@ def format_value(v: float) -> int | float:
 
 
 def _normalise_fn_key(raw: str) -> str:
-    """Convert bridge key format (underscores) to guidance key format (hyphens)."""
+    """Convert validation key format (underscores) to guidance key format (hyphens)."""
     return raw.replace("_", "-")
 
 
@@ -154,7 +154,7 @@ def _build_output(
             float(value)  # type: ignore[arg-type]
             float(limit)  # type: ignore[arg-type]
             function_name = v.get("function", "") or ""
-            calm_node = v.get("calm_node", "") or ""
+            stack_node = v.get("stack_node", "") or ""
             fn_guidance = guidance.get(fn, {})
             operator = fn_guidance.get("operator", "<=")
 
@@ -164,10 +164,10 @@ def _build_output(
                     file=sys.stderr,
                 )
 
-            location = calm_node
+            location = stack_node
             if function_name:
                 location = (
-                    f"{function_name} ({calm_node})" if calm_node else function_name
+                    f"{function_name} ({stack_node})" if stack_node else function_name
                 )
 
             # sort_keys=False preserves this insertion order — agent reads top to bottom
@@ -214,7 +214,7 @@ def main() -> None:
         sys.exit(0)
 
     parser = argparse.ArgumentParser(
-        description="Format CALM bridge JSON as agent-readable YAML."
+        description="Format CALM validation JSON as agent-readable YAML."
     )
     parser.add_argument(
         "--mode",
@@ -268,7 +268,7 @@ def main() -> None:
 
         try:
             # sort_keys=False: preserve insertion order — agent reads top to bottom
-            result = yaml.dump(
+            result = yaml.dump( # type: ignore
                 output,
                 default_flow_style=False,
                 allow_unicode=True,

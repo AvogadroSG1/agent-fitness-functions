@@ -11,7 +11,7 @@ func TestWriteBaselineReportSummarizesResults(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "baseline-report.json")
 	results := []AnalysisResult{
 		{
-			CALMNode:   "sample",
+			StackNode:   "sample",
 			Language:   "go",
 			File:       "sample.go",
 			Functions:  []FunctionMetric{{Name: "Run", CyclomaticComplexity: 7, IsPublic: true, LOC: 20}},
@@ -42,7 +42,7 @@ func TestWriteBaselineReportSummarizesResults(t *testing.T) {
 	}
 }
 
-func TestAnalyzeRepositoryAggregatesModuleMetricsByCALMNode(t *testing.T) {
+func TestAnalyzeRepositoryAggregatesModuleMetricsByStackNode(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "first.go"), []byte(`package sample
 
@@ -69,7 +69,7 @@ func Second() string {
 		t.Fatalf("results = %d, want 2", len(results))
 	}
 	for _, result := range results {
-		if result.CALMNode != "sample" || result.ModuleMetric.PublicMethods != 2 {
+		if result.StackNode != "sample" || result.ModuleMetric.PublicMethods != 2 {
 			t.Fatalf("result = %+v, want aggregated sample module with two public methods", result)
 		}
 	}

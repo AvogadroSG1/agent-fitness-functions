@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poconnor/calm-poc/internal/calm"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/calm"
 )
 
 func testRules() map[string]calm.FitnessRule {
@@ -22,7 +22,7 @@ func testRules() map[string]calm.FitnessRule {
 
 func greenResult() AnalysisResult {
 	return AnalysisResult{
-		CALMNode:     "sample",
+		StackNode:     "sample",
 		Language:     "go",
 		File:         "green.go",
 		Functions:    []FunctionMetric{{Name: "Run", CyclomaticComplexity: 2, IsPublic: true, LOC: 10}},

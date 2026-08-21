@@ -1,25 +1,25 @@
 > **Historical document.** This runbook was written for the PoC local-only architecture.
-> It describes running `stack-fitness-functions` built to `.tmp/stack-fitness-functions` on loopback.
+> It describes running `agent-fitness-functions` built to `.tmp/agent-fitness-functions` on loopback.
 > For the current container governance model, see [CONTEXT.md](../../CONTEXT.md) and
 > [README.md](../../README.md). Steps in this runbook remain valid for local sandbox
 > verification but must not be used as production deployment guidance.
 
 ---
 
-# CALM PoC Red-Green Demo Runbook
+# agent-fitness-functions Red-Green Demo Runbook
 
 This runbook validates that CALM fitness functions block known violations in block-mode repositories, allow fixed code, and produce advisory guidance in advisory-mode repositories.
 
 ## Prerequisites
 
-- Start the server container: `stack-fitness-functions-serve` (or `stack-fitness-functions-serve --build` to force a rebuild) — this starts the Docker Desktop container on `localhost:7890`
-- Install the git hook in each target repository: `stack-fitness-functions client install-hooks <repo>`
-- Run commits with `STACK_FITNESS_FUNCTIONS_ADDR=http://localhost:7890 STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1`
+- Start the server container: `agent-fitness-functions-serve` (or `agent-fitness-functions-serve --build` to force a rebuild) — this starts the Docker Desktop container on `localhost:7890`
+- Install the git hook in each target repository: `agent-fitness-functions client install-hooks <repo>`
+- Run commits with `AGENT_FITNESS_FUNCTIONS_ADDR=http://localhost:7890 AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1`
 
-> **Local binary alternative (sandbox only):** Build the binary locally with `go build -o .tmp/stack-fitness-functions ./cmd/stack-fitness-functions` and start it with `.tmp/stack-fitness-functions server start --addr 127.0.0.1:7890`. Use `STACK_FITNESS_FUNCTIONS_BIN=.tmp/stack-fitness-functions STACK_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:7890` for commits. This path is only valid for developer sandbox iteration; it MUST NOT be used as the production path.
+> **Local binary alternative (sandbox only):** Build the binary locally with `go build -o .tmp/agent-fitness-functions ./cmd/agent-fitness-functions` and start it with `.tmp/agent-fitness-functions server start --addr 127.0.0.1:7890`. Use `AGENT_FITNESS_FUNCTIONS_BIN=.tmp/agent-fitness-functions AGENT_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:7890` for commits. This path is only valid for developer sandbox iteration; it MUST NOT be used as the production path.
 - Use per-demo `.calm/config.json` files that explicitly disable every non-target fitness function. Missing fitness-function keys default to enabled.
 
-The hook refuses non-loopback server addresses unless `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` is set. The installer overwrites prior CALM-managed hooks and refuses unrelated existing hooks unless `STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` is set.
+The hook refuses non-loopback server addresses unless `AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` is set. The installer overwrites prior CALM-managed hooks and refuses unrelated existing hooks unless `AGENT_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` is set.
 
 ## Fixture Matrix
 
@@ -81,7 +81,7 @@ The smoke script runs Cyclomatic Complexity, Interface Width, Logic Density Rati
 
 ```bash
 for _ in {1..30}; do
-  result=$(.tmp/stack-fitness-functions client validate \
+  result=$(.tmp/agent-fitness-functions client validate \
     --addr http://127.0.0.1:7890 \
     --repo <SlackStatus repo> \
     --file src/Demo/Warmup.cs \
@@ -124,8 +124,8 @@ The existing `fixtures/violations/python/ringstation-dd-stage-bronze.py` remains
 
 ## Troubleshooting
 
-- If the hook says `STACK_FITNESS_FUNCTIONS_ADDR must be loopback`, use `http://127.0.0.1:<port>` or explicitly set `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` for a trusted remote server.
-- If installation refuses to overwrite a hook, inspect the existing hook. Set `STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1` to install CALM as a sidecar alongside the existing hook (recommended when the existing hook must be preserved), or set `STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` to replace it entirely.
+- If the hook says `AGENT_FITNESS_FUNCTIONS_ADDR must be loopback`, use `http://127.0.0.1:<port>` or explicitly set `AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` for a trusted remote server.
+- If installation refuses to overwrite a hook, inspect the existing hook. Set `AGENT_FITNESS_FUNCTIONS_HOOK_APPEND=1` to install CALM as a sidecar alongside the existing hook (recommended when the existing hook must be preserved), or set `AGENT_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` to replace it entirely.
 - If a red commit unexpectedly passes, confirm that `.calm/config.json` enables the intended function and that the staged file is the red fixture.
 - If a red commit reports the wrong fitness function, confirm that every non-target function is explicitly set to `false` in `.calm/config.json`.
 - If a green commit still blocks, re-stage the green file. Outstanding block-mode violations clear when the same file passes.

@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/poconnor/calm-poc/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
 )
 
 // ArchitectureDocument is the CALM architecture document submitted to calm validate.
@@ -76,7 +76,7 @@ type Interacts struct {
 // BuildArchitecture converts analyzer metrics into a CALM architecture document.
 func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
 	result = analyzer.EnsureModuleMetric(result)
-	nodeID := calmID(result.CALMNode)
+	nodeID := calmID(result.StackNode)
 	actorID := nodeID + "-actor"
 	return ArchitectureDocument{
 		Schema: "https://calm.finos.org/release/1.2/meta/calm.json",
@@ -84,7 +84,7 @@ func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
 			{
 				UniqueID:    actorID,
 				NodeType:    "actor",
-				Name:        result.CALMNode + " Actor",
+				Name:        result.StackNode + " Actor",
 				Description: "Synthetic actor used to keep the analyzed CALM node reachable.",
 				Metadata: Metadata{Fitness: Fitness{
 					CyclomaticComplexity: 1,
@@ -97,7 +97,7 @@ func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
 			{
 				UniqueID:    nodeID,
 				NodeType:    "service",
-				Name:        result.CALMNode,
+				Name:        result.StackNode,
 				Description: "Architecture fitness metrics for " + result.File + ".",
 				Metadata: Metadata{Fitness: Fitness{
 					CyclomaticComplexity: float64(maxCyclomaticComplexity(result.Functions)),

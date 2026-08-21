@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/poconnor/calm-poc/internal/analyzer"
-	"github.com/poconnor/calm-poc/internal/calm"
-	"github.com/poconnor/calm-poc/internal/fitness"
-	"github.com/poconnor/calm-poc/internal/report"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/calm"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/report"
 )
 
 func TestCheckerWithRealCALMBlocksRingstationPythonCyclomaticComplexityFixture(t *testing.T) {
@@ -85,7 +85,7 @@ func TestCheckerWithRealCALMBlocksRingstationPythonCyclomaticComplexityFixture(t
 			FitnessFunction: "cyclomatic_complexity",
 			Function:        "build_config",
 			Limit:           9,
-			CALMNode:        "dd_stage_bronze",
+			StackNode:        "dd_stage_bronze",
 		}) {
 			t.Fatalf("violations run %d = %+v, want build_config cyclomatic complexity violation", index+1, body.Violations)
 		}
@@ -172,7 +172,7 @@ func TestPythonSynchronousCheckPhaseProfile(t *testing.T) {
 	analysisDuration := time.Since(phaseStart)
 	result = analyzer.EnsureModuleMetric(result)
 	result.File = request.File
-	result.CALMNode = calmNodeForRequest(request, result.CALMNode)
+	result.StackNode = calmNodeForRequest(request, result.StackNode)
 
 	phaseStart = time.Now()
 	architecturePath, cleanupArchitecture, err := checker.writeArchitecture(report.BuildArchitecture(result))
@@ -220,7 +220,7 @@ func hasViolation(violations []fitness.Violation, expected fitness.Violation) bo
 		if violation.FitnessFunction == expected.FitnessFunction &&
 			violation.Function == expected.Function &&
 			violation.Limit == expected.Limit &&
-			violation.CALMNode == expected.CALMNode &&
+			violation.StackNode == expected.StackNode &&
 			violation.Value > expected.Limit {
 			return true
 		}

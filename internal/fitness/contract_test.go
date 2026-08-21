@@ -26,7 +26,7 @@ func TestValidationWireContractUsesSharedVocabulary(t *testing.T) {
 		Warming: true,
 		Violations: []Violation{{
 			FitnessFunction: "cyclomatic_complexity",
-			CALMNode:        "go-module",
+			StackNode:        "go-module",
 			File:            "internal/parser/parser.go",
 			Function:        "Parse",
 			Value:           10,
@@ -38,7 +38,7 @@ func TestValidationWireContractUsesSharedVocabulary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal(ValidationResult) error = %v, want nil", err)
 	}
-	wantResult := `{"status":"block","warming":true,"violations":[{"fitness_function":"cyclomatic_complexity","calm_node":"go-module","file":"internal/parser/parser.go","function":"Parse","value":10,"limit":9,"message":"too complex"}]}`
+	wantResult := `{"status":"block","warming":true,"violations":[{"fitness_function":"cyclomatic_complexity","stack_node":"go-module","file":"internal/parser/parser.go","function":"Parse","value":10,"limit":9,"message":"too complex"}]}`
 	if string(resultBody) != wantResult {
 		t.Fatalf("json.Marshal(ValidationResult) = %s, want %s", resultBody, wantResult)
 	}

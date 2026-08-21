@@ -3,7 +3,7 @@ package analyzer
 
 // AnalysisResult contains normalized metrics from a language-specific analyzer.
 type AnalysisResult struct {
-	CALMNode     string           `json:"calm_node"`
+	StackNode     string           `json:"stack_node"`
 	Language     string           `json:"language"`
 	File         string           `json:"file"`
 	Functions    []FunctionMetric `json:"functions"`
@@ -91,16 +91,16 @@ func AggregateModuleMetrics(results []AnalysisResult) []AnalysisResult {
 	}
 	aggregates := make(map[string]aggregate)
 	for _, result := range results {
-		current := aggregates[result.CALMNode]
+		current := aggregates[result.StackNode]
 		current.fileMetric.TotalLOC += result.FileMetric.TotalLOC
 		current.fileMetric.LogicLOC += result.FileMetric.LogicLOC
 		current.fileMetric.PublicMethods += result.FileMetric.PublicMethods
 		current.functions = append(current.functions, result.Functions...)
-		aggregates[result.CALMNode] = current
+		aggregates[result.StackNode] = current
 	}
 	aggregated := make([]AnalysisResult, len(results))
 	for index, result := range results {
-		current := aggregates[result.CALMNode]
+		current := aggregates[result.StackNode]
 		result.ModuleMetric = BuildModuleMetric(current.fileMetric, current.functions)
 		aggregated[index] = result
 	}

@@ -1,0 +1,55 @@
+name: agent-fitness-functions
+version: 0.1.0
+targets:
+    - codex
+    - opencode
+    - claude
+dependencies:
+    apm:
+        - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+        - /Users/avogadro/peter_code/ai_support/skills/DevOps/k8s/docker
+        - /Users/avogadro/peter_code/ai_support/skills/DevOps/k8s/k8s-manifest-generator
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/ask-matt
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/code-review
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/codebase-design
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/diagnosing-bugs
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/domain-modeling
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/grill-me
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/grill-with-docs
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/grilling
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/handoff
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/implement
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/improve-codebase-architecture
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/prototype
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/research
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/resolving-merge-conflicts
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/setup-matt-pocock-skills
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/tdd
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/teach
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/to-questionnaire
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/to-spec
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/to-tickets
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/triage
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/wait-what
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/wayfinder
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/wizard
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/mattpocock/writing-for-agents
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/plannotator-compound
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/plannotator-setup-goal
+        - /Users/avogadro/peter_code/ai_support/skills/ai-workflow/plannotator-visual-explainer
+        - /Users/avogadro/peter_code/ai_support/skills/coding/dotnet/analyzing-dotnet-performance
+        - /Users/avogadro/peter_code/ai_support/skills/coding/dotnet/coverage-analysis
+        - /Users/avogadro/peter_code/ai_support/skills/coding/dotnet/csharp
+        - /Users/avogadro/peter_code/ai_support/skills/coding/dotnet/csharp-scripts
+        - /Users/avogadro/peter_code/ai_support/skills/coding/golang/golang-context
+        - /Users/avogadro/peter_code/ai_support/skills/coding/golang/golang-data-structures
+        - /Users/avogadro/peter_code/ai_support/skills/coding/golang/golang-documentation
+        - /Users/avogadro/peter_code/ai_support/skills/coding/golang/golang-gopls
+        - /Users/avogadro/peter_code/ai_support/skills/coding/golang/golang-how-to
+        - /Users/avogadro/peter_code/ai_support/skills/coding/golang/golang-performance
+        - /Users/avogadro/peter_code/ai_support/skills/coding/python/python-anti-patterns
+        - /Users/avogadro/peter_code/ai_support/skills/coding/python/python-code-style
+        - /Users/avogadro/peter_code/ai_support/skills/coding/python/python-configuration
+        - /Users/avogadro/peter_code/ai_support/skills/coding/python/python-performance-optimization
+        - /Users/avogadro/peter_code/ai_support/skills/coding/python/python-pro
+        - /Users/avogadro/peter_code/ai_support/skills/coding/python/python-type-safety

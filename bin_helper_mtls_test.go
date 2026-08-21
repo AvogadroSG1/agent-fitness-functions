@@ -1,4 +1,4 @@
-package calm_poc_test
+package agent_fitness_functions_test
 
 import (
 	"os"
@@ -8,12 +8,12 @@ import (
 	"testing"
 )
 
-// stubBridge writes a fake `stack-fitness-functions` binary that records the
+// stubBridge writes a fake `agent-fitness-functions` binary that records the
 // arguments of each invocation (one per line) into recordPath and emits a
 // passing validation response so the helper completes without a real server.
 func stubBridge(t *testing.T, dir, recordPath string) string {
 	t.Helper()
-	bridge := filepath.Join(dir, "stack-fitness-functions")
+	bridge := filepath.Join(dir, "agent-fitness-functions")
 	script := "#!/usr/bin/env bash\n" +
 		"printf '%s\\n' \"$*\" >> " + shellQuote(recordPath) + "\n" +
 		"echo '{\"status\":\"pass\"}'\n"
@@ -50,20 +50,20 @@ func newGitRepoWithFile(t *testing.T) (string, string) {
 	return repo, file
 }
 
-// TestStackFitnessFunctionsTestPassesMTLS verifies the helper authenticates:
+// TestAgentFitnessFunctionsTestPassesMTLS verifies the helper authenticates:
 // it must default to an https addr and forward discovered mTLS client
 // credentials to `client validate`. Regression guard for calm-poc-qo7, where
 // the helper defaulted to plain HTTP with no certs and every check returned
 // HTTP 401.
-func TestStackFitnessFunctionsTestPassesMTLS(t *testing.T) {
-	helper, err := filepath.Abs(filepath.Join("bin", "stack-fitness-functions-test"))
+func TestAgentFitnessFunctionsTestPassesMTLS(t *testing.T) {
+	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
 		t.Fatalf("abs helper path: %v", err)
 	}
 
 	_, file := newGitRepoWithFile(t)
 
-	// A cert directory the helper should auto-discover via STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR.
+	// A cert directory the helper should auto-discover via AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR.
 	certDir := t.TempDir()
 	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
 		if err := os.WriteFile(filepath.Join(certDir, name), []byte("x"), 0o600); err != nil {
@@ -76,9 +76,9 @@ func TestStackFitnessFunctionsTestPassesMTLS(t *testing.T) {
 
 	cmd := exec.Command(helper, file)
 	cmd.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+bridge,
-		"STACK_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
-		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
+		"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
+		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -106,11 +106,11 @@ func TestStackFitnessFunctionsTestPassesMTLS(t *testing.T) {
 	}
 }
 
-// TestStackFitnessFunctionsTestEnvOverridesCerts verifies explicit
-// STACK_FITNESS_FUNCTIONS_CLIENT_* env vars take precedence over directory
+// TestAgentFitnessFunctionsTestEnvOverridesCerts verifies explicit
+// AGENT_FITNESS_FUNCTIONS_CLIENT_* env vars take precedence over directory
 // discovery, following 12-factor config precedence.
-func TestStackFitnessFunctionsTestEnvOverridesCerts(t *testing.T) {
-	helper, err := filepath.Abs(filepath.Join("bin", "stack-fitness-functions-test"))
+func TestAgentFitnessFunctionsTestEnvOverridesCerts(t *testing.T) {
+	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
 		t.Fatalf("abs helper path: %v", err)
 	}
@@ -129,11 +129,11 @@ func TestStackFitnessFunctionsTestEnvOverridesCerts(t *testing.T) {
 
 	cmd := exec.Command(helper, file)
 	cmd.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+bridge,
-		"STACK_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
-		"STACK_FITNESS_FUNCTIONS_CLIENT_CERT="+filepath.Join(envCertDir, "hook.crt"),
-		"STACK_FITNESS_FUNCTIONS_CLIENT_KEY="+filepath.Join(envCertDir, "hook.key"),
-		"STACK_FITNESS_FUNCTIONS_CLIENT_CA="+filepath.Join(envCertDir, "roots.crt"),
+		"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
+		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT="+filepath.Join(envCertDir, "hook.crt"),
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_KEY="+filepath.Join(envCertDir, "hook.key"),
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CA="+filepath.Join(envCertDir, "roots.crt"),
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -156,12 +156,12 @@ func TestStackFitnessFunctionsTestEnvOverridesCerts(t *testing.T) {
 	}
 }
 
-// TestStackFitnessFunctionsTestErrorsWhenRepoNameUndetectable verifies the helper
+// TestAgentFitnessFunctionsTestErrorsWhenRepoNameUndetectable verifies the helper
 // fails with an explicit remediation instead of silently falling back to calm-poc
 // when the working tree has no configs/<basename> or .calm/config.json to infer the
 // governance repo name from. Regression guard against masking a misconfigured repo.
-func TestStackFitnessFunctionsTestErrorsWhenRepoNameUndetectable(t *testing.T) {
-	helper, err := filepath.Abs(filepath.Join("bin", "stack-fitness-functions-test"))
+func TestAgentFitnessFunctionsTestErrorsWhenRepoNameUndetectable(t *testing.T) {
+	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
 		t.Fatalf("abs helper path: %v", err)
 	}
@@ -182,26 +182,26 @@ func TestStackFitnessFunctionsTestErrorsWhenRepoNameUndetectable(t *testing.T) {
 
 	cmd := exec.Command(helper, file)
 	cmd.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+bridge,
-		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
+		"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
 	)
 	out, err := cmd.CombinedOutput()
 	if err == nil {
 		t.Fatalf("helper succeeded, want failure when repo name is undetectable; output=%s", out)
 	}
-	if !strings.Contains(string(out), "STACK_FITNESS_FUNCTIONS_REPO_NAME") {
-		t.Fatalf("output = %s, want remediation naming STACK_FITNESS_FUNCTIONS_REPO_NAME", out)
+	if !strings.Contains(string(out), "AGENT_FITNESS_FUNCTIONS_REPO_NAME") {
+		t.Fatalf("output = %s, want remediation naming AGENT_FITNESS_FUNCTIONS_REPO_NAME", out)
 	}
 	if _, statErr := os.Stat(recordPath); statErr == nil {
 		t.Fatalf("stub bridge was invoked; helper should fail before calling client validate")
 	}
 }
 
-// TestStackFitnessFunctionsTestUsesExplicitRepoName verifies an explicit
-// STACK_FITNESS_FUNCTIONS_REPO_NAME is forwarded to client validate, which is the
+// TestAgentFitnessFunctionsTestUsesExplicitRepoName verifies an explicit
+// AGENT_FITNESS_FUNCTIONS_REPO_NAME is forwarded to client validate, which is the
 // supported way to name the governance repo when detection cannot infer it.
-func TestStackFitnessFunctionsTestUsesExplicitRepoName(t *testing.T) {
-	helper, err := filepath.Abs(filepath.Join("bin", "stack-fitness-functions-test"))
+func TestAgentFitnessFunctionsTestUsesExplicitRepoName(t *testing.T) {
+	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
 		t.Fatalf("abs helper path: %v", err)
 	}
@@ -220,9 +220,9 @@ func TestStackFitnessFunctionsTestUsesExplicitRepoName(t *testing.T) {
 
 	cmd := exec.Command(helper, file)
 	cmd.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+bridge,
-		"STACK_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
-		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
+		"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
+		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -238,8 +238,8 @@ func TestStackFitnessFunctionsTestUsesExplicitRepoName(t *testing.T) {
 	}
 }
 
-func TestStackFitnessFunctionsTestFailsWhenClientValidateFails(t *testing.T) {
-	helper, err := filepath.Abs(filepath.Join("bin", "stack-fitness-functions-test"))
+func TestAgentFitnessFunctionsTestFailsWhenClientValidateFails(t *testing.T) {
+	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
 		t.Fatalf("abs helper path: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestStackFitnessFunctionsTestFailsWhenClientValidateFails(t *testing.T) {
 	}
 
 	bridgeDir := t.TempDir()
-	bridge := filepath.Join(bridgeDir, "stack-fitness-functions")
+	bridge := filepath.Join(bridgeDir, "agent-fitness-functions")
 	script := "#!/usr/bin/env bash\n" +
 		"echo 'check failed with HTTP 403: caller \"dev-hook-pool\" is not authorized for repository \"wrong-repo\"' >&2\n" +
 		"exit 1\n"
@@ -264,9 +264,9 @@ func TestStackFitnessFunctionsTestFailsWhenClientValidateFails(t *testing.T) {
 
 	cmd := exec.Command(helper, file)
 	cmd.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+bridge,
-		"STACK_FITNESS_FUNCTIONS_REPO_NAME=wrong-repo",
-		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
+		"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
+		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=wrong-repo",
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
 	)
 	out, err := cmd.CombinedOutput()
 	if err == nil {

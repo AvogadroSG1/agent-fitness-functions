@@ -73,7 +73,7 @@ func AnalyzePythonFile(ctx context.Context, file, radonPath string) (AnalysisRes
 	fileMetric.PublicMethods = publicFunctionCount(functions)
 
 	return AnalysisResult{
-		CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
+		StackNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
 		Language:     "python",
 		File:         file,
 		Functions:    functions,
@@ -166,7 +166,7 @@ func analyzePythonFileWithRadonAPI(ctx context.Context, file, radonPath string) 
 	fileMetric.PublicMethods = publicFunctionCount(functions)
 
 	return AnalysisResult{
-		CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
+		StackNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
 		Language:     "python",
 		File:         file,
 		Functions:    functions,
@@ -329,7 +329,7 @@ func AnalyzePythonRepository(ctx context.Context, root, radonPath string) ([]Ana
 		functions := pythonFunctions(ccPayload[file])
 		fileMetric.PublicMethods = publicFunctionCount(functions)
 		results = append(results, AnalysisResult{
-			CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
+			StackNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
 			Language:     "python",
 			File:         file,
 			Functions:    functions,

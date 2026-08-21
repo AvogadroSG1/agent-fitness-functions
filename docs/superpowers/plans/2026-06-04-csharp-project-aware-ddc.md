@@ -277,7 +277,7 @@ var totalLOC = lineSpan.EndLinePosition.Line - lineSpan.StartLinePosition.Line +
 var logicLOC = source.Split('\n').Count(IsLogicLine);
 var result = new AnalysisResult
 {
-    CALMNode = CALMNode(root, file),
+    StackNode = StackNode(root, file),
     Language = "csharp",
     File = file,
     Functions = functions,
@@ -350,7 +350,7 @@ static SemanticModel PlatformSemanticModel(SyntaxTree tree)
 }
 ```
 
-The remaining static helpers (`Complexity`, `IsFunctionNode`, `FunctionName`, `AccessorName`, `IsPublicFunction`, `IsPublicAccessor`, `CALMNode`, `ImportMetric`, `IsImportUsed`, `IsLogicLine`, `Ratio`) and all record/class definitions remain exactly as they were — do not touch them.
+The remaining static helpers (`Complexity`, `IsFunctionNode`, `FunctionName`, `AccessorName`, `IsPublicFunction`, `IsPublicAccessor`, `StackNode`, `ImportMetric`, `IsImportUsed`, `IsLogicLine`, `Ratio`) and all record/class definitions remain exactly as they were — do not touch them.
 
 - [ ] **Step 6: Rebuild the Roslyn CLI**
 

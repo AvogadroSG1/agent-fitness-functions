@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/poconnor/calm-poc/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
 const schema = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"
@@ -74,7 +74,7 @@ func Convert(resp fitness.ValidationResult, repoRoot string) any {
 			{
 				Tool: tool{
 					Driver: driver{
-						Name:           "stack-fitness-functions",
+						Name:           "agent-fitness-functions",
 						InformationURI: "https://calm.finos.org",
 						Rules:          rules,
 					},

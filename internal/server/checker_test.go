@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/poconnor/calm-poc/internal/analyzer"
-	"github.com/poconnor/calm-poc/internal/calm"
-	"github.com/poconnor/calm-poc/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/calm"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
 func TestHandlerCheckRunsGoAnalyzerCALMAndBlocksCyclomaticComplexityViolation(t *testing.T) {
@@ -81,7 +81,7 @@ func TestHandlerCheckRunsGoAnalyzerCALMAndBlocksCyclomaticComplexityViolation(t 
 	if !ok {
 		t.Fatalf("raw response = %s, want violation object", rawBody)
 	}
-	for _, field := range []string{"fitness_function", "calm_node", "function", "value", "limit", "message"} {
+	for _, field := range []string{"fitness_function", "stack_node", "function", "value", "limit", "message"} {
 		if _, ok := violationFields[field]; !ok {
 			t.Fatalf("raw response = %s, want violation field %q", rawBody, field)
 		}
@@ -181,6 +181,9 @@ func TestHandlerCheckReturnsBadRequestForUnsupportedLanguage(t *testing.T) {
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true}, nil
+		}),
 	}, nil))
 	defer server.Close()
 
@@ -211,6 +214,9 @@ func TestHandlerCheckReturnsBadRequestForTrailingJSON(t *testing.T) {
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true}, nil
+		}),
 	}, nil))
 	defer server.Close()
 
@@ -425,8 +431,8 @@ func TestHandlerCheckRunsPythonAnalyzerAndRoutesAdvisoryViolation(t *testing.T) 
 	if violation.FitnessFunction != "cyclomatic_complexity" || violation.Function != "build_config" || violation.Value <= 9 || violation.Limit != 9 {
 		t.Fatalf("violation = %+v, want Python build_config CC violation", violation)
 	}
-	if violation.CALMNode != "dd_stage_bronze" {
-		t.Fatalf("calm node = %q, want logical Python module node", violation.CALMNode)
+	if violation.StackNode != "dd_stage_bronze" {
+		t.Fatalf("calm node = %q, want logical Python module node", violation.StackNode)
 	}
 }
 
@@ -473,7 +479,7 @@ func TestHandlerCheckBlocksInterfaceWidthViolation(t *testing.T) {
 		t.Fatalf("response = %+v, want one interface-width block", body)
 	}
 	violation := body.Violations[0]
-	if violation.FitnessFunction != "interface_width" || violation.CALMNode != "go-module" || violation.Value != 21 || violation.Limit != 20 {
+	if violation.FitnessFunction != "interface_width" || violation.StackNode != "go-module" || violation.Value != 21 || violation.Limit != 20 {
 		t.Fatalf("violation = %+v, want interface-width 21 > 20", violation)
 	}
 	if !strings.Contains(violation.Message, "exposes 21 public methods") || !strings.Contains(violation.Message, "reduce the public surface area") {
@@ -502,7 +508,7 @@ func TestHandlerCheckBlocksImplementationDepthViolation(t *testing.T) {
 		t.Fatalf("response = %+v, want one implementation-depth block", body)
 	}
 	violation := body.Violations[0]
-	if violation.FitnessFunction != "implementation_depth" || violation.CALMNode != "go-module" || violation.Value != 0.5 || violation.Limit != 0.722 {
+	if violation.FitnessFunction != "implementation_depth" || violation.StackNode != "go-module" || violation.Value != 0.5 || violation.Limit != 0.722 {
 		t.Fatalf("violation = %+v, want implementation depth 0.5 below 0.722", violation)
 	}
 	if !strings.Contains(violation.Message, "averages 0.500 LOC per public method") || !strings.Contains(violation.Message, "unnecessary pass-throughs") {
@@ -561,7 +567,7 @@ func TestHandlerCheckAggregatesRealGoPackageForInterfaceWidth(t *testing.T) {
 		t.Fatalf("response = %+v, want aggregate package interface-width block", body)
 	}
 	violation := body.Violations[0]
-	if violation.FitnessFunction != "interface_width" || violation.CALMNode != "wide" || violation.Value != 21 {
+	if violation.FitnessFunction != "interface_width" || violation.StackNode != "wide" || violation.Value != 21 {
 		t.Fatalf("violation = %+v, want package-wide 21 public methods", violation)
 	}
 }
@@ -756,6 +762,9 @@ func TestHandlerCheckBlocksRealGoBoilerplateForLogicDensity(t *testing.T) {
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true}, nil
+		}),
 	}, nil))
 	defer server.Close()
 
@@ -775,6 +784,9 @@ func TestHandlerCheckBlocksRealGoUnusedImportsForDependencyDiscipline(t *testing
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
 		ConfigStore: store,
 		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true}, nil
+		}),
 	}, nil))
 	defer server.Close()
 
@@ -1073,7 +1085,7 @@ func TestHandlerCheckCSharpWarmupFailurePrecedesOutstandingViolation(t *testing.
 	state.FailWarmup("csharp", "running csharp analyzer: boom")
 	state.ReplaceFile(repo, "src/Existing.cs", []fitness.Violation{{
 		FitnessFunction: "cyclomatic_complexity",
-		CALMNode:        "Existing",
+		StackNode:       "Existing",
 		File:            "src/Existing.cs",
 		Function:        "Render",
 		Value:           10,
@@ -1154,7 +1166,7 @@ func TestHandlerCheckCSharpColdDefersAnalysisAndBlocksNextCall(t *testing.T) {
 	}
 	close(release)
 	violations := waitForStateViolations(t, server.URL, repo, 1)
-	if violations[0].Function != "Render" || violations[0].CALMNode != "Widget" {
+	if violations[0].Function != "Render" || violations[0].StackNode != "Widget" {
 		t.Fatalf("violations = %+v, want deferred Widget.Render violation", violations)
 	}
 
@@ -1174,7 +1186,7 @@ func TestHandlerCheckCSharpColdBlocksExistingOutstandingViolation(t *testing.T) 
 	state := NewState()
 	state.ReplaceFile(repo, "src/Existing.cs", []fitness.Violation{{
 		FitnessFunction: "cyclomatic_complexity",
-		CALMNode:        "Existing",
+		StackNode:       "Existing",
 		File:            "src/Existing.cs",
 		Function:        "Render",
 		Value:           10,
@@ -1250,7 +1262,7 @@ func TestHandlerCheckCSharpColdAdvisoryClearsStaleBlockState(t *testing.T) {
 	state := NewState()
 	state.ReplaceFile(repo, "src/Existing.cs", []fitness.Violation{{
 		FitnessFunction: "cyclomatic_complexity",
-		CALMNode:        "Existing",
+		StackNode:       "Existing",
 		File:            "src/Existing.cs",
 		Function:        "Render",
 		Value:           10,
@@ -2284,7 +2296,7 @@ func deepShallowAnalysis(language string, publicMethods, logicLOC int) analyzer.
 		LDR:           0.9,
 	}
 	return analyzer.AnalysisResult{
-		CALMNode:     language + "-module",
+		StackNode:    language + "-module",
 		Language:     language,
 		ModuleMetric: analyzer.BuildModuleMetric(fileMetric, nil),
 		Functions: []analyzer.FunctionMetric{{
@@ -2592,7 +2604,7 @@ func TestStartDeferredCheckPrintsReadyOnSuccess(t *testing.T) {
 		Analyzers: map[string]SourceAnalyzer{
 			"csharp": AnalyzerFunc(func(_ context.Context, _ AnalysisRequest) (analyzer.AnalysisResult, error) {
 				return analyzer.AnalysisResult{
-					CALMNode:  "warmup",
+					StackNode: "warmup",
 					Language:  "csharp",
 					Functions: []analyzer.FunctionMetric{{Name: "Run", CyclomaticComplexity: 1, IsPublic: true, LOC: 5}},
 				}, nil
@@ -2641,7 +2653,7 @@ func TestCheckWithCSharpWarmGuardPassesWhileWarming(t *testing.T) {
 		Analyzers: map[string]SourceAnalyzer{
 			"csharp": AnalyzerFunc(func(_ context.Context, _ AnalysisRequest) (analyzer.AnalysisResult, error) {
 				return analyzer.AnalysisResult{
-					CALMNode:  "warmup",
+					StackNode: "warmup",
 					Language:  "csharp",
 					Functions: []analyzer.FunctionMetric{{Name: "Run", CyclomaticComplexity: 1, IsPublic: true, LOC: 5}},
 				}, nil

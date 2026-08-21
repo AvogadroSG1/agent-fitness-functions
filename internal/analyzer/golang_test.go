@@ -52,8 +52,8 @@ func privatePassThrough() string {
 		t.Fatalf("AnalyzeGoFile returned error: %v", err)
 	}
 
-	if result.CALMNode != "sample" {
-		t.Fatalf("CALMNode = %q, want sample", result.CALMNode)
+	if result.StackNode != "sample" {
+		t.Fatalf("StackNode = %q, want sample", result.StackNode)
 	}
 	if len(result.Functions) != 4 {
 		t.Fatalf("functions = %d, want 4", len(result.Functions))

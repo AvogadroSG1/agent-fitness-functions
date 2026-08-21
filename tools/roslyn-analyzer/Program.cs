@@ -71,7 +71,7 @@ var totalLOC = lineSpan.EndLinePosition.Line - lineSpan.StartLinePosition.Line +
 var logicLOC = source.Split('\n').Count(IsLogicLine);
 var result = new AnalysisResult
 {
-    CALMNode = CALMNode(root, file),
+    StackNode = StackNode(root, file),
     Language = "csharp",
     File = file,
     Functions = functions,
@@ -231,7 +231,7 @@ static bool IsPublicAccessor(AccessorDeclarationSyntax accessor)
     };
 }
 
-static string CALMNode(SyntaxNode root, string file)
+static string StackNode(SyntaxNode root, string file)
 {
     var namespaceNode = root.DescendantNodes().OfType<BaseNamespaceDeclarationSyntax>().FirstOrDefault();
     if (namespaceNode is not null)
@@ -305,8 +305,8 @@ static double Ratio(int numerator, int denominator) => denominator == 0 ? 1 : (d
 
 sealed class AnalysisResult
 {
-    [JsonPropertyName("calm_node")]
-    public string CALMNode { get; set; } = "";
+    [JsonPropertyName("stack_node")]
+    public string StackNode { get; set; } = "";
     public string Language { get; set; } = "";
     public string File { get; set; } = "";
     public List<FunctionMetric> Functions { get; set; } = [];

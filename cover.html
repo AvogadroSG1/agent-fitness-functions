@@ -55,17 +55,17 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/poconnor/calm-poc/internal/analyzer/analyzer.go (96.6%)</option>
+				<option value="file0">github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer/analyzer.go (96.6%)</option>
 				
-				<option value="file1">github.com/poconnor/calm-poc/internal/analyzer/baseline.go (89.8%)</option>
+				<option value="file1">github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer/baseline.go (89.8%)</option>
 				
-				<option value="file2">github.com/poconnor/calm-poc/internal/analyzer/csharp.go (56.5%)</option>
+				<option value="file2">github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer/csharp.go (56.5%)</option>
 				
-				<option value="file3">github.com/poconnor/calm-poc/internal/analyzer/golang.go (88.8%)</option>
+				<option value="file3">github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer/golang.go (88.8%)</option>
 				
-				<option value="file4">github.com/poconnor/calm-poc/internal/analyzer/python.go (73.7%)</option>
+				<option value="file4">github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer/python.go (73.7%)</option>
 				
-				<option value="file5">github.com/poconnor/calm-poc/internal/analyzer/repository.go (73.5%)</option>
+				<option value="file5">github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer/repository.go (73.5%)</option>
 				
 				</select>
 			</div>
@@ -84,7 +84,7 @@ package analyzer
 
 // AnalysisResult contains normalized metrics from a language-specific analyzer.
 type AnalysisResult struct {
-        CALMNode     string           `json:"calm_node"`
+        StackNode     string           `json:"stack_node"`
         Language     string           `json:"language"`
         File         string           `json:"file"`
         Functions    []FunctionMetric `json:"functions"`
@@ -172,16 +172,16 @@ func AggregateModuleMetrics(results []AnalysisResult) []AnalysisResult <span cla
         }
         aggregates := make(map[string]aggregate)
         for _, result := range results </span><span class="cov8" title="1">{
-                current := aggregates[result.CALMNode]
+                current := aggregates[result.StackNode]
                 current.fileMetric.TotalLOC += result.FileMetric.TotalLOC
                 current.fileMetric.LogicLOC += result.FileMetric.LogicLOC
                 current.fileMetric.PublicMethods += result.FileMetric.PublicMethods
                 current.functions = append(current.functions, result.Functions...)
-                aggregates[result.CALMNode] = current
+                aggregates[result.StackNode] = current
         }</span>
         <span class="cov8" title="1">aggregated := make([]AnalysisResult, len(results))
         for index, result := range results </span><span class="cov8" title="1">{
-                current := aggregates[result.CALMNode]
+                current := aggregates[result.StackNode]
                 result.ModuleMetric = BuildModuleMetric(current.fileMetric, current.functions)
                 aggregated[index] = result
         }</span>
@@ -456,7 +456,7 @@ func AnalyzeGoFile(file string) (AnalysisResult, error) <span class="cov8" title
         }
         importMetric := goImportMetric(parsed)
         return AnalysisResult{
-                CALMNode:     parsed.Name.Name,
+                StackNode:     parsed.Name.Name,
                 Language:     "go",
                 File:         file,
                 Functions:    functions,
@@ -661,7 +661,7 @@ func AnalyzePythonFile(ctx context.Context, file, radonPath string) (AnalysisRes
         fileMetric.PublicMethods = publicFunctionCount(functions)
 
         return AnalysisResult{
-                CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
+                StackNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
                 Language:     "python",
                 File:         file,
                 Functions:    functions,
@@ -754,7 +754,7 @@ func analyzePythonFileWithRadonAPI(ctx context.Context, file, radonPath string) 
         fileMetric.PublicMethods = publicFunctionCount(functions)
 
         return AnalysisResult{
-                CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
+                StackNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
                 Language:     "python",
                 File:         file,
                 Functions:    functions,
@@ -917,7 +917,7 @@ func AnalyzePythonRepository(ctx context.Context, root, radonPath string) ([]Ana
                 functions := pythonFunctions(ccPayload[file])
                 fileMetric.PublicMethods = publicFunctionCount(functions)
                 results = append(results, AnalysisResult{
-                        CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
+                        StackNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
                         Language:     "python",
                         File:         file,
                         Functions:    functions,

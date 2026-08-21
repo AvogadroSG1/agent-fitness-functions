@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/poconnor/calm-poc/internal/analyzer"
-	"github.com/poconnor/calm-poc/internal/calm"
-	"github.com/poconnor/calm-poc/internal/fitness"
-	"github.com/poconnor/calm-poc/internal/report"
-	"github.com/poconnor/calm-poc/patterns"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/calm"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/report"
+	"github.com/AvogadroSG1/agent-fitness-functions/patterns"
 )
 
 // Validator runs CALM validation for generated architecture documents.
@@ -218,7 +218,7 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request fitness.Va
 	}
 	result = analyzer.EnsureModuleMetric(result)
 	result.File = request.File
-	result.CALMNode = calmNodeForRequest(request, result.CALMNode)
+	result.StackNode = calmNodeForRequest(request, result.StackNode)
 	return c.runValidationAndScore(ctx, result, repo, request.File, patternPath, config, state)
 }
 
@@ -498,7 +498,7 @@ func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm
 		}
 		violations = append(violations, fitness.Violation{
 			FitnessFunction: "cyclomatic_complexity",
-			CALMNode:        result.CALMNode,
+			StackNode:        result.StackNode,
 			File:            result.File,
 			Function:        function.Name,
 			Value:           value,
@@ -506,7 +506,7 @@ func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm
 			Message: fmt.Sprintf(
 				"Function %q in module %q has cyclomatic complexity %d, exceeding the limit of %.0f. Extract conditional branches into separate functions.",
 				function.Name,
-				result.CALMNode,
+				result.StackNode,
 				function.CyclomaticComplexity,
 				rule.Threshold,
 			),
@@ -523,13 +523,13 @@ func interfaceWidthViolations(result analyzer.AnalysisResult, pattern calm.Patte
 	}
 	return []fitness.Violation{{
 		FitnessFunction: "interface_width",
-		CALMNode:        result.CALMNode,
+		StackNode:        result.StackNode,
 		File:            result.File,
 		Value:           float64(result.ModuleMetric.PublicMethods),
 		Limit:           rule.Threshold,
 		Message: fmt.Sprintf(
 			"Module '%s' exposes %d public methods, exceeding the limit of %.0f. Consolidate related operations or reduce the public surface area.",
-			result.CALMNode,
+			result.StackNode,
 			result.ModuleMetric.PublicMethods,
 			rule.Threshold,
 		),
@@ -545,13 +545,13 @@ func implementationDepthViolations(result analyzer.AnalysisResult, pattern calm.
 	}
 	return []fitness.Violation{{
 		FitnessFunction: "implementation_depth",
-		CALMNode:        result.CALMNode,
+		StackNode:        result.StackNode,
 		File:            result.File,
 		Value:           value,
 		Limit:           rule.Threshold,
 		Message: fmt.Sprintf(
 			"Module '%s' averages %.3f LOC per public method, below the minimum of %.3f. Methods with little implementation may be unnecessary pass-throughs.",
-			result.CALMNode,
+			result.StackNode,
 			value,
 			rule.Threshold,
 		),
@@ -565,7 +565,7 @@ func logicDensityViolations(result analyzer.AnalysisResult, pattern calm.Pattern
 	}
 	return []fitness.Violation{{
 		FitnessFunction: "logic_density",
-		CALMNode:        result.CALMNode,
+		StackNode:        result.StackNode,
 		File:            result.File,
 		Value:           result.FileMetric.LDR,
 		Limit:           rule.Threshold,
@@ -589,7 +589,7 @@ func dependencyDisciplineViolations(result analyzer.AnalysisResult, pattern calm
 	}
 	return []fitness.Violation{{
 		FitnessFunction: "dependency_discipline",
-		CALMNode:        result.CALMNode,
+		StackNode:        result.StackNode,
 		File:            result.File,
 		Value:           result.Imports.DDC,
 		Limit:           rule.Threshold,
@@ -673,7 +673,7 @@ func analyzeGoWithModuleContext(ctx context.Context, request AnalysisRequest) (a
 		if err != nil {
 			return analyzer.AnalysisResult{}, err
 		}
-		if existing.CALMNode == proposed.CALMNode {
+		if existing.StackNode == proposed.StackNode {
 			results = append(results, existing)
 		}
 	}

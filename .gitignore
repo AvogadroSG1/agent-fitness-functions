@@ -1,5 +1,5 @@
 # Go build outputs
-/stack-fitness-functions
+/agent-fitness-functions
 /dist/
 **/obj/
 *.exe
@@ -36,3 +36,6 @@ current-architecture.json
 tmp/
 .cache/
 tools/roslyn-analyzer/bin/
+
+# APM dependencies
+apm_modules/

@@ -151,7 +151,7 @@ func printCheckResult(stdout io.Writer, result checkResult) {
 func checkBinary() checkResult {
 	path, err := os.Executable()
 	if err != nil {
-		path = "stack-fitness-functions"
+		path = "agent-fitness-functions"
 	}
 	detail := path
 	if revision := buildRevision(); revision != "" {
@@ -210,7 +210,7 @@ func checkClientCertificate(cfg doctorConfig) checkResult {
 		return checkResult{
 			name:        "client certificate",
 			detail:      "no client cert/key resolved",
-			remediation: "run scripts/generate-dev-certs.sh, or set STACK_FITNESS_FUNCTIONS_CLIENT_CERT and STACK_FITNESS_FUNCTIONS_CLIENT_KEY",
+			remediation: "run scripts/generate-dev-certs.sh, or set AGENT_FITNESS_FUNCTIONS_CLIENT_CERT and AGENT_FITNESS_FUNCTIONS_CLIENT_KEY",
 		}
 	}
 	leaf, err := loadClientLeaf(cfg.clientCert, cfg.clientKey)
@@ -259,7 +259,7 @@ func checkServerCABundle(cfg doctorConfig) checkResult {
 		return checkResult{
 			name:        "server CA bundle",
 			detail:      "no CA bundle resolved",
-			remediation: "run scripts/generate-dev-certs.sh, or set STACK_FITNESS_FUNCTIONS_CLIENT_CA",
+			remediation: "run scripts/generate-dev-certs.sh, or set AGENT_FITNESS_FUNCTIONS_CLIENT_CA",
 		}
 	}
 	content, err := os.ReadFile(cfg.clientCA)
@@ -267,7 +267,7 @@ func checkServerCABundle(cfg doctorConfig) checkResult {
 		return checkResult{
 			name:        "server CA bundle",
 			detail:      err.Error(),
-			remediation: "run scripts/generate-dev-certs.sh, or set STACK_FITNESS_FUNCTIONS_CLIENT_CA to a readable CA bundle",
+			remediation: "run scripts/generate-dev-certs.sh, or set AGENT_FITNESS_FUNCTIONS_CLIENT_CA to a readable CA bundle",
 		}
 	}
 	if !x509.NewCertPool().AppendCertsFromPEM(content) {
@@ -326,7 +326,7 @@ func preflightStatusResult(status int) (checkResult, bool) {
 		return checkResult{
 			name:        "server authentication",
 			detail:      "server returned 401 (client certificate not accepted)",
-			remediation: "regenerate certs with scripts/generate-dev-certs.sh --force, or set STACK_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA to a trusted pair",
+			remediation: "regenerate certs with scripts/generate-dev-certs.sh --force, or set AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA to a trusted pair",
 		}, false
 	default:
 		return checkResult{
@@ -440,7 +440,7 @@ func gitHookResult(repoRoot, hookName string) checkResult {
 	name := "git " + hookName + " hook"
 	path, err := gitOutput(repoRoot, "rev-parse", "--git-path", "hooks/"+hookName)
 	if err != nil {
-		return checkResult{name: name, detail: err.Error(), remediation: "stack-fitness-functions client install-hooks"}
+		return checkResult{name: name, detail: err.Error(), remediation: "agent-fitness-functions client install-hooks"}
 	}
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(repoRoot, path)
@@ -450,7 +450,7 @@ func gitHookResult(repoRoot, hookName string) checkResult {
 		return checkResult{
 			name:        name,
 			detail:      "not installed (missing managed marker)",
-			remediation: "stack-fitness-functions client install-hooks",
+			remediation: "agent-fitness-functions client install-hooks",
 		}
 	}
 	return checkResult{name: name, detail: path, passed: true}
@@ -460,14 +460,14 @@ func gitGuardSettingsResult(repoRoot string) checkResult {
 	name := "agent git-guard hook"
 	settings, err := loadClaudeSettings(filepath.Join(repoRoot, ".claude", "settings.json"))
 	if err != nil {
-		return checkResult{name: name, detail: err.Error(), remediation: "stack-fitness-functions client install-hooks"}
+		return checkResult{name: name, detail: err.Error(), remediation: "agent-fitness-functions client install-hooks"}
 	}
 	entries := preToolUseEntries(ensureHooksSection(settings))
 	if _, _, found := findClaudeHookEntry(entries, []string{gitGuardName, legacyGitGuardName}); !found {
 		return checkResult{
 			name:        name,
 			detail:      "no Bash git-guard PreToolUse entry in .claude/settings.json",
-			remediation: "stack-fitness-functions client install-hooks",
+			remediation: "agent-fitness-functions client install-hooks",
 		}
 	}
 	return checkResult{name: name, detail: "configured in .claude/settings.json", passed: true}

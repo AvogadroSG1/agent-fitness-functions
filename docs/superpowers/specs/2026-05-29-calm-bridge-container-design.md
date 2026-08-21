@@ -39,11 +39,11 @@ When `POST /check` arrives with `repo: "graft"`, the server looks up `configs/gr
 
 Changing governance thresholds requires a PR to this repository. The git history is the audit trail. A developer who edits their local config and points their hook at the container gets the governance team's config regardless.
 
-**Local `.calm/config.json` remains** as a developer sandbox. The local `calm-bridge` binary (without `STACK_FITNESS_FUNCTIONS_ADDR` set) still reads it for fast local iteration. The container is the enforcement point; local config is a DX affordance.
+**Local `.calm/config.json` remains** as a developer sandbox. The local `calm-bridge` binary (without `AGENT_FITNESS_FUNCTIONS_ADDR` set) still reads it for fast local iteration. The container is the enforcement point; local config is a DX affordance.
 
 ### Runtime-mounted config, hot-reloaded
 
-The governance team does not restart the container to activate a threshold change. An `fsnotify` watcher monitors `STACK_FITNESS_FUNCTIONS_CONFIGS_DIR`. Any file change triggers an in-memory reload within ~1 second. The next `/check` request uses the new config.
+The governance team does not restart the container to activate a threshold change. An `fsnotify` watcher monitors `AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR`. Any file change triggers an in-memory reload within ~1 second. The next `/check` request uses the new config.
 
 | Event | Server response |
 |---|---|
@@ -52,7 +52,7 @@ The governance team does not restart the container to activate a threshold chang
 | File added | New repo config becomes available immediately |
 | File deleted | **Marks repo as invalid; returns explicit error on subsequent `/check` requests until repaired** |
 | File is invalid JSON | Logs a warning; **marks repo config invalid and returns explicit error. Does not crash.** |
-| `STACK_FITNESS_FUNCTIONS_CONFIGS_DIR` not set | Defaults to `/app/configs` (container-safe path) |
+| `AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR` not set | Defaults to `/app/configs` (container-safe path) |
 
 #### Hot-reload semantics
 
@@ -184,7 +184,7 @@ graph TD
     end
 
     subgraph "CI / Pre-commit Hook"
-        HK["pre-commit hook\nSTACK_FITNESS_FUNCTIONS_ADDR=https://container:7890\nSTACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1\nmTLS client cert"]
+        HK["pre-commit hook\nAGENT_FITNESS_FUNCTIONS_ADDR=https://container:7890\nAGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1\nmTLS client cert"]
     end
 
     HK -->|"POST /check (TLS)\n{repo:'graft', file, content, language}"| TLS
@@ -203,9 +203,9 @@ graph TD
 
 **Constraints:**
 - Max request body: 5 MB
-- Per-client rate limit: 100 requests/minute (configurable via `STACK_FITNESS_FUNCTIONS_RATE_LIMIT`)
+- Per-client rate limit: 100 requests/minute (configurable via `AGENT_FITNESS_FUNCTIONS_RATE_LIMIT`)
 - Per-repo concurrency cap: 10 concurrent analyses
-- Analyzer timeout: 30s per file (configurable via `STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT`)
+- Analyzer timeout: 30s per file (configurable via `AGENT_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT`)
 
 **Response:**
 
@@ -416,12 +416,12 @@ services:
       - ./certs:/app/certs:ro
       - ./caller-repos.json:/app/caller-repos.json:ro
     environment:
-      STACK_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs
-      STACK_FITNESS_FUNCTIONS_TLS_CERT: /app/certs/server.crt
-      STACK_FITNESS_FUNCTIONS_TLS_KEY: /app/certs/server.key
-      STACK_FITNESS_FUNCTIONS_TLS_CA: /app/certs/ca.crt
-      STACK_FITNESS_FUNCTIONS_RATE_LIMIT: "100"
-      STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"
+      AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs
+      AGENT_FITNESS_FUNCTIONS_TLS_CERT: /app/certs/server.crt
+      AGENT_FITNESS_FUNCTIONS_TLS_KEY: /app/certs/server.key
+      AGENT_FITNESS_FUNCTIONS_TLS_CA: /app/certs/ca.crt
+      AGENT_FITNESS_FUNCTIONS_RATE_LIMIT: "100"
+      AGENT_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7890/health"]
       interval: 30s
@@ -454,13 +454,13 @@ The `configs/` mount is read-only (`:ro`). A compromise of any subprocess cannot
 ### Developer machine hook configuration
 
 ```bash
-export STACK_FITNESS_FUNCTIONS_ADDR=https://calm-governance.internal:7890
-export STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1
-export STACK_FITNESS_FUNCTIONS_CLIENT_CERT=/path/to/client.crt
-export STACK_FITNESS_FUNCTIONS_CLIENT_KEY=/path/to/client.key
+export AGENT_FITNESS_FUNCTIONS_ADDR=https://calm-governance.internal:7890
+export AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1
+export AGENT_FITNESS_FUNCTIONS_CLIENT_CERT=/path/to/client.crt
+export AGENT_FITNESS_FUNCTIONS_CLIENT_KEY=/path/to/client.key
 
 # Optional: override logical repo name (defaults to directory basename)
-export STACK_FITNESS_FUNCTIONS_REPO_NAME=graft
+export AGENT_FITNESS_FUNCTIONS_REPO_NAME=graft
 ```
 
 Developers who want local iteration omit these vars. The hook falls back to `localhost:7890` and uses their local `.calm/config.json`.
@@ -558,7 +558,7 @@ These support audit, incident response, and supply-chain verification.
 3. **New: `internal/bridge/configstore.go`** — thread-safe in-memory store with `fsnotify` watcher; `sync.RWMutex` snapshot semantics; `NewConfigStore(ctx, dir)` constructor; `Close()` shutdown; debounced reload; fail-closed startup.
 4. **New: `internal/bridge/auth.go`** — mTLS client cert extraction; caller-repo allowlist enforcement; admin role check for `/configs`.
 5. **`cmd/calm-bridge/main.go`** — initialize config store on `serve`; pass store into handler; wire graceful shutdown (context cancellation → `ConfigStore.Close()`); fail startup if config store init fails.
-6. **`hooks/pre-commit.sh`** — pass `--repo` as logical name (basename or `STACK_FITNESS_FUNCTIONS_REPO_NAME`); remove filesystem path validation for remote addr case; support mTLS client cert env vars.
+6. **`hooks/pre-commit.sh`** — pass `--repo` as logical name (basename or `AGENT_FITNESS_FUNCTIONS_REPO_NAME`); remove filesystem path validation for remote addr case; support mTLS client cert env vars.
 7. **New: `Dockerfile`** — multi-stage build as specified above.
 8. **New: `docker-compose.yml`** — deployment definition as specified above.
 9. **New: `.dockerignore`** — as specified above.

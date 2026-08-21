@@ -7,14 +7,14 @@ been **fixed**.
 
 > **Scope note.** The standalone term **CALM** is *not* legacy. It names the
 > FINOS CALM standard and is retained everywhere by design (per
-> [ADR-0001](docs/adr/0001-rename-calm-bridge-to-stack-fitness-functions.md)):
+> [ADR-0001](docs/adr/0001-rename-calm-bridge-to-agent-fitness-functions.md)):
 > `.calm/config.json`, the `configs/` tree, the FINOS `calm` CLI, the
-> `internal/calm` package, and the `github.com/poconnor/calm-poc` module path.
+> `internal/calm` package, and the `github.com/AvogadroSG1/agent-fitness-functions` module path.
 > This document tracks only the dead **`calm-bridge`** product name.
 
 ## Background
 
-The product and binary were renamed `calm-bridge` → `stack-fitness-functions`
+The product and binary were renamed `calm-bridge` → `agent-fitness-functions`
 (ADR-0001, implemented 2026-06-14). The rename fully landed in all functional
 code, configuration, scripts, Docker assets, and primary documentation. This
 file is the audit trail for what deliberately retains the old name and why.
@@ -33,11 +33,11 @@ file is the audit trail for what deliberately retains the old name and why.
 |------|-----------|---------|
 | `hooks/pre_tool_use_test.go` | helper/identifier names `fakeCalmBridge`, `buildCalmBridge`, `startBridgeDaemon`, `bridgeDaemon`, `calmBridge` | ✅ Fixed → `fakeFitnessBin`, `buildFitnessBin`, `startFitnessDaemon`, `fitnessDaemon`, `fitnessBin` |
 | `hooks/pre_commit_test.go` | helper/identifier names `fakeCalmBridge`, `buildCalmBridge`, `calmBridge` | ✅ Fixed (same renames) |
-| `internal/calm/pattern.go` | doc comment "used by the bridge" | ✅ Fixed → "used by stack-fitness-functions" |
+| `internal/calm/pattern.go` | doc comment "used by the bridge" | ✅ Fixed → "used by agent-fitness-functions" |
 | `internal/server/checker_test.go` | temp fixture filename `bridge_test.go` | ✅ Fixed → `server_helpers_test.go` |
-| `requirements.lock` | header comment "calm-bridge container" | ✅ Fixed → "stack-fitness-functions container" |
-| `.gitignore` | `/calm-bridge` build-output ignore | ✅ Fixed → `/stack-fitness-functions` |
-| `.dockerignore` | `calm-bridge` ignore entry | ✅ Fixed → `stack-fitness-functions` |
+| `requirements.lock` | header comment "calm-bridge container" | ✅ Fixed → "agent-fitness-functions container" |
+| `.gitignore` | `/calm-bridge` build-output ignore | ✅ Fixed → `/agent-fitness-functions` |
+| `.dockerignore` | `calm-bridge` ignore entry | ✅ Fixed → `agent-fitness-functions` |
 | `bin_helpers_test.go` | `[]string{"calm-bridge", "calm-serve", "calm-test"}` | 🛡️ **Intentional — keep.** Regression guard asserting bin helpers contain *no* legacy names. Removing the literal would defeat the test |
 
 ## Documentation & history (keep as record)
@@ -45,7 +45,7 @@ file is the audit trail for what deliberately retains the old name and why.
 | File | Refs | Verdict |
 |------|------|---------|
 | `.beads/issues.jsonl` | 52 | 📜 Issue-tracker history. Closed/dated issues; rewriting tracker history is wrong |
-| `docs/adr/0001-rename-calm-bridge-to-stack-fitness-functions.md` | 4 | 📜 The ADR *is* the rename record; the old name is the evidence |
+| `docs/adr/0001-rename-calm-bridge-to-agent-fitness-functions.md` | 4 | 📜 The ADR *is* the rename record; the old name is the evidence |
 | `docs/superpowers/plans/2026-06-01-container-governance-alignment.md` | 36 | 📜 Dated implementation plan — snapshot of decisions as made |
 | `docs/superpowers/specs/2026-05-29-calm-bridge-container-design.md` | 15 | 📜 Dated design spec (superseded, archival). Old name also in the filename |
 | `docs/superpowers/plans/2026-06-04-csharp-project-aware-ddc.md` | 8 | 📜 Dated plan |
@@ -68,7 +68,7 @@ are regenerated). No action required:
 
 ## Module path & repository name
 
-`github.com/poconnor/calm-poc` (module) and the `calm-poc` repo path are
+`github.com/AvogadroSG1/agent-fitness-functions` (module) and the `calm-poc` repo path are
 **deliberately retained** per ADR-0001 §Consequences — that migration (push to a
 new repo, reclone) is deferred and tracked separately. This is *not* a
 `calm-bridge` reference and is in scope only as a reminder of the deferred work.

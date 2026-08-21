@@ -13,7 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/poconnor/calm-poc/internal/calm"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/calm"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
 func TestCheckerWithDefaultRoslynAnalyzerDefersThenBlocksCSharpFixture(t *testing.T) {
@@ -37,7 +38,7 @@ func TestCheckerWithDefaultRoslynAnalyzerDefersThenBlocksCSharpFixture(t *testin
 		t.Fatalf("first response = %+v, want pass with warming", first)
 	}
 	violations := waitForStateViolations(t, server.URL, repo, 1)
-	if violations[0].Function != "Render" || violations[0].CALMNode != "Sample" {
+	if violations[0].Function != "Render" || violations[0].StackNode != "Sample" {
 		t.Fatalf("violations = %+v, want default Roslyn Sample.Render violation", violations)
 	}
 	second := postCheckForLanguage(t, server.URL, repo, "src/Other.cs", "csharp", cleanCSharpSource())

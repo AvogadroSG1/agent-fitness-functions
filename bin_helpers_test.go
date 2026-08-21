@@ -1,4 +1,4 @@
-package calm_poc_test
+package agent_fitness_functions_test
 
 import (
 	"os"
@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestStackFitnessFunctionBinHelpersContract(t *testing.T) {
+func TestAgentFitnessFunctionsBinHelpersContract(t *testing.T) {
 	for _, oldName := range []string{"calm-serve", "calm-test"} {
 		if _, err := os.Stat(filepath.Join("bin", oldName)); !os.IsNotExist(err) {
 			t.Fatalf("legacy helper %s must not exist; stat error = %v", oldName, err)
@@ -21,13 +21,13 @@ func TestStackFitnessFunctionBinHelpersContract(t *testing.T) {
 		description string
 	}{
 		{
-			name:        "stack-fitness-functions-serve",
-			usage:       "usage: stack-fitness-functions-serve [--build]",
-			description: "Starts the stack-fitness-functions container via Docker Compose",
+			name:        "agent-fitness-functions-serve",
+			usage:       "usage: agent-fitness-functions-serve [--build]",
+			description: "Starts the agent-fitness-functions container via Docker Compose",
 		},
 		{
-			name:        "stack-fitness-functions-test",
-			usage:       "usage: stack-fitness-functions-test <file>",
+			name:        "agent-fitness-functions-test",
+			usage:       "usage: agent-fitness-functions-test <file>",
 			description: "LOCAL SANDBOX ONLY",
 		},
 	} {
@@ -50,11 +50,11 @@ func TestStackFitnessFunctionBinHelpersContract(t *testing.T) {
 				t.Fatalf("%s contains legacy name %q", helperPath, legacy)
 			}
 		}
-		if !strings.Contains(script, "stack-fitness-functions") {
-			t.Fatalf("%s must invoke or document stack-fitness-functions", helperPath)
+		if !strings.Contains(script, "agent-fitness-functions") {
+			t.Fatalf("%s must invoke or document agent-fitness-functions", helperPath)
 		}
-		if !strings.Contains(script, "STACK_FITNESS_FUNCTIONS_") {
-			t.Fatalf("%s must use STACK_FITNESS_FUNCTIONS_* environment names", helperPath)
+		if !strings.Contains(script, "AGENT_FITNESS_FUNCTIONS_") {
+			t.Fatalf("%s must use AGENT_FITNESS_FUNCTIONS_* environment names", helperPath)
 		}
 
 		command := exec.Command(helperPath, "--help")

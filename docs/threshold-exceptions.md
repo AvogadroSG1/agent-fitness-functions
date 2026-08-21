@@ -1,4 +1,4 @@
-# CALM PoC Threshold Exceptions
+# agent-fitness-functions Threshold Exceptions
 
 Generated from baseline reports on 2026-05-18. These existing results exceed or fall below the proposed shared governance thresholds and require HITL treatment as baseline exceptions unless a future change worsens them.
 

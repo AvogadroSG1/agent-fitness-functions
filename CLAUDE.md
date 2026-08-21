@@ -55,7 +55,7 @@ Use the repo-local Go caches so builds work in sandboxed environments:
 
 ```bash
 # Quality gate (run before ending a session with code changes)
-GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test . ./configs ./cmd/stack-fitness-functions ./internal/server
+GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test . ./configs ./cmd/agent-fitness-functions ./internal/server
 
 # Full suite
 GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test ./...
@@ -64,10 +64,10 @@ GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test ./...
 GOCACHE=$(pwd)/.tmp/go-build GOMODCACHE=$(pwd)/.tmp/go-mod go test -run TestName ./internal/server
 
 # Build the binary
-go build ./cmd/stack-fitness-functions
+go build ./cmd/agent-fitness-functions
 
 # Container image (requires Docker locally or in CI)
-docker build --build-arg GIT_SHA="$(git rev-parse --short HEAD)" --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t stack-fitness-functions:local .
+docker build --build-arg GIT_SHA="$(git rev-parse --short HEAD)" --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t agent-fitness-functions:local .
 ```
 
 ### External tool dependencies for tests
@@ -83,17 +83,17 @@ Several tests shell out to external tools. Integration tests (`*_integration_tes
 ```bash
 scripts/generate-dev-certs.sh        # dev TLS + mTLS client certs into certs/ (gitignored)
 docker compose config --quiet && docker compose up --build   # verify/run the service container
-go run ./cmd/stack-fitness-functions baseline --repo /path/to/repo --language csharp --output baseline-report.json
+go run ./cmd/agent-fitness-functions baseline --repo /path/to/repo --language csharp --output baseline-report.json
 ```
 
-Helper scripts live in `bin/` (`stack-fitness-functions-serve`, `stack-fitness-functions-test`); add `bin/` to `PATH`.
+Helper scripts live in `bin/` (`agent-fitness-functions-serve`, `agent-fitness-functions-test`); add `bin/` to `PATH`.
 
 ## Architecture Overview
 
-`stack-fitness-functions` is the API boundary for Architecture Fitness Function checks: a single Go binary (module path `github.com/poconnor/calm-poc` — the legacy name is retained deliberately) with three roles selected by subcommand:
+`agent-fitness-functions` is the API boundary for Architecture Fitness Function checks: a single Go binary (module path `github.com/AvogadroSG1/agent-fitness-functions` — the legacy name is retained deliberately) with three roles selected by subcommand:
 
 - `client validate` — sends one file's content to the server, prints the verdict. Invoked by Git hooks at commit time. `client install-hooks` installs the embedded hooks into a governed repo.
-- `server start` — the authoritative governance HTTP daemon (`POST /check`, `GET /state`, `GET /configs`). The containerized service is the **primary production path**; default command is `/app/stack-fitness-functions server start --addr 0.0.0.0:7890`.
+- `server start` — the authoritative governance HTTP daemon (`POST /check`, `GET /state`, `GET /configs`). The containerized service is the **primary production path**; default command is `/app/agent-fitness-functions server start --addr 0.0.0.0:7890`.
 - `baseline` — offline calibration; bulk-analyzes a repository to derive thresholds. Belongs to neither client nor server.
 
 ### Request flow
@@ -115,14 +115,14 @@ Hook (`hooks/pre-commit.sh` or `hooks/pre-tool-use.sh`) → `client validate` �
 
 ### Self-governance hook
 
-`.claude/settings.json` registers a `PreToolUse` hook that runs `hooks/pre-tool-use.sh` on Edit/Write — this repo validates its own edits against a local stack-fitness-functions server when one is running. If the hook blocks an edit, read the reported violation rather than working around the hook.
+`.claude/settings.json` registers a `PreToolUse` hook that runs `hooks/pre-tool-use.sh` on Edit/Write — this repo validates its own edits against a local agent-fitness-functions server when one is running. If the hook blocks an edit, read the reported violation rather than working around the hook.
 
 ## Naming Surface
 
-- Product and binary: `stack-fitness-functions` — always spelled out in full, no abbreviations.
-- Commands: `stack-fitness-functions client validate`, `stack-fitness-functions server start`, `stack-fitness-functions baseline` (not "check"/"serve").
-- Environment variables: `STACK_FITNESS_FUNCTIONS_*`.
-- Helper scripts: `stack-fitness-functions-serve` and `stack-fitness-functions-test`.
+- Product and binary: `agent-fitness-functions` — always spelled out in full, no abbreviations.
+- Commands: `agent-fitness-functions client validate`, `agent-fitness-functions server start`, `agent-fitness-functions baseline` (not "check"/"serve").
+- Environment variables: `AGENT_FITNESS_FUNCTIONS_*`.
+- Helper scripts: `agent-fitness-functions-serve` and `agent-fitness-functions-test`.
 - FINOS CALM, `.calm/config.json`, `configs/`, the FINOS `calm` CLI, and the `calm-poc` module/repo path retain their names — CALM is the external standard being enforced, never the product name.
 
 ## Key Documentation

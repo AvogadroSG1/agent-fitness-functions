@@ -1,7 +1,7 @@
 # Quickstart: 0 to Governed in 5 Minutes
 
 This is the fast path from a fresh repository to a governed coding agent. One
-command — `stack-fitness-functions client onboard` — provisions dev certificates,
+command — `agent-fitness-functions client onboard` — provisions dev certificates,
 scaffolds the per-repo config, authorizes the local caller, installs the Git and
 agent hooks, auto-starts a local governance daemon, and runs `doctor` as the final
 gate.
@@ -12,7 +12,7 @@ schema, verification endpoints, and the error-kind table), see
 
 ## Prerequisites
 
-- The `stack-fitness-functions` binary on `PATH` (`go build ./cmd/stack-fitness-functions`,
+- The `agent-fitness-functions` binary on `PATH` (`go build ./cmd/agent-fitness-functions`,
   or add `bin/` to `PATH` — see the [README](../README.md)).
 - `python3` with `pyyaml` (the hooks and violation formatter need it):
   `python3 -m pip install -r hooks/requirements.txt`.
@@ -31,14 +31,14 @@ hand-edited `caller-repos.json`, or a hand-authored `.claude/settings.json` bloc
 
 ```bash
 cd /path/to/your-repo
-stack-fitness-functions client onboard
+agent-fitness-functions client onboard
 ```
 
 By default this onboards in `advisory` mode (violations are reported but do not block)
 and derives the governance repo name from the working-tree basename. Override either:
 
 ```bash
-stack-fitness-functions client onboard --enforcement block --repo my-service
+agent-fitness-functions client onboard --enforcement block --repo my-service
 ```
 
 | Flag | Default | Meaning |
@@ -74,7 +74,7 @@ Onboarding "my-service" (enforcement=advisory, addr=https://127.0.0.1:7890)
   daemon healthy
 
 > Running doctor (final gate)
-✔ binary: /path/to/stack-fitness-functions
+✔ binary: /path/to/agent-fitness-functions
 ✔ python3: /usr/bin/python3
 ✔ pyyaml: importable
 ✔ client certificate: CN=dev-hook-pool valid until ... (/path/to/your-repo/certs/client.crt)
@@ -103,7 +103,7 @@ Remaining manual step for PRODUCTION governance:
 something looks off:
 
 ```bash
-stack-fitness-functions doctor
+agent-fitness-functions doctor
 ```
 
 Each failing check prints a `→` remediation line naming the exact command or file
@@ -114,7 +114,7 @@ older `install-hooks`.
 
 Common flags: `--repo <name>` (defaults to the working-tree basename), `--addr <url>`,
 and `--client-cert/--client-key/--client-ca` (which otherwise auto-discover from
-`STACK_FITNESS_FUNCTIONS_CLIENT_*` or `<repo>/certs`).
+`AGENT_FITNESS_FUNCTIONS_CLIENT_*` or `<repo>/certs`).
 
 ## How a coding agent's Edit gets validated
 
@@ -130,16 +130,16 @@ lands*:
 | **pass** | Nothing — the edit proceeds silently. |
 | **advisory** | A formatted violation report on stderr; the edit is **allowed**. |
 | **block** | A formatted violation report on stderr; the hook exits non-zero and the edit is **rejected**. The agent should fix the architecture and retry. |
-| **setup error** | A labeled block: `stack-fitness-functions SETUP problem ... (infrastructure/configuration, NOT an architecture violation)` with a `kind:`, `detail:`, and `fix:` line. This is a setup problem to resolve (usually `stack-fitness-functions doctor`), not an architecture change. |
+| **setup error** | A labeled block: `agent-fitness-functions SETUP problem ... (infrastructure/configuration, NOT an architecture violation)` with a `kind:`, `detail:`, and `fix:` line. This is a setup problem to resolve (usually `agent-fitness-functions doctor`), not an architecture change. |
 
 The setup-error path is the T5 distinction: infrastructure failures (server down,
 cert/TLS problem, repo not configured, caller unauthorized) are labeled as setup
 problems and are never dressed up as architecture violations. By default a setup error
-blocks the edit (fail-closed); set `STACK_FITNESS_FUNCTIONS_ON_ERROR=advisory` to let
+blocks the edit (fail-closed); set `AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory` to let
 edits through despite a setup failure while you fix it.
 
 The same distinction applies to `git commit`: the pre-commit hook prints the labeled
-SETUP block for infrastructure failures and honors `STACK_FITNESS_FUNCTIONS_ON_ERROR`.
+SETUP block for infrastructure failures and honors `AGENT_FITNESS_FUNCTIONS_ON_ERROR`.
 
 ## Production handoff (what is still manual)
 
@@ -154,7 +154,7 @@ artifacts to be present in that deployment:
 Copy both to the production deployment and redeploy the container. That is the one
 remaining manual step (the container mounts these read-only, so a redeploy is required;
 a locally running sandbox server hot-reloads via `fsnotify`). Point the hooks at the
-container with `STACK_FITNESS_FUNCTIONS_ADDR` and the remote-mode environment variables.
+container with `AGENT_FITNESS_FUNCTIONS_ADDR` and the remote-mode environment variables.
 
 The full production sequence — including `baseline --emit-config`, the `/preflight` and
 `/configs` verification endpoints, and the error-kind troubleshooting table — is in

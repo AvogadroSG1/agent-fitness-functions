@@ -1,4 +1,4 @@
-module github.com/poconnor/calm-poc
+module github.com/AvogadroSG1/agent-fitness-functions
 
 go 1.22
 

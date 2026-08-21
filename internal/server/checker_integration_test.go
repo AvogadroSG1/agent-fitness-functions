@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
 func TestCheckerWithRealCALMBlocksGraftCyclomaticComplexityFixture(t *testing.T) {
@@ -22,7 +24,10 @@ func TestCheckerWithRealCALMBlocksGraftCyclomaticComplexityFixture(t *testing.T)
 	if err != nil {
 		t.Fatalf("read graft fixture: %v", err)
 	}
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, "graft", EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
 	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
 		PatternPath: filepath.Join("..", "..", "patterns", "governance.json"),
 	}, nil))
 	defer server.Close()

@@ -44,7 +44,7 @@ func TestPrePushForwardsDiscoveredMTLSCerts(t *testing.T) {
 
 	logPath := filepath.Join(t.TempDir(), "calls.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+printf '%s\n' "$*" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
 echo '{"status":"pass"}'
 `)
 
@@ -53,7 +53,7 @@ echo '{"status":"pass"}'
 	command.Stdin = strings.NewReader("refs/heads/main " + headSHA + " refs/heads/main " + baseSHA + "\n")
 	command.Env = append(os.Environ(),
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+		"AGENT_FITNESS_FUNCTIONS_LOG="+logPath,
 	)
 	if out, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("pre-push failed: %v\n%s", err, out)

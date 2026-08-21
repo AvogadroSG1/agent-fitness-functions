@@ -11,7 +11,7 @@ obj/
 .beads/
 .pytest_cache/
 .DS_Store
-stack-fitness-functions
+agent-fitness-functions
 baseline-report-*.json
 Explaination.md
 certs/*.crt

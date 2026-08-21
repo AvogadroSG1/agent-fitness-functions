@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-cert_dir=${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-"$repo_root/certs"}
+cert_dir=${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR:-"$repo_root/certs"}
 openssl_bin=${OPENSSL:-openssl}
 force=0
 
@@ -86,7 +86,7 @@ keyUsage = digitalSignature, keyEncipherment
 
 [alt_names]
 DNS.1 = localhost
-DNS.2 = stack-fitness-functions
+DNS.2 = agent-fitness-functions
 IP.1 = 127.0.0.1
 IP.2 = ::1
 EOF
@@ -97,7 +97,7 @@ keyUsage = digitalSignature, keyEncipherment
 EOF
 
 "$openssl_bin" req -x509 -newkey rsa:2048 -sha256 -days 365 -nodes \
-  -subj "/CN=calm-poc-dev-ca" \
+  -subj "/CN=agent-fitness-functions-dev-ca" \
   -keyout "$tmp_dir/ca.key" \
   -out "$tmp_dir/ca.crt" >/dev/null 2>&1
 

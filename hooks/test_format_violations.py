@@ -6,8 +6,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 # ---------------------------------------------------------------------------
 # Module loader — imports format-violations.py by path (name has a hyphen)
 # ---------------------------------------------------------------------------
@@ -38,14 +36,14 @@ def _viol(
     value: float = 15.0,
     limit: float = 10.0,
     function: str = "ProcessRequest",
-    calm_node: str = "handler",
+    stack_node: str = "handler",
 ) -> dict[str, Any]:
     return {
         "fitness_function": fitness_function,
         "value": value,
         "limit": limit,
         "function": function,
-        "calm_node": calm_node,
+        "stack_node": stack_node,
     }
 
 
@@ -179,27 +177,27 @@ def test_build_output_no_location_when_no_function_or_node() -> None:
         "value": 20.0,
         "limit": 15.0,
         "function": "",
-        "calm_node": "",
+        "stack_node": "",
     }
     result = _fmt._build_output([v], "sample.go", "block", "block")
     assert result is not None
     assert "location" not in result["violations"][0]
 
 
-def test_build_output_location_is_only_calm_node_when_no_function() -> None:
+def test_build_output_location_is_only_stack_node_when_no_function() -> None:
     v: dict[str, Any] = {
         "fitness_function": "interface_width",
         "value": 20.0,
         "limit": 15.0,
         "function": "",
-        "calm_node": "mymodule",
+        "stack_node": "mymodule",
     }
     result = _fmt._build_output([v], "sample.go", "block", "block")
     assert result is not None
     assert result["violations"][0]["location"] == "mymodule"
 
 
-def test_build_output_unknown_function_omits_guidance(capsys: pytest.CaptureFixture[str]) -> None:
+def test_build_output_unknown_function_omits_guidance(capsys: Any) -> None:
     v = _viol(fitness_function="unknown_function")
     result = _fmt._build_output([v], "sample.go", "block", "block")
     assert result is not None
@@ -244,7 +242,7 @@ def test_main_block_produces_valid_yaml() -> None:
             "value": 15.0,
             "limit": 10.0,
             "function": "Run",
-            "calm_node": "checker",
+            "stack_node": "checker",
         }],
     })
     stdout, _, code = _run(payload, ["--mode", "block", "--file", "checker.go"])
