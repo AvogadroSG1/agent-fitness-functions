@@ -1,0 +1,34 @@
+internal/devcerts/filesystem_test.go
+  h_56c22cd4a131f7 411-426
+internal/devcerts/journal_test.go
+  h_56c22cd4a131f7 1-214
+internal/devcerts/lifecycle.go
+  h_56c22cd4a131f7 1-243
+internal/devcerts/lifecycle_test.go
+  h_56c22cd4a131f7 1-442
+internal/devcerts/lock.go
+  h_56c22cd4a131f7 1-158
+internal/devcerts/lock_test.go
+  h_56c22cd4a131f7 1-221
+internal/devcerts/publish.go
+  h_56c22cd4a131f7 91,93,97-99,219,233-234,256-272,275-279,283-287,358-359,400-409,412-418,421-427,434,441,445,448,450-452,454,456,460-473,478,495,507,516-526,656
+internal/devcerts/publish_test.go
+  h_56c22cd4a131f7 90-137,215-218,220,229,247-258,383,511-547
+internal/devcerts/recovery_test.go
+  h_56c22cd4a131f7 1-614
+internal/devcerts/state.go
+  h_56c22cd4a131f7 1-294
+internal/devcerts/transaction.go
+  h_56c22cd4a131f7 1-897
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "55757b7a0959a7976e7e816aaecb1bfdc7fd86ec",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
