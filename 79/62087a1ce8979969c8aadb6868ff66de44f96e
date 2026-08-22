@@ -1,0 +1,42 @@
+Dockerfile
+  h_56c22cd4a131f7 69-70,72
+cmd/stack-fitness-functions/main.go
+  h_56c22cd4a131f7 142-149,176-178,186-237
+cmd/stack-fitness-functions/main_test.go
+  h_56c22cd4a131f7 13,30,32,35,37-46,56-57,96-225,306-307,984-1000,1007,1009
+docker-compose.yml
+  h_56c22cd4a131f7 19,29-30,34,45
+docker_contract_test.go
+  h_56c22cd4a131f7 40-45,172-173,176,185,199-201
+docker_smoke_integration_test.go
+  h_56c22cd4a131f7 12,14,60-90,96-258
+internal/client/client.go
+  h_56c22cd4a131f7 528
+internal/client/daemon.go
+  h_56c22cd4a131f7 21-23,30-35,44-50,57,169,179-196
+internal/client/daemon_test.go
+  h_56c22cd4a131f7 174,176-179,189-197,226-227,238,252-292
+internal/devcerts/managed.go
+  h_56c22cd4a131f7 1-304
+internal/devcerts/managed_server_test.go
+  h_56c22cd4a131f7 1-63
+internal/server/runtime.go
+  h_56c22cd4a131f7 1-203
+internal/server/runtime_test.go
+  h_56c22cd4a131f7 1-111
+internal/server/server.go
+  h_56c22cd4a131f7 17,67-68,71-72,400-405,424-426,431,441-470,480-484,502-503
+internal/server/server_test.go
+  h_56c22cd4a131f7 20,25,480-666
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "7962087a1ce8979969c8aadb6868ff66de44f96e",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
