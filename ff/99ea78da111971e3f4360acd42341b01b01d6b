@@ -1,0 +1,14 @@
+docs/adr/0004-atomic-development-certificate-publication.md
+  h_56c22cd4a131f7 1-323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ff99ea78da111971e3f4360acd42341b01b01d6b",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
