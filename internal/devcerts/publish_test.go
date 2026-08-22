@@ -87,6 +87,54 @@ func TestPublishBootstrapsSafeEmptyRootWithGitignore(t *testing.T) {
 	assertExactEntries(t, root, []string{".gitignore", "current", "versions"})
 }
 
+func TestPublishMigratesValidDirectRootTargetWithoutChangingBytes(t *testing.T) {
+	root := t.TempDir()
+	seedRootWithGeneratedMaterial(t, root)
+	before := readManagedBytes(t, root)
+
+	if err := devcerts.Publish(root, false); err != nil {
+		t.Fatalf("Publish(valid direct-root target, false): %v", err)
+	}
+
+	target, err := os.Readlink(filepath.Join(root, "current"))
+	if err != nil {
+		t.Fatalf("Readlink(current): %v", err)
+	}
+	after := readManagedBytes(t, filepath.Join(root, filepath.FromSlash(target)))
+	for name, want := range before {
+		if !bytes.Equal(after[name], want) {
+			t.Errorf("published %s bytes changed", name)
+		}
+		if _, err := os.Lstat(filepath.Join(root, name)); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("direct-root %s remains after completed migration: %v", name, err)
+		}
+	}
+}
+
+func TestPublishPartialRequiresForce(t *testing.T) {
+	root := t.TempDir()
+	writeFixture(t, filepath.Join(root, "ca.crt"), "partial", 0o644)
+	before := snapshotTree(t, root)
+	if err := devcerts.Publish(root, false); err == nil {
+		t.Fatal("Publish(partial, false) succeeded")
+	}
+	if after := snapshotTree(t, root); !bytes.Equal(after, before) {
+		t.Fatalf("partial state changed without force\nbefore:\n%safter:\n%s", before, after)
+	}
+
+	if err := devcerts.Publish(root, true); err != nil {
+		t.Fatalf("Publish(partial, true): %v", err)
+	}
+	target, err := os.Readlink(filepath.Join(root, "current"))
+	if err != nil {
+		t.Fatalf("Readlink(current): %v", err)
+	}
+	assertTargetMaterial(t, filepath.Join(root, filepath.FromSlash(target)))
+	if _, err := os.Lstat(filepath.Join(root, "ca.crt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("forced rotation left partial direct-root evidence: %v", err)
+	}
+}
+
 func TestPublishCleanTargetWithOneCompletePreviousVersionIsMetadataTotalNoOp(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "certs")
 	if err := devcerts.Publish(root, false); err != nil {
@@ -164,10 +212,12 @@ func TestPublishRefusesUnsupportedEvidenceUnchanged(t *testing.T) {
 
 func TestPublishRefusesManagedArtifactsAndPartialStatesUnchanged(t *testing.T) {
 	setups := []struct {
-		name  string
-		setup func(*testing.T, string)
+		name         string
+		setup        func(*testing.T, string)
+		withoutForce bool
+		withForce    bool
 	}{
-		{name: "partial direct root", setup: func(t *testing.T, root string) { writeFixture(t, filepath.Join(root, "ca.crt"), "partial", 0o644) }},
+		{name: "partial direct root", withForce: true, setup: func(t *testing.T, root string) { writeFixture(t, filepath.Join(root, "ca.crt"), "partial", 0o644) }},
 		{name: "unknown complete direct root", setup: func(t *testing.T, root string) {
 			for _, file := range []string{"ca.crt", "server.crt", "server.key", "client.crt", "client.key"} {
 				writeFixture(t, filepath.Join(root, file), "unknown", 0o600)
@@ -176,12 +226,7 @@ func TestPublishRefusesManagedArtifactsAndPartialStatesUnchanged(t *testing.T) {
 		{name: "journal evidence", setup: func(t *testing.T, root string) {
 			writeFixture(t, filepath.Join(root, ".certificate-publication-transaction.json"), "{}\n", 0o600)
 		}},
-		{name: "lock evidence", setup: func(t *testing.T, root string) {
-			if err := os.Mkdir(filepath.Join(root, ".certificate-publication.lock"), 0o700); err != nil {
-				t.Fatalf("mkdir lock evidence: %v", err)
-			}
-		}},
-		{name: "candidate evidence", setup: func(t *testing.T, root string) {
+		{name: "candidate evidence", withoutForce: true, withForce: true, setup: func(t *testing.T, root string) {
 			if err := os.MkdirAll(filepath.Join(root, "versions", ".candidate-0123456789abcdef0123456789abcdef"), 0o755); err != nil {
 				t.Fatalf("mkdir candidate evidence: %v", err)
 			}
@@ -199,8 +244,18 @@ func TestPublishRefusesManagedArtifactsAndPartialStatesUnchanged(t *testing.T) {
 				setup.setup(t, root)
 				before := snapshotTree(t, root)
 				err := devcerts.Publish(root, force)
-				if !errors.Is(err, devcerts.ErrUnsupportedForBootstrap) {
-					t.Fatalf("Publish(%s, %v) error = %v, want ErrUnsupportedForBootstrap", setup.name, force, err)
+				wantSuccess := setup.withoutForce
+				if force {
+					wantSuccess = setup.withForce
+				}
+				if wantSuccess {
+					if err != nil {
+						t.Fatalf("Publish(%s, %v): %v", setup.name, force, err)
+					}
+					return
+				}
+				if err == nil {
+					t.Fatalf("Publish(%s, %v) succeeded", setup.name, force)
 				}
 				if after := snapshotTree(t, root); !bytes.Equal(before, after) {
 					t.Fatalf("%s changed with force=%v\nbefore:\n%safter:\n%s", setup.name, force, before, after)
@@ -325,7 +380,7 @@ func assertKeyMatches(t *testing.T, path string, cert *x509.Certificate) {
 		t.Fatalf("ParsePKCS1PrivateKey(%s): %v", path, err)
 	}
 	public, ok := cert.PublicKey.(*rsa.PublicKey)
-	if !ok || key.PublicKey.N.Cmp(public.N) != 0 || key.PublicKey.E != public.E {
+	if !ok || key.N.Cmp(public.N) != 0 || key.E != public.E {
 		t.Fatalf("private key %s does not match certificate", path)
 	}
 }
@@ -452,4 +507,41 @@ func copyVersionFixture(t *testing.T, source, destination string) {
 			t.Fatalf("WriteFile(%s): %v", spec.name, err)
 		}
 	}
+}
+
+func seedRootWithGeneratedMaterial(t *testing.T, root string) {
+	t.Helper()
+	if err := os.Chmod(root, 0o755); err != nil {
+		t.Fatalf("Chmod(%s): %v", root, err)
+	}
+	temporary := filepath.Join(t.TempDir(), "certs")
+	if err := devcerts.Publish(temporary, false); err != nil {
+		t.Fatalf("Publish(material fixture): %v", err)
+	}
+	target, err := os.Readlink(filepath.Join(temporary, "current"))
+	if err != nil {
+		t.Fatalf("Readlink(material fixture): %v", err)
+	}
+	for name, content := range readManagedBytes(t, filepath.Join(temporary, filepath.FromSlash(target))) {
+		mode := os.FileMode(0o644)
+		if strings.HasSuffix(name, ".key") {
+			mode = 0o600
+		}
+		if err := os.WriteFile(filepath.Join(root, name), content, mode); err != nil {
+			t.Fatalf("WriteFile(%s): %v", name, err)
+		}
+	}
+}
+
+func readManagedBytes(t *testing.T, root string) map[string][]byte {
+	t.Helper()
+	result := make(map[string][]byte, 5)
+	for _, name := range []string{"ca.crt", "server.crt", "server.key", "client.crt", "client.key"} {
+		content, err := os.ReadFile(filepath.Join(root, name))
+		if err != nil {
+			t.Fatalf("ReadFile(%s): %v", name, err)
+		}
+		result[name] = content
+	}
+	return result
 }

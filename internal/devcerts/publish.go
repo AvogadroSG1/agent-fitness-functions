@@ -88,127 +88,21 @@ type publicationObserver func(publicationEvent)
 
 type randomIDFunc func() (string, error)
 
-// Publish creates one target certificate publication in an empty managed root.
-// Force is accepted for CLI compatibility but does not broaden this bootstrap slice.
+// Publish ensures that root contains a complete target development certificate publication.
 func Publish(root string, force bool) (resultErr error) {
-	return publish(root, force, nil)
+	return publishWithOperations(root, force, defaultOperations())
 }
 
 func publish(root string, force bool, observer publicationObserver) (resultErr error) {
-	return publishWithRandom(root, force, observer, randomID)
-}
-
-func publishWithRandom(root string, force bool, observer publicationObserver, nextID randomIDFunc) (resultErr error) {
-	_ = force
-	state, err := inspectRoot(root)
-	if err != nil {
-		return err
-	}
-	switch state {
-	case rootPublished:
-		return nil
-	case rootEmpty:
-		// Continue only for the bootstrap state implemented by this slice.
-	default:
-		return ErrUnsupportedForBootstrap
-	}
-
-	if err := prepareEmptyRoot(root); err != nil {
-		return err
-	}
-	token, err := acquireLock(root, observer, nextID)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if releaseErr := releaseLock(root, token); releaseErr != nil {
-			resultErr = errors.Join(resultErr, releaseErr)
-		} else {
-			emit(observer, "lock_released")
-		}
-	}()
-
-	// Reclassification under the lock prevents bootstrap over evidence created by a competing writer.
-	state, err = inspectRootWithLock(root)
-	if err != nil {
-		return err
-	}
-	if state != rootEmpty {
-		return ErrUnsupportedForBootstrap
-	}
-	return publishFirst(root, observer, nextID)
+	operations := defaultOperations()
+	operations.observer = observer
+	return publishWithOperations(root, force, operations)
 }
 
 func emit(observer publicationObserver, name string) {
 	if observer != nil {
 		observer(publicationEvent{name: name})
 	}
-}
-
-type rootState uint8
-
-const (
-	rootUnsupported rootState = iota
-	rootEmpty
-	rootPublished
-)
-
-func inspectRoot(root string) (rootState, error) {
-	info, err := os.Lstat(root)
-	if errors.Is(err, os.ErrNotExist) {
-		return rootEmpty, validateParent(root)
-	}
-	if err != nil {
-		return rootUnsupported, fmt.Errorf("inspect managed certificate root: %w", err)
-	}
-	if !info.IsDir() || info.Mode().Perm() != 0o755 {
-		return rootUnsupported, nil
-	}
-	if _, ok := pinnedDirectory(root, 0o755); !ok {
-		return rootUnsupported, nil
-	}
-	entries, err := readPinnedDirectory(root, 0o755)
-	if err != nil {
-		return rootUnsupported, fmt.Errorf("read managed certificate root: %w", err)
-	}
-	if len(entries) == 0 || onlySafeGitignore(root, entries) {
-		return rootEmpty, nil
-	}
-	if ((len(entries) == 1 && entries[0].Name() == "versions") ||
-		(len(entries) == 2 && entries[0].Name() == ".gitignore" && entries[1].Name() == "versions" && safeGitignore(root))) && validEmptyVersions(root) {
-		return rootEmpty, nil
-	}
-	cleanPublishedNames := len(entries) == 2 && entries[0].Name() == "current" && entries[1].Name() == "versions"
-	cleanPublishedNames = cleanPublishedNames || (len(entries) == 3 && entries[0].Name() == ".gitignore" && entries[1].Name() == "current" && entries[2].Name() == "versions" && safeGitignore(root))
-	if cleanPublishedNames {
-		if fastPathPublished(root) {
-			return rootPublished, nil
-		}
-	}
-	return rootUnsupported, nil
-}
-
-func inspectRootWithLock(root string) (rootState, error) {
-	entries, err := readPinnedDirectory(root, 0o755)
-	if err != nil {
-		return rootUnsupported, fmt.Errorf("read managed certificate root under lock: %w", err)
-	}
-	names := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.Name() != lockName {
-			names = append(names, entry.Name())
-		}
-	}
-	cleanEmptyNames := len(names) == 1 && names[0] == "versions"
-	cleanEmptyNames = cleanEmptyNames || (len(names) == 2 && names[0] == ".gitignore" && names[1] == "versions" && safeGitignore(root))
-	if cleanEmptyNames && validEmptyVersions(root) {
-		return rootEmpty, nil
-	}
-	return rootUnsupported, nil
-}
-
-func onlySafeGitignore(root string, entries []os.DirEntry) bool {
-	return len(entries) == 1 && entries[0].Name() == ".gitignore" && safeGitignore(root)
 }
 
 func safeGitignore(root string) bool {
@@ -238,28 +132,6 @@ func validEmptyVersions(root string) bool {
 	}
 	entries, err := readPinnedDirectory(path, 0o755)
 	return err == nil && len(entries) == 0
-}
-
-func prepareEmptyRoot(root string) error {
-	_, err := ensureDirectory(root, 0o755, os.Mkdir)
-	if err != nil {
-		return fmt.Errorf("prepare managed certificate root: %w", err)
-	}
-	if err := syncPinnedDirectory(root, exactDirectoryMode(0o755)); err != nil {
-		return err
-	}
-	if err := syncPinnedDirectory(filepath.Dir(root), anyDirectoryMode()); err != nil {
-		return err
-	}
-	versions := filepath.Join(root, "versions")
-	_, err = ensureDirectory(versions, 0o755, os.Mkdir)
-	if err != nil {
-		return fmt.Errorf("prepare certificate versions directory: %w", err)
-	}
-	if err := syncPinnedDirectory(versions, exactDirectoryMode(0o755)); err != nil {
-		return err
-	}
-	return syncPinnedDirectory(root, exactDirectoryMode(0o755))
 }
 
 func ensureDirectory(path string, mode os.FileMode, mkdir func(string, os.FileMode) error) (bool, error) {
@@ -344,7 +216,7 @@ func readPinnedDirectory(path string, mode os.FileMode) ([]os.DirEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer directory.Close()
+	defer func() { _ = directory.Close() }()
 	entries, err := directory.ReadDir(-1)
 	if err != nil {
 		return nil, err
@@ -358,54 +230,11 @@ func syncPinnedDirectory(path string, required directoryMode) error {
 	if err != nil {
 		return err
 	}
-	defer directory.Close()
-	if err := directory.Sync(); err != nil && !(runtime.GOOS == "windows" && errors.Is(err, os.ErrInvalid)) {
+	defer func() { _ = directory.Close() }()
+	if err := directory.Sync(); err != nil && (runtime.GOOS != "windows" || !errors.Is(err, os.ErrInvalid)) {
 		return fmt.Errorf("sync directory: %w", err)
 	}
 	return nil
-}
-
-func acquireLock(root string, observer publicationObserver, nextID randomIDFunc) (string, error) {
-	lock := filepath.Join(root, lockName)
-	if err := os.Mkdir(lock, 0o700); err != nil {
-		if errors.Is(err, os.ErrExist) {
-			return "", ErrUnsupportedForBootstrap
-		}
-		return "", fmt.Errorf("acquire certificate publication lock: %w", err)
-	}
-	if err := os.Chmod(lock, 0o700); err != nil {
-		return "", errors.New("set certificate publication lock mode")
-	}
-	if _, ok := pinnedDirectory(lock, 0o700); !ok {
-		return "", ErrUnsupportedForBootstrap
-	}
-	hostname, err := os.Hostname()
-	if err != nil || hostname == "" {
-		return "", errors.New("determine certificate publication hostname")
-	}
-	acquiredAt := time.Now().UTC().Format(time.RFC3339Nano)
-	token, temp, err := writeRandomExclusive(nextID, func(id string) string {
-		return filepath.Join(lock, "owner."+id+".tmp")
-	}, func(id string) ([]byte, error) {
-		return canonicalJSON(ownerDocument{Schema: 1, Hostname: hostname, PID: os.Getpid(), Token: id, AcquiredAt: acquiredAt})
-	}, 0o600)
-	if err != nil {
-		if errors.Is(err, ErrRandomNameCollisions) {
-			return "", ErrRandomNameCollisions
-		}
-		return "", errors.New("write certificate publication owner")
-	}
-	if err := renamePinnedRegular(temp, filepath.Join(lock, "owner.json"), 0o600); err != nil {
-		return "", errors.New("publish certificate publication owner")
-	}
-	if err := syncPinnedDirectory(lock, exactDirectoryMode(0o700)); err != nil {
-		return "", errors.New("sync certificate publication lock")
-	}
-	if err := syncPinnedDirectory(root, exactDirectoryMode(0o755)); err != nil {
-		return "", err
-	}
-	emit(observer, "lock_owner_published")
-	return token, nil
 }
 
 func releaseLock(root, token string) error {
@@ -424,11 +253,37 @@ func releaseLock(root, token string) error {
 		return ErrLockOwnerMismatch
 	}
 	entries, err := readPinnedDirectory(release, 0o700)
-	if err != nil || len(entries) != 1 || entries[0].Name() != "owner.json" {
+	if err != nil || len(entries) < 1 || len(entries) > 2 {
 		return ErrLockOwnerMismatch
+	}
+	ownerTemp := ""
+	wantTemp := "owner." + token + ".tmp"
+	seenOwner := false
+	for _, entry := range entries {
+		switch entry.Name() {
+		case "owner.json":
+			seenOwner = true
+		case wantTemp:
+			ownerTemp = filepath.Join(release, wantTemp)
+		default:
+			return ErrLockOwnerMismatch
+		}
+	}
+	if !seenOwner || len(entries) == 2 && ownerTemp == "" {
+		return ErrLockOwnerMismatch
+	}
+	if ownerTemp != "" {
+		if _, _, err := readPinnedRegular(ownerTemp, 0o600); err != nil {
+			return ErrLockOwnerMismatch
+		}
 	}
 	if err := removePinnedRegular(filepath.Join(release, "owner.json"), 0o600); err != nil {
 		return errors.New("remove certificate publication owner")
+	}
+	if ownerTemp != "" {
+		if err := removePinnedRegular(ownerTemp, 0o600); err != nil {
+			return errors.New("remove certificate publication owner temp")
+		}
 	}
 	if err := removePinnedDirectory(release, 0o700); err != nil {
 		return errors.New("remove certificate publication lock")
@@ -456,197 +311,6 @@ func canonicalOwnerMatches(path, token string) bool {
 	}
 	parsed, err := time.Parse(time.RFC3339Nano, document.AcquiredAt)
 	return err == nil && parsed.Location() == time.UTC
-}
-
-func publishFirst(root string, observer publicationObserver, nextID randomIDFunc) error {
-	transactionID, candidate, err := createCandidateDirectory(root, nextID)
-	if err != nil {
-		return err
-	}
-	candidateRelative := "versions/.candidate-" + transactionID
-	versionRelative := "versions/v-" + transactionID
-	version := filepath.Join(root, filepath.FromSlash(versionRelative))
-	emit(observer, "candidate_created")
-	owner := candidateOwnerDocument{Schema: 1, TransactionID: transactionID, CandidatePath: candidateRelative, VersionPath: versionRelative}
-	ownerContent, err := canonicalJSON(owner)
-	if err != nil {
-		return fmt.Errorf("encode certificate candidate owner: %w", err)
-	}
-	_, ownerTemp, err := writeRandomExclusive(nextID, func(id string) string {
-		return filepath.Join(candidate, ".candidate-owner."+id+".tmp")
-	}, func(string) ([]byte, error) { return ownerContent, nil }, 0o600)
-	if err != nil {
-		if errors.Is(err, ErrRandomNameCollisions) {
-			return ErrRandomNameCollisions
-		}
-		return errors.New("write certificate candidate owner")
-	}
-	ownerPath := filepath.Join(candidate, ".candidate-owner.json")
-	if err := renamePinnedRegular(ownerTemp, ownerPath, 0o600); err != nil {
-		return errors.New("publish certificate candidate owner")
-	}
-	if err := syncPinnedDirectory(candidate, exactDirectoryMode(0o755)); err != nil {
-		return err
-	}
-	emit(observer, "candidate_owner_published")
-
-	files, err := generateMaterial()
-	if err != nil {
-		return err
-	}
-	for _, file := range files {
-		if err := writeExclusive(filepath.Join(candidate, file.name), file.data, file.mode); err != nil {
-			return fmt.Errorf("write generated development certificate %s: %w", file.name, err)
-		}
-	}
-	if err := syncPinnedDirectory(candidate, exactDirectoryMode(0o755)); err != nil {
-		return err
-	}
-	emit(observer, "candidate_material_synced")
-	if err := validateMaterial(candidate, true); err != nil {
-		return fmt.Errorf("validate certificate candidate: %w", err)
-	}
-	pinnedOwner, _, err := readPinnedRegular(ownerPath, 0o600)
-	if err != nil || !bytes.Equal(pinnedOwner, ownerContent) {
-		return ErrUnsupportedForBootstrap
-	}
-	emit(observer, "candidate_validated")
-	if err := syncPinnedDirectory(filepath.Join(root, "versions"), exactDirectoryMode(0o755)); err != nil {
-		return err
-	}
-	emit(observer, "versions_synced_before_candidate_ready")
-
-	journal := journalDocument{
-		Schema:             1,
-		TransactionID:      transactionID,
-		CandidatePath:      candidateRelative,
-		VersionPath:        versionRelative,
-		PredecessorVersion: nil,
-		Stage:              "candidate_ready",
-		DirectRootSHA256:   nil,
-	}
-	if err := replaceJournal(root, journal, observer, nextID); err != nil {
-		return err
-	}
-	if err := removePinnedRegular(ownerPath, 0o600); err != nil {
-		return fmt.Errorf("remove certificate candidate owner: %w", err)
-	}
-	if err := syncPinnedDirectory(candidate, exactDirectoryMode(0o755)); err != nil {
-		return err
-	}
-	emit(observer, "candidate_owner_removed")
-	if err := renamePinnedDirectory(candidate, version, 0o755); err != nil {
-		return fmt.Errorf("publish certificate version: %w", err)
-	}
-	if err := syncPinnedDirectory(filepath.Join(root, "versions"), exactDirectoryMode(0o755)); err != nil {
-		return err
-	}
-	emit(observer, "version_renamed")
-	journal.Stage = "version_ready"
-	if err := replaceJournal(root, journal, observer, nextID); err != nil {
-		return err
-	}
-
-	_, currentTemp, err := createRandomSymlink(nextID, func(id string) string {
-		return filepath.Join(root, ".current-"+id)
-	}, versionRelative)
-	if err != nil {
-		return fmt.Errorf("create current certificate publication: %w", err)
-	}
-	if err := syncPinnedDirectory(root, exactDirectoryMode(0o755)); err != nil {
-		return err
-	}
-	emit(observer, "current_temp_created")
-	if err := renamePinnedSymlink(currentTemp, filepath.Join(root, "current"), versionRelative); err != nil {
-		return fmt.Errorf("publish current certificate version: %w", err)
-	}
-	if err := syncPinnedDirectory(root, exactDirectoryMode(0o755)); err != nil {
-		return err
-	}
-	emit(observer, "current_renamed")
-	journal.Stage = "current_published"
-	if err := replaceJournal(root, journal, observer, nextID); err != nil {
-		return err
-	}
-	journal.Stage = "retaining"
-	if err := replaceJournal(root, journal, observer, nextID); err != nil {
-		return err
-	}
-	if err := syncPinnedDirectory(filepath.Join(root, "versions"), exactDirectoryMode(0o755)); err != nil {
-		return err
-	}
-	if err := syncPinnedDirectory(root, exactDirectoryMode(0o755)); err != nil {
-		return err
-	}
-	emit(observer, "retention_synced")
-	if err := removePinnedRegular(filepath.Join(root, journalName), 0o600); err != nil {
-		return fmt.Errorf("complete certificate publication journal: %w", err)
-	}
-	if err := syncPinnedDirectory(root, exactDirectoryMode(0o755)); err != nil {
-		return err
-	}
-	emit(observer, "journal_removed")
-	return nil
-}
-
-func replaceJournal(root string, document journalDocument, observer publicationObserver, nextID randomIDFunc) error {
-	content, err := canonicalJSON(document)
-	if err != nil {
-		return fmt.Errorf("encode certificate publication journal: %w", err)
-	}
-	_, temp, err := writeRandomExclusive(nextID, func(id string) string {
-		return filepath.Join(root, ".certificate-publication.transaction-"+document.TransactionID+"-"+id+".tmp")
-	}, func(string) ([]byte, error) { return content, nil }, 0o600)
-	if err != nil {
-		return fmt.Errorf("write certificate publication journal: %w", err)
-	}
-	if err := renamePinnedRegular(temp, filepath.Join(root, journalName), 0o600); err != nil {
-		return fmt.Errorf("replace certificate publication journal: %w", err)
-	}
-	if err := syncPinnedDirectory(root, exactDirectoryMode(0o755)); err != nil {
-		return err
-	}
-	emit(observer, "journal_"+document.Stage)
-	return nil
-}
-
-func validatePublished(root string) error {
-	current := filepath.Join(root, "current")
-	currentInfo, err := os.Lstat(current)
-	if err != nil || currentInfo.Mode()&os.ModeSymlink == 0 {
-		return ErrUnsupportedForBootstrap
-	}
-	target, err := os.Readlink(current)
-	if err != nil || filepath.ToSlash(target) != target {
-		return ErrUnsupportedForBootstrap
-	}
-	if filepath.IsAbs(target) || filepath.Dir(target) != "versions" || !versionPattern.MatchString(filepath.Base(target)) {
-		return ErrUnsupportedForBootstrap
-	}
-	versions := filepath.Join(root, "versions")
-	if _, ok := pinnedDirectory(versions, 0o755); !ok {
-		return ErrUnsupportedForBootstrap
-	}
-	entries, err := readPinnedDirectory(versions, 0o755)
-	if err != nil || len(entries) < 1 || len(entries) > 2 {
-		return ErrUnsupportedForBootstrap
-	}
-	currentFound := false
-	for _, entry := range entries {
-		if !versionPattern.MatchString(entry.Name()) || entry.Name() == filepath.Base(target) && currentFound {
-			return ErrUnsupportedForBootstrap
-		}
-		if entry.Name() == filepath.Base(target) {
-			currentFound = true
-		}
-		if err := validateVersion(filepath.Join(versions, entry.Name())); err != nil {
-			return err
-		}
-	}
-	if !currentFound {
-		return ErrUnsupportedForBootstrap
-	}
-	return nil
 }
 
 type publishedObservation struct {
@@ -691,7 +355,8 @@ func fastPathPublished(root string) bool {
 }
 
 func observePublished(root string) (publishedObservation, bool) {
-	if err := validatePublished(root); err != nil {
+	state, err := classifyRoot(root, time.Now(), false)
+	if err != nil || state.state != statePublishedTarget || !state.fresh {
 		return publishedObservation{}, false
 	}
 	currentPath := filepath.Join(root, "current")
@@ -732,14 +397,33 @@ func pathAbsent(path string) bool {
 	return errors.Is(err, os.ErrNotExist)
 }
 
-func validateVersion(path string) error {
-	return validateMaterial(path, false)
+func validateMaterial(path string, candidate bool) error {
+	files, err := readManagedMaterial(path, candidate)
+	if err != nil {
+		return err
+	}
+	identity, fresh := classifyMaterial(files, time.Now())
+	if identity != identityTarget || !fresh {
+		return ErrUnsupportedForBootstrap
+	}
+	return nil
 }
 
-func validateMaterial(path string, candidate bool) error {
-	info, err := os.Lstat(path)
-	if err != nil || !info.IsDir() || info.Mode().Perm() != 0o755 {
+func validateTargetIdentity(path string, candidate bool) error {
+	files, err := readManagedMaterial(path, candidate)
+	if err != nil {
+		return err
+	}
+	identity, _ := classifyMaterial(files, time.Time{})
+	if identity != identityTarget {
 		return ErrUnsupportedForBootstrap
+	}
+	return nil
+}
+
+func readManagedMaterial(path string, candidate bool) ([]fileSpec, error) {
+	if _, ok := pinnedDirectory(path, 0o755); !ok {
+		return nil, ErrUnsupportedForBootstrap
 	}
 	entries, err := readPinnedDirectory(path, 0o755)
 	wantNames := []string{"ca.crt", "client.crt", "client.key", "server.crt", "server.key"}
@@ -747,62 +431,51 @@ func validateMaterial(path string, candidate bool) error {
 		wantNames = append([]string{".candidate-owner.json"}, wantNames...)
 	}
 	if err != nil || len(entries) != len(wantNames) {
-		return ErrUnsupportedForBootstrap
+		return nil, ErrUnsupportedForBootstrap
 	}
 	names := make([]string, len(entries))
 	for i, entry := range entries {
 		names[i] = entry.Name()
 	}
 	if !equalStrings(names, wantNames) {
-		return ErrUnsupportedForBootstrap
+		return nil, ErrUnsupportedForBootstrap
 	}
 	if candidate {
 		if _, _, err := readPinnedRegular(filepath.Join(path, ".candidate-owner.json"), 0o600); err != nil {
-			return ErrUnsupportedForBootstrap
+			return nil, ErrUnsupportedForBootstrap
 		}
 	}
+	files := make([]fileSpec, 0, len(managedFiles))
 	for _, spec := range managedFiles {
-		fileInfo, err := os.Lstat(filepath.Join(path, spec.name))
-		if err != nil || !fileInfo.Mode().IsRegular() || fileInfo.Mode().Perm() != spec.mode {
-			return ErrUnsupportedForBootstrap
+		content, _, err := readPinnedRegular(filepath.Join(path, spec.name), spec.mode)
+		if err != nil {
+			return nil, ErrUnsupportedForBootstrap
 		}
+		files = append(files, fileSpec{name: spec.name, mode: spec.mode, data: content})
 	}
-	ca, err := parseCertificateFile(filepath.Join(path, "ca.crt"))
-	if err != nil {
-		return ErrUnsupportedForBootstrap
-	}
-	server, err := parseCertificateFile(filepath.Join(path, "server.crt"))
-	if err != nil {
-		return ErrUnsupportedForBootstrap
-	}
-	client, err := parseCertificateFile(filepath.Join(path, "client.crt"))
-	if err != nil {
-		return ErrUnsupportedForBootstrap
-	}
-	now := time.Now()
-	if !exactTargetProfiles(ca, server, client, now) {
-		return ErrUnsupportedForBootstrap
-	}
-	pool := x509.NewCertPool()
-	pool.AddCert(ca)
-	if _, err := server.Verify(x509.VerifyOptions{Roots: pool, DNSName: "agent-fitness-functions", KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}); err != nil {
-		return ErrUnsupportedForBootstrap
-	}
-	if _, err := client.Verify(x509.VerifyOptions{Roots: pool, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}}); err != nil {
-		return ErrUnsupportedForBootstrap
-	}
-	if !keyMatches(filepath.Join(path, "server.key"), server) || !keyMatches(filepath.Join(path, "client.key"), client) {
-		return ErrUnsupportedForBootstrap
-	}
-	return nil
+	return files, nil
 }
 
 func generateMaterial() ([]fileSpec, error) {
+	return generateMaterialAt(time.Now())
+}
+
+func generateMaterialAt(at time.Time) ([]fileSpec, error) {
+	return generateMaterialForIdentity(at, "agent-fitness-functions-dev-ca", "agent-fitness-functions")
+}
+
+func generateMaterialForIdentity(at time.Time, caCommonName, serverDNSName string) ([]fileSpec, error) {
+	return generateMaterialWithProfile(at, caCommonName, serverDNSName, nil)
+}
+
+type materialProfileMutation func(ca, server, client *x509.Certificate)
+
+func generateMaterialWithProfile(at time.Time, caCommonName, serverDNSName string, mutate materialProfileMutation) ([]fileSpec, error) {
 	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, errors.New("generate development CA key")
 	}
-	now := time.Now().UTC().Truncate(time.Second)
+	now := at.UTC().Truncate(time.Second)
 	notBefore := now.Add(-time.Hour)
 	notAfter := notBefore.Add(validity)
 	caSerial, err := randomSerial()
@@ -819,12 +492,29 @@ func generateMaterial() ([]fileSpec, error) {
 	}
 	caTemplate := &x509.Certificate{
 		SerialNumber:          caSerial,
-		Subject:               pkix.Name{CommonName: "agent-fitness-functions-dev-ca"},
+		Subject:               pkix.Name{CommonName: caCommonName},
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
+	}
+	serverTemplate := &x509.Certificate{
+		SerialNumber: serverSerial, Subject: pkix.Name{CommonName: "localhost"},
+		NotBefore: notBefore, NotAfter: notAfter,
+		KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:    []string{"localhost", serverDNSName},
+		IPAddresses: []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
+	}
+	clientTemplate := &x509.Certificate{
+		SerialNumber: clientSerial, Subject: pkix.Name{CommonName: "dev-hook-pool"},
+		NotBefore: notBefore, NotAfter: notAfter,
+		KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+	if mutate != nil {
+		mutate(caTemplate, serverTemplate, clientTemplate)
 	}
 	caDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
 	if err != nil {
@@ -833,20 +523,6 @@ func generateMaterial() ([]fileSpec, error) {
 	ca, err := x509.ParseCertificate(caDER)
 	if err != nil {
 		return nil, errors.New("parse generated development CA certificate")
-	}
-	serverTemplate := &x509.Certificate{
-		SerialNumber: serverSerial, Subject: pkix.Name{CommonName: "localhost"},
-		NotBefore: notBefore, NotAfter: notAfter,
-		KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		DNSNames:    []string{"localhost", "agent-fitness-functions"},
-		IPAddresses: []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
-	}
-	clientTemplate := &x509.Certificate{
-		SerialNumber: clientSerial, Subject: pkix.Name{CommonName: "dev-hook-pool"},
-		NotBefore: notBefore, NotAfter: notAfter,
-		KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 	}
 	serverCert, serverKey, err := createLeaf(serverTemplate, ca, caKey)
 	if err != nil {
@@ -916,35 +592,6 @@ func randomSerialWith(draw func(*big.Int) (*big.Int, error)) (*big.Int, error) {
 	return nil, errors.New("generate positive development certificate serial")
 }
 
-func parseCertificateFile(path string) (*x509.Certificate, error) {
-	content, _, err := readPinnedRegular(path, 0o644)
-	if err != nil {
-		return nil, err
-	}
-	block, rest := pem.Decode(content)
-	if block == nil || block.Type != "CERTIFICATE" || len(rest) != 0 {
-		return nil, errors.New("invalid certificate PEM")
-	}
-	return x509.ParseCertificate(block.Bytes)
-}
-
-func keyMatches(path string, cert *x509.Certificate) bool {
-	content, _, err := readPinnedRegular(path, 0o600)
-	if err != nil {
-		return false
-	}
-	block, rest := pem.Decode(content)
-	if block == nil || block.Type != "RSA PRIVATE KEY" || len(rest) != 0 {
-		return false
-	}
-	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	if err != nil {
-		return false
-	}
-	public, ok := cert.PublicKey.(*rsa.PublicKey)
-	return ok && key.PublicKey.N.Cmp(public.N) == 0 && key.PublicKey.E == public.E
-}
-
 func writeExclusive(path string, content []byte, mode os.FileMode) error {
 	if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
 		if err == nil {
@@ -1006,7 +653,7 @@ func readPinnedRegular(path string, mode os.FileMode) ([]byte, os.FileInfo, erro
 	if err != nil {
 		return nil, nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	pinned, err := file.Stat()
 	if err != nil || !pinned.Mode().IsRegular() || pinned.Mode().Perm() != mode || !os.SameFile(observed, pinned) {
 		return nil, nil, ErrUnsupportedForBootstrap
@@ -1072,25 +719,6 @@ func removePinnedDirectory(path string, mode os.FileMode) error {
 		return ErrUnsupportedForBootstrap
 	}
 	return os.Remove(path)
-}
-
-func renamePinnedSymlink(source, destination, target string) error {
-	observed, err := os.Lstat(source)
-	if err != nil || observed.Mode()&os.ModeSymlink == 0 {
-		return ErrUnsupportedForBootstrap
-	}
-	gotTarget, err := os.Readlink(source)
-	if err != nil || gotTarget != target {
-		return ErrUnsupportedForBootstrap
-	}
-	reobserved, err := os.Lstat(source)
-	if err != nil || reobserved.Mode()&os.ModeSymlink == 0 || !os.SameFile(observed, reobserved) {
-		return ErrUnsupportedForBootstrap
-	}
-	if _, err := os.Lstat(destination); !errors.Is(err, os.ErrNotExist) {
-		return ErrUnsupportedForBootstrap
-	}
-	return os.Rename(source, destination)
 }
 
 func canonicalJSON(value any) ([]byte, error) {

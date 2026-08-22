@@ -410,6 +410,22 @@ func TestExactTargetProfilesRejectEveryExtraAndWrongLifetime(t *testing.T) {
 	}
 }
 
+func TestClassifyGeneratedMaterialSeparatesIdentityAndFreshness(t *testing.T) {
+	now := time.Now().UTC()
+	files, err := generateMaterialAt(now)
+	if err != nil {
+		t.Fatalf("generateMaterialAt: %v", err)
+	}
+	identity, fresh := classifyMaterial(files, now)
+	if identity != identityTarget || !fresh {
+		t.Fatalf("classifyMaterial(generated) = (%v, %v), want (target, fresh)", identity, fresh)
+	}
+	identity, fresh = classifyMaterial(files, now.Add(2*validity))
+	if identity != identityTarget || fresh {
+		t.Fatalf("classifyMaterial(stale generated) = (%v, %v), want (target, stale)", identity, fresh)
+	}
+}
+
 func generatedProfiles(t *testing.T) (*x509.Certificate, *x509.Certificate, *x509.Certificate) {
 	t.Helper()
 	files, err := generateMaterial()
