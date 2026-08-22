@@ -1,0 +1,64 @@
+.claude/settings.json
+  h_56c22cd4a131f7 8,37
+bin/stack-fitness-functions-test
+  h_56c22cd4a131f7 66-68
+bin_helper_mtls_test.go
+  h_56c22cd4a131f7 9-10,70,97-99,172,206,240,268-281
+cmd/stack-fitness-functions/main_test.go
+  h_56c22cd4a131f7 20,423-467
+docker-compose.yml
+  h_56c22cd4a131f7 33-35
+docker_contract_test.go
+  h_56c22cd4a131f7 4,6-7,80-83,87-89,111-137,163,165,167,172-174
+docker_smoke_integration_test.go
+  h_56c22cd4a131f7 1-74
+hooks/pre-commit.sh
+  h_56c22cd4a131f7 12-14
+hooks/pre-push.sh
+  h_56c22cd4a131f7 12-14
+hooks/pre-tool-use.sh
+  h_56c22cd4a131f7 11-13
+hooks/pre_commit_test.go
+  h_56c22cd4a131f7 13,356,377-379,423-424,455-469
+hooks/pre_push_test.go
+  h_56c22cd4a131f7 41,63-65
+hooks/pre_tool_use_test.go
+  h_56c22cd4a131f7 305,328-330
+installed_hook_mtls_test.go
+  h_56c22cd4a131f7 1-109
+internal/client/daemon.go
+  h_56c22cd4a131f7 50-52,66-67,73
+internal/client/daemon_test.go
+  h_56c22cd4a131f7 18-23,48-50,80-82,84-85,91,102,118-119,145,149,165-166,222,228
+internal/client/devcerts.go
+  h_56c22cd4a131f7 3,12,17,19,21,24-25
+internal/client/doctor_test.go
+  h_56c22cd4a131f7 77-78,104
+internal/client/hookassets/pre-commit.sh
+  h_56c22cd4a131f7 12-14
+internal/client/hookassets/pre-push.sh
+  h_56c22cd4a131f7 12-14
+internal/client/hookassets/pre-tool-use.sh
+  h_56c22cd4a131f7 11-13
+internal/client/onboard.go
+  h_56c22cd4a131f7 46-57,70-72,82-83,87-103,124-134,221
+internal/devcerts/filesystem_test.go
+  h_56c22cd4a131f7 1-448
+internal/devcerts/publish.go
+  h_56c22cd4a131f7 1-1244
+internal/devcerts/publish_test.go
+  h_56c22cd4a131f7 1-455
+scripts/generate-dev-certs.sh
+  h_56c22cd4a131f7 8,12-19,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "13a2c8af8a13df416cb1a5f7850dd5f7906c3056",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
