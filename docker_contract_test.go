@@ -37,6 +37,12 @@ func TestDockerfileContainerContract(t *testing.T) {
 	mustContain(t, dockerfile, "USER appuser")
 	mustContain(t, dockerfile, "ENTRYPOINT [\"/app/stack-fitness-functions\", \"server\", \"start\"]")
 	mustContain(t, dockerfile, "HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3")
+	mustContain(t, dockerfile, `test -f /run/stack-fitness-functions/health-ca.crt`)
+	mustContain(t, dockerfile, `--cacert /run/stack-fitness-functions/health-ca.crt https://127.0.0.1:7890/health`)
+	mustContain(t, dockerfile, `STACK_FITNESS_FUNCTIONS_TLS_CA`)
+	mustContain(t, dockerfile, `--cacert "$STACK_FITNESS_FUNCTIONS_TLS_CA" https://127.0.0.1:7890/health`)
+	mustContain(t, dockerfile, `curl --fail --silent http://127.0.0.1:7890/health`)
+	mustNotContain(t, dockerfile, "/app/certs/current")
 	mustContain(t, dockerfile, "nodejs")
 	mustContain(t, dockerfile, "npm")
 	mustContain(t, dockerfile, "npm install -g @finos/calm-cli@1.40.0")
@@ -159,22 +165,15 @@ func TestDockerComposeDeploymentContract(t *testing.T) {
 		"GIT_SHA: ${GIT_SHA:-dev}",
 		"BUILD_DATE: ${BUILD_DATE:-unknown}",
 		`"7890:7890"`,
-		"--tls-cert",
-		"/app/certs/current/server.crt",
-		"--tls-key",
-		"/app/certs/current/server.key",
-		"--tls-ca",
-		"/app/certs/current/ca.crt",
 		"./configs:/app/configs:ro",
 		"./certs:/app/certs:ro",
 		"./caller-repos.json:/app/caller-repos.json:ro",
 		"STACK_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs",
-		"STACK_FITNESS_FUNCTIONS_TLS_CERT: /app/certs/current/server.crt",
-		"STACK_FITNESS_FUNCTIONS_TLS_KEY: /app/certs/current/server.key",
-		"STACK_FITNESS_FUNCTIONS_TLS_CA: /app/certs/current/ca.crt",
+		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR: /app/certs",
+		"STACK_FITNESS_FUNCTIONS_RUNTIME_DIR: /run/stack-fitness-functions",
 		`STACK_FITNESS_FUNCTIONS_RATE_LIMIT: "100"`,
 		`STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"`,
-		`test: ["CMD-SHELL", "if [ -n \"$$STACK_FITNESS_FUNCTIONS_TLS_CA\" ]; then curl --fail --silent --cacert \"$$STACK_FITNESS_FUNCTIONS_TLS_CA\" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1"]`,
+		`test: ["CMD-SHELL", "curl --fail --silent --cacert /run/stack-fitness-functions/health-ca.crt https://127.0.0.1:7890/health || exit 1"]`,
 		"interval: 30s",
 		"timeout: 5s",
 		"start_period: 15s",
@@ -183,6 +182,7 @@ func TestDockerComposeDeploymentContract(t *testing.T) {
 		"no-new-privileges:true",
 		"read_only: true",
 		"/tmp:size=256m",
+		"/run/stack-fitness-functions:uid=1001,gid=1001,mode=0755,size=1m,nosuid,nodev,noexec",
 		"cap_drop:",
 		"- ALL",
 		"memory: 1g",
@@ -195,6 +195,9 @@ func TestDockerComposeDeploymentContract(t *testing.T) {
 		"Helm chart is authoritative",
 	} {
 		mustContain(t, compose, needle)
+	}
+	for _, forbidden := range []string{"STACK_FITNESS_FUNCTIONS_TLS_CERT", "STACK_FITNESS_FUNCTIONS_TLS_KEY", "STACK_FITNESS_FUNCTIONS_TLS_CA", "/app/certs/current"} {
+		mustNotContain(t, compose, forbidden)
 	}
 }
 
