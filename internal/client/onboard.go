@@ -43,16 +43,18 @@ var fitnessFunctionKeys = []string{
 // onboarder holds the resolved inputs for a single onboard run. Dependencies are
 // injected (like doctor.go) so the individual steps stay unit-testable.
 type onboarder struct {
-	repoName    string
-	repoRoot    string
-	enforcement string
-	addr        string
-	configsDir  string
-	certDir     string
-	stdout      io.Writer
-	stderr      io.Writer
-	httpClient  *http.Client
-	starter     func(DaemonStartConfig) error
+	repoName             string
+	repoRoot             string
+	enforcement          string
+	addr                 string
+	configsDir           string
+	certDir              string
+	stdout               io.Writer
+	stderr               io.Writer
+	httpClient           *http.Client
+	starter              func(DaemonStartConfig) error
+	certificatesOnly     bool
+	forceDevCertRotation bool
 }
 
 // RunOnboard performs the whole local 0-to-governed sequence in one command:
@@ -65,6 +67,9 @@ func RunOnboard(args []string, stdout, stderr io.Writer, httpClient *http.Client
 	if err != nil {
 		return err
 	}
+	if o.certificatesOnly {
+		return ensureDevCerts(o.certDir, o.forceDevCertRotation)
+	}
 	return o.run()
 }
 
@@ -74,8 +79,27 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 	repo := flags.String("repo", "", "governance repository name (defaults to the git working-tree basename)")
 	enforcement := flags.String("enforcement", "advisory", "initial enforcement mode: advisory or block")
 	addr := flags.String("addr", defaultOnboardAddr, "governance daemon base URL")
+	certificatesOnly := flags.Bool("certificates-only", false, "publish managed development certificates only")
+	forceDevCertRotation := flags.Bool("force-dev-cert-rotation", false, "request managed development certificate rotation")
 	if err := flags.Parse(args); err != nil {
 		return onboarder{}, usageError{err: err}
+	}
+	if *certificatesOnly {
+		if len(flags.Args()) != 0 {
+			return onboarder{}, usageError{err: errors.New("client onboard --certificates-only accepts no repository path")}
+		}
+		certDir := os.Getenv(envDevCertDir)
+		if certDir == "" {
+			workingDir, err := os.Getwd()
+			if err != nil {
+				return onboarder{}, fmt.Errorf("resolve development certificate directory: %w", err)
+			}
+			if root := resolveRepoRoot("", ""); root != "" {
+				workingDir = root
+			}
+			certDir = filepath.Join(workingDir, "certs")
+		}
+		return onboarder{certDir: certDir, certificatesOnly: true, forceDevCertRotation: *forceDevCertRotation}, nil
 	}
 	mode, err := validateEnforcement(*enforcement)
 	if err != nil {
@@ -97,16 +121,17 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 		httpClient = &http.Client{Timeout: 3 * time.Second}
 	}
 	return onboarder{
-		repoName:    repoName,
-		repoRoot:    repoRoot,
-		enforcement: mode,
-		addr:        *addr,
-		configsDir:  onboardConfigsDir(repoRoot),
-		certDir:     resolveDevCertDir(repoRoot),
-		stdout:      stdout,
-		stderr:      stderr,
-		httpClient:  httpClient,
-		starter:     starter,
+		repoName:             repoName,
+		repoRoot:             repoRoot,
+		enforcement:          mode,
+		addr:                 *addr,
+		configsDir:           onboardConfigsDir(repoRoot),
+		certDir:              resolveDevCertDir(repoRoot),
+		stdout:               stdout,
+		stderr:               stderr,
+		httpClient:           httpClient,
+		starter:              starter,
+		forceDevCertRotation: *forceDevCertRotation,
 	}, nil
 }
 
@@ -193,7 +218,7 @@ func (o onboarder) run() error {
 
 func (o onboarder) ensureCerts() error {
 	o.step("Dev certificates: %s", o.certDir)
-	if err := EnsureDevCerts(o.certDir); err != nil {
+	if err := ensureDevCerts(o.certDir, o.forceDevCertRotation); err != nil {
 		return err
 	}
 	o.detail("client CN %s ready", devClientCommonName)

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
@@ -352,9 +353,7 @@ func TestPreCommitForwardsDiscoveredMTLSCerts(t *testing.T) {
 	runGit(t, repo, "add", "sample.go")
 
 	certDir := filepath.Join(repo, "certs")
-	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
-		writeFile(t, filepath.Join(certDir, name), "x")
-	}
+	publishManagedCerts(t, certDir)
 
 	logPath := filepath.Join(t.TempDir(), "calls.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
@@ -375,9 +374,9 @@ echo '{"status":"pass"}'
 	got := readFile(t, logPath)
 	for _, want := range []string{
 		"--addr https://127.0.0.1:7890",
-		"--client-cert " + filepath.Join(certDir, "client.crt"),
-		"--client-key " + filepath.Join(certDir, "client.key"),
-		"--client-ca " + filepath.Join(certDir, "ca.crt"),
+		"--client-cert " + filepath.Join(certDir, "current", "client.crt"),
+		"--client-key " + filepath.Join(certDir, "current", "client.key"),
+		"--client-ca " + filepath.Join(certDir, "current", "ca.crt"),
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in invocations:\n%s", want, got)
@@ -421,6 +420,8 @@ func initGitRepo(t *testing.T) string {
 	t.Helper()
 	repo := t.TempDir()
 	runGit(t, repo, "init")
+	runGit(t, repo, "config", "maintenance.auto", "false")
+	runGit(t, repo, "config", "gc.auto", "0")
 	return repo
 }
 
@@ -449,6 +450,21 @@ func writeFile(t *testing.T, path, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
+}
+
+func publishManagedCerts(t *testing.T, root string) string {
+	t.Helper()
+	if err := devcerts.Publish(root, false); err != nil {
+		t.Fatalf("Publish(%s): %v", root, err)
+	}
+	target, err := os.Readlink(filepath.Join(root, "current"))
+	if err != nil {
+		t.Fatalf("Readlink(%s/current): %v", root, err)
+	}
+	if !strings.HasPrefix(target, "versions/v-") || len(strings.TrimPrefix(target, "versions/v-")) != 32 {
+		t.Fatalf("current target = %q, want first-generation version", target)
+	}
+	return target
 }
 
 func fakeFitnessBin(t *testing.T, script string) string {

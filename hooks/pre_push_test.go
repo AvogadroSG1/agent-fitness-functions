@@ -38,9 +38,7 @@ func TestPrePushForwardsDiscoveredMTLSCerts(t *testing.T) {
 	headSHA := gitRevParse(t, repo, "HEAD")
 
 	certDir := filepath.Join(repo, "certs")
-	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
-		writeFile(t, filepath.Join(certDir, name), "x")
-	}
+	publishManagedCerts(t, certDir)
 
 	logPath := filepath.Join(t.TempDir(), "calls.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
@@ -62,9 +60,9 @@ echo '{"status":"pass"}'
 	got := readFile(t, logPath)
 	for _, want := range []string{
 		"--addr https://127.0.0.1:7890",
-		"--client-cert " + filepath.Join(certDir, "client.crt"),
-		"--client-key " + filepath.Join(certDir, "client.key"),
-		"--client-ca " + filepath.Join(certDir, "ca.crt"),
+		"--client-cert " + filepath.Join(certDir, "current", "client.crt"),
+		"--client-key " + filepath.Join(certDir, "current", "client.key"),
+		"--client-ca " + filepath.Join(certDir, "current", "ca.crt"),
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in invocations:\n%s", want, got)

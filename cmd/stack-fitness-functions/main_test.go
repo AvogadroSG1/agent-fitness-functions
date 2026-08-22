@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -416,6 +417,51 @@ func TestRunDispatchesClientOnboardUsageError(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "unsupported enforcement mode") {
 		t.Fatalf("stderr = %q, want enforcement usage error", stderr.String())
+	}
+}
+
+func TestRunClientOnboardCertificatesOnlyPublishesManagedRoot(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "certs")
+	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", root)
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"client", "onboard", "--certificates-only"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("certificates-only exit code = %d, want 0; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	target, err := os.Readlink(filepath.Join(root, "current"))
+	if err != nil {
+		t.Fatalf("Readlink(current): %v", err)
+	}
+	if matched, _ := regexp.MatchString(`^versions/v-[0-9a-f]{32}$`, target); !matched {
+		t.Fatalf("current target = %q, want version publication", target)
+	}
+	if strings.Contains(stdout.String()+stderr.String(), "PRIVATE KEY") {
+		t.Fatal("CLI output exposed private key material")
+	}
+}
+
+func TestRunClientOnboardCertificatesOnlyAcceptsForceWithoutBroadeningState(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", root)
+	seed := filepath.Join(root, "unknown")
+	if err := os.WriteFile(seed, []byte("preserve me\n"), 0o640); err != nil {
+		t.Fatalf("seed unsupported state: %v", err)
+	}
+	before, err := os.ReadFile(seed)
+	if err != nil {
+		t.Fatalf("read seed: %v", err)
+	}
+	var stderr bytes.Buffer
+	code := run([]string{"client", "onboard", "--certificates-only", "--force-dev-cert-rotation"}, &bytes.Buffer{}, &stderr)
+	if code != 1 {
+		t.Fatalf("forced unsupported exit code = %d, want 1; stderr=%q", code, stderr.String())
+	}
+	after, err := os.ReadFile(seed)
+	if err != nil {
+		t.Fatalf("read preserved seed: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatalf("forced unsupported state changed: before=%q after=%q", before, after)
 	}
 }
 

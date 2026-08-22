@@ -74,8 +74,8 @@ func TestCheckClientCertificateWithGeneratedDevCerts(t *testing.T) {
 		t.Fatalf("EnsureDevCerts: %v", err)
 	}
 	cfg := doctorConfig{
-		clientCert: filepath.Join(certDir, devClientCertName),
-		clientKey:  filepath.Join(certDir, devClientKeyName),
+		clientCert: filepath.Join(certDir, "current", devClientCertName),
+		clientKey:  filepath.Join(certDir, "current", devClientKeyName),
 	}
 	result := checkClientCertificate(cfg)
 	if !result.passed {
@@ -101,7 +101,7 @@ func TestCheckServerCABundle(t *testing.T) {
 	if err := EnsureDevCerts(certDir); err != nil {
 		t.Fatalf("EnsureDevCerts: %v", err)
 	}
-	valid := checkServerCABundle(doctorConfig{clientCA: filepath.Join(certDir, devCACertName)})
+	valid := checkServerCABundle(doctorConfig{clientCA: filepath.Join(certDir, "current", devCACertName)})
 	if !valid.passed {
 		t.Fatalf("valid CA bundle passed = false, want true (detail=%q)", valid.detail)
 	}

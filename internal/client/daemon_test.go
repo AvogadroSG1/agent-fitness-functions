@@ -15,9 +15,12 @@ import (
 
 func TestResolveClientTLSPathsPrecedence(t *testing.T) {
 	certDir := t.TempDir()
-	writeFileTest(t, filepath.Join(certDir, devClientCertName), "cert")
-	writeFileTest(t, filepath.Join(certDir, devClientKeyName), "key")
-	writeFileTest(t, filepath.Join(certDir, devCACertName), "ca")
+	if err := os.Mkdir(filepath.Join(certDir, "current"), 0o755); err != nil {
+		t.Fatalf("mkdir current: %v", err)
+	}
+	writeFileTest(t, filepath.Join(certDir, "current", devClientCertName), "cert")
+	writeFileTest(t, filepath.Join(certDir, "current", devClientKeyName), "key")
+	writeFileTest(t, filepath.Join(certDir, "current", devCACertName), "ca")
 
 	cases := []struct {
 		name                      string
@@ -42,9 +45,9 @@ func TestResolveClientTLSPathsPrecedence(t *testing.T) {
 		{
 			name:       "default dir used when files exist",
 			useCertDir: true,
-			wantCert:   filepath.Join(certDir, devClientCertName),
-			wantKey:    filepath.Join(certDir, devClientKeyName),
-			wantCA:     filepath.Join(certDir, devCACertName),
+			wantCert:   filepath.Join(certDir, "current", devClientCertName),
+			wantKey:    filepath.Join(certDir, "current", devClientKeyName),
+			wantCA:     filepath.Join(certDir, "current", devCACertName),
 		},
 		{
 			name:       "none when no flags, env, or files",
@@ -74,15 +77,18 @@ func TestResolveClientTLSPathsDefaultCertKeyPairedTogether(t *testing.T) {
 	t.Setenv(envClientKey, "")
 	t.Setenv(envClientCA, "")
 	certDir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(certDir, "current"), 0o755); err != nil {
+		t.Fatalf("mkdir current: %v", err)
+	}
 	// Only the certificate exists; the key is missing, so neither is used.
-	writeFileTest(t, filepath.Join(certDir, devClientCertName), "cert")
-	writeFileTest(t, filepath.Join(certDir, devCACertName), "ca")
+	writeFileTest(t, filepath.Join(certDir, "current", devClientCertName), "cert")
+	writeFileTest(t, filepath.Join(certDir, "current", devCACertName), "ca")
 
 	cert, key, ca := resolveClientTLSPaths("", "", "", certDir)
 	if cert != "" || key != "" {
 		t.Fatalf("cert/key = (%q, %q), want both empty when key file is absent", cert, key)
 	}
-	if ca != filepath.Join(certDir, devCACertName) {
+	if ca != filepath.Join(certDir, "current", devCACertName) {
 		t.Fatalf("ca = %q, want discovered default", ca)
 	}
 }
@@ -93,6 +99,7 @@ func TestEnsureDevCertsGeneratesFullSet(t *testing.T) {
 		t.Fatalf("EnsureDevCerts returned error: %v", err)
 	}
 
+	certDir = filepath.Join(certDir, "current")
 	assertFileMode(t, filepath.Join(certDir, devCACertName), 0o644)
 	assertFileMode(t, filepath.Join(certDir, devServerCertName), 0o644)
 	assertFileMode(t, filepath.Join(certDir, devServerKeyName), 0o600)
@@ -108,8 +115,8 @@ func TestEnsureDevCertsGeneratesFullSet(t *testing.T) {
 	if serverCert.Subject.CommonName != devServerCommonName {
 		t.Fatalf("server CN = %q, want %q", serverCert.Subject.CommonName, devServerCommonName)
 	}
-	if !slices.Contains(serverCert.DNSNames, "localhost") || !slices.Contains(serverCert.DNSNames, hookProductPrefix) {
-		t.Fatalf("server DNS names = %v, want localhost and %s", serverCert.DNSNames, hookProductPrefix)
+	if !slices.Contains(serverCert.DNSNames, "localhost") || !slices.Contains(serverCert.DNSNames, "agent-fitness-functions") {
+		t.Fatalf("server DNS names = %v, want localhost and agent-fitness-functions", serverCert.DNSNames)
 	}
 	if !containsIP(serverCert.IPAddresses, net.IPv4(127, 0, 0, 1)) || !containsIP(serverCert.IPAddresses, net.IPv6loopback) {
 		t.Fatalf("server IPs = %v, want loopback IPv4 and IPv6", serverCert.IPAddresses)
@@ -135,11 +142,11 @@ func TestEnsureDevCertsIsIdempotent(t *testing.T) {
 	if err := EnsureDevCerts(certDir); err != nil {
 		t.Fatalf("first EnsureDevCerts returned error: %v", err)
 	}
-	before := readDevCertSet(t, certDir)
+	before := readDevCertSet(t, filepath.Join(certDir, "current"))
 	if err := EnsureDevCerts(certDir); err != nil {
 		t.Fatalf("second EnsureDevCerts returned error: %v", err)
 	}
-	after := readDevCertSet(t, certDir)
+	after := readDevCertSet(t, filepath.Join(certDir, "current"))
 	for name, data := range before {
 		if !bytes.Equal(data, after[name]) {
 			t.Fatalf("%s changed on second EnsureDevCerts, want idempotent no-op", name)
@@ -155,8 +162,8 @@ func TestEnsureDevCertsRejectsPartialSet(t *testing.T) {
 	if err == nil {
 		t.Fatal("EnsureDevCerts succeeded on a partial set, want error")
 	}
-	if !strings.Contains(err.Error(), "partial dev certificate set") {
-		t.Fatalf("error = %v, want partial-set guidance", err)
+	if !strings.Contains(err.Error(), "unsupported for bootstrap") {
+		t.Fatalf("error = %v, want bootstrap refusal", err)
 	}
 	// The generator must not have overwritten or completed the partial set.
 	if _, statErr := os.Stat(filepath.Join(certDir, devServerCertName)); !os.IsNotExist(statErr) {
@@ -212,13 +219,13 @@ func TestPrepareDaemonStartProvisionsLocalDevMode(t *testing.T) {
 	if !cfg.Local {
 		t.Fatal("cfg.Local = false, want true for https loopback zero-config path")
 	}
-	if cfg.TLSCert != filepath.Join(certDir, devServerCertName) || cfg.TLSCA != filepath.Join(certDir, devCACertName) {
+	if cfg.TLSCert != filepath.Join(certDir, "current", devServerCertName) || cfg.TLSCA != filepath.Join(certDir, "current", devCACertName) {
 		t.Fatalf("cfg tls paths = %+v, want dev cert dir paths", cfg)
 	}
 	if cfg.ConfigsDir != filepath.Join(repoRoot, "configs") {
 		t.Fatalf("cfg.ConfigsDir = %q, want <repo>/configs", cfg.ConfigsDir)
 	}
-	if _, err := os.Stat(filepath.Join(certDir, devServerKeyName)); err != nil {
+	if _, err := os.Stat(filepath.Join(certDir, "current", devServerKeyName)); err != nil {
 		t.Fatalf("dev certs not generated: %v", err)
 	}
 }

@@ -47,9 +47,9 @@ func prepareDaemonStart(addr, certDir, repoRoot, certFlag, keyFlag, caFlag strin
 		return DaemonStartConfig{}, err
 	}
 	cfg.Local = true
-	cfg.TLSCert = filepath.Join(certDir, devServerCertName)
-	cfg.TLSKey = filepath.Join(certDir, devServerKeyName)
-	cfg.TLSCA = filepath.Join(certDir, devCACertName)
+	cfg.TLSCert = filepath.Join(certDir, "current", devServerCertName)
+	cfg.TLSKey = filepath.Join(certDir, "current", devServerKeyName)
+	cfg.TLSCA = filepath.Join(certDir, "current", devCACertName)
 	cfg.ConfigsDir = resolveConfigsDir(repoRoot)
 	return cfg, nil
 }
@@ -63,14 +63,14 @@ func resolveClientTLSPaths(certFlag, keyFlag, caFlag, certDir string) (cert, key
 	key = firstNonEmpty(keyFlag, os.Getenv(envClientKey))
 	ca = firstNonEmpty(caFlag, os.Getenv(envClientCA))
 	if cert == "" && key == "" && certDir != "" {
-		defaultCert := filepath.Join(certDir, devClientCertName)
-		defaultKey := filepath.Join(certDir, devClientKeyName)
+		defaultCert := filepath.Join(certDir, "current", devClientCertName)
+		defaultKey := filepath.Join(certDir, "current", devClientKeyName)
 		if fileExists(defaultCert) && fileExists(defaultKey) {
 			cert, key = defaultCert, defaultKey
 		}
 	}
 	if ca == "" && certDir != "" {
-		if defaultCA := filepath.Join(certDir, devCACertName); fileExists(defaultCA) {
+		if defaultCA := filepath.Join(certDir, "current", devCACertName); fileExists(defaultCA) {
 			ca = defaultCA
 		}
 	}

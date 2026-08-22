@@ -1,7 +1,10 @@
 package calm_poc_test
 
 import (
+	"errors"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -74,18 +77,15 @@ func TestDevCertificateBootstrapContract(t *testing.T) {
 	}
 	script := string(scriptContent)
 	for _, needle := range []string{
-		"certs/server.crt",
-		"certs/server.key",
-		"certs/ca.crt",
-		"certs/client.crt",
-		"certs/client.key",
-		"dev-hook-pool",
-		"subjectAltName",
-		"127.0.0.1",
-		"localhost",
-		"openssl",
+		"exec",
+		"stack-fitness-functions",
+		"client onboard --certificates-only",
+		"--force-dev-cert-rotation",
 	} {
 		mustContain(t, script, needle)
+	}
+	for _, forbidden := range []string{"openssl", "x509", "keyout", "install -m"} {
+		mustNotContain(t, script, forbidden)
 	}
 
 	certIgnoreContent, err := os.ReadFile("certs/.gitignore")
@@ -106,6 +106,33 @@ func TestDevCertificateBootstrapContract(t *testing.T) {
 	readme := string(readmeContent)
 	mustContain(t, readme, "scripts/generate-dev-certs.sh")
 	mustContain(t, readme, "docker compose up --build")
+}
+
+func TestDevCertificateBootstrapDelegatesForceAndPreservesProcessContract(t *testing.T) {
+	dir := t.TempDir()
+	record := filepath.Join(dir, "args")
+	stub := filepath.Join(dir, "stack-fitness-functions")
+	content := "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >\"$RECORD\"\nprintf 'delegated stdout\\n'\nprintf 'delegated stderr\\n' >&2\nexit 23\n"
+	if err := os.WriteFile(stub, []byte(content), 0o755); err != nil {
+		t.Fatalf("write delegated binary: %v", err)
+	}
+	command := exec.Command("bash", "scripts/generate-dev-certs.sh", "--force")
+	command.Env = append(os.Environ(), "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"), "RECORD="+record)
+	output, err := command.CombinedOutput()
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 23 {
+		t.Fatalf("delegating script error = %v, want exit 23; output=%s", err, output)
+	}
+	if string(output) != "delegated stdout\ndelegated stderr\n" {
+		t.Fatalf("combined output = %q, want delegated streams unchanged", output)
+	}
+	args, err := os.ReadFile(record)
+	if err != nil {
+		t.Fatalf("read delegated args: %v", err)
+	}
+	if got, want := string(args), "client onboard --certificates-only --force-dev-cert-rotation\n"; got != want {
+		t.Fatalf("delegated args = %q, want %q", got, want)
+	}
 }
 
 func TestRequirementsPinsRadon(t *testing.T) {
@@ -133,18 +160,18 @@ func TestDockerComposeDeploymentContract(t *testing.T) {
 		"BUILD_DATE: ${BUILD_DATE:-unknown}",
 		`"7890:7890"`,
 		"--tls-cert",
-		"/app/certs/server.crt",
+		"/app/certs/current/server.crt",
 		"--tls-key",
-		"/app/certs/server.key",
+		"/app/certs/current/server.key",
 		"--tls-ca",
-		"/app/certs/ca.crt",
+		"/app/certs/current/ca.crt",
 		"./configs:/app/configs:ro",
 		"./certs:/app/certs:ro",
 		"./caller-repos.json:/app/caller-repos.json:ro",
 		"STACK_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs",
-		"STACK_FITNESS_FUNCTIONS_TLS_CERT: /app/certs/server.crt",
-		"STACK_FITNESS_FUNCTIONS_TLS_KEY: /app/certs/server.key",
-		"STACK_FITNESS_FUNCTIONS_TLS_CA: /app/certs/ca.crt",
+		"STACK_FITNESS_FUNCTIONS_TLS_CERT: /app/certs/current/server.crt",
+		"STACK_FITNESS_FUNCTIONS_TLS_KEY: /app/certs/current/server.key",
+		"STACK_FITNESS_FUNCTIONS_TLS_CA: /app/certs/current/ca.crt",
 		`STACK_FITNESS_FUNCTIONS_RATE_LIMIT: "100"`,
 		`STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"`,
 		`test: ["CMD-SHELL", "if [ -n \"$$STACK_FITNESS_FUNCTIONS_TLS_CA\" ]; then curl --fail --silent --cacert \"$$STACK_FITNESS_FUNCTIONS_TLS_CA\" https://127.0.0.1:7890/health; else curl --fail --silent http://127.0.0.1:7890/health; fi || exit 1"]`,

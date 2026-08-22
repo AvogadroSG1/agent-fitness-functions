@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 )
 
 // stubBridge writes a fake `stack-fitness-functions` binary that records the
@@ -65,11 +67,7 @@ func TestStackFitnessFunctionsTestPassesMTLS(t *testing.T) {
 
 	// A cert directory the helper should auto-discover via STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR.
 	certDir := t.TempDir()
-	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
-		if err := os.WriteFile(filepath.Join(certDir, name), []byte("x"), 0o600); err != nil {
-			t.Fatalf("write %s: %v", name, err)
-		}
-	}
+	publishManagedCertFixture(t, certDir)
 
 	recordPath := filepath.Join(t.TempDir(), "invocations.log")
 	bridge := stubBridge(t, t.TempDir(), recordPath)
@@ -96,9 +94,9 @@ func TestStackFitnessFunctionsTestPassesMTLS(t *testing.T) {
 
 	for _, want := range []string{
 		"--addr https://",
-		"--client-cert " + filepath.Join(certDir, "client.crt"),
-		"--client-key " + filepath.Join(certDir, "client.key"),
-		"--client-ca " + filepath.Join(certDir, "ca.crt"),
+		"--client-cert " + filepath.Join(certDir, "current", "client.crt"),
+		"--client-key " + filepath.Join(certDir, "current", "client.key"),
+		"--client-ca " + filepath.Join(certDir, "current", "ca.crt"),
 	} {
 		if !strings.Contains(invocations, want) {
 			t.Errorf("expected helper to pass %q to client validate; got invocations:\n%s", want, invocations)
@@ -171,11 +169,7 @@ func TestStackFitnessFunctionsTestErrorsWhenRepoNameUndetectable(t *testing.T) {
 	_, file := newGitRepoWithFile(t)
 
 	certDir := t.TempDir()
-	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
-		if err := os.WriteFile(filepath.Join(certDir, name), []byte("x"), 0o600); err != nil {
-			t.Fatalf("write %s: %v", name, err)
-		}
-	}
+	publishManagedCertFixture(t, certDir)
 
 	recordPath := filepath.Join(t.TempDir(), "invocations.log")
 	bridge := stubBridge(t, t.TempDir(), recordPath)
@@ -209,11 +203,7 @@ func TestStackFitnessFunctionsTestUsesExplicitRepoName(t *testing.T) {
 	_, file := newGitRepoWithFile(t)
 
 	certDir := t.TempDir()
-	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
-		if err := os.WriteFile(filepath.Join(certDir, name), []byte("x"), 0o600); err != nil {
-			t.Fatalf("write %s: %v", name, err)
-		}
-	}
+	publishManagedCertFixture(t, certDir)
 
 	recordPath := filepath.Join(t.TempDir(), "invocations.log")
 	bridge := stubBridge(t, t.TempDir(), recordPath)
@@ -247,11 +237,7 @@ func TestStackFitnessFunctionsTestFailsWhenClientValidateFails(t *testing.T) {
 	_, file := newGitRepoWithFile(t)
 
 	certDir := t.TempDir()
-	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
-		if err := os.WriteFile(filepath.Join(certDir, name), []byte("x"), 0o600); err != nil {
-			t.Fatalf("write %s: %v", name, err)
-		}
-	}
+	publishManagedCertFixture(t, certDir)
 
 	bridgeDir := t.TempDir()
 	bridge := filepath.Join(bridgeDir, "stack-fitness-functions")
@@ -277,5 +263,19 @@ func TestStackFitnessFunctionsTestFailsWhenClientValidateFails(t *testing.T) {
 	}
 	if !strings.Contains(string(out), "check failed with HTTP 403") {
 		t.Fatalf("output = %s, want client validate error surfaced", out)
+	}
+}
+
+func publishManagedCertFixture(t *testing.T, root string) {
+	t.Helper()
+	if err := devcerts.Publish(root, false); err != nil {
+		t.Fatalf("Publish(%s): %v", root, err)
+	}
+	target, err := os.Readlink(filepath.Join(root, "current"))
+	if err != nil {
+		t.Fatalf("Readlink(current): %v", err)
+	}
+	if !strings.HasPrefix(target, "versions/v-") || len(strings.TrimPrefix(target, "versions/v-")) != 32 {
+		t.Fatalf("current target = %q, want generated first publication", target)
 	}
 }

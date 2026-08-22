@@ -9,9 +9,9 @@ stack_fitness_functions_bin=${STACK_FITNESS_FUNCTIONS_BIN:-stack-fitness-functio
 # Explicit STACK_FITNESS_FUNCTIONS_CLIENT_* env vars win (12-factor precedence).
 addr=${STACK_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}
 cert_dir=${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-$repo/certs}
-client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/client.crt}
-client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/client.key}
-client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/ca.crt}
+client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/current/client.crt}
+client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/current/client.key}
+client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/current/ca.crt}
 repo_name=${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}
 remote_mode=0
 repo_arg=$repo

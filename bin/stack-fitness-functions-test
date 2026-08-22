@@ -63,9 +63,9 @@ detect_repo_name() {
 script_repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cert_dir="${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-${STACK_FITNESS_FUNCTIONS_SRC:-$script_repo}/certs}"
 
-client_cert="${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/client.crt}"
-client_key="${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/client.key}"
-client_ca="${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/ca.crt}"
+client_cert="${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/current/client.crt}"
+client_key="${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/current/client.key}"
+client_ca="${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/current/ca.crt}"
 
 for pair in "client certificate:$client_cert" "client key:$client_key" "CA bundle:$client_ca"; do
   label="${pair%%:*}"

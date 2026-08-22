@@ -30,9 +30,9 @@ services:
       STACK_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs
       # Read by `server start` for TLS (fallback for --tls-cert/--tls-key/--tls-ca) and
       # by the healthcheck below to decide between https and http probing.
-      STACK_FITNESS_FUNCTIONS_TLS_CERT: /app/certs/server.crt
-      STACK_FITNESS_FUNCTIONS_TLS_KEY: /app/certs/server.key
-      STACK_FITNESS_FUNCTIONS_TLS_CA: /app/certs/ca.crt
+      STACK_FITNESS_FUNCTIONS_TLS_CERT: /app/certs/current/server.crt
+      STACK_FITNESS_FUNCTIONS_TLS_KEY: /app/certs/current/server.key
+      STACK_FITNESS_FUNCTIONS_TLS_CA: /app/certs/current/ca.crt
       STACK_FITNESS_FUNCTIONS_RATE_LIMIT: "100"
       STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"
     healthcheck:
