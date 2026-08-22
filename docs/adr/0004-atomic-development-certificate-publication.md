@@ -21,7 +21,7 @@ supplements: ADR-0002
 | Type | Decision |
 | Supplements | ADR-0002 managed development certificate publication only |
 
-This MADR remains Proposed pending independent re-review.
+This MADR is Accepted following independent specification and standards review.
 
 ## Context and Problem Statement
 
