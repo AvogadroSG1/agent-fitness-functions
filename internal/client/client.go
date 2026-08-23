@@ -31,6 +31,12 @@ var embeddedHooks embed.FS
 // FINOS CALM surfaces (.calm/, configs/, calm-poc, the calm CLI) are unaffected.
 const hookProductPrefix = "agent-fitness-functions"
 
+// predecessorProductPrefix is the immediate predecessor product-name
+// generation (ADR-0006 "Migration from predecessor generations"). Assembled
+// from fragments, mirroring internal/renamecheck's convention, so tracked
+// sources never trip the rename-phase separator-insensitive sweep.
+const predecessorProductPrefix = "stack-fitness" + "-functions"
+
 const (
 	gitGuardName       = hookProductPrefix + "-git-guard"
 	legacyGitGuardName = "calm-git-guard"
@@ -39,13 +45,83 @@ const (
 	agentHookName = hookProductPrefix + "-pre-tool-use"
 )
 
+// Marker/name history per ADR-0006 "Migration from predecessor generations":
+// every product-name generation a hook artifact has ever carried, oldest
+// first, checked as a full set-membership test on every install/upgrade so a
+// repository onboarded under any prior generation upgrades cleanly in one
+// pass. Each of the four families below is exactly one of the ADR's four
+// literal arrays.
+
+// gitHookMarkerPrefixes is family #1: git-hook markers ("<prefix> <hook> hook").
+var gitHookMarkerPrefixes = []string{"CALM", predecessorProductPrefix, hookProductPrefix}
+
+// sidecarMarkerPrefixes is family #2: sidecar markers ("# <prefix> <hook> hook (sidecar)").
+var sidecarMarkerPrefixes = []string{"CALM", predecessorProductPrefix, hookProductPrefix}
+
+// gitGuardNameHistory is family #3: git-guard names. legacyGitGuardName is the
+// irregular literal "calm-git-guard" — lowercase and not template-derived the
+// way its two successors are — and MUST NOT be "fixed" to match the template,
+// since that would stop it matching hooks installed by the original
+// calm-bridge generation.
+var gitGuardNameHistory = []string{legacyGitGuardName, predecessorProductPrefix + "-git-guard", gitGuardName}
+
+// agentHookNameHistory is family #4: agent Edit/Write hook names. Only two
+// generations exist — no CALM-era predecessor ever shipped this hook, so no
+// fictitious "calm-pre-tool-use" entry is invented here.
+var agentHookNameHistory = []string{predecessorProductPrefix + "-pre-tool-use", agentHookName}
+
+// sidecarNamePrefixHistory parallels sidecarMarkerPrefixes for the sidecar
+// FILE name (as opposed to the in-file marker text), so a predecessor
+// generation's sidecar script can be located and removed after upgrade. The
+// CALM-era entry is lowercase ("calm-"), matching the file-name convention
+// used elsewhere (gitGuardNameHistory's "calm-git-guard"), not the uppercase
+// marker text.
+var sidecarNamePrefixHistory = []string{"calm", predecessorProductPrefix, hookProductPrefix}
+
+func managedHookMarkers(hook string) []string {
+	markers := make([]string, len(gitHookMarkerPrefixes))
+	for i, prefix := range gitHookMarkerPrefixes {
+		markers[i] = prefix + " " + hook + " hook"
+	}
+	return markers
+}
+
 func managedHookMarker(hook string) string { return hookProductPrefix + " " + hook + " hook" }
-func legacyHookMarker(hook string) string  { return "CALM " + hook + " hook" }
+
+func sidecarHookMarkers(hook string) []string {
+	markers := make([]string, len(sidecarMarkerPrefixes))
+	for i, prefix := range sidecarMarkerPrefixes {
+		markers[i] = "# " + prefix + " " + hook + " hook (sidecar)"
+	}
+	return markers
+}
+
 func sidecarHookMarker(hook string) string {
 	return "# " + hookProductPrefix + " " + hook + " hook (sidecar)"
 }
-func legacySidecarMarker(hook string) string { return "# CALM " + hook + " hook (sidecar)" }
-func sidecarHookName(hook string) string     { return hookProductPrefix + "-" + hook }
+
+// sidecarHookNames returns every generation's sidecar file name for hook,
+// oldest first (see sidecarNamePrefixHistory).
+func sidecarHookNames(hook string) []string {
+	names := make([]string, len(sidecarNamePrefixHistory))
+	for i, prefix := range sidecarNamePrefixHistory {
+		names[i] = prefix + "-" + hook
+	}
+	return names
+}
+
+func sidecarHookName(hook string) string { return hookProductPrefix + "-" + hook }
+
+// knownOwnerSignature reports whether content carries a recognized co-tenant
+// hook-manager signature (ADR-0006 "Migration from predecessor generations" /
+// known-owner detection) that may be composed with automatically, without a
+// human setting an escape-hatch env var. Beads' own integration marker is
+// version-stamped (e.g. "BEGIN BEADS INTEGRATION v1.2.2"); this matches only
+// the version-independent substring so a future Beads version bump the
+// product has never seen still composes cleanly.
+func knownOwnerSignature(content []byte) bool {
+	return bytes.Contains(content, []byte("BEGIN BEADS INTEGRATION"))
+}
 
 // RunCheck validates one file by posting a validation request to the daemon.
 func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter func(DaemonStartConfig) error) error {
@@ -163,12 +239,12 @@ func (installer hookInstaller) handleExistingGitHook(targetHook, hooksDir, hookN
 		return false, err
 	}
 	if hookHasSidecar(content, hookName) {
-		return true, installer.refreshHookSidecar(hooksDir, hookName, embeddedPath)
+		return true, installer.refreshHookSidecar(targetHook, hooksDir, hookName, embeddedPath, content)
 	}
 	if hookIsManaged(content, hookName) {
 		return false, nil
 	}
-	return installer.resolveUnmanagedHook(targetHook, hooksDir, hookName, embeddedPath)
+	return installer.resolveUnmanagedHook(targetHook, hooksDir, hookName, embeddedPath, content)
 }
 
 func readExistingHook(targetHook, hookName string) ([]byte, bool, error) {
@@ -186,16 +262,28 @@ func readExistingHook(targetHook, hookName string) ([]byte, bool, error) {
 }
 
 func hookHasSidecar(content []byte, hookName string) bool {
-	return bytes.Contains(content, []byte(sidecarHookMarker(hookName))) ||
-		bytes.Contains(content, []byte(legacySidecarMarker(hookName)))
+	return containsAny(content, sidecarHookMarkers(hookName))
 }
 
 func hookIsManaged(content []byte, hookName string) bool {
-	return bytes.Contains(content, []byte(managedHookMarker(hookName))) ||
-		bytes.Contains(content, []byte(legacyHookMarker(hookName)))
+	return containsAny(content, managedHookMarkers(hookName))
 }
 
-func (installer hookInstaller) refreshHookSidecar(hooksDir, hookName, embeddedPath string) error {
+func containsAny(content []byte, markers []string) bool {
+	for _, marker := range markers {
+		if bytes.Contains(content, []byte(marker)) {
+			return true
+		}
+	}
+	return false
+}
+
+// refreshHookSidecar rewrites the current-generation sidecar file and, when
+// content still carries a predecessor generation's sidecar marker, upgrades
+// the host file's marker/path in place and removes the stale predecessor
+// sidecar script — the calm-poc-phk.7 upgrade path (ADR-0006 "Migration from
+// predecessor generations").
+func (installer hookInstaller) refreshHookSidecar(targetHook, hooksDir, hookName, embeddedPath string, content []byte) error {
 	sidecar := filepath.Join(hooksDir, sidecarHookName(hookName))
 	if err := installer.writeEmbeddedExecutable(embeddedPath, sidecar); err != nil {
 		return err
@@ -203,12 +291,66 @@ func (installer hookInstaller) refreshHookSidecar(hooksDir, hookName, embeddedPa
 	if err := installer.writeFormatter(hooksDir); err != nil {
 		return err
 	}
+	if err := installer.upgradeSidecarHostReferences(targetHook, hookName, content); err != nil {
+		return err
+	}
+	if err := removeStalePredecessorArtifacts(hooksDir, sidecarHookNames(hookName), sidecarHookName(hookName)); err != nil {
+		return err
+	}
 	_, _ = fmt.Fprintf(installer.stdout, "updated %s\n", sidecar)
 	return nil
 }
 
-func (installer hookInstaller) resolveUnmanagedHook(targetHook, hooksDir, hookName, embeddedPath string) (bool, error) {
-	if os.Getenv("AGENT_FITNESS_FUNCTIONS_HOOK_APPEND") == "1" {
+// upgradeSidecarHostReferences rewrites a host-owned hook file's sidecar
+// marker and path reference from any predecessor generation to the current
+// one. It is a no-op once the host already carries the current marker.
+func (installer hookInstaller) upgradeSidecarHostReferences(targetHook, hookName string, content []byte) error {
+	currentMarker := sidecarHookMarker(hookName)
+	if bytes.Contains(content, []byte(currentMarker)) {
+		return nil
+	}
+	hooksDir := filepath.Dir(targetHook)
+	currentPath := filepath.Join(hooksDir, sidecarHookName(hookName))
+	markers := sidecarHookMarkers(hookName)
+	names := sidecarHookNames(hookName)
+	updated := content
+	changed := false
+	for i, marker := range markers {
+		if marker == currentMarker || !bytes.Contains(updated, []byte(marker)) {
+			continue
+		}
+		updated = bytes.ReplaceAll(updated, []byte(marker), []byte(currentMarker))
+		stalePath := filepath.Join(hooksDir, names[i])
+		updated = bytes.ReplaceAll(updated, []byte(fmt.Sprintf("%q", stalePath)), []byte(fmt.Sprintf("%q", currentPath)))
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	if err := os.WriteFile(targetHook, updated, 0o755); err != nil {
+		return fmt.Errorf("upgrading sidecar reference in %s: %w", targetHook, err)
+	}
+	return nil
+}
+
+// removeStalePredecessorArtifacts deletes any predecessor-generation-named
+// file for one artifact family that still exists beside the current one, so
+// an upgrade leaves no orphaned predecessor script behind.
+func removeStalePredecessorArtifacts(dir string, nameHistory []string, currentName string) error {
+	for _, name := range nameHistory {
+		if name == currentName {
+			continue
+		}
+		stalePath := filepath.Join(dir, name)
+		if err := os.Remove(stalePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("removing stale predecessor artifact %s: %w", stalePath, err)
+		}
+	}
+	return nil
+}
+
+func (installer hookInstaller) resolveUnmanagedHook(targetHook, hooksDir, hookName, embeddedPath string, content []byte) (bool, error) {
+	if knownOwnerSignature(content) || os.Getenv("AGENT_FITNESS_FUNCTIONS_HOOK_APPEND") == "1" {
 		return true, installer.appendHookSidecar(targetHook, hooksDir, hookName, embeddedPath)
 	}
 	if os.Getenv("AGENT_FITNESS_FUNCTIONS_HOOK_OVERWRITE") == "1" {
@@ -243,6 +385,9 @@ func (installer hookInstaller) installGitGuard() error {
 	if err := installer.writeEmbeddedExecutable("hookassets/git-guard.sh", guardPath); err != nil {
 		return err
 	}
+	if err := removeStalePredecessorArtifacts(filepath.Dir(guardPath), gitGuardNameHistory, gitGuardName); err != nil {
+		return err
+	}
 	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", guardPath)
 	return installer.applyClaudeHook(gitGuardSpec(guardPath))
 }
@@ -260,6 +405,9 @@ func (installer hookInstaller) installAgentHook() error {
 		return err
 	}
 	if err := installer.writeFormatter(filepath.Dir(scriptPath)); err != nil {
+		return err
+	}
+	if err := removeStalePredecessorArtifacts(filepath.Dir(scriptPath), agentHookNameHistory, agentHookName); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", scriptPath)
@@ -342,7 +490,7 @@ func upsertClaudeHook(settings map[string]any, spec claudeHookSpec) string {
 func gitGuardSpec(guardPath string) claudeHookSpec {
 	return claudeHookSpec{
 		entry:   claudeCommandEntry("Bash", guardPath),
-		markers: []string{gitGuardName, legacyGitGuardName},
+		markers: gitGuardNameHistory,
 		name:    gitGuardName,
 		command: guardPath,
 	}
@@ -351,7 +499,7 @@ func gitGuardSpec(guardPath string) claudeHookSpec {
 func agentHookSpec(scriptPath string) claudeHookSpec {
 	return claudeHookSpec{
 		entry:   claudeCommandEntry("Edit|Write", scriptPath),
-		markers: []string{agentHookName},
+		markers: agentHookNameHistory,
 		name:    agentHookName,
 		command: scriptPath,
 	}

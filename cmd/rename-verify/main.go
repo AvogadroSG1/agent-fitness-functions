@@ -12,12 +12,13 @@
 // governance.json's exact projection, requirements.lock's line-1-only diff,
 // marker/product prefix correctness, and protected-path exactness.
 //
-// --mode=full runs the ADR-0002 full-confirmation gate. It always reports
-// NOT_IMPLEMENTED and exits non-zero: predecessor hook
-// recognition/replacement/cleanup/idempotent-upgrade behavior and the
-// certificate classification/concurrency matrix belong to calm-poc-phk.7 and
-// have not landed yet. This mode is kept structurally separate from
-// rename-phase so a pending full gate can never be reported as a pass.
+// --mode=full runs the ADR-0002 full-confirmation gate: every rename-phase
+// check, the separator-insensitive predecessor sweep, and a source-level
+// assertion that internal/client/client.go's four ADR-0006 marker-history
+// arrays include the immediate predecessor product-name generation
+// (calm-poc-phk.7's predecessor-hook upgrade capability). This mode is kept
+// structurally separate from rename-phase so the two check sets are never
+// conflated.
 package main
 
 import (
@@ -60,10 +61,6 @@ func run(args []string, stdout, stderr *os.File) int {
 		}
 	}
 
-	if report.Mode == renamecheck.ModeFull {
-		fmt.Fprintln(stdout, "full-confirmation mode is pending calm-poc-phk.7; this is not a pass")
-		return 1
-	}
 	if !allPass {
 		return 1
 	}

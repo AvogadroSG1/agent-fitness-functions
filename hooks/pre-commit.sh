@@ -3,7 +3,7 @@
 set -euo pipefail
 
 repo=$(git rev-parse --show-toplevel)
-stack_fitness_functions_bin=${AGENT_FITNESS_FUNCTIONS_BIN:-agent-fitness-functions}
+agent_fitness_functions_bin=${AGENT_FITNESS_FUNCTIONS_BIN:-agent-fitness-functions}
 # The container/production server serves HTTPS with mandatory mTLS, so default to
 # an https loopback addr and auto-discover dev client credentials in <repo>/certs.
 # Explicit AGENT_FITNESS_FUNCTIONS_CLIENT_* env vars win (12-factor precedence).
@@ -30,7 +30,7 @@ resolve_managed_client_tls() {
   [[ "$addr" == https://* ]] || return 0
   [[ "$explicit_client_tls" -eq 0 && -z "$client_cert" ]] || return 0
   set +e
-  managed_version=$(AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="$cert_dir" "$stack_fitness_functions_bin" client resolve-dev-cert-version)
+  managed_version=$(AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="$cert_dir" "$agent_fitness_functions_bin" client resolve-dev-cert-version)
   resolver_rc=$?
   set -e
   [[ "$resolver_rc" -eq 0 ]] || exit 2
@@ -185,7 +185,7 @@ while IFS= read -r -d '' file; do
     args+=(--client-ca "$client_ca")
   fi
 
-  if result=$("$stack_fitness_functions_bin" "${args[@]}"); then
+  if result=$("$agent_fitness_functions_bin" "${args[@]}"); then
     rc=0
   else
     rc=$?

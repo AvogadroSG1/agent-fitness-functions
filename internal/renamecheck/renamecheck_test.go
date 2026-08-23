@@ -57,20 +57,26 @@ func TestRunRenamePhaseAgainstRepo(t *testing.T) {
 	}
 }
 
-func TestRunFullIsAlwaysPendingAndNeverPasses(t *testing.T) {
+// calm-poc-phk.7: full-confirmation mode now runs to completion rather than
+// staying deliberately pending — every rename-phase check, the
+// separator-insensitive predecessor sweep, and the marker-history
+// source-level assertion must all report PASS against this repository now
+// that predecessor hook recognition/replacement/cleanup/idempotent-upgrade
+// has landed.
+func TestRunFullPassesAgainstRepoAfterHookUpgradeLands(t *testing.T) {
 	report := RunFull("../..")
 	if report.Mode != ModeFull {
 		t.Fatalf("report.Mode = %q, want %q", report.Mode, ModeFull)
 	}
-	if report.Passed() {
-		t.Error("RunFull().Passed() = true, want false: full-confirmation mode must stay pending until calm-poc-phk.7")
+	if len(report.Checks) == 0 {
+		t.Fatal("RunFull produced no checks")
 	}
 	for _, c := range report.Checks {
-		if c.Status == StatusPass {
-			t.Errorf("check %q reported PASS in full mode; full mode must never report PASS before calm-poc-phk.7", c.Name)
+		if c.Status != StatusPass {
+			t.Errorf("check %q = %s: %s", c.Name, c.Status, c.Detail)
 		}
-		if c.Status != StatusNotImplemented {
-			t.Errorf("check %q = %s, want NOT_IMPLEMENTED", c.Name, c.Status)
-		}
+	}
+	if !report.Passed() {
+		t.Error("report.Passed() = false, want true: full-confirmation mode should pass now that calm-poc-phk.7 has landed")
 	}
 }
