@@ -1,0 +1,34 @@
+docs/adr/0006-existing-hook-composition.md
+  s_35b3127e21180f::t_216339c1f52543 119-129
+  s_35b3127e21180f::t_f650ea6652145e 110
+  s_35b3127e21180f::t_1962bfe20f7efb 177-184
+  s_35b3127e21180f::t_26990c9e046e6f 97
+  s_35b3127e21180f::t_59864a707ed5c0 194
+  s_35b3127e21180f::t_b1bd36f94bad97 248
+  s_35b3127e21180f::t_349726a0f057bc 222-224
+  s_35b3127e21180f::t_8f7274ec90df1f 260
+  s_35b3127e21180f::t_7781b68f16d44f 113
+  s_35b3127e21180f::t_8aa23027c84d73 1-96,98-109,111-112,114-118,130-135,137-143,145-176,185-193,195,210-221,225-247,250-259,261-263
+  s_35b3127e21180f::t_96a03c1ce2dcb7 136
+  s_35b3127e21180f::t_bdcc0e3e0ca63f 144
+  s_35b3127e21180f::t_ddef80f7bf8217 249
+  s_35b3127e21180f::t_298f1367942183 196-197,199-204,206-209
+  s_35b3127e21180f::t_f65eaab8717040 205
+  s_35b3127e21180f::t_306d2f73b34bc8 198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "2ea9e34a348d2b060c3fd831284600ff4344fda4",
+  "prompts": {},
+  "sessions": {
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
