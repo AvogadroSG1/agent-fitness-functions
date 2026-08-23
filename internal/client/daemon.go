@@ -219,7 +219,7 @@ func isLocalHTTPS(addr string) bool {
 
 func daemonStartArgs(cfg DaemonStartConfig) []string {
 	listenAddr := strings.TrimPrefix(strings.TrimPrefix(cfg.Addr, "http://"), "https://")
-	args := []string{"server", "start", "--addr", listenAddr}
+	args := []string{"server", "start", "--addr", listenAddr, "--block-on-warmup"}
 	if cfg.ConfigsDir != "" {
 		args = append(args, "--configs-dir", cfg.ConfigsDir)
 	}

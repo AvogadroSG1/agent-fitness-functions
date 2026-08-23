@@ -190,7 +190,7 @@ func TestDaemonStartArgsUsesManagedSelectorWithoutTLSArguments(t *testing.T) {
 	}
 	args := daemonStartArgs(cfg)
 	want := []string{
-		"server", "start", "--addr", "127.0.0.1:7890",
+		"server", "start", "--addr", "127.0.0.1:7890", "--block-on-warmup",
 		"--configs-dir", "/repo/configs",
 	}
 	if !slices.Equal(args, want) {
@@ -209,7 +209,7 @@ func TestDaemonStartArgsUsesManagedSelectorWithoutTLSArguments(t *testing.T) {
 
 func TestDaemonStartArgsOmitsTLSWhenAbsent(t *testing.T) {
 	args := daemonStartArgs(DaemonStartConfig{Addr: "http://localhost:7890"})
-	want := []string{"server", "start", "--addr", "localhost:7890"}
+	want := []string{"server", "start", "--addr", "localhost:7890", "--block-on-warmup"}
 	if !slices.Equal(args, want) {
 		t.Fatalf("daemonStartArgs = %v, want %v", args, want)
 	}
