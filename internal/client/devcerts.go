@@ -24,13 +24,53 @@ const (
 
 var devCertFileNames = []string{devCACertName, devServerCertName, devServerKeyName, devClientCertName, devClientKeyName}
 
+// certsGitignoreContent mirrors this repository's own certs/.gitignore: ignore
+// everything in the directory except the ignore file itself, so generated key
+// material can never be staged by mistake.
+const certsGitignoreContent = "*\n!.gitignore\n"
+
+// ensureCertsIgnoreProtection idempotently installs certDir/.gitignore so
+// downstream repositories governed by this client never accidentally stage
+// generated development credentials (calm-poc-q8d.2). devcerts stays
+// repo-agnostic; git knowledge lives here instead.
+//
+// It is a no-op when certDir is not inside a git working tree -- the
+// containerized server path never touches a repository, and this must not
+// error there. It only writes when certDir/.gitignore does not already exist:
+// a user may have customized that file (broader patterns, comments, etc.), and
+// the simplest honest contract is "never overwrite user content" rather than
+// trying to detect whether an existing file still effectively ignores the
+// generated keys.
+func ensureCertsIgnoreProtection(certDir string) error {
+	if certDir == "" {
+		return nil
+	}
+	if _, err := gitOutput(certDir, "rev-parse", "--is-inside-work-tree"); err != nil {
+		return nil
+	}
+	ignorePath := filepath.Join(certDir, ".gitignore")
+	if fileExists(ignorePath) {
+		return nil
+	}
+	if err := os.WriteFile(ignorePath, []byte(certsGitignoreContent), 0o644); err != nil {
+		return fmt.Errorf("writing %s: %w", ignorePath, err)
+	}
+	return nil
+}
+
 // EnsureDevCerts publishes the managed local development certificate set.
 func EnsureDevCerts(certDir string) error {
-	return devcerts.Publish(certDir, false)
+	if err := devcerts.Publish(certDir, false); err != nil {
+		return err
+	}
+	return ensureCertsIgnoreProtection(certDir)
 }
 
 func ensureDevCerts(certDir string, force bool) error {
-	return devcerts.Publish(certDir, force)
+	if err := devcerts.Publish(certDir, force); err != nil {
+		return err
+	}
+	return ensureCertsIgnoreProtection(certDir)
 }
 
 // RunResolveDevCertVersion prints the single immutable relative managed version.

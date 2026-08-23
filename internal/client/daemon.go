@@ -80,6 +80,9 @@ func loadClientTLSMode(mode clientTLSMode, publish bool) (clientTLSMaterial, err
 		if err := publishManagedCertificates(mode.root, false); err != nil {
 			return clientTLSMaterial{}, err
 		}
+		if err := ensureCertsIgnoreProtection(mode.root); err != nil {
+			return clientTLSMaterial{}, err
+		}
 	}
 	version, err := resolveManagedVersion(mode.root)
 	if err != nil {
