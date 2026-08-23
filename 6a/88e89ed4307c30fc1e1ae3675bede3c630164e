@@ -1,0 +1,21 @@
+docker_smoke_integration_test.go
+  s_35b3127e21180f::t_2060fdab65ee9b 264-276,280,291
+  s_35b3127e21180f::t_8f6dd8e9de20f5 92-97
+  s_35b3127e21180f::t_cb78ae3ee0961c 25-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "6a88e89ed4307c30fc1e1ae3675bede3c630164e",
+  "prompts": {},
+  "sessions": {
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
