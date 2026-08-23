@@ -1,0 +1,51 @@
+internal/server/server.go
+  s_35b3127e21180f::t_e35549520f3191 177
+internal/analyzer/python.go
+  s_35b3127e21180f::t_65d384cf6074e5 212
+internal/client/client.go
+  s_35b3127e21180f::t_f422822055e215 970
+  s_35b3127e21180f::t_727d27543b6c88 711,716-721
+  s_35b3127e21180f::t_989087146197a7 822
+cmd/rename-verify/main.go
+  s_35b3127e21180f::t_1508a619d7d791 52-54,60-62
+internal/server/abuse_test.go
+  s_35b3127e21180f::t_bed0bb53d7b698 363
+  s_35b3127e21180f::t_64e8ad0d0cdfc3 174
+  s_35b3127e21180f::t_daadd7aa25a0a5 287
+  s_35b3127e21180f::t_459a3f2412b30a 185
+  s_7ffa90f2e55339::t_25164801c4035e 32,58,214,261
+docker_smoke_integration_test.go
+  s_35b3127e21180f::t_bc5184899ffaab 91-92
+  s_35b3127e21180f::t_0bc628239c2e1b 259-264,266-279,281-282,284
+  s_35b3127e21180f::t_45e9c3101c8944 25
+internal/client/doctor.go
+  s_35b3127e21180f::t_5d7df588940611 449
+internal/server/checker_test.go
+  s_35b3127e21180f::t_ad59e8489a12e9 61,129,164,196,226,251,281,308,338,365,394,931,968,1013,1058,1099,1858,1881,1895,2009,2027
+internal/server/server_test.go
+  s_35b3127e21180f::t_59f67bf06c1038 38,63,90,278,293,308,463,678,712,763,895
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "dc44ff3a50e58d95c47e0f1e00372db5538c13bd",
+  "prompts": {},
+  "sessions": {
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    },
+    "s_7ffa90f2e55339": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aeb67666ad4972775",
+        "model": "unknown"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
