@@ -45,7 +45,7 @@ func TestCheckerWithRealCALMBlocksGraftCyclomaticComplexityFixture(t *testing.T)
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	t.Logf("real synchronous Go /check latency: %s", time.Since(start))
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.StatusCode)

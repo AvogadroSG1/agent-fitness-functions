@@ -149,7 +149,7 @@ func TestPythonSynchronousCheckPhaseProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("write proposed content: %v", err)
 	}
-	defer cleanup()
+	defer func() { _ = cleanup() }()
 	tempWriteDuration := time.Since(phaseStart)
 
 	phaseStart = time.Now()
@@ -179,7 +179,7 @@ func TestPythonSynchronousCheckPhaseProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("write architecture: %v", err)
 	}
-	defer cleanupArchitecture()
+	defer func() { _ = cleanupArchitecture() }()
 	architectureDuration := time.Since(phaseStart)
 
 	phaseStart = time.Now()
