@@ -62,9 +62,11 @@ are regenerated). No action required:
 
 - `.claude/backups/*` — beads database backups
 - `cover.html`, `cover.out` — generated coverage reports
-- `certs/server.crt` — test/dev server certificate carries `DNS:calm-bridge` in
-  its SAN. The `certs/` directory is gitignored (`*.crt`, `*.key`). Regenerate
-  the cert without the `calm-bridge` SAN entry the next time certs are reissued.
+- `certs/server.crt` — previously carried `DNS:calm-bridge` in its SAN. Reissued
+  under calm-poc-phk.3: the managed generation now publishes under the
+  `agent-fitness-functions-dev-ca` identity with no `calm-bridge` SAN entry, and
+  `certs/` was untracked from git (only `certs/.gitignore` is tracked; every
+  `*.crt`/`*.key` under `certs/` is local, gitignored, ephemeral state).
 
 ## Module path & repository name
 
