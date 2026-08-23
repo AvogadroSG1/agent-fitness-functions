@@ -1,0 +1,58 @@
+internal/installer/runtime.go
+  s_35b3127e21180f::t_407197d8c9ebd8 1-314
+internal/installer/runtime_reconcile.go
+  s_35b3127e21180f::t_e90aae936b4aae 1-25,27-50
+  s_35b3127e21180f::t_23ede250692bac 26
+internal/installer/runtime_calm.go
+  s_35b3127e21180f::t_97aa98f8f454cd 1-87
+internal/installer/pins.go
+  s_35b3127e21180f::t_e85f22fd09bf8c 1-21
+bin/agent-fitness-functions-test
+  s_35b3127e21180f::t_332cc1c0982851 27-29,33-45
+  s_35b3127e21180f::t_ebcba30fd62ffd 46
+internal/installer/installer.go
+  s_35b3127e21180f::t_c9ff1df6bac356 248-249,252-258
+  s_35b3127e21180f::t_9d88435fecc944 259
+internal/installer/runtime_reconcile_test.go
+  s_35b3127e21180f::t_3b054ec0be259a 1-124
+scripts/package-release.sh
+  s_35b3127e21180f::t_891af2fc3681a9 110-141,143
+  s_35b3127e21180f::t_38a161622471ae 5-12,15-18,31-34,43-49
+internal/analyzer/csharp.go
+  s_35b3127e21180f::t_f72ff61039863d 79
+  s_35b3127e21180f::t_a1ba6541733fb9 10-11
+  s_35b3127e21180f::t_96cfb666ab4434 70-78,80-95,97-99
+internal/installer/runtime_python.go
+  s_35b3127e21180f::t_45519118829f7b 1-70
+scripts/install.sh
+  s_35b3127e21180f::t_48a97f505c61ca 155-158
+  s_35b3127e21180f::t_3cdd4fd94f811d 8-11,17,21-27,40,51-53
+  s_35b3127e21180f::t_bb3f3c25bac8c3 54
+cmd/agent-fitness-functions/main.go
+  s_35b3127e21180f::t_689e6d38d0fb8d 117-149
+  s_35b3127e21180f::t_d086b3fa49fc17 61-62
+  s_35b3127e21180f::t_899a99fbfeb479 27
+bin/agent-fitness-functions-serve
+  s_35b3127e21180f::t_fb335d89f7d6d3 18-20,24-35
+  s_35b3127e21180f::t_28b34496a8051e 36
+internal/installer/pins_drift_test.go
+  s_35b3127e21180f::t_5ecb12aebd2360 1-40
+installer_runtime_contract_test.go
+  s_35b3127e21180f::t_1f47887131ec2f 1-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "3b61253832f42491538bd51a024d1de8ce82dbc9",
+  "prompts": {},
+  "sessions": {
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
