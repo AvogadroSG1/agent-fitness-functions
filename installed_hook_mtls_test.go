@@ -36,16 +36,16 @@ func TestInstalledEmbeddedHooksConsumeGeneratedFirstPublication(t *testing.T) {
 
 	record := filepath.Join(t.TempDir(), "calls")
 	binDir := t.TempDir()
-	stub := filepath.Join(binDir, "stack-fitness-functions")
-	stubContent := "#!/usr/bin/env bash\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then printf '%s\\n' \"$*\" >>\"$STACK_FITNESS_FUNCTIONS_LOG\"; readlink \"$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; exit 0; fi\nprintf 'selector=%s|%s\\n' \"${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}\" \"$*\" >>\"$STACK_FITNESS_FUNCTIONS_LOG\"\nprintf '{\"status\":\"pass\"}\\n'\n"
+	stub := filepath.Join(binDir, "agent-fitness-functions")
+	stubContent := "#!/usr/bin/env bash\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then printf '%s\\n' \"$*\" >>\"$AGENT_FITNESS_FUNCTIONS_LOG\"; readlink \"$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; exit 0; fi\nprintf 'selector=%s|%s\\n' \"${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}\" \"$*\" >>\"$AGENT_FITNESS_FUNCTIONS_LOG\"\nprintf '{\"status\":\"pass\"}\\n'\n"
 	if err := os.WriteFile(stub, []byte(stubContent), 0o755); err != nil {
 		t.Fatalf("write stub binary: %v", err)
 	}
 	env := append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+stub,
-		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certRoot,
-		"STACK_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
-		"STACK_FITNESS_FUNCTIONS_LOG="+record,
+		"AGENT_FITNESS_FUNCTIONS_BIN="+stub,
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certRoot,
+		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
+		"AGENT_FITNESS_FUNCTIONS_LOG="+record,
 	)
 
 	source := filepath.Join(repo, "sample.go")
@@ -56,7 +56,7 @@ func TestInstalledEmbeddedHooksConsumeGeneratedFirstPublication(t *testing.T) {
 	runInstalledHook(t, repo, filepath.Join(repo, ".git", "hooks", "pre-commit"), env, nil)
 
 	payload := []byte(`{"tool_input":{"file_path":"sample.go","content":"package sample\n"}}`)
-	runInstalledHook(t, repo, filepath.Join(repo, ".git", "hooks", "stack-fitness-functions-pre-tool-use"), env, payload)
+	runInstalledHook(t, repo, filepath.Join(repo, ".git", "hooks", "agent-fitness-functions-pre-tool-use"), env, payload)
 
 	runGitCommand(t, repo, "commit", "--no-verify", "-m", "initial")
 	base := gitRevision(t, repo, "HEAD")
@@ -91,7 +91,7 @@ func TestInstalledEmbeddedHooksConsumeGeneratedFirstPublication(t *testing.T) {
 }
 
 func TestInstalledSidecarAndAgentHooksConsumeManagedVersion(t *testing.T) {
-	t.Setenv("STACK_FITNESS_FUNCTIONS_HOOK_APPEND", "1")
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_HOOK_APPEND", "1")
 	repo := t.TempDir()
 	runGitCommand(t, repo, "init")
 	runGitCommand(t, repo, "config", "maintenance.auto", "false")
@@ -119,25 +119,25 @@ func TestInstalledSidecarAndAgentHooksConsumeManagedVersion(t *testing.T) {
 	}
 
 	record := filepath.Join(t.TempDir(), "calls")
-	stub := filepath.Join(t.TempDir(), "stack-fitness-functions")
-	stubContent := "#!/usr/bin/env bash\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then printf '%s\\n' \"$*\" >>\"$STACK_FITNESS_FUNCTIONS_LOG\"; readlink \"$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; exit 0; fi\nprintf 'selector=%s|%s\\n' \"${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}\" \"$*\" >>\"$STACK_FITNESS_FUNCTIONS_LOG\"\nprintf '{\"status\":\"pass\"}\\n'\n"
+	stub := filepath.Join(t.TempDir(), "agent-fitness-functions")
+	stubContent := "#!/usr/bin/env bash\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then printf '%s\\n' \"$*\" >>\"$AGENT_FITNESS_FUNCTIONS_LOG\"; readlink \"$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; exit 0; fi\nprintf 'selector=%s|%s\\n' \"${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}\" \"$*\" >>\"$AGENT_FITNESS_FUNCTIONS_LOG\"\nprintf '{\"status\":\"pass\"}\\n'\n"
 	if err := os.WriteFile(stub, []byte(stubContent), 0o755); err != nil {
 		t.Fatalf("write stub: %v", err)
 	}
 	env := append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+stub,
-		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certRoot,
-		"STACK_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
-		"STACK_FITNESS_FUNCTIONS_LOG="+record,
+		"AGENT_FITNESS_FUNCTIONS_BIN="+stub,
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certRoot,
+		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
+		"AGENT_FITNESS_FUNCTIONS_LOG="+record,
 	)
 	source := filepath.Join(repo, "sample.go")
 	if err := os.WriteFile(source, []byte("package sample\n"), 0o644); err != nil {
 		t.Fatalf("write source: %v", err)
 	}
 	runGitCommand(t, repo, "add", "sample.go")
-	runInstalledHook(t, repo, filepath.Join(repo, ".git", "hooks", "stack-fitness-functions-pre-commit"), env, nil)
+	runInstalledHook(t, repo, filepath.Join(repo, ".git", "hooks", "agent-fitness-functions-pre-commit"), env, nil)
 	payload := []byte(`{"tool_input":{"file_path":"sample.go","content":"package sample\n"}}`)
-	runInstalledHook(t, repo, filepath.Join(repo, ".git", "hooks", "stack-fitness-functions-pre-tool-use"), env, payload)
+	runInstalledHook(t, repo, filepath.Join(repo, ".git", "hooks", "agent-fitness-functions-pre-tool-use"), env, payload)
 	runGitCommand(t, repo, "commit", "--no-verify", "-m", "base")
 	base := gitRevision(t, repo, "HEAD")
 	if err := os.WriteFile(source, []byte("package sample\n\nfunc Run() {}\n"), 0o644); err != nil {
@@ -147,7 +147,7 @@ func TestInstalledSidecarAndAgentHooksConsumeManagedVersion(t *testing.T) {
 	runGitCommand(t, repo, "commit", "--no-verify", "-m", "head")
 	head := gitRevision(t, repo, "HEAD")
 	pushInput := []byte("refs/heads/main " + head + " refs/heads/main " + base + "\n")
-	runInstalledHook(t, repo, filepath.Join(repo, ".git", "hooks", "stack-fitness-functions-pre-push"), env, pushInput)
+	runInstalledHook(t, repo, filepath.Join(repo, ".git", "hooks", "agent-fitness-functions-pre-push"), env, pushInput)
 
 	calls, err := os.ReadFile(record)
 	if err != nil {

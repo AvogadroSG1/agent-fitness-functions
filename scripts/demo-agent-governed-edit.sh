@@ -16,7 +16,7 @@
 #          git-guard PreToolUse hook BLOCKS that too (exit 2).
 #
 # Everything runs against a THROWAWAY git repo in a temp dir, onboarded with
-# `stack-fitness-functions client onboard --enforcement block` on a private, non-default
+# `agent-fitness-functions client onboard --enforcement block` on a private, non-default
 # port so it never collides with a real governance daemon on :7890.
 #
 # Requirements: the built binary (built into .tmp/ if absent), python3, and git.
@@ -32,7 +32,7 @@
 set -euo pipefail
 
 repo_root=$(git -C "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)" rev-parse --show-toplevel)
-bin=${STACK_FITNESS_FUNCTIONS_BIN:-$repo_root/.tmp/stack-fitness-functions}
+bin=${AGENT_FITNESS_FUNCTIONS_BIN:-$repo_root/.tmp/agent-fitness-functions}
 
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
@@ -41,7 +41,7 @@ trap 'rm -rf "$tmp_dir"' EXIT
 demo_repo="$tmp_dir/agent-demo"
 repo_name="agent-demo"
 
-addr=${STACK_FITNESS_FUNCTIONS_ADDR:-}
+addr=${AGENT_FITNESS_FUNCTIONS_ADDR:-}
 if [[ -z "$addr" ]]; then
   host="127.0.0.1"
   port=$(python3 - <<'PY'
@@ -60,7 +60,7 @@ from urllib.parse import urlparse
 
 parsed = urlparse(sys.argv[1])
 if parsed.scheme != "https" or not parsed.hostname or parsed.port is None:
-    raise SystemExit("STACK_FITNESS_FUNCTIONS_ADDR must be an https URL with an explicit port")
+    raise SystemExit("AGENT_FITNESS_FUNCTIONS_ADDR must be an https URL with an explicit port")
 print(parsed.hostname, parsed.port)
 PY
   )
@@ -72,19 +72,19 @@ client_ca=""
 tls_mode=""
 
 select_tls_mode() {
-  local selector=${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-}
+  local selector=${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR:-}
   local explicit=0
-  [[ -n "${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-}${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-}${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-}" ]] && explicit=1
+  [[ -n "${AGENT_FITNESS_FUNCTIONS_CLIENT_CERT:-}${AGENT_FITNESS_FUNCTIONS_CLIENT_KEY:-}${AGENT_FITNESS_FUNCTIONS_CLIENT_CA:-}" ]] && explicit=1
   if [[ -n "$selector" && "$explicit" -eq 1 ]]; then
-    echo "STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs" >&2
+    echo "AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs" >&2
     return 2
   fi
   if [[ "$explicit" -eq 1 ]]; then
     tls_mode=external
-    client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-}
-    client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-}
-    client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-}
-    unset STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR
+    client_cert=${AGENT_FITNESS_FUNCTIONS_CLIENT_CERT:-}
+    client_key=${AGENT_FITNESS_FUNCTIONS_CLIENT_KEY:-}
+    client_ca=${AGENT_FITNESS_FUNCTIONS_CLIENT_CA:-}
+    unset AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR
     return 0
   fi
   tls_mode=managed
@@ -95,25 +95,25 @@ resolve_selected_tls() {
   [[ "$tls_mode" == managed ]] || return 0
   local resolver_rc
   set +e
-  managed_version=$(STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="$cert_dir" "$bin" client resolve-dev-cert-version)
+  managed_version=$(AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="$cert_dir" "$bin" client resolve-dev-cert-version)
   resolver_rc=$?
   set -e
   [[ "$resolver_rc" -eq 0 ]] || return "$resolver_rc"
   if [[ ! "$managed_version" =~ ^versions/v-[0-9a-f]{32}$ ]]; then
-    echo "stack-fitness-functions returned an invalid managed certificate version" >&2
+    echo "agent-fitness-functions returned an invalid managed certificate version" >&2
     return 1
   fi
   client_cert=$cert_dir/$managed_version/client.crt
   client_key=$cert_dir/$managed_version/client.key
   client_ca=$cert_dir/$managed_version/ca.crt
-  unset STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR
+  unset AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR
 }
 
 select_tls_mode
-if [[ "${STACK_FITNESS_FUNCTIONS_DEMO_TLS_CONTRACT_ONLY:-}" == 1 ]]; then
+if [[ "${AGENT_FITNESS_FUNCTIONS_DEMO_TLS_CONTRACT_ONLY:-}" == 1 ]]; then
   resolve_selected_tls
   printf 'mode=%s\nclient_cert=%s\nclient_key=%s\nclient_ca=%s\nselector=%s\n' \
-    "$tls_mode" "$client_cert" "$client_key" "$client_ca" "${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}"
+    "$tls_mode" "$client_cert" "$client_key" "$client_ca" "${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}"
   exit 0
 fi
 
@@ -173,7 +173,7 @@ run_hook() {
   local hook=$1 payload=$2
   set +e
   HOOK_OUT=$(cd "$demo_repo" && \
-    env STACK_FITNESS_FUNCTIONS_BIN="$bin" STACK_FITNESS_FUNCTIONS_ADDR="$addr" \
+    env AGENT_FITNESS_FUNCTIONS_BIN="$bin" AGENT_FITNESS_FUNCTIONS_ADDR="$addr" \
     "$hook" <"$payload" 2>&1)
   HOOK_RC=$?
   set -e
@@ -210,9 +210,9 @@ PY
 # Setup: build the binary if needed, create + onboard the throwaway governed repo.
 # -------------------------------------------------------------------------------------
 if [[ ! -x "$bin" ]]; then
-  echo "Building stack-fitness-functions into $bin ..."
+  echo "Building agent-fitness-functions into $bin ..."
   GOCACHE="$repo_root/.tmp/go-build" GOMODCACHE="$repo_root/.tmp/go-mod" \
-    go build -o "$bin" "$repo_root/cmd/stack-fitness-functions"
+    go build -o "$bin" "$repo_root/cmd/agent-fitness-functions"
 fi
 
 banner "SETUP — onboard a throwaway repo to block-mode governance"
@@ -240,8 +240,8 @@ resolve_selected_tls
 echo
 echo "Onboarding complete: '$repo_name' is governed in block mode."
 
-agent_hook="$demo_repo/.git/hooks/stack-fitness-functions-pre-tool-use"
-git_guard="$demo_repo/.git/hooks/stack-fitness-functions-git-guard"
+agent_hook="$demo_repo/.git/hooks/agent-fitness-functions-pre-tool-use"
+git_guard="$demo_repo/.git/hooks/agent-fitness-functions-git-guard"
 target_file="internal/pricing/shipping.go"
 
 # -------------------------------------------------------------------------------------

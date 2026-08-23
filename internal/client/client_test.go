@@ -90,7 +90,7 @@ func TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo(t *testing.T) {
 		t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
 	}
 
-	for _, hook := range []string{"pre-commit", "pre-push", "stack-fitness-functions-git-guard", "stack-fitness-functions-pre-tool-use"} {
+	for _, hook := range []string{"pre-commit", "pre-push", "agent-fitness-functions-git-guard", "agent-fitness-functions-pre-tool-use"} {
 		hookPath := filepath.Join(repo, ".git", "hooks", hook)
 		info, err := os.Stat(hookPath)
 		if err != nil {
@@ -105,8 +105,8 @@ func TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read pre-commit: %v", err)
 	}
-	if !strings.Contains(string(content), "stack-fitness-functions") {
-		t.Fatalf("pre-commit does not invoke stack-fitness-functions:\n%s", content)
+	if !strings.Contains(string(content), "agent-fitness-functions") {
+		t.Fatalf("pre-commit does not invoke agent-fitness-functions:\n%s", content)
 	}
 	if _, err := os.Stat(filepath.Join(repo, ".git", "hooks", "format-violations.py")); err != nil {
 		t.Fatalf("formatter not installed: %v", err)
@@ -117,7 +117,7 @@ func TestRunInstallHooksInstallsEmbeddedHooksIntoFreshRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read settings: %v", err)
 	}
-	if !strings.Contains(string(settingsContent), "stack-fitness-functions-git-guard") {
+	if !strings.Contains(string(settingsContent), "agent-fitness-functions-git-guard") {
 		t.Fatalf("settings missing git guard entry:\n%s", settingsContent)
 	}
 	assertBothPreToolUseEntries(t, settingsContent)
@@ -133,7 +133,7 @@ func assertBothPreToolUseEntries(t *testing.T, settingsContent []byte) {
 			t.Fatalf("settings missing PreToolUse matcher %q:\n%s", want, settingsContent)
 		}
 	}
-	if !strings.Contains(string(settingsContent), "stack-fitness-functions-pre-tool-use") {
+	if !strings.Contains(string(settingsContent), "agent-fitness-functions-pre-tool-use") {
 		t.Fatalf("settings missing agent hook command:\n%s", settingsContent)
 	}
 }
@@ -172,8 +172,8 @@ func TestRunInstallHooksIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read settings: %v", err)
 	}
-	if count := strings.Count(string(settingsContent), "stack-fitness-functions-git-guard"); count != 1 {
-		t.Fatalf("stack-fitness-functions-git-guard appears %d times, want 1:\n%s", count, settingsContent)
+	if count := strings.Count(string(settingsContent), "agent-fitness-functions-git-guard"); count != 1 {
+		t.Fatalf("agent-fitness-functions-git-guard appears %d times, want 1:\n%s", count, settingsContent)
 	}
 	if count := preToolUseEntryCount(t, settingsContent); count != 2 {
 		t.Fatalf("PreToolUse has %d entries, want 2 (git-guard + agent hook):\n%s", count, settingsContent)
@@ -204,7 +204,7 @@ func TestRunInstallHooksAddsAgentHookToGitGuardOnlySettings(t *testing.T) {
 	}
 	// Seed a settings.json that already wires only the Bash git-guard entry, as an
 	// install predating the agent hook would have left it.
-	existing := `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/x/.git/hooks/stack-fitness-functions-git-guard"}]}]}}`
+	existing := `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/x/.git/hooks/agent-fitness-functions-git-guard"}]}]}}`
 	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(existing), 0o644); err != nil {
 		t.Fatalf("seed settings: %v", err)
 	}
@@ -259,7 +259,7 @@ func TestRunInstallHooksRefusesExistingNonCalmHook(t *testing.T) {
 	if err == nil {
 		t.Fatalf("RunInstallHooks succeeded, want refusal; stdout=%s", stdout.String())
 	}
-	if !strings.Contains(stderr.String(), "STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1") {
+	if !strings.Contains(stderr.String(), "AGENT_FITNESS_FUNCTIONS_HOOK_APPEND=1") {
 		t.Fatalf("stderr = %s, want append option", stderr.String())
 	}
 	content, err := os.ReadFile(existingHook)
@@ -272,7 +272,7 @@ func TestRunInstallHooksRefusesExistingNonCalmHook(t *testing.T) {
 }
 
 func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
-	t.Setenv("STACK_FITNESS_FUNCTIONS_HOOK_APPEND", "1")
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_HOOK_APPEND", "1")
 	repo := t.TempDir()
 	useDeterministicGitClientTest(t, repo)
 	existingHook := filepath.Join(repo, ".git", "hooks", "pre-commit")
@@ -285,7 +285,7 @@ func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
 		t.Fatalf("RunInstallHooks returned error: %v\nstdout=%s\nstderr=%s", err, stdout.String(), stderr.String())
 	}
 
-	sidecar := filepath.Join(repo, ".git", "hooks", "stack-fitness-functions-pre-commit")
+	sidecar := filepath.Join(repo, ".git", "hooks", "agent-fitness-functions-pre-commit")
 	if info, err := os.Stat(sidecar); err != nil {
 		t.Fatalf("sidecar not found at %s: %v", sidecar, err)
 	} else if info.Mode()&0o111 == 0 {
@@ -298,7 +298,7 @@ func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
 	if !strings.Contains(string(existing), "echo custom") {
 		t.Fatalf("existing hook content was replaced:\n%s", existing)
 	}
-	if !strings.Contains(string(existing), "# stack-fitness-functions pre-commit hook (sidecar)") {
+	if !strings.Contains(string(existing), "# agent-fitness-functions pre-commit hook (sidecar)") {
 		t.Fatalf("existing hook missing sidecar block:\n%s", existing)
 	}
 }
@@ -327,7 +327,7 @@ func TestRunInstallHooksUpgradesLegacyCalmHook(t *testing.T) {
 	if strings.Contains(string(content), "echo legacy") {
 		t.Fatalf("legacy hook was not overwritten (legacy CALM marker not recognized):\n%s", content)
 	}
-	if !strings.Contains(string(content), "# stack-fitness-functions pre-commit hook") {
+	if !strings.Contains(string(content), "# agent-fitness-functions pre-commit hook") {
 		t.Fatalf("upgraded hook missing new marker:\n%s", content)
 	}
 	if _, err := os.Stat(filepath.Join(repo, ".git", "hooks", "format-violations.py")); err != nil {
@@ -360,8 +360,8 @@ func TestRunInstallHooksUpgradesLegacyGitGuardSettings(t *testing.T) {
 	if strings.Contains(string(content), "calm-git-guard") {
 		t.Fatalf("legacy calm-git-guard still present after upgrade:\n%s", content)
 	}
-	if count := strings.Count(string(content), "stack-fitness-functions-git-guard"); count != 1 {
-		t.Fatalf("stack-fitness-functions-git-guard appears %d times, want 1:\n%s", count, content)
+	if count := strings.Count(string(content), "agent-fitness-functions-git-guard"); count != 1 {
+		t.Fatalf("agent-fitness-functions-git-guard appears %d times, want 1:\n%s", count, content)
 	}
 }
 
@@ -370,7 +370,7 @@ func TestRunCheckAutoStartsWithHTTPSLoopbackAddr(t *testing.T) {
 	// port so the health probe is a deterministic connection-refused (not a TLS error
 	// from any foreign daemon that may occupy the default 7890). A refused probe is the
 	// zero-config path that should invoke auto-start with the https loopback addr.
-	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", t.TempDir())
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR", t.TempDir())
 	deadAddr := "https://" + reservedDeadLoopbackAddr(t)
 	var captured string
 	starter := func(cfg DaemonStartConfig) error {

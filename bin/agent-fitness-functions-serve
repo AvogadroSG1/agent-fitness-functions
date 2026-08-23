@@ -2,17 +2,17 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: stack-fitness-functions-serve [--build]" >&2
-  echo "       stack-fitness-functions-serve --help" >&2
+  echo "usage: agent-fitness-functions-serve [--build]" >&2
+  echo "       agent-fitness-functions-serve --help" >&2
   echo "" >&2
-  echo "  Starts the stack-fitness-functions container via Docker Compose (Docker Desktop)." >&2
+  echo "  Starts the agent-fitness-functions container via Docker Compose (Docker Desktop)." >&2
   echo "  Runs in the foreground — use Ctrl+C to stop." >&2
   echo "" >&2
   echo "  Options:" >&2
   echo "    --build    force a Docker image rebuild before starting" >&2
   echo "" >&2
   echo "  Environment:" >&2
-  echo "    STACK_FITNESS_FUNCTIONS_SRC   path to the calm-poc repo (default: auto-detected)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_SRC   path to the calm-poc repo (default: auto-detected)" >&2
   echo "    GIT_SHA    image tag suffix           (default: git short SHA)" >&2
   echo "    BUILD_DATE image build timestamp      (default: current UTC time)" >&2
   exit 0
@@ -28,11 +28,11 @@ for arg in "$@"; do
 done
 
 _self=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-calm_src="${STACK_FITNESS_FUNCTIONS_SRC:-$_self}"
+calm_src="${AGENT_FITNESS_FUNCTIONS_SRC:-$_self}"
 
 [[ -f "$calm_src/docker-compose.yml" ]] || {
   echo "error: docker-compose.yml not found at $calm_src" >&2
-  echo "  set STACK_FITNESS_FUNCTIONS_SRC to the calm-poc repo root" >&2
+  echo "  set AGENT_FITNESS_FUNCTIONS_SRC to the calm-poc repo root" >&2
   exit 1
 }
 
@@ -44,8 +44,8 @@ if [[ $rebuild -eq 1 ]]; then
   compose_args+=(--build)
 fi
 
-echo "Starting stack-fitness-functions container (Docker Desktop)"
-echo "  Image tag: stack-fitness-functions:${GIT_SHA}"
+echo "Starting agent-fitness-functions container (Docker Desktop)"
+echo "  Image tag: agent-fitness-functions:${GIT_SHA}"
 echo "  Address:   http://localhost:7890  (or https if TLS certs are mounted)"
 echo "Press Ctrl+C to stop."
 echo ""

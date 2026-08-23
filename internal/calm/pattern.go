@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-// Pattern is the governance pattern used by stack-fitness-functions for CALM validation.
+// Pattern is the governance pattern used by agent-fitness-functions for CALM validation.
 type Pattern struct {
 	Schema           string                 `json:"$schema"`
 	ID               string                 `json:"$id"`

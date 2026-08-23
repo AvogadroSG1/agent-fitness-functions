@@ -33,7 +33,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions <client validate|client install-hooks|client onboard|client resolve-dev-cert-version|server start|baseline|doctor>")
+		_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions <client validate|client install-hooks|client onboard|client resolve-dev-cert-version|server start|baseline|doctor>")
 		return 2
 	}
 
@@ -76,7 +76,7 @@ func runBaselineCommand(args []string, stdout, stderr io.Writer) int {
 
 func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions client <validate|install-hooks|onboard|resolve-dev-cert-version>")
+		_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions client <validate|install-hooks|onboard|resolve-dev-cert-version>")
 		return 2
 	}
 	switch args[0] {
@@ -115,7 +115,7 @@ func clientExitCode(err error, stderr io.Writer) int {
 
 func runServer(args []string, stderr io.Writer) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions server <start>")
+		_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions server <start>")
 		return 2
 	}
 	switch args[0] {
@@ -131,10 +131,10 @@ func runServe(args []string, stderr io.Writer) int {
 	flags := flag.NewFlagSet("server start", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	addr := flags.String("addr", "localhost:7890", "daemon listen address")
-	tlsCert := flags.String("tls-cert", "", "server TLS certificate path (overrides STACK_FITNESS_FUNCTIONS_TLS_CERT)")
-	tlsKey := flags.String("tls-key", "", "server TLS private key path (overrides STACK_FITNESS_FUNCTIONS_TLS_KEY)")
-	tlsCA := flags.String("tls-ca", "", "client CA bundle path (overrides STACK_FITNESS_FUNCTIONS_TLS_CA)")
-	configsDir := flags.String("configs-dir", "", "repository configs directory (overrides STACK_FITNESS_FUNCTIONS_CONFIGS_DIR)")
+	tlsCert := flags.String("tls-cert", "", "server TLS certificate path (overrides AGENT_FITNESS_FUNCTIONS_TLS_CERT)")
+	tlsKey := flags.String("tls-key", "", "server TLS private key path (overrides AGENT_FITNESS_FUNCTIONS_TLS_KEY)")
+	tlsCA := flags.String("tls-ca", "", "client CA bundle path (overrides AGENT_FITNESS_FUNCTIONS_TLS_CA)")
+	configsDir := flags.String("configs-dir", "", "repository configs directory (overrides AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR)")
 	trustedProxyHeaders := flags.Bool("trusted-proxy-headers", false, "trust X-Client-CN headers from an authenticated proxy")
 	trustedProxyClientCNs := flags.String("trusted-proxy-client-cns", "", "comma-separated trusted proxy client certificate common names")
 	blockOnWarmup := flags.Bool("block-on-warmup", false, "block first C# check until analyzer is ready instead of optimistic pass")
@@ -177,7 +177,7 @@ func runServe(args []string, stderr io.Writer) int {
 		AnalyzerTimeout: analyzerTimeout,
 		TLS:             tlsMode.TLS,
 		ManagedRoot:     tlsMode.ManagedRoot,
-		RuntimeDir:      os.Getenv("STACK_FITNESS_FUNCTIONS_RUNTIME_DIR"),
+		RuntimeDir:      os.Getenv("AGENT_FITNESS_FUNCTIONS_RUNTIME_DIR"),
 	}); err != nil && !errors.Is(err, context.Canceled) {
 		_, _ = fmt.Fprintln(stderr, err)
 		return 1
@@ -191,28 +191,28 @@ type serverStartTLSMode struct {
 }
 
 func resolveServerStartTLSMode(certFlag, keyFlag, caFlag string, getWorkingDirectory func() (string, error)) (serverStartTLSMode, error) {
-	selector := os.Getenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR")
+	selector := os.Getenv("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR")
 	serverInputs := []string{
 		certFlag,
 		keyFlag,
 		caFlag,
-		os.Getenv("STACK_FITNESS_FUNCTIONS_TLS_CERT"),
-		os.Getenv("STACK_FITNESS_FUNCTIONS_TLS_KEY"),
-		os.Getenv("STACK_FITNESS_FUNCTIONS_TLS_CA"),
+		os.Getenv("AGENT_FITNESS_FUNCTIONS_TLS_CERT"),
+		os.Getenv("AGENT_FITNESS_FUNCTIONS_TLS_KEY"),
+		os.Getenv("AGENT_FITNESS_FUNCTIONS_TLS_CA"),
 	}
 	clientInputs := []string{
-		os.Getenv("STACK_FITNESS_FUNCTIONS_CLIENT_CERT"),
-		os.Getenv("STACK_FITNESS_FUNCTIONS_CLIENT_KEY"),
-		os.Getenv("STACK_FITNESS_FUNCTIONS_CLIENT_CA"),
+		os.Getenv("AGENT_FITNESS_FUNCTIONS_CLIENT_CERT"),
+		os.Getenv("AGENT_FITNESS_FUNCTIONS_CLIENT_KEY"),
+		os.Getenv("AGENT_FITNESS_FUNCTIONS_CLIENT_CA"),
 	}
 	if selector != "" && (hasNonEmpty(serverInputs) || hasNonEmpty(clientInputs)) {
-		return serverStartTLSMode{}, usageError{err: errors.New("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit server or client TLS inputs")}
+		return serverStartTLSMode{}, usageError{err: errors.New("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit server or client TLS inputs")}
 	}
 	if hasNonEmpty(serverInputs) {
 		return serverStartTLSMode{TLS: server.ServerTLSConfig{
-			CertPath: resolveTLSPath(certFlag, "STACK_FITNESS_FUNCTIONS_TLS_CERT"),
-			KeyPath:  resolveTLSPath(keyFlag, "STACK_FITNESS_FUNCTIONS_TLS_KEY"),
-			CAPath:   resolveTLSPath(caFlag, "STACK_FITNESS_FUNCTIONS_TLS_CA"),
+			CertPath: resolveTLSPath(certFlag, "AGENT_FITNESS_FUNCTIONS_TLS_CERT"),
+			KeyPath:  resolveTLSPath(keyFlag, "AGENT_FITNESS_FUNCTIONS_TLS_KEY"),
+			CAPath:   resolveTLSPath(caFlag, "AGENT_FITNESS_FUNCTIONS_TLS_CA"),
 		}}, nil
 	}
 	if hasNonEmpty(clientInputs) {
@@ -238,17 +238,17 @@ func hasNonEmpty(values []string) bool {
 }
 
 // resolveServerConfigDir prefers the --configs-dir flag, falling back to
-// STACK_FITNESS_FUNCTIONS_CONFIGS_DIR so the auto-started local daemon can be told
+// AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR so the auto-started local daemon can be told
 // where per-repo configs live without depending on the container default.
 func resolveServerConfigDir(flagValue string) string {
 	if flagValue != "" {
 		return flagValue
 	}
-	return os.Getenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR")
+	return os.Getenv("AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR")
 }
 
 // resolveTLSPath prefers the --tls-* flag, falling back to the matching
-// STACK_FITNESS_FUNCTIONS_TLS_* env var. Without this fallback a container that sets
+// AGENT_FITNESS_FUNCTIONS_TLS_* env var. Without this fallback a container that sets
 // only the env vars (as docker-compose.yml/Dockerfile do) would silently listen on
 // plain HTTP and reject every authenticated client with a 401.
 func resolveTLSPath(flagValue, envName string) string {
@@ -258,16 +258,16 @@ func resolveTLSPath(flagValue, envName string) string {
 	return os.Getenv(envName)
 }
 
-// buildRateLimiter creates a rate limiter from STACK_FITNESS_FUNCTIONS_RATE_LIMIT (default 100 req/min).
+// buildRateLimiter creates a rate limiter from AGENT_FITNESS_FUNCTIONS_RATE_LIMIT (default 100 req/min).
 // Returns nil when the env var is explicitly set to 0 (disables rate limiting).
 func buildRateLimiter() (server.RateLimiter, error) {
-	raw := os.Getenv("STACK_FITNESS_FUNCTIONS_RATE_LIMIT")
+	raw := os.Getenv("AGENT_FITNESS_FUNCTIONS_RATE_LIMIT")
 	if raw == "" {
 		return server.NewFixedWindowRateLimiter(100, time.Minute), nil
 	}
 	limit, err := strconv.Atoi(raw)
 	if err != nil || limit < 0 {
-		return nil, fmt.Errorf("STACK_FITNESS_FUNCTIONS_RATE_LIMIT: expected non-negative integer, got %q", raw)
+		return nil, fmt.Errorf("AGENT_FITNESS_FUNCTIONS_RATE_LIMIT: expected non-negative integer, got %q", raw)
 	}
 	if limit == 0 {
 		return nil, nil
@@ -275,19 +275,19 @@ func buildRateLimiter() (server.RateLimiter, error) {
 	return server.NewFixedWindowRateLimiter(limit, time.Minute), nil
 }
 
-// resolveAnalyzerTimeout parses STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT (default 30s).
+// resolveAnalyzerTimeout parses AGENT_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT (default 30s).
 // Returns 0 when the env var is explicitly set to 0 (disables timeout).
 func resolveAnalyzerTimeout() (time.Duration, error) {
-	raw := os.Getenv("STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT")
+	raw := os.Getenv("AGENT_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT")
 	if raw == "" {
 		return 30 * time.Second, nil
 	}
 	d, err := time.ParseDuration(raw)
 	if err != nil {
-		return 0, fmt.Errorf("STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: invalid duration %q: %w", raw, err)
+		return 0, fmt.Errorf("AGENT_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: invalid duration %q: %w", raw, err)
 	}
 	if d < 0 {
-		return 0, fmt.Errorf("STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: duration must be non-negative, got %q", raw)
+		return 0, fmt.Errorf("AGENT_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: duration must be non-negative, got %q", raw)
 	}
 	return d, nil
 }

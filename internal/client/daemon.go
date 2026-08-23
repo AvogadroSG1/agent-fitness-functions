@@ -17,14 +17,14 @@ import (
 )
 
 const (
-	envClientCert = "STACK_FITNESS_FUNCTIONS_CLIENT_CERT"
-	envClientKey  = "STACK_FITNESS_FUNCTIONS_CLIENT_KEY"
-	envClientCA   = "STACK_FITNESS_FUNCTIONS_CLIENT_CA"
-	envDevCertDir = "STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR"
-	envConfigsDir = "STACK_FITNESS_FUNCTIONS_CONFIGS_DIR"
-	envServerCert = "STACK_FITNESS_FUNCTIONS_TLS_CERT"
-	envServerKey  = "STACK_FITNESS_FUNCTIONS_TLS_KEY"
-	envServerCA   = "STACK_FITNESS_FUNCTIONS_TLS_CA"
+	envClientCert = "AGENT_FITNESS_FUNCTIONS_CLIENT_CERT"
+	envClientKey  = "AGENT_FITNESS_FUNCTIONS_CLIENT_KEY"
+	envClientCA   = "AGENT_FITNESS_FUNCTIONS_CLIENT_CA"
+	envDevCertDir = "AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR"
+	envConfigsDir = "AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR"
+	envServerCert = "AGENT_FITNESS_FUNCTIONS_TLS_CERT"
+	envServerKey  = "AGENT_FITNESS_FUNCTIONS_TLS_KEY"
+	envServerCA   = "AGENT_FITNESS_FUNCTIONS_TLS_CA"
 )
 
 type clientTLSMode struct {
@@ -52,7 +52,7 @@ func resolveClientTLSMode(certFlag, keyFlag, caFlag, defaultRoot string) (client
 	selector := os.Getenv(envDevCertDir)
 	explicit := certFlag != "" || keyFlag != "" || caFlag != "" || os.Getenv(envClientCert) != "" || os.Getenv(envClientKey) != "" || os.Getenv(envClientCA) != ""
 	if selector != "" && explicit {
-		return clientTLSMode{}, usageError{err: errors.New("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs")}
+		return clientTLSMode{}, usageError{err: errors.New("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs")}
 	}
 	if explicit {
 		return clientTLSMode{
@@ -122,7 +122,7 @@ func prepareDaemonStart(addr, certDir, repoRoot, certFlag, keyFlag, caFlag strin
 	selector := os.Getenv(envDevCertDir)
 	explicitServerTLS := os.Getenv(envServerCert) != "" || os.Getenv(envServerKey) != "" || os.Getenv(envServerCA) != ""
 	if selector != "" && explicitServerTLS {
-		return DaemonStartConfig{}, usageError{err: errors.New("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit server or client TLS inputs")}
+		return DaemonStartConfig{}, usageError{err: errors.New("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit server or client TLS inputs")}
 	}
 	if !mode.managed || explicitServerTLS || certDir == "" || !isLocalHTTPS(addr) {
 		return DaemonStartConfig{Addr: addr, CertDir: certDir}, nil
@@ -172,7 +172,7 @@ func resolveRepoRoot(repo, file string) string {
 	return ""
 }
 
-// resolveDevCertDir mirrors the shell hooks: STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR
+// resolveDevCertDir mirrors the shell hooks: AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR
 // wins, otherwise <repo-root>/certs.
 func resolveDevCertDir(repoRoot string) string {
 	if dir := os.Getenv(envDevCertDir); dir != "" {
@@ -185,7 +185,7 @@ func resolveDevCertDir(repoRoot string) string {
 }
 
 // resolveConfigsDir locates the repository configs directory the auto-started daemon
-// must serve. STACK_FITNESS_FUNCTIONS_CONFIGS_DIR wins; otherwise <repo-root>/configs
+// must serve. AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR wins; otherwise <repo-root>/configs
 // is used when it exists. An empty result is surfaced to the user at start time.
 func resolveConfigsDir(repoRoot string) string {
 	if dir := os.Getenv(envConfigsDir); dir != "" {
@@ -226,7 +226,7 @@ func daemonStartArgs(cfg DaemonStartConfig) []string {
 // StartDaemon starts a detached daemon process using the current executable.
 func StartDaemon(cfg DaemonStartConfig) error {
 	if cfg.Local && cfg.ConfigsDir == "" {
-		return errors.New("no repository configs directory found: set STACK_FITNESS_FUNCTIONS_CONFIGS_DIR or add <repo>/configs/<repo>/config.json before auto-starting the local daemon")
+		return errors.New("no repository configs directory found: set AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR or add <repo>/configs/<repo>/config.json before auto-starting the local daemon")
 	}
 	executable, err := os.Executable()
 	if err != nil {
@@ -250,7 +250,7 @@ func daemonStartEnv(cfg DaemonStartConfig, base []string) []string {
 	filtered := make([]string, 0, len(base)+1)
 	for _, value := range base {
 		name, _, _ := strings.Cut(value, "=")
-		if name == envDevCertDir || name == "STACK_FITNESS_FUNCTIONS_RUNTIME_DIR" {
+		if name == envDevCertDir || name == "AGENT_FITNESS_FUNCTIONS_RUNTIME_DIR" {
 			continue
 		}
 		filtered = append(filtered, value)

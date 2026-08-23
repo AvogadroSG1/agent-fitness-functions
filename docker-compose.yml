@@ -1,4 +1,4 @@
-# Docker Compose is the local/staging deployment contract for stack-fitness-functions.
+# Docker Compose is the local/staging deployment contract for agent-fitness-functions.
 # Compose applies restart, mounts, read_only, tmpfs, cap_drop, and security_opt locally.
 # Resource enforcement differs by runtime: local Compose treats deploy.resources as
 # advisory compatibility metadata, while Swarm has enforced deploy.resources limits.
@@ -7,8 +7,8 @@
 # Helm chart is authoritative for pod securityContext, resources.limits,
 # ConfigMaps, Secrets, and read-only mounts.
 services:
-  stack-fitness-functions:
-    image: stack-fitness-functions:${GIT_SHA:-local}
+  agent-fitness-functions:
+    image: agent-fitness-functions:${GIT_SHA:-local}
     build:
       context: .
       args:
@@ -25,13 +25,13 @@ services:
       - ./certs:/app/certs:ro
       - ./caller-repos.json:/app/caller-repos.json:ro
     environment:
-      STACK_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs
-      STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR: /app/certs
-      STACK_FITNESS_FUNCTIONS_RUNTIME_DIR: /run/stack-fitness-functions
-      STACK_FITNESS_FUNCTIONS_RATE_LIMIT: "100"
-      STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"
+      AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs
+      AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR: /app/certs
+      AGENT_FITNESS_FUNCTIONS_RUNTIME_DIR: /run/agent-fitness-functions
+      AGENT_FITNESS_FUNCTIONS_RATE_LIMIT: "100"
+      AGENT_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail --silent --cacert /run/stack-fitness-functions/health-ca.crt https://127.0.0.1:7890/health || exit 1"]
+      test: ["CMD-SHELL", "curl --fail --silent --cacert /run/agent-fitness-functions/health-ca.crt https://127.0.0.1:7890/health || exit 1"]
       interval: 30s
       timeout: 5s
       start_period: 15s
@@ -42,7 +42,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=256m
-      - /run/stack-fitness-functions:uid=1001,gid=1001,mode=0755,size=1m,nosuid,nodev,noexec
+      - /run/agent-fitness-functions:uid=1001,gid=1001,mode=0755,size=1m,nosuid,nodev,noexec
     cap_drop:
       - ALL
     mem_limit: 1g

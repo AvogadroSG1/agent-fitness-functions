@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# stack-fitness-functions pre-push hook
+# agent-fitness-functions pre-push hook
 set -euo pipefail
 
 repo=$(git rev-parse --show-toplevel)
-stack_fitness_functions_bin=${STACK_FITNESS_FUNCTIONS_BIN:-stack-fitness-functions}
+stack_fitness_functions_bin=${AGENT_FITNESS_FUNCTIONS_BIN:-agent-fitness-functions}
 # The container/production server serves HTTPS with mandatory mTLS, so default to
 # an https loopback addr and auto-discover dev client credentials in <repo>/certs.
-# Explicit STACK_FITNESS_FUNCTIONS_CLIENT_* env vars win (12-factor precedence).
-addr=${STACK_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}
-managed_selector=${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-}
+# Explicit AGENT_FITNESS_FUNCTIONS_CLIENT_* env vars win (12-factor precedence).
+addr=${AGENT_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}
+managed_selector=${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR:-}
 explicit_client_tls=0
-[[ -n "${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-}${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-}${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-}" ]] && explicit_client_tls=1
+[[ -n "${AGENT_FITNESS_FUNCTIONS_CLIENT_CERT:-}${AGENT_FITNESS_FUNCTIONS_CLIENT_KEY:-}${AGENT_FITNESS_FUNCTIONS_CLIENT_CA:-}" ]] && explicit_client_tls=1
 if [[ -n "$managed_selector" && "$explicit_client_tls" -eq 1 ]]; then
-  echo "STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs" >&2
+  echo "AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs" >&2
   exit 1
 fi
 if [[ "$explicit_client_tls" -eq 1 ]]; then
-  client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-}
-  client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-}
-  client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-}
-  unset STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR
+  client_cert=${AGENT_FITNESS_FUNCTIONS_CLIENT_CERT:-}
+  client_key=${AGENT_FITNESS_FUNCTIONS_CLIENT_KEY:-}
+  client_ca=${AGENT_FITNESS_FUNCTIONS_CLIENT_CA:-}
+  unset AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR
 else
   cert_dir=${managed_selector:-$repo/certs}
   client_cert=""
@@ -30,20 +30,20 @@ resolve_managed_client_tls() {
   [[ "$addr" == https://* ]] || return 0
   [[ "$explicit_client_tls" -eq 0 && -z "$client_cert" ]] || return 0
   set +e
-  managed_version=$(STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="$cert_dir" "$stack_fitness_functions_bin" client resolve-dev-cert-version)
+  managed_version=$(AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="$cert_dir" "$stack_fitness_functions_bin" client resolve-dev-cert-version)
   resolver_rc=$?
   set -e
   [[ "$resolver_rc" -eq 0 ]] || exit 1
   if [[ ! "$managed_version" =~ ^versions/v-[0-9a-f]{32}$ ]]; then
-    echo "stack-fitness-functions returned an invalid managed certificate version" >&2
+    echo "agent-fitness-functions returned an invalid managed certificate version" >&2
     exit 1
   fi
   client_cert=$cert_dir/$managed_version/client.crt
   client_key=$cert_dir/$managed_version/client.key
   client_ca=$cert_dir/$managed_version/ca.crt
-  unset STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR
+  unset AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR
 }
-repo_name=${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}
+repo_name=${AGENT_FITNESS_FUNCTIONS_REPO_NAME:-}
 remote_mode=0
 repo_arg=$repo
 blocked=0
@@ -76,12 +76,12 @@ PYCHECK
 }
 
 if [[ -n "$addr" ]] && ! bridge_addr_is_loopback "$addr"; then
-  if [[ "${STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE:-}" != "1" ]]; then
-    echo "STACK_FITNESS_FUNCTIONS_ADDR must be loopback unless STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1 is set" >&2
+  if [[ "${AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE:-}" != "1" ]]; then
+    echo "AGENT_FITNESS_FUNCTIONS_ADDR must be loopback unless AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1 is set" >&2
     exit 1
   fi
   if ! bridge_addr_is_https "$addr"; then
-    echo "remote STACK_FITNESS_FUNCTIONS_ADDR must use https" >&2
+    echo "remote AGENT_FITNESS_FUNCTIONS_ADDR must use https" >&2
     exit 1
   fi
   remote_mode=1
@@ -109,9 +109,9 @@ json_field() {
 
 # On-error policy for infrastructure/setup failures (server down, cert/TLS problem,
 # repo not configured, auth rejected): fail-closed (block) by default, or non-blocking
-# when STACK_FITNESS_FUNCTIONS_ON_ERROR=advisory — mirroring the server-side
+# when AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory — mirroring the server-side
 # enforcement-on-error setting. Real architecture violations are unaffected.
-on_error_mode=${STACK_FITNESS_FUNCTIONS_ON_ERROR:-block}
+on_error_mode=${AGENT_FITNESS_FUNCTIONS_ON_ERROR:-block}
 
 # is_infra_error reports whether a client failure is an infrastructure/setup problem
 # (client exit code 3, or a {"status":"error"} object) rather than a real violation.
@@ -131,7 +131,7 @@ report_infra_error() {
   message=$(printf '%s' "$payload" | json_field message 2>/dev/null || true)
   remediation=$(printf '%s' "$payload" | json_field remediation 2>/dev/null || true)
   {
-    echo "stack-fitness-functions SETUP problem for $file (infrastructure/configuration, NOT an architecture violation)"
+    echo "agent-fitness-functions SETUP problem for $file (infrastructure/configuration, NOT an architecture violation)"
     if [[ -n "$kind" ]]; then echo "  kind: $kind"; fi
     if [[ -n "$message" ]]; then echo "  detail: $message"; fi
     if [[ -n "$remediation" ]]; then echo "  fix: $remediation"; fi
@@ -143,7 +143,7 @@ handle_infra_error() {
   local file=$1 payload=$2
   report_infra_error "$file" "$payload"
   if [[ "$on_error_mode" == "advisory" ]]; then
-    echo "  STACK_FITNESS_FUNCTIONS_ON_ERROR=advisory: not blocking this setup failure" >&2
+    echo "  AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory: not blocking this setup failure" >&2
   else
     blocked=1
   fi
@@ -199,7 +199,7 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
         handle_infra_error "$file" "$result"
         continue
       fi
-      echo "stack-fitness-functions check failed for $file" >&2
+      echo "agent-fitness-functions check failed for $file" >&2
       blocked=1
       continue
     fi
@@ -218,7 +218,7 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
       pass)
         ;;
       *)
-        echo "stack-fitness-functions check returned unknown status for $file: ${status:-<empty>}" >&2
+        echo "agent-fitness-functions check returned unknown status for $file: ${status:-<empty>}" >&2
         blocked=1
         ;;
     esac

@@ -35,12 +35,12 @@ func TestDockerfileContainerContract(t *testing.T) {
 	mustContain(t, dockerfile, "org.opencontainers.image.created=$BUILD_DATE")
 	mustContain(t, dockerfile, "WORKDIR /app")
 	mustContain(t, dockerfile, "USER appuser")
-	mustContain(t, dockerfile, "ENTRYPOINT [\"/app/stack-fitness-functions\", \"server\", \"start\"]")
+	mustContain(t, dockerfile, "ENTRYPOINT [\"/app/agent-fitness-functions\", \"server\", \"start\"]")
 	mustContain(t, dockerfile, "HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3")
-	mustContain(t, dockerfile, `test -f /run/stack-fitness-functions/health-ca.crt`)
-	mustContain(t, dockerfile, `--cacert /run/stack-fitness-functions/health-ca.crt https://127.0.0.1:7890/health`)
-	mustContain(t, dockerfile, `STACK_FITNESS_FUNCTIONS_TLS_CA`)
-	mustContain(t, dockerfile, `--cacert "$STACK_FITNESS_FUNCTIONS_TLS_CA" https://127.0.0.1:7890/health`)
+	mustContain(t, dockerfile, `test -f /run/agent-fitness-functions/health-ca.crt`)
+	mustContain(t, dockerfile, `--cacert /run/agent-fitness-functions/health-ca.crt https://127.0.0.1:7890/health`)
+	mustContain(t, dockerfile, `AGENT_FITNESS_FUNCTIONS_TLS_CA`)
+	mustContain(t, dockerfile, `--cacert "$AGENT_FITNESS_FUNCTIONS_TLS_CA" https://127.0.0.1:7890/health`)
 	mustContain(t, dockerfile, `curl --fail --silent http://127.0.0.1:7890/health`)
 	mustNotContain(t, dockerfile, "/app/certs/current")
 	mustContain(t, dockerfile, "nodejs")
@@ -84,7 +84,7 @@ func TestDevCertificateBootstrapContract(t *testing.T) {
 	script := string(scriptContent)
 	for _, needle := range []string{
 		"exec",
-		"stack-fitness-functions",
+		"agent-fitness-functions",
 		"client onboard --certificates-only",
 		"--force-dev-cert-rotation",
 	} {
@@ -117,7 +117,7 @@ func TestDevCertificateBootstrapContract(t *testing.T) {
 func TestDevCertificateBootstrapDelegatesForceAndPreservesProcessContract(t *testing.T) {
 	dir := t.TempDir()
 	record := filepath.Join(dir, "args")
-	stub := filepath.Join(dir, "stack-fitness-functions")
+	stub := filepath.Join(dir, "agent-fitness-functions")
 	content := "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >\"$RECORD\"\nprintf 'delegated stdout\\n'\nprintf 'delegated stderr\\n' >&2\nexit 23\n"
 	if err := os.WriteFile(stub, []byte(content), 0o755); err != nil {
 		t.Fatalf("write delegated binary: %v", err)
@@ -159,8 +159,8 @@ func TestDockerComposeDeploymentContract(t *testing.T) {
 	compose := string(content)
 
 	for _, needle := range []string{
-		"stack-fitness-functions:",
-		"image: stack-fitness-functions:${GIT_SHA:-local}",
+		"agent-fitness-functions:",
+		"image: agent-fitness-functions:${GIT_SHA:-local}",
 		"context: .",
 		"GIT_SHA: ${GIT_SHA:-dev}",
 		"BUILD_DATE: ${BUILD_DATE:-unknown}",
@@ -168,12 +168,12 @@ func TestDockerComposeDeploymentContract(t *testing.T) {
 		"./configs:/app/configs:ro",
 		"./certs:/app/certs:ro",
 		"./caller-repos.json:/app/caller-repos.json:ro",
-		"STACK_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs",
-		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR: /app/certs",
-		"STACK_FITNESS_FUNCTIONS_RUNTIME_DIR: /run/stack-fitness-functions",
-		`STACK_FITNESS_FUNCTIONS_RATE_LIMIT: "100"`,
-		`STACK_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"`,
-		`test: ["CMD-SHELL", "curl --fail --silent --cacert /run/stack-fitness-functions/health-ca.crt https://127.0.0.1:7890/health || exit 1"]`,
+		"AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs",
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR: /app/certs",
+		"AGENT_FITNESS_FUNCTIONS_RUNTIME_DIR: /run/agent-fitness-functions",
+		`AGENT_FITNESS_FUNCTIONS_RATE_LIMIT: "100"`,
+		`AGENT_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"`,
+		`test: ["CMD-SHELL", "curl --fail --silent --cacert /run/agent-fitness-functions/health-ca.crt https://127.0.0.1:7890/health || exit 1"]`,
 		"interval: 30s",
 		"timeout: 5s",
 		"start_period: 15s",
@@ -182,7 +182,7 @@ func TestDockerComposeDeploymentContract(t *testing.T) {
 		"no-new-privileges:true",
 		"read_only: true",
 		"/tmp:size=256m",
-		"/run/stack-fitness-functions:uid=1001,gid=1001,mode=0755,size=1m,nosuid,nodev,noexec",
+		"/run/agent-fitness-functions:uid=1001,gid=1001,mode=0755,size=1m,nosuid,nodev,noexec",
 		"cap_drop:",
 		"- ALL",
 		"memory: 1g",
@@ -196,7 +196,7 @@ func TestDockerComposeDeploymentContract(t *testing.T) {
 	} {
 		mustContain(t, compose, needle)
 	}
-	for _, forbidden := range []string{"STACK_FITNESS_FUNCTIONS_TLS_CERT", "STACK_FITNESS_FUNCTIONS_TLS_KEY", "STACK_FITNESS_FUNCTIONS_TLS_CA", "/app/certs/current"} {
+	for _, forbidden := range []string{"AGENT_FITNESS_FUNCTIONS_TLS_CERT", "AGENT_FITNESS_FUNCTIONS_TLS_KEY", "AGENT_FITNESS_FUNCTIONS_TLS_CA", "/app/certs/current"} {
 		mustNotContain(t, compose, forbidden)
 	}
 }

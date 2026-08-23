@@ -256,7 +256,7 @@ func resolveOnboardRepoName(repoFlag, repoRoot string) (string, error) {
 
 // onboardConfigsDir resolves the configs directory the same way the daemon does,
 // but returns the <repo>/configs default even when it does not yet exist so the
-// scaffold step can create it. STACK_FITNESS_FUNCTIONS_CONFIGS_DIR still wins.
+// scaffold step can create it. AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR still wins.
 func onboardConfigsDir(repoRoot string) string {
 	if dir := os.Getenv(envConfigsDir); dir != "" {
 		return dir

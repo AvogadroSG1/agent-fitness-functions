@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root=$(git -C "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)" rev-parse --show-toplevel)
 tmp_dir=$(mktemp -d)
 demo_repo="$tmp_dir/go-red-green"
-bridge_bin="$tmp_dir/stack-fitness-functions"
+bridge_bin="$tmp_dir/agent-fitness-functions"
 
 cleanup() {
   if [[ -n "${bridge_pid:-}" ]]; then
@@ -25,7 +25,7 @@ PY
 )
 bridge_addr="http://127.0.0.1:$free_port"
 
-go build -o "$bridge_bin" "$repo_root/cmd/stack-fitness-functions"
+go build -o "$bridge_bin" "$repo_root/cmd/agent-fitness-functions"
 "$bridge_bin" server start --addr "127.0.0.1:$free_port" &
 bridge_pid=$!
 
@@ -40,7 +40,7 @@ curl -fsS "$bridge_addr/health" >/dev/null
 git init "$demo_repo" >/dev/null
 git -C "$demo_repo" config user.email "calm-smoke@example.com"
 git -C "$demo_repo" config user.name "CALM Smoke"
-STACK_FITNESS_FUNCTIONS_BIN="$bridge_bin" "$bridge_bin" client install-hooks "$demo_repo" >/dev/null
+AGENT_FITNESS_FUNCTIONS_BIN="$bridge_bin" "$bridge_bin" client install-hooks "$demo_repo" >/dev/null
 mkdir -p "$demo_repo/.calm" "$demo_repo/internal/demo"
 
 write_config() {
@@ -100,7 +100,7 @@ expect_block() {
 
   cp -f "$repo_root/$red" "$demo_repo/internal/demo/demo.go"
   git -C "$demo_repo" add .calm/config.json internal/demo/demo.go
-  if STACK_FITNESS_FUNCTIONS_BIN="$bridge_bin" STACK_FITNESS_FUNCTIONS_ADDR="$bridge_addr" git -C "$demo_repo" commit -m "red $rule" >"$tmp_dir/red.out" 2>&1; then
+  if AGENT_FITNESS_FUNCTIONS_BIN="$bridge_bin" AGENT_FITNESS_FUNCTIONS_ADDR="$bridge_addr" git -C "$demo_repo" commit -m "red $rule" >"$tmp_dir/red.out" 2>&1; then
     cat "$tmp_dir/red.out"
     echo "expected red commit to fail for $rule" >&2
     exit 1
@@ -113,7 +113,7 @@ expect_block() {
 
   cp -f "$repo_root/$green" "$demo_repo/internal/demo/demo.go"
   git -C "$demo_repo" add .calm/config.json internal/demo/demo.go
-  STACK_FITNESS_FUNCTIONS_BIN="$bridge_bin" STACK_FITNESS_FUNCTIONS_ADDR="$bridge_addr" git -C "$demo_repo" commit -m "green $rule" >/dev/null
+  AGENT_FITNESS_FUNCTIONS_BIN="$bridge_bin" AGENT_FITNESS_FUNCTIONS_ADDR="$bridge_addr" git -C "$demo_repo" commit -m "green $rule" >/dev/null
 
   printf 'PASS  %-28s  [Go]  red: blocked (%s)  green: pass\n' "$rule" "$red_metrics"
 }

@@ -1,12 +1,12 @@
 # Platform UX Evaluation: 0 to Governed
 
 **Date:** 2026-07-08
-**Lens:** Platform UX — every debug session a developer needs between "I added stack-fitness-functions to my repo" and "my coding agent is governed" is a product failure.
+**Lens:** Platform UX — every debug session a developer needs between "I added agent-fitness-functions to my repo" and "my coding agent is governed" is a product failure.
 **North star:** One command, zero debugging, from fresh clone to a governed coding agent.
 
 ## Why this evaluation exists
 
-The core value proposition of stack-fitness-functions is putting architecture fitness
+The core value proposition of agent-fitness-functions is putting architecture fitness
 functions as close to the coding agent as possible — validating an Edit/Write *before*
 it lands, not in CI an hour later. That value is only demonstrable if onboarding is
 frictionless. Today it is not: real onboarding attempts fail on certificate errors,
@@ -61,7 +61,7 @@ feedback a developer gets that something is wrong is a blocked commit.
 
 ### F4 — Every infrastructure failure masquerades as a violation
 
-The hooks fail closed with the generic `stack-fitness-functions check failed for
+The hooks fail closed with the generic `agent-fitness-functions check failed for
 <file>` whether the server is down, certs are missing, the TLS handshake failed, the
 caller is unauthorized (403), or the repo isn't configured (404)
 (`hookassets/pre-commit.sh:114-118`, `hooks/pre-tool-use.sh:205-214`). The developer
@@ -79,13 +79,13 @@ production only via redeploy.
 
 ### F6 — Footguns that convert small mistakes into long debugging sessions
 
-- `STACK_FITNESS_FUNCTIONS_TLS_CERT/KEY/CA` are set in `docker-compose.yml` and the
+- `AGENT_FITNESS_FUNCTIONS_TLS_CERT/KEY/CA` are set in `docker-compose.yml` and the
   `Dockerfile` but the binary **never reads them** — TLS is flags-only
-  (`cmd/stack-fitness-functions/main.go:108-110`). Setting only the env vars yields a
+  (`cmd/agent-fitness-functions/main.go:108-110`). Setting only the env vars yields a
   plain-HTTP server and inexplicable 401s.
 - Silent `test-repo` fallback in the server config resolver
   (`internal/server/config.go:96-106`) and silent `calm-poc` repo-name fallback in
-  `bin/stack-fitness-functions-test` can mask a misnamed repo as a wrong-config
+  `bin/agent-fitness-functions-test` can mask a misnamed repo as a wrong-config
   mystery instead of a clear "not configured."
 - The Go client has no cert auto-discovery (flags only); only the shell hooks default
   to `<repo>/certs`. Running `client validate` by hand — the natural debugging move —
@@ -116,7 +116,7 @@ themselves; **P2** = server-side ergonomics; **P3** = value demonstration.
 **T1. Fix local daemon auto-start (kills the certificate failure).** *(F1, F6)*
 Auto-start must produce a server the default client can reach: pass
 `--tls-cert/--tls-key/--tls-ca` resolved with the same defaults the shell hooks use
-(`STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR` → `<repo>/certs`), generating dev certs when
+(`AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR` → `<repo>/certs`), generating dev certs when
 absent. Give the Go client the same env-var/default cert discovery as the hooks.
 Raise the 500ms health-wait window to something a TLS server can meet.
 *Acceptance:* with only the binary and a config for the repo, `client validate`
@@ -130,7 +130,7 @@ drift, as done for the existing hooks.
 *Acceptance:* fresh repo + `install-hooks` → agent Edit/Write calls are validated with
 no manual settings authoring.
 
-**T3. `stack-fitness-functions doctor`.** *(F3)*
+**T3. `agent-fitness-functions doctor`.** *(F3)*
 New subcommand: ordered ✔/✘ checks with one-line remediation each — binary version;
 python3 + pyyaml; cert files present/parseable/CN; server reachable; TLS handshake +
 auth; repo configured server-side; hooks installed (git + settings.json).
@@ -138,7 +138,7 @@ auth; repo configured server-side; hooks installed (git + settings.json).
 non-admin) returning `{authenticated_cn, repo_configured, caller_authorized,
 enforcement_mode}` — the missing "am I ready?" affordance.
 
-**T4. `stack-fitness-functions client onboard` — single-command 0-to-governed.** *(F1–F5)*
+**T4. `agent-fitness-functions client onboard` — single-command 0-to-governed.** *(F1–F5)*
 Orchestrates: repo-name detection/validation, dev-cert generation, server-side config
 scaffold from the (currently unused) `configs/*-template.json`, caller-authorization
 entry, `install-hooks`, then `doctor` as the final gate. Prints exactly what remains
@@ -155,9 +155,9 @@ specific cause plus a fix hint (404 → "repo not onboarded server-side — run
 the server-side `enforcement-on-error` setting.
 
 **T6. Kill the footguns.** *(F6, F5)*
-(a) Binary reads `STACK_FITNESS_FUNCTIONS_TLS_CERT/KEY/CA` (flags override env);
+(a) Binary reads `AGENT_FITNESS_FUNCTIONS_TLS_CERT/KEY/CA` (flags override env);
 (b) remove the silent `test-repo` fallback; (c) remove the silent `calm-poc` fallback
-in `bin/stack-fitness-functions-test`; (d) loosen the `configs/config_test.go`
+in `bin/agent-fitness-functions-test`; (d) loosen the `configs/config_test.go`
 caller-map pin so authorizing a new caller doesn't break tests.
 
 ### P2 — Server-side onboarding ergonomics
