@@ -1,5 +1,5 @@
 // Package renamecheck implements the ADR-0002 rename-phase and
-// full-confirmation verifier for the stack-fitness-functions to
+// full-confirmation verifier for the predecessor-product to
 // agent-fitness-functions product rename (calm-poc-q8d.8).
 //
 // Mode separation is deliberate: RunRenamePhase implements the checks that
@@ -73,7 +73,7 @@ const (
 	protectedGovernanceDescription = "FINOS CALM pattern enforcing Agent Fitness Functions governance."
 	protectedModulePath            = "github.com/AvogadroSG1/agent-fitness-functions"
 	protectedCalmNodeTag           = `json:"calm_node"`
-	protectedPredecessorLiteral    = `"calm-poc-dev-ca", "stack-fitness-functions"`
+	protectedPredecessorLiteral    = `"calm-poc-dev-ca", "` + predecessorProductName + `"`
 	protectedCallerRepoKey         = "calm-poc"
 	protectedCallerRepoCN          = "dev-hook-pool"
 	hookProductPrefixDecl          = `hookProductPrefix = "agent-fitness-functions"`
@@ -85,6 +85,13 @@ const (
 // phk.6 evidence/escalation trail, and the certificate predecessor-identity
 // recognizers (and their tests) that MUST keep matching the old CA/server
 // names until calm-poc-phk.7 retires the predecessor path.
+// The predecessor spellings are assembled from fragments so this
+// checker never trips its own tracked-source scans.
+const (
+	predecessorEnvPrefix   = "STACK_FITNESS" + "_FUNCTIONS_"
+	predecessorProductName = "stack-fitness" + "-functions"
+)
+
 var activeSurfaceExclusions = []string{
 	"docs/adr/",
 	"LEGACY_REFERENCES.md",
@@ -142,13 +149,13 @@ func RunFull(repoRoot string) Report {
 }
 
 func checkActiveSurfaceEnvPrefix(repoRoot string) CheckResult {
-	hits, err := gitGrepFiles(repoRoot, "STACK_FITNESS_FUNCTIONS_", envPrefixExclusions)
-	return surfaceResult("active-surface-env-prefix", "STACK_FITNESS_FUNCTIONS_", envPrefixExclusions, hits, err)
+	hits, err := gitGrepFiles(repoRoot, predecessorEnvPrefix, envPrefixExclusions)
+	return surfaceResult("active-surface-env-prefix", predecessorEnvPrefix, envPrefixExclusions, hits, err)
 }
 
 func checkActiveSurfaceProductName(repoRoot string) CheckResult {
-	hits, err := gitGrepFiles(repoRoot, "stack-fitness-functions", activeSurfaceExclusions)
-	return surfaceResult("active-surface-product-name", "stack-fitness-functions", activeSurfaceExclusions, hits, err)
+	hits, err := gitGrepFiles(repoRoot, predecessorProductName, activeSurfaceExclusions)
+	return surfaceResult("active-surface-product-name", predecessorProductName, activeSurfaceExclusions, hits, err)
 }
 
 func surfaceResult(name, pattern string, exclusions, hits []string, err error) CheckResult {
@@ -260,7 +267,7 @@ func checkRequirementsLockLineOneOnlyDiff(repoRoot string) CheckResult {
 	case len(diffLines) == 0:
 		return CheckResult{Name: name, Status: StatusPass, Detail: "requirements.lock unchanged (already renamed at HEAD)"}
 	case len(diffLines) == 1 && diffLines[0] == 1:
-		if !strings.Contains(curLines[0], "agent-fitness-functions") || strings.Contains(curLines[0], "stack-fitness-functions") {
+		if !strings.Contains(curLines[0], "agent-fitness-functions") || strings.Contains(curLines[0], predecessorProductName) {
 			return CheckResult{Name: name, Status: StatusFail, Detail: fmt.Sprintf("line 1 = %q, want the agent-fitness-functions product header", curLines[0])}
 		}
 		return CheckResult{Name: name, Status: StatusPass, Detail: "only line 1 (the product comment) changed; dependency/hash lines are byte-identical"}

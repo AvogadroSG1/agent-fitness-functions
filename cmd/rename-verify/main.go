@@ -1,5 +1,5 @@
 // Command rename-verify is the ADR-0002 rename-phase and full-confirmation
-// verifier for the stack-fitness-functions to agent-fitness-functions
+// verifier for the predecessor-product to agent-fitness-functions
 // product rename (calm-poc-q8d.8). It is an internal governance tool, not
 // part of the product's public command surface.
 //

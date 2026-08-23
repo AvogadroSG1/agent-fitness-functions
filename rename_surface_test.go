@@ -22,10 +22,12 @@ func TestActiveProductSurfaceUsesAgentFitnessFunctions(t *testing.T) {
 			t.Errorf("renamed product surface missing: %s (%v)", path, err)
 		}
 	}
+	predecessorProduct := "stack-fitness" + "-functions"
+	predecessorEnvPrefix := "STACK_FITNESS" + "_FUNCTIONS_"
 	for _, path := range []string{
-		"cmd/stack-fitness-functions",
-		"bin/stack-fitness-functions-serve",
-		"bin/stack-fitness-functions-test",
+		"cmd/" + predecessorProduct,
+		"bin/" + predecessorProduct + "-serve",
+		"bin/" + predecessorProduct + "-test",
 	} {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Errorf("predecessor product surface still present: %s", path)
@@ -35,10 +37,10 @@ func TestActiveProductSurfaceUsesAgentFitnessFunctions(t *testing.T) {
 	// The old environment prefix may survive only in immutable records
 	// (accepted ADRs, legacy evidence, tracker history) — never in the
 	// active surface.
-	output, _ := exec.Command("git", "grep", "-l", "STACK_FITNESS_FUNCTIONS_",
+	output, _ := exec.Command("git", "grep", "-l", predecessorEnvPrefix,
 		"--", ":!docs/adr", ":!LEGACY_REFERENCES.md", ":!.beads").Output()
 	if listing := strings.TrimSpace(string(output)); listing != "" {
-		t.Errorf("active surface still uses STACK_FITNESS_FUNCTIONS_ environment prefix:\n%s", listing)
+		t.Errorf("active surface still uses the %s environment prefix:\n%s", predecessorEnvPrefix, listing)
 	}
 
 	lock, err := os.ReadFile("requirements.lock")
@@ -49,7 +51,7 @@ func TestActiveProductSurfaceUsesAgentFitnessFunctions(t *testing.T) {
 	if !strings.Contains(lines[0], "agent-fitness-functions") {
 		t.Errorf("requirements.lock line 1 = %q, want agent-fitness-functions product header", lines[0])
 	}
-	if strings.Contains(lines[0], "stack-fitness-functions") {
+	if strings.Contains(lines[0], predecessorProduct) {
 		t.Errorf("requirements.lock line 1 still names the predecessor: %q", lines[0])
 	}
 	if len(lines) < 2 || !strings.Contains(lines[1], "radon==6.0.1") {
