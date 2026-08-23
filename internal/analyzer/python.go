@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/installer"
 )
 
 type radonCCItem struct {
@@ -37,9 +39,13 @@ type radonErrorItem struct {
 // AnalyzePythonFile analyzes one Python source file using radon.
 func AnalyzePythonFile(ctx context.Context, file, radonPath string) (AnalysisResult, error) {
 	if radonPath == "" {
-		radonPath = "radon"
-		if result, err := analyzePythonFileWithRadonAPI(ctx, file, radonPath); err == nil {
-			return result, nil
+		if managed := managedRadonPath(os.Getenv); managed != "" {
+			radonPath = managed
+		} else {
+			radonPath = "radon"
+			if result, err := analyzePythonFileWithRadonAPI(ctx, file, radonPath); err == nil {
+				return result, nil
+			}
 		}
 	}
 	ccOutput, err := runTool(ctx, radonPath, "cc", "-j", file)
@@ -81,6 +87,24 @@ func AnalyzePythonFile(ctx context.Context, file, radonPath string) (AnalysisRes
 		FileMetric:   fileMetric,
 		Imports:      pythonImportMetric(string(source)),
 	}, nil
+}
+
+// managedRadonPath returns the shipped managed Python runtime's pinned
+// radon binary under this install's state root
+// ($XDG_STATE_HOME/agent-fitness-functions/runtimes/python/current/bin/radon),
+// per ADR-0005 slice 10 parity with managedRoslynAnalyzerPath's C# analyzer
+// resolution: an installed managed runtime's own radon takes precedence
+// over both the host-python radon API fallback and a bare PATH lookup.
+// Returns "" when running from a source checkout with no such installed
+// root (the common dev/test case), leaving the existing API fallback and
+// PATH resolution in effect.
+func managedRadonPath(getenv func(string) string) string {
+	path := filepath.Join(installer.StateRoot(getenv), "runtimes", "python", "current", "bin", "radon")
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() || info.Mode()&0o111 == 0 {
+		return ""
+	}
+	return path
 }
 
 type radonAPIOutput struct {
