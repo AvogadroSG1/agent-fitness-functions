@@ -49,13 +49,17 @@ func run(args []string, stdout, stderr *os.File) int {
 	case renamecheck.ModeFull:
 		report = renamecheck.RunFull(*repo)
 	default:
-		fmt.Fprintf(stderr, "unknown --mode %q; want rename-phase or full\n", *mode)
+		// CLI stdout/stderr write failures are non-actionable here: os.Exit follows
+		// immediately and there is no recovery path, so the error is discarded.
+		_, _ = fmt.Fprintf(stderr, "unknown --mode %q; want rename-phase or full\n", *mode)
 		return 2
 	}
 
 	allPass := true
 	for _, c := range report.Checks {
-		fmt.Fprintf(stdout, "[%s] %s: %s\n", c.Status, c.Name, c.Detail)
+		// CLI stdout write failures are non-actionable here: os.Exit follows
+		// immediately and there is no recovery path, so the error is discarded.
+		_, _ = fmt.Fprintf(stdout, "[%s] %s: %s\n", c.Status, c.Name, c.Detail)
 		if c.Status != renamecheck.StatusPass {
 			allPass = false
 		}

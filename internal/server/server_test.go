@@ -35,7 +35,7 @@ func TestHandlerHealthReturnsOK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /health failed: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("GET /health status = %d, want %d", response.StatusCode, http.StatusOK)
@@ -60,7 +60,7 @@ func TestHandlerCheckAcceptsSchemaAndReturnsPass(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check failed: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("POST /check status = %d, want %d", response.StatusCode, http.StatusOK)
@@ -87,7 +87,7 @@ func TestHandlerConfigsRejectsNonGET(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /configs failed: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("POST /configs status = %d, want %d", response.StatusCode, http.StatusMethodNotAllowed)
@@ -275,7 +275,7 @@ func TestHandlerCheckRejectsUnauthenticatedRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check failed: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("POST /check status = %d, want %d", response.StatusCode, http.StatusUnauthorized)
 	}
@@ -290,7 +290,7 @@ func TestHandlerStateRejectsUnauthenticatedRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /state failed: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("GET /state status = %d, want %d", response.StatusCode, http.StatusUnauthorized)
 	}
@@ -305,7 +305,7 @@ func TestHandlerConfigsRejectsUnauthenticatedRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /configs failed: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("GET /configs status = %d, want %d", response.StatusCode, http.StatusUnauthorized)
 	}
@@ -460,7 +460,7 @@ func TestServeWithTLSDisablesCleartextHTTP(t *testing.T) {
 	httpClient := &http.Client{Timeout: time.Second}
 	response, err := httpClient.Get("http://127.0.0.1:7894/health")
 	if err == nil {
-		defer response.Body.Close()
+		defer func() { _ = response.Body.Close() }()
 		if response.StatusCode == http.StatusOK {
 			t.Fatal("GET /health over cleartext returned 200, want cleartext disabled")
 		}
@@ -675,7 +675,7 @@ func TestHandlerShutdownInvokesCallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /shutdown failed: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("POST /shutdown status = %d, want %d", response.StatusCode, http.StatusOK)
@@ -709,7 +709,7 @@ func TestServeStartsDaemonAndRespondsToHealth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("daemon did not become healthy: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("GET /health status = %d, want %d", response.StatusCode, http.StatusOK)
 	}
@@ -760,7 +760,7 @@ func TestServeStopsAfterShutdownRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /shutdown failed: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("POST /shutdown status = %d, want %d", response.StatusCode, http.StatusOK)
 	}
@@ -892,7 +892,7 @@ func getConfigsResponse(serverURL string) ([]byte, ConfigsResponse, error) {
 	if err != nil {
 		return nil, ConfigsResponse{}, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, ConfigsResponse{}, err

@@ -58,7 +58,7 @@ func TestHandlerCheckRunsGoAnalyzerCALMAndBlocksCyclomaticComplexityViolation(t 
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.StatusCode)
 	}
@@ -126,7 +126,7 @@ func TestHandlerCheckCleansTemporaryFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.StatusCode)
 	}
@@ -161,7 +161,7 @@ func TestHandlerCheckReturnsServiceUnavailableForCALMInfrastructureFailure(t *te
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read response: %v", err)
@@ -193,7 +193,7 @@ func TestHandlerCheckReturnsBadRequestForUnsupportedLanguage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read response: %v", err)
@@ -223,7 +223,7 @@ func TestHandlerCheckReturnsBadRequestForTrailingJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", response.StatusCode)
 	}
@@ -248,7 +248,7 @@ func TestHandlerCheckReturnsBadRequestForInvalidFileExtension(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read response: %v", err)
@@ -278,7 +278,7 @@ func TestHandlerCheckRejectsNilAnalyzerWithoutPanic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400 unsupported analyzer", response.StatusCode)
 	}
@@ -305,7 +305,7 @@ func TestHandlerCheckRejectsTypedNilAnalyzerWithoutPanic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400 unsupported analyzer", response.StatusCode)
 	}
@@ -335,7 +335,7 @@ func TestHandlerCheckReturnsServiceUnavailableForAnalyzerCancellation(t *testing
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", response.StatusCode)
 	}
@@ -362,7 +362,7 @@ func TestHandlerCheckRejectsTypedNilValidatorWithoutPanic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", response.StatusCode)
 	}
@@ -391,7 +391,7 @@ func TestHandlerCheckPassesCleanGoContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	var body fitness.ValidationResult
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatalf("decode response: %v", err)
@@ -928,7 +928,7 @@ func TestHandlerCheckReturnsServiceUnavailableForMissingRadon(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read response: %v", err)
@@ -965,7 +965,7 @@ func TestHandlerCheckReturnsServiceUnavailableForCSharpAnalyzerFailure(t *testin
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read response: %v", err)
@@ -1010,7 +1010,7 @@ func TestHandlerCheckCSharpDeferredAnalyzerFailureSurfacesOnNextCall(t *testing.
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read response: %v", err)
@@ -1055,7 +1055,7 @@ func TestHandlerCheckCSharpDeferredPanicSurfacesOnNextCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read response: %v", err)
@@ -1096,7 +1096,7 @@ func TestHandlerCheckCSharpWarmupFailurePrecedesOutstandingViolation(t *testing.
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read response: %v", err)
@@ -1855,7 +1855,7 @@ func TestHandlerCheckRejectsUnknownFitnessFunctionKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", response.StatusCode)
 	}
@@ -1878,7 +1878,7 @@ func TestHandlerCheckRejectsInvalidRepositoryPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", response.StatusCode)
 	}
@@ -1892,7 +1892,7 @@ func TestHandlerStateRequiresRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /state: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", response.StatusCode)
 	}
@@ -2006,7 +2006,7 @@ func postCheckForLanguageResult(serverURL, repo, file, language, source string) 
 	if err != nil {
 		return fitness.ValidationResult{}, fmt.Errorf("POST /check: %w", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(response.Body)
 		return fitness.ValidationResult{}, fmt.Errorf("status = %d body = %q, want 200", response.StatusCode, body)
@@ -2024,7 +2024,7 @@ func getState(t *testing.T, serverURL, repo string) StateResponse {
 	if err != nil {
 		t.Fatalf("GET /state: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.StatusCode)
 	}

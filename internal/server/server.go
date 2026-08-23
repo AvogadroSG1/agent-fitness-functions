@@ -174,7 +174,7 @@ func resolveCheckCaller(r *http.Request, options HandlerOptions) string {
 // oversized body returns 413 even when the JSON is invalid from the first byte.
 func decodeValidationRequest(w http.ResponseWriter, r *http.Request) (fitness.ValidationRequest, bool) {
 	limitedBody := http.MaxBytesReader(w, r.Body, maxValidationRequestBytes)
-	defer limitedBody.Close()
+	defer func() { _ = limitedBody.Close() }()
 	raw, err := io.ReadAll(limitedBody)
 	if err != nil {
 		if isMaxBytesError(err) {

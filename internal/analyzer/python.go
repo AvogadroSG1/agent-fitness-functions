@@ -209,7 +209,7 @@ func radonPythonCommand(radonPath string) (string, []string, bool) {
 	if err != nil {
 		return "", nil, false
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	line, err := bufio.NewReader(file).ReadString('\n')
 	if err != nil && line == "" {
 		return "", nil, false

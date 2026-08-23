@@ -22,7 +22,7 @@ func TestDockerComposeFirstGenerationReachesHealthyFromIsolatedRoot(t *testing.T
 	if output, err := exec.Command("docker", "info").CombinedOutput(); err != nil {
 		t.Skipf("Docker unavailable: %v\n%s", err, output)
 	}
-	trackedBefore := trackedCertDigests(t)
+	witnessRoot, witnessBefore := isolationWitness(t)
 	certRoot := filepath.Join(t.TempDir(), "certs")
 	if err := devcerts.Publish(certRoot, false); err != nil {
 		t.Fatalf("Publish(isolated Compose root): %v", err)
@@ -88,8 +88,8 @@ func TestDockerComposeFirstGenerationReachesHealthyFromIsolatedRoot(t *testing.T
 		t.Fatalf("remove generation B source: %v", err)
 	}
 	assertRuntimeHealthAndPublicFiles(t, composeArgs)
-	if after := trackedCertDigests(t); after != trackedBefore {
-		t.Fatalf("Compose smoke modified tracked certificate fixtures\nbefore=%v\nafter=%v", trackedBefore, after)
+	if after := managedVersionDigests(t, witnessRoot); after != witnessBefore {
+		t.Fatalf("Compose smoke modified unrelated managed certificate material\nbefore=%v\nafter=%v", witnessBefore, after)
 	}
 }
 
@@ -256,13 +256,32 @@ func composeExec(t *testing.T, composeArgs []string, script string) string {
 	return string(output)
 }
 
-func trackedCertDigests(t *testing.T) [5][32]byte {
+// isolationWitness publishes a managed certificate generation in a root that
+// the Compose smoke test never mounts or otherwise touches. Hashing its files
+// before and after the smoke run proves the test's filesystem operations stay
+// confined to the isolated roots it explicitly manages (certRoot, secondRoot)
+// instead of leaking into unrelated certificate material.
+func isolationWitness(t *testing.T) (root string, digests [5][32]byte) {
 	t.Helper()
+	root = filepath.Join(t.TempDir(), "certs")
+	if err := devcerts.Publish(root, false); err != nil {
+		t.Fatalf("Publish(isolation witness root): %v", err)
+	}
+	return root, managedVersionDigests(t, root)
+}
+
+func managedVersionDigests(t *testing.T, root string) [5][32]byte {
+	t.Helper()
+	version, err := devcerts.ResolveManagedVersion(root)
+	if err != nil {
+		t.Fatalf("ResolveManagedVersion(%s): %v", root, err)
+	}
+	paths := version.Paths()
 	var result [5][32]byte
-	for i, name := range []string{"ca.crt", "server.crt", "server.key", "client.crt", "client.key"} {
-		content, err := os.ReadFile(filepath.Join("certs", name))
+	for i, path := range []string{paths.CA, paths.ServerCertificate, paths.ServerKey, paths.ClientCertificate, paths.ClientKey} {
+		content, err := os.ReadFile(path)
 		if err != nil {
-			t.Fatalf("read tracked cert fixture %s: %v", name, err)
+			t.Fatalf("ReadFile(%s): %v", path, err)
 		}
 		result[i] = sha256.Sum256(content)
 	}

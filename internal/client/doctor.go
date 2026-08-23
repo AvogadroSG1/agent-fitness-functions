@@ -446,7 +446,7 @@ func fetchPreflight(cfg doctorConfig) (preflightReport, int, error) {
 	if err != nil {
 		return preflightReport{}, 0, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		return preflightReport{}, response.StatusCode, nil
 	}

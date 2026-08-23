@@ -29,7 +29,7 @@ func TestHandlerCheckRejectsOversizedRequestBodyWith413(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want 413 for body exceeding 5 MB", response.StatusCode)
 	}
@@ -55,7 +55,7 @@ func TestHandlerCheckAcceptsBodyBelowSizeCap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(response.Body)
 		t.Fatalf("status = %d body = %q, want 200", response.StatusCode, b)
@@ -171,7 +171,7 @@ func TestHandlerCheckRejects11thConcurrentAnalysisAsBusy(t *testing.T) {
 			resp, err := http.Post(server.URL+"/check", "application/json",
 				strings.NewReader(checkBodyForFile(repo, fileN(n))))
 			if err == nil {
-				resp.Body.Close()
+				_ = resp.Body.Close()
 			}
 		}(i)
 	}
@@ -182,7 +182,7 @@ func TestHandlerCheckRejects11thConcurrentAnalysisAsBusy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("11th POST: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("11th request: status = %d, want 503", resp.StatusCode)
 	}
@@ -211,7 +211,7 @@ func TestHandlerCheckAnalyzerTimeoutReturns504(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusGatewayTimeout {
 		b, _ := io.ReadAll(response.Body)
 		t.Fatalf("status = %d body = %q, want 504 on analyzer timeout", response.StatusCode, b)
@@ -258,7 +258,7 @@ func assertEnforcementOnError(t *testing.T, errMode ErrorEnforcementMode, a Sour
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != wantStatus {
 		b, _ := io.ReadAll(response.Body)
 		t.Fatalf("status = %d body = %q, want %d", response.StatusCode, b, wantStatus)
@@ -284,7 +284,7 @@ func postMinimalCheck(t *testing.T, serverURL string) int {
 	if err != nil {
 		t.Fatalf("POST /check: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return resp.StatusCode
 }
 
@@ -360,7 +360,7 @@ func launchConcurrentChecks(t *testing.T, serverURL, repo string, n int) chan in
 				codes <- 0
 				return
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			codes <- resp.StatusCode
 		}(i)
 	}

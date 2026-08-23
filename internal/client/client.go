@@ -86,8 +86,6 @@ func managedHookMarkers(hook string) []string {
 	return markers
 }
 
-func managedHookMarker(hook string) string { return hookProductPrefix + " " + hook + " hook" }
-
 func sidecarHookMarkers(hook string) []string {
 	markers := make([]string, len(sidecarMarkerPrefixes))
 	for i, prefix := range sidecarMarkerPrefixes {
@@ -710,13 +708,17 @@ func gitOutput(repo string, args ...string) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-func appendFile(path string, content []byte) error {
+func appendFile(path string, content []byte) (err error) {
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
 		return fmt.Errorf("opening %s for append: %w", path, err)
 	}
-	defer file.Close()
-	if _, err := file.Write(content); err != nil {
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("closing %s: %w", path, closeErr))
+		}
+	}()
+	if _, err = file.Write(content); err != nil {
 		return fmt.Errorf("appending %s: %w", path, err)
 	}
 	return nil
@@ -817,7 +819,7 @@ func postCheck(ctx context.Context, httpClient *http.Client, addr string, reques
 	if err != nil {
 		return nil, transportError{err: err}
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
 		return nil, httpStatusError{status: response.StatusCode, body: strings.TrimSpace(string(errBody))}
@@ -965,7 +967,7 @@ func probeDaemon(httpClient *http.Client, addr string) error {
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check returned HTTP %d", response.StatusCode)
 	}
