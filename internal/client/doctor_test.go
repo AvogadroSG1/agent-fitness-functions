@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,7 +12,48 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 )
+
+type clientRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f clientRoundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
+func TestResolveDoctorConfigLoadsManagedGenerationOnceForAllChecks(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "certs")
+	if err := EnsureDevCerts(root); err != nil {
+		t.Fatalf("EnsureDevCerts(%q): %v", root, err)
+	}
+	t.Setenv(envDevCertDir, root)
+	t.Setenv(envClientCert, "")
+	t.Setenv(envClientKey, "")
+	t.Setenv(envClientCA, "")
+
+	resolves := 0
+	originalResolve := resolveManagedVersion
+	resolveManagedVersion = func(root string) (devcerts.ManagedVersion, error) {
+		resolves++
+		return devcerts.ResolveManagedVersion(root)
+	}
+	t.Cleanup(func() { resolveManagedVersion = originalResolve })
+
+	cfg, err := resolveDoctorConfig(nil, &http.Client{Transport: clientRoundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"authenticated_cn":"dev-hook-pool"}`)), Header: make(http.Header)}, nil
+	})})
+	if err != nil {
+		t.Fatalf("resolveDoctorConfig: %v", err)
+	}
+	_ = checkClientCertificate(cfg)
+	_ = checkServerCABundle(cfg)
+	_ = checkServerReachable(cfg)
+	_, _, _ = fetchPreflight(cfg)
+	if resolves != 1 {
+		t.Fatalf("managed resolver calls = %d, want 1 across doctor checks", resolves)
+	}
+}
 
 func TestResolveDoctorRepo(t *testing.T) {
 	tests := []struct {

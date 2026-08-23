@@ -16,6 +16,10 @@ import (
 func TestInstalledEmbeddedHooksConsumeGeneratedFirstPublication(t *testing.T) {
 	repo := t.TempDir()
 	runGitCommand(t, repo, "init")
+	runGitCommand(t, repo, "config", "maintenance.auto", "false")
+	runGitCommand(t, repo, "config", "maintenance.autoDetach", "false")
+	runGitCommand(t, repo, "config", "gc.auto", "0")
+	runGitCommand(t, repo, "config", "gc.autoDetach", "false")
 	runGitCommand(t, repo, "config", "user.email", "test@example.com")
 	runGitCommand(t, repo, "config", "user.name", "test")
 	if err := client.RunInstallHooks([]string{repo}, io.Discard, io.Discard); err != nil {
@@ -25,14 +29,15 @@ func TestInstalledEmbeddedHooksConsumeGeneratedFirstPublication(t *testing.T) {
 	if err := devcerts.Publish(certRoot, false); err != nil {
 		t.Fatalf("Publish(first generation): %v", err)
 	}
-	if _, err := os.Readlink(filepath.Join(certRoot, "current")); err != nil {
+	version, err := os.Readlink(filepath.Join(certRoot, "current"))
+	if err != nil {
 		t.Fatalf("generated current is not a symlink: %v", err)
 	}
 
 	record := filepath.Join(t.TempDir(), "calls")
 	binDir := t.TempDir()
 	stub := filepath.Join(binDir, "stack-fitness-functions")
-	stubContent := "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >>\"$STACK_FITNESS_FUNCTIONS_LOG\"\nprintf '{\"status\":\"pass\"}\\n'\n"
+	stubContent := "#!/usr/bin/env bash\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then printf '%s\\n' \"$*\" >>\"$STACK_FITNESS_FUNCTIONS_LOG\"; readlink \"$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; exit 0; fi\nprintf 'selector=%s|%s\\n' \"${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}\" \"$*\" >>\"$STACK_FITNESS_FUNCTIONS_LOG\"\nprintf '{\"status\":\"pass\"}\\n'\n"
 	if err := os.WriteFile(stub, []byte(stubContent), 0o755); err != nil {
 		t.Fatalf("write stub binary: %v", err)
 	}
@@ -68,13 +73,96 @@ func TestInstalledEmbeddedHooksConsumeGeneratedFirstPublication(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read hook calls: %v", err)
 	}
+	if count := bytes.Count(calls, []byte("client resolve-dev-cert-version")); count != 3 {
+		t.Fatalf("resolver appeared %d times, want once for each installed hook kind; calls:\n%s", count, calls)
+	}
+	if count := bytes.Count(calls, []byte("selector=unset|")); count < 3 {
+		t.Fatalf("selector was not unset for all installed hook child calls; count=%d calls:\n%s", count, calls)
+	}
 	for _, path := range []string{
-		filepath.Join(certRoot, "current", "client.crt"),
-		filepath.Join(certRoot, "current", "client.key"),
-		filepath.Join(certRoot, "current", "ca.crt"),
+		filepath.Join(certRoot, filepath.FromSlash(version), "client.crt"),
+		filepath.Join(certRoot, filepath.FromSlash(version), "client.key"),
+		filepath.Join(certRoot, filepath.FromSlash(version), "ca.crt"),
 	} {
 		if count := bytes.Count(calls, []byte(path)); count < 3 {
 			t.Fatalf("generated path %q appeared %d times, want all three installed hook kinds; calls:\n%s", path, count, calls)
+		}
+	}
+}
+
+func TestInstalledSidecarAndAgentHooksConsumeManagedVersion(t *testing.T) {
+	t.Setenv("STACK_FITNESS_FUNCTIONS_HOOK_APPEND", "1")
+	repo := t.TempDir()
+	runGitCommand(t, repo, "init")
+	runGitCommand(t, repo, "config", "maintenance.auto", "false")
+	runGitCommand(t, repo, "config", "maintenance.autoDetach", "false")
+	runGitCommand(t, repo, "config", "gc.auto", "0")
+	runGitCommand(t, repo, "config", "gc.autoDetach", "false")
+	runGitCommand(t, repo, "config", "user.email", "test@example.com")
+	runGitCommand(t, repo, "config", "user.name", "test")
+	for _, name := range []string{"pre-commit", "pre-push"} {
+		path := filepath.Join(repo, ".git", "hooks", name)
+		if err := os.WriteFile(path, []byte("#!/usr/bin/env bash\nexit 0\n"), 0o755); err != nil {
+			t.Fatalf("write existing %s: %v", name, err)
+		}
+	}
+	if err := client.RunInstallHooks([]string{repo}, io.Discard, io.Discard); err != nil {
+		t.Fatalf("RunInstallHooks append mode: %v", err)
+	}
+	certRoot := filepath.Join(t.TempDir(), "managed-certs")
+	if err := devcerts.Publish(certRoot, false); err != nil {
+		t.Fatalf("Publish(first generation): %v", err)
+	}
+	version, err := os.Readlink(filepath.Join(certRoot, "current"))
+	if err != nil {
+		t.Fatalf("Readlink(current): %v", err)
+	}
+
+	record := filepath.Join(t.TempDir(), "calls")
+	stub := filepath.Join(t.TempDir(), "stack-fitness-functions")
+	stubContent := "#!/usr/bin/env bash\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then printf '%s\\n' \"$*\" >>\"$STACK_FITNESS_FUNCTIONS_LOG\"; readlink \"$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; exit 0; fi\nprintf 'selector=%s|%s\\n' \"${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}\" \"$*\" >>\"$STACK_FITNESS_FUNCTIONS_LOG\"\nprintf '{\"status\":\"pass\"}\\n'\n"
+	if err := os.WriteFile(stub, []byte(stubContent), 0o755); err != nil {
+		t.Fatalf("write stub: %v", err)
+	}
+	env := append(os.Environ(),
+		"STACK_FITNESS_FUNCTIONS_BIN="+stub,
+		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certRoot,
+		"STACK_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
+		"STACK_FITNESS_FUNCTIONS_LOG="+record,
+	)
+	source := filepath.Join(repo, "sample.go")
+	if err := os.WriteFile(source, []byte("package sample\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	runGitCommand(t, repo, "add", "sample.go")
+	runInstalledHook(t, repo, filepath.Join(repo, ".git", "hooks", "stack-fitness-functions-pre-commit"), env, nil)
+	payload := []byte(`{"tool_input":{"file_path":"sample.go","content":"package sample\n"}}`)
+	runInstalledHook(t, repo, filepath.Join(repo, ".git", "hooks", "stack-fitness-functions-pre-tool-use"), env, payload)
+	runGitCommand(t, repo, "commit", "--no-verify", "-m", "base")
+	base := gitRevision(t, repo, "HEAD")
+	if err := os.WriteFile(source, []byte("package sample\n\nfunc Run() {}\n"), 0o644); err != nil {
+		t.Fatalf("update source: %v", err)
+	}
+	runGitCommand(t, repo, "add", "sample.go")
+	runGitCommand(t, repo, "commit", "--no-verify", "-m", "head")
+	head := gitRevision(t, repo, "HEAD")
+	pushInput := []byte("refs/heads/main " + head + " refs/heads/main " + base + "\n")
+	runInstalledHook(t, repo, filepath.Join(repo, ".git", "hooks", "stack-fitness-functions-pre-push"), env, pushInput)
+
+	calls, err := os.ReadFile(record)
+	if err != nil {
+		t.Fatalf("read calls: %v", err)
+	}
+	if count := bytes.Count(calls, []byte("client resolve-dev-cert-version")); count != 3 {
+		t.Fatalf("resolver calls = %d, want 3 for sidecar pre-commit/pre-push and agent; calls:\n%s", count, calls)
+	}
+	if count := bytes.Count(calls, []byte("selector=unset|")); count < 3 {
+		t.Fatalf("selector unset calls = %d, want at least 3; calls:\n%s", count, calls)
+	}
+	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
+		path := filepath.Join(certRoot, filepath.FromSlash(version), name)
+		if count := bytes.Count(calls, []byte(path)); count < 3 {
+			t.Fatalf("pinned path %q count = %d, want all three installed copy kinds; calls:\n%s", path, count, calls)
 		}
 	}
 }

@@ -8,10 +8,41 @@ stack_fitness_functions_bin=${STACK_FITNESS_FUNCTIONS_BIN:-stack-fitness-functio
 # an https loopback addr and auto-discover dev client credentials in <repo>/certs.
 # Explicit STACK_FITNESS_FUNCTIONS_CLIENT_* env vars win (12-factor precedence).
 addr=${STACK_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}
-cert_dir=${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-$repo/certs}
-client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/current/client.crt}
-client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/current/client.key}
-client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/current/ca.crt}
+managed_selector=${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-}
+explicit_client_tls=0
+[[ -n "${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-}${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-}${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-}" ]] && explicit_client_tls=1
+if [[ -n "$managed_selector" && "$explicit_client_tls" -eq 1 ]]; then
+  echo "STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs" >&2
+  exit 1
+fi
+if [[ "$explicit_client_tls" -eq 1 ]]; then
+  client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-}
+  client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-}
+  client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-}
+  unset STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR
+else
+  cert_dir=${managed_selector:-$repo/certs}
+  client_cert=""
+  client_key=""
+  client_ca=""
+fi
+resolve_managed_client_tls() {
+  [[ "$addr" == https://* ]] || return 0
+  [[ "$explicit_client_tls" -eq 0 && -z "$client_cert" ]] || return 0
+  set +e
+  managed_version=$(STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="$cert_dir" "$stack_fitness_functions_bin" client resolve-dev-cert-version)
+  resolver_rc=$?
+  set -e
+  [[ "$resolver_rc" -eq 0 ]] || exit 1
+  if [[ ! "$managed_version" =~ ^versions/v-[0-9a-f]{32}$ ]]; then
+    echo "stack-fitness-functions returned an invalid managed certificate version" >&2
+    exit 1
+  fi
+  client_cert=$cert_dir/$managed_version/client.crt
+  client_key=$cert_dir/$managed_version/client.key
+  client_ca=$cert_dir/$managed_version/ca.crt
+  unset STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR
+}
 repo_name=${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}
 remote_mode=0
 repo_arg=$repo
@@ -61,6 +92,7 @@ if [[ -n "$repo_name" ]]; then
 elif [[ "$remote_mode" -eq 1 ]]; then
   repo_arg=$(basename "$repo")
 fi
+resolve_managed_client_tls
 
 language_for_file() {
   case "$1" in

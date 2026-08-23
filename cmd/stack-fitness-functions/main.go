@@ -33,7 +33,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions <client validate|client install-hooks|client onboard|server start|baseline|doctor>")
+		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions <client validate|client install-hooks|client onboard|client resolve-dev-cert-version|server start|baseline|doctor>")
 		return 2
 	}
 
@@ -76,7 +76,7 @@ func runBaselineCommand(args []string, stdout, stderr io.Writer) int {
 
 func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions client <validate|install-hooks|onboard>")
+		_, _ = fmt.Fprintln(stderr, "usage: stack-fitness-functions client <validate|install-hooks|onboard|resolve-dev-cert-version>")
 		return 2
 	}
 	switch args[0] {
@@ -86,6 +86,8 @@ func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client,
 		return clientExitCode(client.RunInstallHooks(args[1:], stdout, stderr), stderr)
 	case "onboard":
 		return clientExitCode(client.RunOnboard(args[1:], stdout, stderr, httpClient, starter), stderr)
+	case "resolve-dev-cert-version":
+		return clientExitCode(client.RunResolveDevCertVersion(args[1:], stdout), stderr)
 	default:
 		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", "client "+args[0])
 		return 2

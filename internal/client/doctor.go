@@ -27,6 +27,11 @@ type doctorConfig struct {
 	clientCert string
 	clientKey  string
 	clientCA   string
+	managed    bool
+	clientLeaf *x509.Certificate
+	rootCAs    *x509.CertPool
+	tlsLoaded  bool
+	tlsError   error
 	httpClient *http.Client
 }
 
@@ -59,6 +64,10 @@ func RunDoctor(args []string, stdout, stderr io.Writer, httpClient *http.Client)
 	if err != nil {
 		return err
 	}
+	return runDoctorWithConfig(cfg, stdout)
+}
+
+func runDoctorWithConfig(cfg doctorConfig, stdout io.Writer) error {
 	results := runDoctorChecks(cfg)
 	failures := 0
 	for _, result := range results {
@@ -85,11 +94,29 @@ func resolveDoctorConfig(args []string, httpClient *http.Client) (doctorConfig, 
 	if err := flags.Parse(args); err != nil {
 		return doctorConfig{}, usageError{err: err}
 	}
+	if _, err := resolveClientTLSMode(*clientCert, *clientKey, *clientCA, ""); err != nil {
+		return doctorConfig{}, err
+	}
 	repoRoot := resolveRepoRoot("", "")
 	certDir := resolveDevCertDir(repoRoot)
-	cert, key, ca := resolveClientTLSPaths(*clientCert, *clientKey, *clientCA, certDir)
+	mode, err := resolveClientTLSMode(*clientCert, *clientKey, *clientCA, certDir)
+	if err != nil {
+		return doctorConfig{}, err
+	}
+	material, err := loadClientTLSMode(mode, false)
+	tlsErr := err
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 3 * time.Second}
+	}
+	if tlsErr == nil {
+		httpClient, tlsErr = configureClientTLSMaterial(httpClient, material)
+	}
+	cert, key, ca := mode.cert, mode.key, mode.ca
+	var leaf *x509.Certificate
+	if mode.managed && tlsErr == nil {
+		paths := material.version.Paths()
+		cert, key, ca = paths.ClientCertificate, paths.ClientKey, paths.CA
+		leaf = material.certificate.Leaf
 	}
 	return doctorConfig{
 		addr:       *addr,
@@ -98,6 +125,11 @@ func resolveDoctorConfig(args []string, httpClient *http.Client) (doctorConfig, 
 		clientCert: cert,
 		clientKey:  key,
 		clientCA:   ca,
+		managed:    mode.managed,
+		clientLeaf: leaf,
+		rootCAs:    material.roots,
+		tlsLoaded:  tlsErr == nil,
+		tlsError:   tlsErr,
 		httpClient: httpClient,
 	}, nil
 }
@@ -206,6 +238,9 @@ func checkPyYAML() checkResult {
 }
 
 func checkClientCertificate(cfg doctorConfig) checkResult {
+	if cfg.tlsError != nil {
+		return checkResult{name: "client certificate", detail: cfg.tlsError.Error(), remediation: "regenerate certs with scripts/generate-dev-certs.sh --force"}
+	}
 	if cfg.clientCert == "" || cfg.clientKey == "" {
 		return checkResult{
 			name:        "client certificate",
@@ -213,7 +248,11 @@ func checkClientCertificate(cfg doctorConfig) checkResult {
 			remediation: "run scripts/generate-dev-certs.sh, or set STACK_FITNESS_FUNCTIONS_CLIENT_CERT and STACK_FITNESS_FUNCTIONS_CLIENT_KEY",
 		}
 	}
-	leaf, err := loadClientLeaf(cfg.clientCert, cfg.clientKey)
+	leaf := cfg.clientLeaf
+	var err error
+	if leaf == nil {
+		leaf, err = loadClientLeaf(cfg.clientCert, cfg.clientKey)
+	}
 	if err != nil {
 		return checkResult{
 			name:        "client certificate",
@@ -255,12 +294,18 @@ func loadClientLeaf(certPath, keyPath string) (*x509.Certificate, error) {
 }
 
 func checkServerCABundle(cfg doctorConfig) checkResult {
+	if cfg.tlsError != nil {
+		return checkResult{name: "server CA bundle", detail: cfg.tlsError.Error(), remediation: "regenerate certs with scripts/generate-dev-certs.sh --force"}
+	}
 	if cfg.clientCA == "" {
 		return checkResult{
 			name:        "server CA bundle",
 			detail:      "no CA bundle resolved",
 			remediation: "run scripts/generate-dev-certs.sh, or set STACK_FITNESS_FUNCTIONS_CLIENT_CA",
 		}
+	}
+	if cfg.managed && cfg.rootCAs != nil {
+		return checkResult{name: "server CA bundle", detail: cfg.clientCA, passed: true}
 	}
 	content, err := os.ReadFile(cfg.clientCA)
 	if err != nil {
@@ -281,13 +326,9 @@ func checkServerCABundle(cfg doctorConfig) checkResult {
 }
 
 func checkServerReachable(cfg doctorConfig) checkResult {
-	configured, err := configureTLS(cfg.httpClient, cfg.clientCert, cfg.clientKey, cfg.clientCA)
+	configured, err := doctorHTTPClient(cfg)
 	if err != nil {
-		return checkResult{
-			name:        "server reachable",
-			detail:      err.Error(),
-			remediation: "fix the client TLS material, then re-run doctor",
-		}
+		return checkResult{name: "server reachable", detail: err.Error(), remediation: "fix the client TLS material, then re-run doctor"}
 	}
 	if !isHealthy(configured, cfg.addr) {
 		return checkResult{
@@ -390,7 +431,7 @@ func fetchPreflight(cfg doctorConfig) (preflightReport, int, error) {
 	if cfg.repo == "" {
 		return preflightReport{}, 0, errors.New("could not determine repository name (run inside a git working tree or pass --repo)")
 	}
-	configured, err := configureTLS(cfg.httpClient, cfg.clientCert, cfg.clientKey, cfg.clientCA)
+	configured, err := doctorHTTPClient(cfg)
 	if err != nil {
 		return preflightReport{}, 0, err
 	}
@@ -414,6 +455,16 @@ func fetchPreflight(cfg doctorConfig) (preflightReport, int, error) {
 		return preflightReport{}, response.StatusCode, fmt.Errorf("decoding preflight response: %w", err)
 	}
 	return report, response.StatusCode, nil
+}
+
+func doctorHTTPClient(cfg doctorConfig) (*http.Client, error) {
+	if cfg.tlsError != nil {
+		return nil, cfg.tlsError
+	}
+	if cfg.tlsLoaded {
+		return cfg.httpClient, nil
+	}
+	return configureTLS(cfg.httpClient, cfg.clientCert, cfg.clientKey, cfg.clientCA)
 }
 
 // checkHooksInstalled reports the managed git hooks and the .claude/settings.json

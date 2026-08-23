@@ -27,6 +27,12 @@ type ManagedPaths struct {
 	ServerKey         string
 }
 
+// ClientMaterial is command-owned parsed managed client TLS material.
+type ClientMaterial struct {
+	Certificate tls.Certificate
+	RootCAs     *x509.CertPool
+}
+
 // ServerMaterial is process-owned parsed managed server TLS material.
 type ServerMaterial struct {
 	Certificate tls.Certificate
@@ -55,6 +61,7 @@ type managedVersionState struct {
 }
 
 // ManagedVersion identifies one immutable managed certificate generation.
+// Its state cannot be constructed or changed outside this package.
 type ManagedVersion struct {
 	state *managedVersionState
 }
@@ -81,8 +88,8 @@ func ResolveManagedVersion(root string) (ManagedVersion, error) {
 }
 
 func resolveManagedVersionWithOperations(root string, operations managedOperations) (ManagedVersion, error) {
-	if operations.lstat == nil || operations.readlink == nil || operations.open == nil {
-		return ManagedVersion{}, errors.New("invalid managed certificate filesystem operations")
+	if err := validateManagedOperations(operations); err != nil {
+		return ManagedVersion{}, err
 	}
 	if _, err := pinManagedDirectory(root, 0o755, operations); err != nil {
 		return ManagedVersion{}, errors.New("invalid managed certificate root")
@@ -98,7 +105,7 @@ func resolveManagedVersionWithOperations(root string, operations managedOperatio
 		return ManagedVersion{}, errors.New("invalid managed certificate current link")
 	}
 	target, err := operations.readlink(current)
-	if err != nil || !managedTargetPattern.MatchString(target) {
+	if err != nil || !validManagedTarget(target) {
 		return ManagedVersion{}, errors.New("invalid managed certificate current target")
 	}
 
@@ -139,6 +146,17 @@ func resolveManagedVersionWithOperations(root string, operations managedOperatio
 	}}, nil
 }
 
+func validateManagedOperations(operations managedOperations) error {
+	if operations.lstat == nil || operations.readlink == nil || operations.open == nil {
+		return errors.New("invalid managed certificate filesystem operations")
+	}
+	return nil
+}
+
+func validManagedTarget(target string) bool {
+	return managedTargetPattern.MatchString(target)
+}
+
 func pinManagedDirectory(path string, mode os.FileMode, operations managedOperations) (os.FileInfo, error) {
 	observed, err := operations.lstat(path)
 	if err != nil || !observed.IsDir() || observed.Mode().Perm() != mode || observed.Mode()&os.ModeSymlink != 0 {
@@ -146,7 +164,7 @@ func pinManagedDirectory(path string, mode os.FileMode, operations managedOperat
 	}
 	file, err := operations.open(path)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnsupportedForBootstrap
 	}
 	pinned, statErr := file.Stat()
 	closeErr := file.Close()
@@ -171,7 +189,8 @@ func validateManagedEntries(versionRoot string, operations managedOperations) er
 		names[i] = entry.Name()
 	}
 	slices.Sort(names)
-	if !slices.Equal(names, []string{"ca.crt", "client.crt", "client.key", "server.crt", "server.key"}) {
+	want := []string{"ca.crt", "client.crt", "client.key", "server.crt", "server.key"}
+	if !slices.Equal(names, want) {
 		return errors.New("managed certificate version must contain exactly five material files")
 	}
 	return nil
@@ -184,7 +203,7 @@ func fingerprintManagedFile(path string, mode os.FileMode, operations managedOpe
 	}
 	file, err := operations.open(path)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnsupportedForBootstrap
 	}
 	pinned, statErr := file.Stat()
 	closeErr := file.Close()
@@ -192,6 +211,60 @@ func fingerprintManagedFile(path string, mode os.FileMode, operations managedOpe
 		return nil, ErrUnsupportedForBootstrap
 	}
 	return observed, nil
+}
+
+// LoadManagedClient loads command-owned client material from a resolved version.
+// Each source file is opened exactly once during this load.
+func LoadManagedClient(version ManagedVersion) (ClientMaterial, error) {
+	if version.state == nil {
+		return ClientMaterial{}, errors.New("invalid managed certificate version")
+	}
+	state := version.state
+	versionRoot := filepath.Dir(state.paths.CA)
+	if err := revalidateManagedDirectory(versionRoot, state); err != nil {
+		return ClientMaterial{}, err
+	}
+	caPEM, err := readFingerprintedManagedFile(state.paths.CA, 0o644, state)
+	if err != nil {
+		return ClientMaterial{}, fmt.Errorf("load managed CA certificate: %w", err)
+	}
+	certPEM, err := readFingerprintedManagedFile(state.paths.ClientCertificate, 0o644, state)
+	if err != nil {
+		return ClientMaterial{}, fmt.Errorf("load managed client certificate: %w", err)
+	}
+	keyPEM, err := readFingerprintedManagedFile(state.paths.ClientKey, 0o600, state)
+	if err != nil {
+		return ClientMaterial{}, fmt.Errorf("load managed client key: %w", err)
+	}
+	if err := revalidateManagedDirectory(versionRoot, state); err != nil {
+		return ClientMaterial{}, err
+	}
+
+	ca, err := parseOneCertificate(caPEM)
+	if err != nil {
+		return ClientMaterial{}, errors.New("parse managed CA certificate")
+	}
+	pair, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return ClientMaterial{}, errors.New("parse managed client certificate and key")
+	}
+	if len(pair.Certificate) != 1 {
+		return ClientMaterial{}, errors.New("managed client certificate must contain exactly one certificate")
+	}
+	leaf, err := x509.ParseCertificate(pair.Certificate[0])
+	if err != nil {
+		return ClientMaterial{}, errors.New("parse managed client leaf certificate")
+	}
+	if !validManagedClientIdentity(ca, leaf, time.Now()) {
+		return ClientMaterial{}, errors.New("managed client certificate identity mismatch")
+	}
+	pool := x509.NewCertPool()
+	pool.AddCert(ca)
+	if _, err := leaf.Verify(x509.VerifyOptions{Roots: pool, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}}); err != nil {
+		return ClientMaterial{}, errors.New("verify managed client certificate")
+	}
+	pair.Leaf = leaf
+	return ClientMaterial{Certificate: pair, RootCAs: pool}, nil
 }
 
 // LoadManagedServer loads server certificate, private key, and client CA from one resolved generation.
@@ -220,7 +293,7 @@ func LoadManagedServer(version ManagedVersion) (ServerMaterial, error) {
 		return ServerMaterial{}, err
 	}
 
-	ca, err := parseOneManagedCertificate(caPEM)
+	ca, err := parseOneCertificate(caPEM)
 	if err != nil {
 		return ServerMaterial{}, errors.New("parse managed CA certificate")
 	}
@@ -257,23 +330,23 @@ func readFingerprintedManagedFile(path string, mode os.FileMode, state *managedV
 	}
 	file, err := state.operations.open(path)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnsupportedForBootstrap
 	}
 	pinned, err := file.Stat()
 	if err != nil || !pinned.Mode().IsRegular() || pinned.Mode().Perm() != mode || !os.SameFile(want, pinned) {
-		return nil, errors.Join(ErrUnsupportedForBootstrap, file.Close())
+		return nil, closeManagedFile(file, ErrUnsupportedForBootstrap)
 	}
 	content, err := io.ReadAll(file)
 	if err != nil {
-		return nil, errors.Join(err, file.Close())
+		return nil, closeManagedFile(file, err)
 	}
 	reobserved, err := state.operations.lstat(path)
 	if err != nil || !os.SameFile(want, reobserved) {
-		return nil, errors.Join(ErrUnsupportedForBootstrap, file.Close())
+		return nil, closeManagedFile(file, ErrUnsupportedForBootstrap)
 	}
 	repinned, err := file.Stat()
 	if err != nil || !os.SameFile(want, repinned) {
-		return nil, errors.Join(ErrUnsupportedForBootstrap, file.Close())
+		return nil, closeManagedFile(file, ErrUnsupportedForBootstrap)
 	}
 	if err := file.Close(); err != nil {
 		return nil, err
@@ -281,12 +354,30 @@ func readFingerprintedManagedFile(path string, mode os.FileMode, state *managedV
 	return content, nil
 }
 
-func parseOneManagedCertificate(content []byte) (*x509.Certificate, error) {
+func closeManagedFile(file *os.File, cause error) error {
+	return errors.Join(cause, file.Close())
+}
+
+func parseOneCertificate(content []byte) (*x509.Certificate, error) {
 	block, rest := pem.Decode(content)
 	if block == nil || block.Type != "CERTIFICATE" || len(rest) != 0 {
 		return nil, errors.New("invalid certificate PEM")
 	}
 	return x509.ParseCertificate(block.Bytes)
+}
+
+func validManagedClientIdentity(ca, client *x509.Certificate, now time.Time) bool {
+	if !exactCertificateLifetime(ca, now) || !exactCommonName(ca.Subject, "agent-fitness-functions-dev-ca") || !ca.IsCA || !ca.BasicConstraintsValid || ca.KeyUsage != x509.KeyUsageCertSign|x509.KeyUsageDigitalSignature || len(ca.ExtKeyUsage) != 0 || len(ca.UnknownExtKeyUsage) != 0 || hasNames(ca) {
+		return false
+	}
+	if err := ca.CheckSignatureFrom(ca); err != nil {
+		return false
+	}
+	if !exactCertificateLifetime(client, now) || !exactCommonName(client.Subject, "dev-hook-pool") || client.IsCA || client.KeyUsage != x509.KeyUsageDigitalSignature|x509.KeyUsageKeyEncipherment || !equalExtUsage(client.ExtKeyUsage, []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}) || len(client.UnknownExtKeyUsage) != 0 || hasNames(client) {
+		return false
+	}
+	public, ok := client.PublicKey.(*rsa.PublicKey)
+	return ok && public.N.Sign() > 0
 }
 
 func validManagedServerIdentity(ca, server *x509.Certificate, now time.Time) bool {
