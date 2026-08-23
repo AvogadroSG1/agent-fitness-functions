@@ -1,0 +1,27 @@
+scripts/certification/run-matrix-row.sh
+  s_35b3127e21180f::t_310d46bd1ad829 101-103
+  s_35b3127e21180f::t_5377fee316578f 1-100,104-143
+internal/client/daemon_test.go
+  s_35b3127e21180f::t_055d1de9c69e29 212
+  s_35b3127e21180f::t_45ad3faac8d65b 193
+internal/client/daemon.go
+  s_35b3127e21180f::t_ddc563fb747129 222
+internal/client/daemon_warmup_test.go
+  s_35b3127e21180f::t_d09228fc1c3367 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "11a7c718e9efbf0c083f68b0a5daec35832d8573",
+  "prompts": {},
+  "sessions": {
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
