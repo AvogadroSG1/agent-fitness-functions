@@ -1,0 +1,9 @@
+{
+  "name": "calm-runtime",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Committed npm lockfile for the FINOS CALM CLI dependency tree (ADR-0005 integrity source).",
+  "dependencies": {
+    "@finos/calm-cli": "1.40.0"
+  }
+}
