@@ -11,85 +11,95 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 )
 
-func TestResolveClientTLSPathsPrecedence(t *testing.T) {
-	certDir := t.TempDir()
-	if err := os.Mkdir(filepath.Join(certDir, "current"), 0o755); err != nil {
-		t.Fatalf("mkdir current: %v", err)
-	}
-	writeFileTest(t, filepath.Join(certDir, "current", devClientCertName), "cert")
-	writeFileTest(t, filepath.Join(certDir, "current", devClientKeyName), "key")
-	writeFileTest(t, filepath.Join(certDir, "current", devCACertName), "ca")
-
-	cases := []struct {
-		name                      string
-		certFlag, keyFlag, caFlag string
-		envCert, envKey, envCA    string
-		useCertDir                bool
-		wantCert, wantKey, wantCA string
+func TestResolveClientTLSModeRejectsManagedSelectorWithEveryExplicitInput(t *testing.T) {
+	tests := []struct {
+		name            string
+		cert, key, ca   string
+		envCert, envKey string
+		envCA           string
 	}{
-		{
-			name:     "flag wins over env and default",
-			certFlag: "/flag/cert", keyFlag: "/flag/key", caFlag: "/flag/ca",
-			envCert: "/env/cert", envKey: "/env/key", envCA: "/env/ca",
-			useCertDir: true,
-			wantCert:   "/flag/cert", wantKey: "/flag/key", wantCA: "/flag/ca",
-		},
-		{
-			name:    "env wins over default",
-			envCert: "/env/cert", envKey: "/env/key", envCA: "/env/ca",
-			useCertDir: true,
-			wantCert:   "/env/cert", wantKey: "/env/key", wantCA: "/env/ca",
-		},
-		{
-			name:       "default dir used when files exist",
-			useCertDir: true,
-			wantCert:   filepath.Join(certDir, "current", devClientCertName),
-			wantKey:    filepath.Join(certDir, "current", devClientKeyName),
-			wantCA:     filepath.Join(certDir, "current", devCACertName),
-		},
-		{
-			name:       "none when no flags, env, or files",
-			useCertDir: false,
-		},
+		{name: "certificate flag", cert: "/flag/cert"},
+		{name: "key flag", key: "/flag/key"},
+		{name: "CA flag", ca: "/flag/ca"},
+		{name: "certificate environment", envCert: "/env/cert"},
+		{name: "key environment", envKey: "/env/key"},
+		{name: "CA environment", envCA: "/env/ca"},
 	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv(envClientCert, tc.envCert)
-			t.Setenv(envClientKey, tc.envKey)
-			t.Setenv(envClientCA, tc.envCA)
-			dir := ""
-			if tc.useCertDir {
-				dir = certDir
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(envDevCertDir, filepath.Join(t.TempDir(), "missing"))
+			t.Setenv(envClientCert, tt.envCert)
+			t.Setenv(envClientKey, tt.envKey)
+			t.Setenv(envClientCA, tt.envCA)
+			_, err := resolveClientTLSMode(tt.cert, tt.key, tt.ca, "/repo/certs")
+			if err == nil || !IsUsageError(err) {
+				t.Fatalf("resolveClientTLSMode error = %v, want usage error", err)
 			}
-			cert, key, ca := resolveClientTLSPaths(tc.certFlag, tc.keyFlag, tc.caFlag, dir)
-			if cert != tc.wantCert || key != tc.wantKey || ca != tc.wantCA {
-				t.Fatalf("resolveClientTLSPaths = (%q, %q, %q), want (%q, %q, %q)", cert, key, ca, tc.wantCert, tc.wantKey, tc.wantCA)
+			if !strings.Contains(err.Error(), envDevCertDir) || !strings.Contains(err.Error(), "explicit client TLS") {
+				t.Fatalf("error = %q, want exact selector/explicit-input conflict", err)
 			}
 		})
 	}
 }
 
-func TestResolveClientTLSPathsDefaultCertKeyPairedTogether(t *testing.T) {
+func TestResolveClientTLSModeKeepsExternalInputsExternal(t *testing.T) {
+	t.Setenv(envDevCertDir, "")
+	t.Setenv(envClientCert, "/external/client.crt")
+	t.Setenv(envClientKey, "/external/client.key")
+	t.Setenv(envClientCA, "/external/ca.crt")
+
+	mode, err := resolveClientTLSMode("", "", "", "/repo/certs")
+	if err != nil {
+		t.Fatalf("resolveClientTLSMode: %v", err)
+	}
+	if mode.managed {
+		t.Fatal("mode.managed = true, want external mode")
+	}
+	if mode.cert != "/external/client.crt" || mode.key != "/external/client.key" || mode.ca != "/external/ca.crt" {
+		t.Fatalf("external mode = %+v, want exact environment paths", mode)
+	}
+}
+
+func TestLoadManagedClientModePublishesAndResolvesExactlyOnce(t *testing.T) {
+	t.Setenv(envDevCertDir, "")
 	t.Setenv(envClientCert, "")
 	t.Setenv(envClientKey, "")
 	t.Setenv(envClientCA, "")
-	certDir := t.TempDir()
-	if err := os.Mkdir(filepath.Join(certDir, "current"), 0o755); err != nil {
-		t.Fatalf("mkdir current: %v", err)
+	root := filepath.Join(t.TempDir(), "certs")
+	mode, err := resolveClientTLSMode("", "", "", root)
+	if err != nil {
+		t.Fatalf("resolveClientTLSMode: %v", err)
 	}
-	// Only the certificate exists; the key is missing, so neither is used.
-	writeFileTest(t, filepath.Join(certDir, "current", devClientCertName), "cert")
-	writeFileTest(t, filepath.Join(certDir, "current", devCACertName), "ca")
 
-	cert, key, ca := resolveClientTLSPaths("", "", "", certDir)
-	if cert != "" || key != "" {
-		t.Fatalf("cert/key = (%q, %q), want both empty when key file is absent", cert, key)
+	publishes, resolves := 0, 0
+	originalPublish := publishManagedCertificates
+	originalResolve := resolveManagedVersion
+	publishManagedCertificates = func(root string, force bool) error {
+		publishes++
+		return devcerts.Publish(root, force)
 	}
-	if ca != filepath.Join(certDir, "current", devCACertName) {
-		t.Fatalf("ca = %q, want discovered default", ca)
+	resolveManagedVersion = func(root string) (devcerts.ManagedVersion, error) {
+		resolves++
+		return devcerts.ResolveManagedVersion(root)
+	}
+	t.Cleanup(func() {
+		publishManagedCertificates = originalPublish
+		resolveManagedVersion = originalResolve
+	})
+
+	material, err := loadClientTLSMode(mode, true)
+	if err != nil {
+		t.Fatalf("loadClientTLSMode: %v", err)
+	}
+	if publishes != 1 || resolves != 1 {
+		t.Fatalf("publication/resolution calls = %d/%d, want 1/1", publishes, resolves)
+	}
+	if material.version.RelativePath() == "" || material.certificate.Leaf == nil || material.roots == nil {
+		t.Fatalf("managed material incomplete: %+v", material)
 	}
 }
 
@@ -219,14 +229,42 @@ func TestPrepareDaemonStartProvisionsLocalDevMode(t *testing.T) {
 	if !cfg.Local {
 		t.Fatal("cfg.Local = false, want true for https loopback zero-config path")
 	}
-	if cfg.TLSCert != filepath.Join(certDir, "current", devServerCertName) || cfg.TLSCA != filepath.Join(certDir, "current", devCACertName) {
-		t.Fatalf("cfg tls paths = %+v, want dev cert dir paths", cfg)
+	if filepath.Dir(filepath.Dir(cfg.TLSCert)) != filepath.Join(certDir, "versions") || filepath.Base(cfg.TLSCert) != devServerCertName || filepath.Dir(cfg.TLSCA) != filepath.Dir(cfg.TLSCert) || filepath.Base(cfg.TLSCA) != devCACertName {
+		t.Fatalf("cfg tls paths = %+v, want one pinned version", cfg)
 	}
 	if cfg.ConfigsDir != filepath.Join(repoRoot, "configs") {
 		t.Fatalf("cfg.ConfigsDir = %q, want <repo>/configs", cfg.ConfigsDir)
 	}
-	if _, err := os.Stat(filepath.Join(certDir, "current", devServerKeyName)); err != nil {
+	if _, err := os.Stat(cfg.TLSKey); err != nil {
 		t.Fatalf("dev certs not generated: %v", err)
+	}
+}
+
+func TestDaemonStartConfigKeepsResolvedServerPathsAfterCurrentRotation(t *testing.T) {
+	t.Setenv(envDevCertDir, "")
+	t.Setenv(envClientCert, "")
+	t.Setenv(envClientKey, "")
+	t.Setenv(envClientCA, "")
+	root := filepath.Join(t.TempDir(), "certs")
+	mode, err := resolveClientTLSMode("", "", "", root)
+	if err != nil {
+		t.Fatalf("resolveClientTLSMode: %v", err)
+	}
+	material, err := loadClientTLSMode(mode, true)
+	if err != nil {
+		t.Fatalf("loadClientTLSMode: %v", err)
+	}
+	want := material.version.Paths()
+	if err := os.Remove(filepath.Join(root, "current")); err != nil {
+		t.Fatalf("Remove(current): %v", err)
+	}
+	if err := os.Symlink("versions/v-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", filepath.Join(root, "current")); err != nil {
+		t.Fatalf("Symlink(rotated current): %v", err)
+	}
+
+	cfg := daemonStartConfigFromMaterial("https://127.0.0.1:7890", t.TempDir(), material)
+	if cfg.TLSCert != want.ServerCertificate || cfg.TLSKey != want.ServerKey || cfg.TLSCA != want.CA {
+		t.Fatalf("daemon TLS paths after rotation = (%q, %q, %q), want pinned (%q, %q, %q)", cfg.TLSCert, cfg.TLSKey, cfg.TLSCA, want.ServerCertificate, want.ServerKey, want.CA)
 	}
 }
 

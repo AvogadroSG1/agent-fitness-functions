@@ -26,8 +26,69 @@ import (
 	"time"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/client"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
+
+func TestRunResolveDevCertVersionProtocol(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "certs")
+	if err := devcerts.Publish(root, false); err != nil {
+		t.Fatalf("Publish(%q): %v", root, err)
+	}
+	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", root)
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"client", "resolve-dev-cert-version"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if !regexp.MustCompile(`^versions/v-[0-9a-f]{32}\n$`).MatchString(stdout.String()) {
+		t.Fatalf("stdout = %q, want one validated relative version line", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunResolveDevCertVersionUsageAndFailureProtocol(t *testing.T) {
+	t.Run("argument is usage failure", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		code := run([]string{"client", "resolve-dev-cert-version", "extra"}, &stdout, &stderr)
+		if code != 2 || stdout.Len() != 0 || stderr.String() != "client resolve-dev-cert-version accepts no arguments\n" {
+			t.Fatalf("exit/stdout/stderr = %d/%q/%q, want 2/empty/exact usage error", code, stdout.String(), stderr.String())
+		}
+	})
+
+	t.Run("missing publication is runtime failure", func(t *testing.T) {
+		t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", filepath.Join(t.TempDir(), "missing"))
+		var stdout, stderr bytes.Buffer
+		code := run([]string{"client", "resolve-dev-cert-version"}, &stdout, &stderr)
+		if code != 1 || stdout.Len() != 0 {
+			t.Fatalf("exit/stdout = %d/%q, want 1/empty", code, stdout.String())
+		}
+		if got := stderr.String(); !strings.HasPrefix(got, "resolve managed development certificate version: ") || strings.Contains(got, "PRIVATE KEY") {
+			t.Fatalf("stderr = %q, want safe managed resolution failure", got)
+		}
+	})
+}
+
+func TestRunClientValidateRejectsSelectorConflictBeforeFilesystem(t *testing.T) {
+	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", filepath.Join(t.TempDir(), "missing"))
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"client", "validate",
+		"--file", "missing.go",
+		"--repo", filepath.Join(t.TempDir(), "missing-repo"),
+		"--client-cert", "/external/client.crt",
+	}, &stdout, &stderr)
+	if code != 2 || stdout.Len() != 0 {
+		t.Fatalf("exit/stdout = %d/%q, want 2/empty", code, stdout.String())
+	}
+	want := "STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs\n"
+	if stderr.String() != want {
+		t.Fatalf("stderr = %q, want %q", stderr.String(), want)
+	}
+}
 
 func TestRunServeRequiresTLSForTrustedProxyHeaders(t *testing.T) {
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))

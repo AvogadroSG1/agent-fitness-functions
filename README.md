@@ -86,17 +86,24 @@ The local `.calm` mode (described in the CLI tools section below) is a **sandbox
 |----------|----------|---------|
 | `STACK_FITNESS_FUNCTIONS_ADDR` | Yes | Full HTTPS URL, e.g. `https://calm-governance.example:7890` |
 | `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE` | Yes (set to `1`) | Opt-in to non-loopback server addresses |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_CERT` | Optional (mTLS) | Path to PEM-encoded client certificate; falls back to `<repo>/certs/client.crt` |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_KEY` | Optional (mTLS) | Path to PEM-encoded client private key; falls back to `<repo>/certs/client.key` |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_CA` | Optional (mTLS) | Path to PEM-encoded CA bundle for server verification; falls back to `<repo>/certs/ca.crt` |
-| `STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR` | Optional | Directory the client and hooks auto-discover dev certs from (default `<repo>/certs`) |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_CERT` | Optional (mTLS) | External PEM-encoded client certificate path |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_KEY` | Optional (mTLS) | External PEM-encoded client private key path |
+| `STACK_FITNESS_FUNCTIONS_CLIENT_CA` | Optional (mTLS) | External PEM-encoded CA bundle for server verification |
+| `STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR` | Optional | Managed development certificate root (default `<repo>/certs`) |
 | `STACK_FITNESS_FUNCTIONS_REPO_NAME` | Recommended | Logical repository name (overrides working-tree basename) |
 | `STACK_FITNESS_FUNCTIONS_ON_ERROR` | Optional | `block` (default) or `advisory` — whether an infrastructure/setup failure blocks the commit or agent edit. Mirrors the server's `enforcement-on-error`; distinct from a real architecture violation. |
 
-The client and hooks auto-discover mTLS material with **flag > `STACK_FITNESS_FUNCTIONS_CLIENT_*`
-env > `<repo>/certs`** precedence, so the three `CLIENT_*` variables are only needed when
-credentials live outside `<repo>/certs`. `client onboard` generates dev certs (CN
+With no explicit client TLS input, the client and hooks resolve one immutable managed
+version beneath `STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR` or `<repo>/certs`. Client TLS
+flags or `STACK_FITNESS_FUNCTIONS_CLIENT_*` variables select external mode and retain
+flag-over-environment precedence. The managed selector cannot be combined with an
+explicit client TLS input. `client onboard` generates managed dev certs (CN
 `dev-hook-pool`) into `<repo>/certs` automatically.
+
+Full onboarding with external client TLS validates the certificate/key pair, CA chain,
+client-auth profile, and non-empty leaf CN before changing the repository. The external
+daemon MUST already be healthy because automatic local daemon startup requires managed
+development certificates; onboarding authorizes the verified external leaf CN.
 
 All hooks enforce HTTPS when `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` is set. Connections over plain HTTP to a non-loopback address are rejected at the hook layer.
 
@@ -130,6 +137,7 @@ ln -sf "$(pwd)/bin"/stack-fitness-functions-* ~/.local/bin/
 | `stack-fitness-functions client onboard [repo]` | **Single-command 0-to-governed** — dev certs, per-repo config scaffold, caller authorization, hook installation, local daemon auto-start, and a `doctor` gate. Idempotent. Flags: `--repo`, `--enforcement advisory\|block` (default `advisory`), `--addr`. See the [quickstart](docs/quickstart-0-to-governed.md). |
 | `stack-fitness-functions doctor` | Ordered ✔/✘/⚠ readiness checks (binary, python3/pyyaml, client cert, CA, server reachability, `/preflight` facts, installed hooks), each with a one-line remediation. Run it anytime to diagnose setup. Flags: `--addr`, `--repo`, `--client-cert/--client-key/--client-ca`. |
 | `stack-fitness-functions client install-hooks [repo]` | Install the embedded Git hooks **and** the agent Edit/Write validation hook into a repository, registering both `PreToolUse` entries in `.claude/settings.json` (no manual settings authoring). See [Onboarding a New Repository](docs/runbooks/onboard-new-repository.md). |
+| `stack-fitness-functions client resolve-dev-cert-version` | Print the current validated managed `versions/v-...` path for shell handoff; accepts no arguments. |
 | `stack-fitness-functions-serve [--build]` | Start the stack-fitness-functions server container via Docker Compose (Docker Desktop) |
 | `stack-fitness-functions-test <file>` | Validate a file's fitness functions against the running server |
 

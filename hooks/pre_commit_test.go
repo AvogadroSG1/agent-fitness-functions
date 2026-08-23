@@ -353,7 +353,7 @@ func TestPreCommitForwardsDiscoveredMTLSCerts(t *testing.T) {
 	runGit(t, repo, "add", "sample.go")
 
 	certDir := filepath.Join(repo, "certs")
-	publishManagedCerts(t, certDir)
+	version := publishManagedCerts(t, certDir)
 
 	logPath := filepath.Join(t.TempDir(), "calls.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
@@ -372,11 +372,14 @@ echo '{"status":"pass"}'
 	}
 
 	got := readFile(t, logPath)
+	if calls := strings.Count(got, "client resolve-dev-cert-version"); calls != 1 {
+		t.Fatalf("resolver calls = %d, want 1:\n%s", calls, got)
+	}
 	for _, want := range []string{
 		"--addr https://127.0.0.1:7890",
-		"--client-cert " + filepath.Join(certDir, "current", "client.crt"),
-		"--client-key " + filepath.Join(certDir, "current", "client.key"),
-		"--client-ca " + filepath.Join(certDir, "current", "ca.crt"),
+		"--client-cert " + filepath.Join(certDir, filepath.FromSlash(version), "client.crt"),
+		"--client-key " + filepath.Join(certDir, filepath.FromSlash(version), "client.key"),
+		"--client-ca " + filepath.Join(certDir, filepath.FromSlash(version), "ca.crt"),
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in invocations:\n%s", want, got)
@@ -421,7 +424,9 @@ func initGitRepo(t *testing.T) string {
 	repo := t.TempDir()
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "maintenance.auto", "false")
+	runGit(t, repo, "config", "maintenance.autoDetach", "false")
 	runGit(t, repo, "config", "gc.auto", "0")
+	runGit(t, repo, "config", "gc.autoDetach", "false")
 	return repo
 }
 
@@ -471,6 +476,10 @@ func fakeFitnessBin(t *testing.T, script string) string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "stack-fitness-functions")
+	resolver := "\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then [[ -z \"${STACK_FITNESS_FUNCTIONS_LOG:-}\" ]] || printf '%s\\n' \"$*\" >> \"$STACK_FITNESS_FUNCTIONS_LOG\"; if [[ -L \"${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-}/current\" ]]; then readlink \"$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; else printf '%s\\n' versions/v-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; fi; exit 0; fi\n"
+	if newline := strings.IndexByte(script, '\n'); newline >= 0 {
+		script = script[:newline] + resolver + script[newline+1:]
+	}
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake stack-fitness-functions: %v", err)
 	}

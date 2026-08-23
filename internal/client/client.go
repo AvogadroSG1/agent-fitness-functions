@@ -65,6 +65,9 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 	if err := flags.Parse(args); err != nil {
 		return usageError{err: err}
 	}
+	if _, err := resolveClientTLSMode(*clientCert, *clientKey, *clientCA, ""); err != nil {
+		return err
+	}
 	if *file == "" || *repo == "" {
 		return usageError{err: errors.New("client validate requires --file and --repo")}
 	}
@@ -486,12 +489,19 @@ func appendFile(path string, content []byte) error {
 func establishDaemon(httpClient *http.Client, addr, repo, file, certFlag, keyFlag, caFlag string, starter func(DaemonStartConfig) error) (*http.Client, error) {
 	repoRoot := resolveRepoRoot(repo, file)
 	certDir := resolveDevCertDir(repoRoot)
-	daemonCfg, err := prepareDaemonStart(addr, certDir, repoRoot, certFlag, keyFlag, caFlag)
+	mode, err := resolveClientTLSMode(certFlag, keyFlag, caFlag, certDir)
 	if err != nil {
 		return nil, err
 	}
-	certPath, keyPath, caPath := resolveClientTLSPaths(certFlag, keyFlag, caFlag, certDir)
-	configuredClient, err := configureTLS(httpClient, certPath, keyPath, caPath)
+	if mode.managed && !isLocalHTTPS(addr) {
+		mode = clientTLSMode{}
+	}
+	material, err := loadClientTLSMode(mode, mode.managed)
+	if err != nil {
+		return nil, err
+	}
+	daemonCfg := daemonStartConfigFromMaterial(addr, repoRoot, material)
+	configuredClient, err := configureClientTLSMaterial(httpClient, material)
 	if err != nil {
 		return nil, err
 	}
@@ -499,6 +509,20 @@ func establishDaemon(httpClient *http.Client, addr, repo, file, certFlag, keyFla
 		return nil, err
 	}
 	return configuredClient, nil
+}
+
+func configureClientTLSMaterial(base *http.Client, material clientTLSMaterial) (*http.Client, error) {
+	if !material.mode.managed && (len(material.certificate.Certificate) == 0 || material.roots == nil) {
+		return configureTLS(base, material.mode.cert, material.mode.key, material.mode.ca)
+	}
+	configured := cloneHTTPClient(base)
+	transport := cloneTransport(configured)
+	tlsConfig := cloneTLSConfig(transport.TLSClientConfig)
+	tlsConfig.Certificates = []tls.Certificate{material.certificate}
+	tlsConfig.RootCAs = material.roots
+	transport.TLSClientConfig = tlsConfig
+	configured.Transport = transport
+	return configured, nil
 }
 
 func ensureDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, starter func(DaemonStartConfig) error) error {

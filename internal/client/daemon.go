@@ -1,6 +1,8 @@
 package client
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"io"
 	"net"
@@ -10,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 )
 
 const (
@@ -19,6 +23,74 @@ const (
 	envDevCertDir = "STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR"
 	envConfigsDir = "STACK_FITNESS_FUNCTIONS_CONFIGS_DIR"
 )
+
+type clientTLSMode struct {
+	managed bool
+	root    string
+	cert    string
+	key     string
+	ca      string
+}
+
+type clientTLSMaterial struct {
+	mode        clientTLSMode
+	version     devcerts.ManagedVersion
+	certificate tls.Certificate
+	roots       *x509.CertPool
+}
+
+var (
+	publishManagedCertificates = devcerts.Publish
+	resolveManagedVersion      = devcerts.ResolveManagedVersion
+	loadManagedClient          = devcerts.LoadManagedClient
+)
+
+func resolveClientTLSMode(certFlag, keyFlag, caFlag, defaultRoot string) (clientTLSMode, error) {
+	selector := os.Getenv(envDevCertDir)
+	explicit := certFlag != "" || keyFlag != "" || caFlag != "" || os.Getenv(envClientCert) != "" || os.Getenv(envClientKey) != "" || os.Getenv(envClientCA) != ""
+	if selector != "" && explicit {
+		return clientTLSMode{}, usageError{err: errors.New("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs")}
+	}
+	if explicit {
+		return clientTLSMode{
+			cert: firstNonEmpty(certFlag, os.Getenv(envClientCert)),
+			key:  firstNonEmpty(keyFlag, os.Getenv(envClientKey)),
+			ca:   firstNonEmpty(caFlag, os.Getenv(envClientCA)),
+		}, nil
+	}
+	root := selector
+	if root == "" {
+		root = defaultRoot
+	}
+	return clientTLSMode{managed: true, root: root}, nil
+}
+
+func loadClientTLSMode(mode clientTLSMode, publish bool) (clientTLSMaterial, error) {
+	material := clientTLSMaterial{mode: mode}
+	if !mode.managed {
+		return material, nil
+	}
+	if mode.root == "" {
+		return clientTLSMaterial{}, errors.New("could not determine managed development certificate root")
+	}
+	if publish {
+		if err := publishManagedCertificates(mode.root, false); err != nil {
+			return clientTLSMaterial{}, err
+		}
+	}
+	version, err := resolveManagedVersion(mode.root)
+	if err != nil {
+		return clientTLSMaterial{}, err
+	}
+	clientMaterial, err := loadManagedClient(version)
+	if err != nil {
+		return clientTLSMaterial{}, err
+	}
+	material.version = version
+	material.certificate = clientMaterial.Certificate
+	material.roots = clientMaterial.RootCAs
+	return material, nil
+}
 
 // DaemonStartConfig describes how the auto-started local daemon must be launched so
 // the default https client can reach it. Local is true only for the zero-config
@@ -38,43 +110,32 @@ type DaemonStartConfig struct {
 // this client trust the same CA. Dev material is only provisioned when the caller
 // passed no explicit client TLS flags and the addr is an https loopback URL.
 func prepareDaemonStart(addr, certDir, repoRoot, certFlag, keyFlag, caFlag string) (DaemonStartConfig, error) {
-	cfg := DaemonStartConfig{Addr: addr, CertDir: certDir}
-	explicitTLS := certFlag != "" || keyFlag != "" || caFlag != ""
-	if explicitTLS || certDir == "" || !isLocalHTTPS(addr) {
-		return cfg, nil
-	}
-	if err := EnsureDevCerts(certDir); err != nil {
+	mode, err := resolveClientTLSMode(certFlag, keyFlag, caFlag, certDir)
+	if err != nil {
 		return DaemonStartConfig{}, err
 	}
-	cfg.Local = true
-	cfg.TLSCert = filepath.Join(certDir, "current", devServerCertName)
-	cfg.TLSKey = filepath.Join(certDir, "current", devServerKeyName)
-	cfg.TLSCA = filepath.Join(certDir, "current", devCACertName)
-	cfg.ConfigsDir = resolveConfigsDir(repoRoot)
-	return cfg, nil
+	if !mode.managed || certDir == "" || !isLocalHTTPS(addr) {
+		return DaemonStartConfig{Addr: addr, CertDir: certDir}, nil
+	}
+	material, err := loadClientTLSMode(mode, true)
+	if err != nil {
+		return DaemonStartConfig{}, err
+	}
+	return daemonStartConfigFromMaterial(addr, repoRoot, material), nil
 }
 
-// resolveClientTLSPaths applies flag > env > dev-cert-dir default precedence to the
-// mTLS client material. Default-dir paths are only used when the files exist, so a
-// plain-HTTP local server still works when no dev certs are present. cert and key are
-// resolved together at the default tier to avoid an unpaired half.
-func resolveClientTLSPaths(certFlag, keyFlag, caFlag, certDir string) (cert, key, ca string) {
-	cert = firstNonEmpty(certFlag, os.Getenv(envClientCert))
-	key = firstNonEmpty(keyFlag, os.Getenv(envClientKey))
-	ca = firstNonEmpty(caFlag, os.Getenv(envClientCA))
-	if cert == "" && key == "" && certDir != "" {
-		defaultCert := filepath.Join(certDir, "current", devClientCertName)
-		defaultKey := filepath.Join(certDir, "current", devClientKeyName)
-		if fileExists(defaultCert) && fileExists(defaultKey) {
-			cert, key = defaultCert, defaultKey
-		}
+func daemonStartConfigFromMaterial(addr, repoRoot string, material clientTLSMaterial) DaemonStartConfig {
+	cfg := DaemonStartConfig{Addr: addr, CertDir: material.mode.root}
+	if !material.mode.managed {
+		return cfg
 	}
-	if ca == "" && certDir != "" {
-		if defaultCA := filepath.Join(certDir, "current", devCACertName); fileExists(defaultCA) {
-			ca = defaultCA
-		}
-	}
-	return cert, key, ca
+	paths := material.version.Paths()
+	cfg.Local = true
+	cfg.TLSCert = paths.ServerCertificate
+	cfg.TLSKey = paths.ServerKey
+	cfg.TLSCA = paths.CA
+	cfg.ConfigsDir = resolveConfigsDir(repoRoot)
+	return cfg
 }
 
 // resolveRepoRoot anchors dev-cert and configs discovery on the governed repository,

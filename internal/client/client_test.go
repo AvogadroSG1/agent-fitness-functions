@@ -274,7 +274,7 @@ func TestRunInstallHooksRefusesExistingNonCalmHook(t *testing.T) {
 func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
 	t.Setenv("STACK_FITNESS_FUNCTIONS_HOOK_APPEND", "1")
 	repo := t.TempDir()
-	runGitClientTest(t, repo, "init")
+	useDeterministicGitClientTest(t, repo)
 	existingHook := filepath.Join(repo, ".git", "hooks", "pre-commit")
 	if err := os.WriteFile(existingHook, []byte("#!/usr/bin/env bash\necho custom\n"), 0o755); err != nil {
 		t.Fatalf("write existing hook: %v", err)
@@ -305,7 +305,7 @@ func TestRunInstallHooksAppendModeInstallsSidecar(t *testing.T) {
 
 func TestRunInstallHooksUpgradesLegacyCalmHook(t *testing.T) {
 	repo := t.TempDir()
-	runGitClientTest(t, repo, "init")
+	useDeterministicGitClientTest(t, repo)
 
 	legacy := filepath.Join(repo, ".git", "hooks", "pre-commit")
 	if err := os.MkdirAll(filepath.Dir(legacy), 0o755); err != nil {
@@ -462,6 +462,32 @@ func runGitClientTest(t *testing.T, repo string, args ...string) {
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("git %v failed: %v\n%s", args, err, output)
 	}
+}
+
+func useDeterministicGitClientTest(t *testing.T, repo string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(repo, ".git", "hooks"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(fake git hooks): %v", err)
+	}
+	binDir := t.TempDir()
+	fakeGit := `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "-C" ]]; then shift 2; fi
+if [[ "${1:-}" == "rev-parse" && "${2:-}" == "--show-toplevel" ]]; then
+  printf '%s\n' "$FAKE_GIT_REPO"
+  exit 0
+fi
+if [[ "${1:-}" == "rev-parse" && "${2:-}" == "--git-path" && "${3:-}" == hooks/* ]]; then
+  printf '.git/%s\n' "$3"
+  exit 0
+fi
+exit 1
+`
+	if err := os.WriteFile(filepath.Join(binDir, "git"), []byte(fakeGit), 0o755); err != nil {
+		t.Fatalf("WriteFile(fake git): %v", err)
+	}
+	t.Setenv("FAKE_GIT_REPO", repo)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
 func projectRoot(t *testing.T) string {

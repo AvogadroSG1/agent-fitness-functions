@@ -35,27 +35,92 @@ repo_root=$(git -C "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)" rev-
 bin=${STACK_FITNESS_FUNCTIONS_BIN:-$repo_root/.tmp/stack-fitness-functions}
 
 tmp_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir"' EXIT
 # A valid governance repo name matches ^[a-z][a-z0-9_-]{0,63}$, so give the throwaway
 # repo a controlled basename rather than mktemp's dotted directory name.
 demo_repo="$tmp_dir/agent-demo"
 repo_name="agent-demo"
 
-host="127.0.0.1"
-port=$(python3 - <<'PY'
+addr=${STACK_FITNESS_FUNCTIONS_ADDR:-}
+if [[ -z "$addr" ]]; then
+  host="127.0.0.1"
+  port=$(python3 - <<'PY'
 import socket
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
     sock.bind(("127.0.0.1", 0))
     print(sock.getsockname()[1])
 PY
-)
-addr="https://$host:$port"
+  )
+  addr="https://$host:$port"
+else
+  read -r host port < <(python3 - "$addr" <<'PY'
+import sys
+from urllib.parse import urlparse
+
+parsed = urlparse(sys.argv[1])
+if parsed.scheme != "https" or not parsed.hostname or parsed.port is None:
+    raise SystemExit("STACK_FITNESS_FUNCTIONS_ADDR must be an https URL with an explicit port")
+print(parsed.hostname, parsed.port)
+PY
+  )
+fi
 cert_dir="$demo_repo/certs"
+client_cert=""
+client_key=""
+client_ca=""
+tls_mode=""
+
+select_tls_mode() {
+  local selector=${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-}
+  local explicit=0
+  [[ -n "${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-}${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-}${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-}" ]] && explicit=1
+  if [[ -n "$selector" && "$explicit" -eq 1 ]]; then
+    echo "STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs" >&2
+    return 2
+  fi
+  if [[ "$explicit" -eq 1 ]]; then
+    tls_mode=external
+    client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-}
+    client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-}
+    client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-}
+    unset STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR
+    return 0
+  fi
+  tls_mode=managed
+  cert_dir=${selector:-$demo_repo/certs}
+}
+
+resolve_selected_tls() {
+  [[ "$tls_mode" == managed ]] || return 0
+  local resolver_rc
+  set +e
+  managed_version=$(STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="$cert_dir" "$bin" client resolve-dev-cert-version)
+  resolver_rc=$?
+  set -e
+  [[ "$resolver_rc" -eq 0 ]] || return "$resolver_rc"
+  if [[ ! "$managed_version" =~ ^versions/v-[0-9a-f]{32}$ ]]; then
+    echo "stack-fitness-functions returned an invalid managed certificate version" >&2
+    return 1
+  fi
+  client_cert=$cert_dir/$managed_version/client.crt
+  client_key=$cert_dir/$managed_version/client.key
+  client_ca=$cert_dir/$managed_version/ca.crt
+  unset STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR
+}
+
+select_tls_mode
+if [[ "${STACK_FITNESS_FUNCTIONS_DEMO_TLS_CONTRACT_ONLY:-}" == 1 ]]; then
+  resolve_selected_tls
+  printf 'mode=%s\nclient_cert=%s\nclient_key=%s\nclient_ca=%s\nselector=%s\n' \
+    "$tls_mode" "$client_cert" "$client_key" "$client_ca" "${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}"
+  exit 0
+fi
 
 shutdown_daemon() {
   # Graceful stop via the admin /shutdown endpoint using the dev mTLS client cert.
-  [[ -f "$cert_dir/client.crt" ]] || return 0
-  python3 - "$host" "$port" "$cert_dir/client.crt" "$cert_dir/client.key" "$cert_dir/ca.crt" <<'PY' || true
+  [[ -f "$client_cert" ]] || return 0
+  python3 - "$host" "$port" "$client_cert" "$client_key" "$client_ca" <<'PY' || true
 import http.client
 import ssl
 import sys
@@ -75,6 +140,10 @@ PY
 }
 
 cleanup() {
+  if [[ "$tls_mode" == external ]]; then
+    rm -rf "$tmp_dir"
+    return
+  fi
   shutdown_daemon
   # Best-effort safety net, strictly scoped to THIS demo's unique private port so it can
   # never touch an unrelated process. Only runs if the graceful shutdown left it bound.
@@ -167,6 +236,7 @@ JSON
 # One command: repo-name detection, dev certs, server-side config scaffold, caller
 # authorization, git + agent hook installation, local TLS daemon auto-start, doctor gate.
 ( cd "$demo_repo" && "$bin" client onboard --enforcement block --addr "$addr" )
+resolve_selected_tls
 echo
 echo "Onboarding complete: '$repo_name' is governed in block mode."
 

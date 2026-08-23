@@ -61,23 +61,13 @@ detect_repo_name() {
 # Cert-dir discovery order: STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR, then the source
 # repo's certs/ (STACK_FITNESS_FUNCTIONS_SRC or this script's repo root).
 script_repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-cert_dir="${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-${STACK_FITNESS_FUNCTIONS_SRC:-$script_repo}/certs}"
-
-client_cert="${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-$cert_dir/current/client.crt}"
-client_key="${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-$cert_dir/current/client.key}"
-client_ca="${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-$cert_dir/current/ca.crt}"
-
-for pair in "client certificate:$client_cert" "client key:$client_key" "CA bundle:$client_ca"; do
-  label="${pair%%:*}"
-  path="${pair#*:}"
-  [[ -f "$path" ]] || {
-    echo "error: mTLS $label not found: $path" >&2
-    echo "  the server requires mutual TLS; generate local dev certs with:" >&2
-    echo "    scripts/generate-dev-certs.sh" >&2
-    echo "  or set STACK_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA to existing credentials." >&2
-    exit 1
-  }
-done
+managed_selector=${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR:-}
+explicit_client_tls=0
+[[ -n "${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-}${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-}${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-}" ]] && explicit_client_tls=1
+if [[ -n "$managed_selector" && "$explicit_client_tls" -eq 1 ]]; then
+  echo "STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs" >&2
+  exit 1
+fi
 
 [[ -f "$file" ]] || { echo "error: file not found: $file" >&2; exit 1; }
 if [[ "$bridge" == */* ]]; then
@@ -93,6 +83,40 @@ else
     exit 1
   }
 fi
+
+if [[ "$explicit_client_tls" -eq 1 ]]; then
+  client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-}
+  client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-}
+  client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-}
+  unset STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR
+else
+  cert_dir=${managed_selector:-${STACK_FITNESS_FUNCTIONS_SRC:-$script_repo}/certs}
+  set +e
+  managed_version=$(STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="$cert_dir" "$bridge" client resolve-dev-cert-version)
+  resolver_rc=$?
+  set -e
+  [[ "$resolver_rc" -eq 0 ]] || exit 1
+  if [[ ! "$managed_version" =~ ^versions/v-[0-9a-f]{32}$ ]]; then
+    echo "stack-fitness-functions returned an invalid managed certificate version" >&2
+    exit 1
+  fi
+  client_cert=$cert_dir/$managed_version/client.crt
+  client_key=$cert_dir/$managed_version/client.key
+  client_ca=$cert_dir/$managed_version/ca.crt
+  unset STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR
+fi
+
+for pair in "client certificate:$client_cert" "client key:$client_key" "CA bundle:$client_ca"; do
+  label="${pair%%:*}"
+  path="${pair#*:}"
+  [[ -f "$path" ]] || {
+    echo "error: mTLS $label not found: $path" >&2
+    echo "  the server requires mutual TLS; generate local dev certs with:" >&2
+    echo "    scripts/generate-dev-certs.sh" >&2
+    echo "  or set STACK_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA to existing credentials." >&2
+    exit 1
+  }
+done
 
 case "$file" in
   *.go) language="go" ;;

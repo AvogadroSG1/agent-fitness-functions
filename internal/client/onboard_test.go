@@ -2,12 +2,368 @@ package client
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
+	"io"
+	"math/big"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 )
+
+func TestRunOnboardInvalidExternalTLSMakesZeroMutations(t *testing.T) {
+	repo := t.TempDir()
+	useDeterministicGitClientTest(t, repo)
+	external := t.TempDir()
+	cert := filepath.Join(external, "client.crt")
+	key := filepath.Join(external, "client.key")
+	ca := filepath.Join(external, "ca.crt")
+	for _, path := range []string{cert, key, ca} {
+		if err := os.WriteFile(path, []byte("invalid external material"), 0o600); err != nil {
+			t.Fatalf("WriteFile(%q): %v", path, err)
+		}
+	}
+	t.Setenv(envDevCertDir, "")
+	t.Setenv(envClientCert, cert)
+	t.Setenv(envClientKey, key)
+	t.Setenv(envClientCA, ca)
+	starterCalls := 0
+	err := RunOnboard([]string{repo}, io.Discard, io.Discard, &http.Client{}, func(DaemonStartConfig) error {
+		starterCalls++
+		return nil
+	})
+	if err == nil || !IsUsageError(err) {
+		t.Fatalf("RunOnboard invalid external TLS error = %v, want usage error", err)
+	}
+	if starterCalls != 0 {
+		t.Fatalf("starter calls = %d, want 0", starterCalls)
+	}
+	for _, path := range []string{
+		filepath.Join(repo, "configs"),
+		filepath.Join(repo, callerRepoBindingsFileName),
+		filepath.Join(repo, ".claude"),
+		filepath.Join(repo, ".git", "hooks", "pre-commit"),
+		filepath.Join(repo, ".git", "hooks", "pre-push"),
+	} {
+		if _, statErr := os.Lstat(path); !os.IsNotExist(statErr) {
+			t.Fatalf("invalid external onboarding mutated %q: %v", path, statErr)
+		}
+	}
+}
+
+func TestRunOnboardExternalTLSRequiresHealthyDaemonBeforeMutation(t *testing.T) {
+	fixture := writeExternalClientTLSFixture(t, "external-offline-client")
+	repo := t.TempDir()
+	useDeterministicGitClientTest(t, repo)
+	t.Setenv(envDevCertDir, "")
+	t.Setenv(envClientCert, fixture.clientCert)
+	t.Setenv(envClientKey, fixture.clientKey)
+	t.Setenv(envClientCA, fixture.ca)
+	err := RunOnboard([]string{"--repo", "sample", "--addr", "https://127.0.0.1:1", repo}, io.Discard, io.Discard, &http.Client{Timeout: 100 * time.Millisecond}, func(DaemonStartConfig) error {
+		t.Fatal("external onboarding must not call starter")
+		return nil
+	})
+	if err == nil || !IsUsageError(err) || !strings.Contains(err.Error(), "already-running healthy daemon") {
+		t.Fatalf("RunOnboard offline external daemon error = %v, want actionable usage error", err)
+	}
+	for _, path := range []string{filepath.Join(repo, "configs"), filepath.Join(repo, callerRepoBindingsFileName), filepath.Join(repo, ".claude")} {
+		if _, statErr := os.Lstat(path); !os.IsNotExist(statErr) {
+			t.Fatalf("offline external onboarding mutated %q: %v", path, statErr)
+		}
+	}
+}
+
+func TestExternalOnboardMaterialAuthorizesLeafCommonName(t *testing.T) {
+	const wantCN = "external-governance-client"
+	fixture := writeExternalClientTLSFixture(t, wantCN)
+	mode := clientTLSMode{cert: fixture.clientCert, key: fixture.clientKey, ca: fixture.ca}
+	material, callerCN, err := loadExternalOnboardMaterial(mode)
+	if err != nil {
+		t.Fatalf("loadExternalOnboardMaterial: %v", err)
+	}
+	if callerCN != wantCN || material.certificate.Leaf == nil || material.certificate.Leaf.Subject.CommonName != wantCN {
+		t.Fatalf("external caller identity = %q/%v, want %q", callerCN, material.certificate.Leaf, wantCN)
+	}
+
+	configsDir := filepath.Join(t.TempDir(), "configs")
+	o := onboarder{repoName: "sample", configsDir: configsDir, callerCN: callerCN, stdout: io.Discard}
+	if err := o.authorizeCaller(); err != nil {
+		t.Fatalf("authorizeCaller: %v", err)
+	}
+	content, err := os.ReadFile(filepath.Join(filepath.Dir(configsDir), callerRepoBindingsFileName))
+	if err != nil {
+		t.Fatalf("ReadFile(caller bindings): %v", err)
+	}
+	if !bytes.Contains(content, []byte(`"`+wantCN+`"`)) || bytes.Contains(content, []byte(`"dev-hook-pool"`)) {
+		t.Fatalf("caller bindings = %s, want actual external CN only", content)
+	}
+}
+
+func TestLoadExternalOnboardMaterialRejectsUnsafeIdentityProfiles(t *testing.T) {
+	valid := writeExternalClientTLSFixture(t, "valid-client")
+	other := writeExternalClientTLSFixture(t, "other-client")
+	emptyCN := writeExternalClientTLSFixture(t, "")
+	leadingSpaceCN := writeExternalClientTLSFixture(t, " leading-space-client")
+	trailingSpaceCN := writeExternalClientTLSFixture(t, "trailing-space-client ")
+	tests := []struct {
+		name string
+		mode clientTLSMode
+	}{
+		{name: "mismatched key", mode: clientTLSMode{cert: valid.clientCert, key: other.clientKey, ca: valid.ca}},
+		{name: "empty common name", mode: clientTLSMode{cert: emptyCN.clientCert, key: emptyCN.clientKey, ca: emptyCN.ca}},
+		{name: "leading common name whitespace", mode: clientTLSMode{cert: leadingSpaceCN.clientCert, key: leadingSpaceCN.clientKey, ca: leadingSpaceCN.ca}},
+		{name: "trailing common name whitespace", mode: clientTLSMode{cert: trailingSpaceCN.clientCert, key: trailingSpaceCN.clientKey, ca: trailingSpaceCN.ca}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, _, err := loadExternalOnboardMaterial(tt.mode); err == nil || !IsUsageError(err) {
+				t.Fatalf("loadExternalOnboardMaterial error = %v, want usage rejection", err)
+			}
+		})
+	}
+}
+
+func TestRunOnboardNoncanonicalExternalCNMakesZeroMutations(t *testing.T) {
+	for _, commonName := range []string{" leading-space-client", "trailing-space-client "} {
+		t.Run(commonName, func(t *testing.T) {
+			fixture := writeExternalClientTLSFixture(t, commonName)
+			repo := t.TempDir()
+			useDeterministicGitClientTest(t, repo)
+			t.Setenv(envDevCertDir, "")
+			t.Setenv(envClientCert, fixture.clientCert)
+			t.Setenv(envClientKey, fixture.clientKey)
+			t.Setenv(envClientCA, fixture.ca)
+			err := RunOnboard([]string{"--repo", "sample", repo}, io.Discard, io.Discard, &http.Client{}, func(DaemonStartConfig) error {
+				t.Fatal("noncanonical external identity must not call starter")
+				return nil
+			})
+			if err == nil || !IsUsageError(err) || !strings.Contains(err.Error(), "leading or trailing whitespace") {
+				t.Fatalf("RunOnboard noncanonical external CN error = %v, want whitespace usage error", err)
+			}
+			for _, path := range []string{filepath.Join(repo, "configs"), filepath.Join(repo, callerRepoBindingsFileName), filepath.Join(repo, ".claude")} {
+				if _, statErr := os.Lstat(path); !os.IsNotExist(statErr) {
+					t.Fatalf("noncanonical external identity mutated %q: %v", path, statErr)
+				}
+			}
+		})
+	}
+}
+
+func TestRunOnboardValidExternalTLSAuthorizesActualCNWithoutAutostart(t *testing.T) {
+	const wantCN = "external-run-client"
+	clientFixture := writeExternalClientTLSFixture(t, wantCN)
+	serverFixture := writeExternalClientTLSFixture(t, "unrelated-server-hierarchy-client")
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/preflight":
+			_ = json.NewEncoder(w).Encode(preflightReport{
+				AuthenticatedCN: wantCN, RepoConfigured: true, RepoConfigValid: true,
+				CallerAuthorized: true, EnforcementMode: "advisory",
+			})
+		default:
+			http.NotFound(w, request)
+		}
+	}))
+	server.TLS = &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{serverFixture.server},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    clientFixture.roots,
+	}
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	repo := t.TempDir()
+	useDeterministicGitClientTest(t, repo)
+	t.Setenv(envDevCertDir, "")
+	t.Setenv(envClientCert, clientFixture.clientCert)
+	t.Setenv(envClientKey, clientFixture.clientKey)
+	t.Setenv(envClientCA, serverFixture.ca)
+	starterCalls := 0
+	var stdout bytes.Buffer
+	err := RunOnboard([]string{"--repo", "sample", "--addr", server.URL, repo}, &stdout, io.Discard, &http.Client{Timeout: 3 * time.Second}, func(DaemonStartConfig) error {
+		starterCalls++
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("RunOnboard valid external TLS: %v\n%s", err, stdout.String())
+	}
+	if starterCalls != 0 {
+		t.Fatalf("starter calls = %d, want 0 for external TLS", starterCalls)
+	}
+	bindings, err := os.ReadFile(filepath.Join(repo, callerRepoBindingsFileName))
+	if err != nil {
+		t.Fatalf("ReadFile(caller bindings): %v", err)
+	}
+	if !bytes.Contains(bindings, []byte(`"`+wantCN+`"`)) || bytes.Contains(bindings, []byte(`"dev-hook-pool"`)) {
+		t.Fatalf("caller bindings = %s, want actual external CN", bindings)
+	}
+}
+
+type externalClientTLSFixture struct {
+	clientCert string
+	clientKey  string
+	ca         string
+	server     tls.Certificate
+	roots      *x509.CertPool
+}
+
+func writeExternalClientTLSFixture(t *testing.T, commonName string) externalClientTLSFixture {
+	t.Helper()
+	return writeExternalClientTLSFixtureWithUsage(t, commonName, x509.ExtKeyUsageClientAuth)
+}
+
+func writeExternalClientTLSFixtureWithUsage(t *testing.T, commonName string, usage x509.ExtKeyUsage) externalClientTLSFixture {
+	t.Helper()
+	dir := t.TempDir()
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("GenerateKey(CA): %v", err)
+	}
+	now := time.Now().UTC()
+	caTemplate := &x509.Certificate{
+		SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "external-test-ca"},
+		NotBefore: now.Add(-time.Hour), NotAfter: now.Add(time.Hour),
+		KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature, IsCA: true, BasicConstraintsValid: true,
+	}
+	caDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatalf("CreateCertificate(CA): %v", err)
+	}
+	intermediateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("GenerateKey(intermediate): %v", err)
+	}
+	intermediateTemplate := &x509.Certificate{
+		SerialNumber: big.NewInt(2), Subject: pkix.Name{CommonName: "external-test-client-intermediate"},
+		NotBefore: now.Add(-time.Hour), NotAfter: now.Add(time.Hour),
+		KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature, IsCA: true, BasicConstraintsValid: true,
+	}
+	intermediateDER, err := x509.CreateCertificate(rand.Reader, intermediateTemplate, caTemplate, &intermediateKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatalf("CreateCertificate(intermediate): %v", err)
+	}
+	clientKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("GenerateKey(client): %v", err)
+	}
+	clientTemplate := &x509.Certificate{
+		SerialNumber: big.NewInt(3), Subject: pkix.Name{CommonName: commonName},
+		NotBefore: now.Add(-time.Hour), NotAfter: now.Add(time.Hour),
+		KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage: []x509.ExtKeyUsage{usage},
+	}
+	clientDER, err := x509.CreateCertificate(rand.Reader, clientTemplate, intermediateTemplate, &clientKey.PublicKey, intermediateKey)
+	if err != nil {
+		t.Fatalf("CreateCertificate(client): %v", err)
+	}
+	caPath := filepath.Join(dir, "ca.crt")
+	certPath := filepath.Join(dir, "client.crt")
+	keyPath := filepath.Join(dir, "client.key")
+	if err := os.WriteFile(caPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER}), 0o644); err != nil {
+		t.Fatalf("WriteFile(CA): %v", err)
+	}
+	clientChain := append(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: clientDER}), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: intermediateDER})...)
+	if err := os.WriteFile(certPath, clientChain, 0o644); err != nil {
+		t.Fatalf("WriteFile(client cert): %v", err)
+	}
+	if err := os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(clientKey)}), 0o600); err != nil {
+		t.Fatalf("WriteFile(client key): %v", err)
+	}
+	serverKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("GenerateKey(server): %v", err)
+	}
+	serverTemplate := &x509.Certificate{
+		SerialNumber: big.NewInt(4), Subject: pkix.Name{CommonName: "localhost"},
+		NotBefore: now.Add(-time.Hour), NotAfter: now.Add(time.Hour),
+		KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:    []string{"localhost"}, IPAddresses: []net.IP{net.IPv4(127, 0, 0, 1)},
+	}
+	serverDER, err := x509.CreateCertificate(rand.Reader, serverTemplate, caTemplate, &serverKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatalf("CreateCertificate(server): %v", err)
+	}
+	serverPair, err := tls.X509KeyPair(
+		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: serverDER}),
+		pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(serverKey)}),
+	)
+	if err != nil {
+		t.Fatalf("X509KeyPair(server): %v", err)
+	}
+	ca, err := x509.ParseCertificate(caDER)
+	if err != nil {
+		t.Fatalf("ParseCertificate(CA): %v", err)
+	}
+	roots := x509.NewCertPool()
+	roots.AddCert(ca)
+	return externalClientTLSFixture{clientCert: certPath, clientKey: keyPath, ca: caPath, server: serverPair, roots: roots}
+}
+
+func TestOnboardReusesOneManagedGenerationForStartupAndDoctor(t *testing.T) {
+	t.Setenv(envDevCertDir, "")
+	t.Setenv(envClientCert, "")
+	t.Setenv(envClientKey, "")
+	t.Setenv(envClientCA, "")
+	resolves := 0
+	originalResolve := resolveManagedVersion
+	resolveManagedVersion = func(root string) (devcerts.ManagedVersion, error) {
+		resolves++
+		return devcerts.ResolveManagedVersion(root)
+	}
+	t.Cleanup(func() { resolveManagedVersion = originalResolve })
+
+	var output bytes.Buffer
+	certDir := filepath.Join(t.TempDir(), "certs")
+	o := onboarder{
+		repoName: "sample",
+		repoRoot: t.TempDir(),
+		addr:     "https://127.0.0.1:7890",
+		certDir:  certDir,
+		tlsMode:  clientTLSMode{managed: true, root: certDir},
+		stdout:   &output,
+		httpClient: &http.Client{Transport: clientRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+			body := `{}`
+			if strings.Contains(request.URL.Path, "preflight") {
+				body = `{"authenticated_cn":"dev-hook-pool","repo_configured":true,"repo_config_valid":true,"caller_authorized":true,"enforcement_mode":"advisory"}`
+			}
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+		})},
+		starter: func(DaemonStartConfig) error { return nil },
+	}
+	if err := o.ensureCerts(); err != nil {
+		t.Fatalf("ensureCerts: %v", err)
+	}
+	daemonCfg := daemonStartConfigFromMaterial(o.addr, o.repoRoot, o.tlsMaterial)
+	if !daemonCfg.Local || daemonCfg.TLSCert == "" {
+		t.Fatalf("daemon config did not reuse managed material: %+v", daemonCfg)
+	}
+	paths := o.tlsMaterial.version.Paths()
+	_ = runDoctorWithConfig(doctorConfig{
+		addr: o.addr, repo: o.repoName, repoRoot: o.repoRoot,
+		clientCert: paths.ClientCertificate, clientKey: paths.ClientKey, clientCA: paths.CA,
+		managed: true, clientLeaf: o.tlsMaterial.certificate.Leaf, rootCAs: o.tlsMaterial.roots,
+		tlsLoaded: true, httpClient: o.httpClient,
+	}, &output)
+	if resolves != 1 {
+		t.Fatalf("managed resolver calls = %d, want 1 across onboard startup and doctor", resolves)
+	}
+}
 
 func TestResolveOnboardRepoName(t *testing.T) {
 	tests := []struct {

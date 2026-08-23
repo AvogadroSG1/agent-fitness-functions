@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "STACK_FITNESS_FUNCTIONS_BIN=\"$(pwd)/.tmp/stack-fitness-functions\" STACK_FITNESS_FUNCTIONS_ADDR=https://127.0.0.1:7890 STACK_FITNESS_FUNCTIONS_CLIENT_CERT=\"$(pwd)/certs/current/client.crt\" STACK_FITNESS_FUNCTIONS_CLIENT_KEY=\"$(pwd)/certs/current/client.key\" STACK_FITNESS_FUNCTIONS_CLIENT_CA=\"$(pwd)/certs/current/ca.crt\" STACK_FITNESS_FUNCTIONS_REPO_NAME=calm-poc \"$(pwd)/hooks/pre-tool-use.sh\""
+            "command": "STACK_FITNESS_FUNCTIONS_BIN=\"$(pwd)/.tmp/stack-fitness-functions\" STACK_FITNESS_FUNCTIONS_ADDR=https://127.0.0.1:7890 STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR=\"$(pwd)/certs\" STACK_FITNESS_FUNCTIONS_REPO_NAME=calm-poc \"$(pwd)/hooks/pre-tool-use.sh\""
           }
         ],
         "matcher": "Edit|Write"
