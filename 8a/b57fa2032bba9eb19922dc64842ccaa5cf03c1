@@ -1,0 +1,46 @@
+cmd/agent-fitness-functions/main.go
+  s_35b3127e21180f::t_df121311d0db3e 63-64
+  s_35b3127e21180f::t_62399bb6892ca8 152-177
+internal/installer/pins_drift_test.go
+  s_35b3127e21180f::t_5c17c3395feabf 42-68
+  s_35b3127e21180f::t_e684e33aced692 4
+scripts/install.sh
+  s_35b3127e21180f::t_c29cbb768cbaf6 7-21
+  s_35b3127e21180f::t_d61b99c01ec297 113-125
+  s_35b3127e21180f::t_6cd9878c3088cc 168-177
+docs/runbooks/onboard-new-repository.md
+  s_35b3127e21180f::t_0821d5d9c4fe6f 63-96
+internal/installer/runtime_calm.go
+  s_35b3127e21180f::t_455122e1edaf4e 17-29,38
+internal/installer/installer.go
+  s_35b3127e21180f::t_668acf6b4cc9fa 464-485
+  s_35b3127e21180f::t_034262953dac80 264-305
+docs/adr/0005-release-installer-and-managed-runtime.md
+  s_35b3127e21180f::t_adc8a984df0105 337-345
+internal/installer/installer_test.go
+  s_35b3127e21180f::t_6fba227fb24875 4
+  s_35b3127e21180f::t_dc4864efbbd34f 167-172,175-176
+  s_35b3127e21180f::t_ee73694666abd2 195-312
+  s_35b3127e21180f::t_21981c1d3718ab 164-166,173-174,177-194
+  s_35b3127e21180f::t_eda6345773a26a 6
+.opencode/commands/telemetry-inspect.md
+  s_35b3127e21180f::t_fc23f84a394281 1-10
+.opencode/commands/telemetry-report.md
+  s_35b3127e21180f::t_09463483a3e0f7 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "8ab57fa2032bba9eb19922dc64842ccaa5cf03c1",
+  "prompts": {},
+  "sessions": {
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
