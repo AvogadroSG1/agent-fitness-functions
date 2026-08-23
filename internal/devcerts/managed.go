@@ -338,7 +338,7 @@ func readFingerprintedManagedFile(path string, mode os.FileMode, state *managedV
 	}
 	content, err := io.ReadAll(file)
 	if err != nil {
-		return nil, closeManagedFile(file, err)
+		return nil, closeManagedFile(file, ErrUnsupportedForBootstrap)
 	}
 	reobserved, err := state.operations.lstat(path)
 	if err != nil || !os.SameFile(want, reobserved) {
@@ -349,7 +349,7 @@ func readFingerprintedManagedFile(path string, mode os.FileMode, state *managedV
 		return nil, closeManagedFile(file, ErrUnsupportedForBootstrap)
 	}
 	if err := file.Close(); err != nil {
-		return nil, err
+		return nil, ErrUnsupportedForBootstrap
 	}
 	return content, nil
 }

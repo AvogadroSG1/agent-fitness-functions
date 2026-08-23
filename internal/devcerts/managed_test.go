@@ -344,3 +344,39 @@ func TestLoadManagedClientDoesNotLeakPathsWhenMaterialOpenFailsAfterResolve(t *t
 		t.Fatalf("LoadManagedClient error leaks material file path: %q", err)
 	}
 }
+
+func TestLoadManagedClientDoesNotLeakPathsWhenMaterialReadFailsAfterOpen(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "certs")
+	if err := Publish(root, false); err != nil {
+		t.Fatalf("Publish(%q): %v", root, err)
+	}
+
+	resolved := false
+	operations := defaultManagedOperations
+	originalOpen := operations.open
+	operations.open = func(path string) (*os.File, error) {
+		if resolved && filepath.Base(path) == "ca.crt" {
+			// Write-only descriptor: Stat and SameFile succeed, but the
+			// subsequent read fails with a path-bearing *os.PathError.
+			return os.OpenFile(path, os.O_WRONLY, 0)
+		}
+		return originalOpen(path)
+	}
+
+	version, err := resolveManagedVersionWithOperations(root, operations)
+	if err != nil {
+		t.Fatalf("resolveManagedVersionWithOperations(%q): %v", root, err)
+	}
+	resolved = true
+
+	_, err = LoadManagedClient(version)
+	if err == nil {
+		t.Fatal("LoadManagedClient accepted material whose content read failed after open")
+	}
+	if strings.Contains(err.Error(), root) {
+		t.Fatalf("LoadManagedClient error leaks managed root path: %q", err)
+	}
+	if strings.Contains(err.Error(), string(filepath.Separator)+"ca.crt") {
+		t.Fatalf("LoadManagedClient error leaks material file path: %q", err)
+	}
+}
