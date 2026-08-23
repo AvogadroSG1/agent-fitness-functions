@@ -1,0 +1,23 @@
+repo_hygiene_test.go
+  s_35b3127e21180f::t_8260b41c535ffc 1-21
+internal/devcerts/rotation_rejection_test.go
+  s_35b3127e21180f::t_4b5d16d013c9f1 1-65
+LEGACY_REFERENCES.md
+  s_35b3127e21180f::t_fe113135e28e9e 65-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "830158cb5612219df65eb926f5964c878786582c",
+  "prompts": {},
+  "sessions": {
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
