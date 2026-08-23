@@ -213,7 +213,7 @@ func trustedProxyPeer(peer string, allowed []string) bool {
 }
 
 func authorizeRepoAccess(store *ConfigStore, caller, repo string) (string, error) {
-	repoName, err := validateRepoName(repo)
+	repoName, err := canonicalRepoName(repo)
 	if err != nil {
 		return "", err
 	}
