@@ -118,9 +118,13 @@ func sidecarHookName(hook string) string { return hookProductPrefix + "-" + hook
 // human setting an escape-hatch env var. Beads' own integration marker is
 // version-stamped (e.g. "BEGIN BEADS INTEGRATION v1.2.2"); this matches only
 // the version-independent substring so a future Beads version bump the
-// product has never seen still composes cleanly.
+// product has never seen still composes cleanly. No Lefthook installation
+// exists in this repository to fixture a generated-header signature against
+// (ADR-0006 Open Questions), so Lefthook is recognized by the invocation
+// form every Lefthook-generated hook ends with instead: "lefthook run".
 func knownOwnerSignature(content []byte) bool {
-	return bytes.Contains(content, []byte("BEGIN BEADS INTEGRATION"))
+	return bytes.Contains(content, []byte("BEGIN BEADS INTEGRATION")) ||
+		bytes.Contains(content, []byte("lefthook run"))
 }
 
 // RunCheck validates one file by posting a validation request to the daemon.
@@ -369,12 +373,99 @@ func (installer hookInstaller) appendHookSidecar(targetHook, hooksDir, hookName,
 	if err := installer.writeFormatter(hooksDir); err != nil {
 		return err
 	}
-	block := fmt.Sprintf("\n%s\n%q\n", sidecarHookMarker(hookName), sidecar)
-	if err := appendFile(targetHook, []byte(block)); err != nil {
+	if err := insertHookSidecarCall(targetHook, hookName, sidecar); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(installer.stdout, "appended %s call to %s (sidecar: %s)\n", hookProductPrefix, targetHook, sidecar)
 	return nil
+}
+
+// sidecarStatusVar is the shell variable used to capture the delegated
+// sidecar call's exit status (ADR-0006 Decision Outcome item 4: the
+// delegated call MUST be a checked subprocess call whose failure exits the
+// host hook with the sidecar's code, since only the last stage in a chain
+// may terminate via exec). Namespaced under the product prefix to make an
+// accidental collision with a host hook's own variables vanishingly
+// unlikely.
+const sidecarStatusVar = "__agent_fitness_functions_sidecar_status"
+
+// sidecarCallBlock renders the marker plus a checked invocation of
+// sidecarPath: the sidecar runs, its exact exit status is captured, and a
+// nonzero status exits the host hook immediately with that same status —
+// before control can reach any later stage, including a terminal exec.
+func sidecarCallBlock(hookName, sidecarPath string) string {
+	return fmt.Sprintf(
+		"\n%s\n%q\n%s=$?\nif [ \"$%s\" -ne 0 ]; then\n  exit \"$%s\"\nfi\n",
+		sidecarHookMarker(hookName), sidecarPath,
+		sidecarStatusVar, sidecarStatusVar, sidecarStatusVar,
+	)
+}
+
+// insertHookSidecarCall inserts a checked call to sidecarPath into the host
+// hook at targetHook. Per ADR-0006 Decision Outcome item 3 ("insert
+// immediately before the first detected unconditional trailing exit/exec
+// statement, never after"), the call is placed before a detected terminal
+// exec/exit line so it is never dead code; when no such line is found, it
+// falls back to end-of-file append (today's behavior, still correct for
+// host files with no terminal statement at all).
+func insertHookSidecarCall(targetHook, hookName, sidecarPath string) error {
+	content, err := os.ReadFile(targetHook)
+	if err != nil {
+		return fmt.Errorf("reading %s for sidecar insertion: %w", targetHook, err)
+	}
+	block := sidecarCallBlock(hookName, sidecarPath)
+	offset, found := terminalInsertionPoint(content)
+	if !found {
+		return appendFile(targetHook, []byte(block))
+	}
+	updated := make([]byte, 0, len(content)+len(block))
+	updated = append(updated, content[:offset]...)
+	updated = append(updated, []byte(block)...)
+	updated = append(updated, content[offset:]...)
+	return os.WriteFile(targetHook, updated, 0o755)
+}
+
+// terminalInsertionPoint locates the byte offset of the last substantive
+// (non-blank) line in content, so a delegated call can be inserted
+// immediately before it when that line is a terminal, unconditional `exec `
+// or `exit ` statement (ADR-0006 Decision Outcome item 3). Trailing blank
+// lines after that statement are tolerated by construction: they are simply
+// part of the preserved tail written back after the inserted block. When
+// the last substantive line is a comment, or does not start with `exec ` or
+// `exit `, found is false and the caller MUST fall back to end-of-file
+// append rather than guess at reachability (ADR-0006: "refuse, not guess").
+func terminalInsertionPoint(content []byte) (offset int, found bool) {
+	text := string(content)
+	lastStart := -1
+	var lastLine string
+	for lineStart := 0; lineStart <= len(text); {
+		newlineIdx := strings.IndexByte(text[lineStart:], '\n')
+		var line string
+		if newlineIdx == -1 {
+			line = text[lineStart:]
+		} else {
+			line = text[lineStart : lineStart+newlineIdx]
+		}
+		if strings.TrimSpace(line) != "" {
+			lastStart = lineStart
+			lastLine = line
+		}
+		if newlineIdx == -1 {
+			break
+		}
+		lineStart += newlineIdx + 1
+	}
+	if lastStart == -1 {
+		return 0, false
+	}
+	trimmed := strings.TrimSpace(lastLine)
+	if strings.HasPrefix(trimmed, "#") {
+		return 0, false
+	}
+	if strings.HasPrefix(trimmed, "exec ") || strings.HasPrefix(trimmed, "exit ") {
+		return lastStart, true
+	}
+	return 0, false
 }
 
 func (installer hookInstaller) installGitGuard() error {
