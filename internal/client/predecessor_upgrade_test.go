@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// calm-poc-phk.7: given hooks installed by the stack-fitness-functions
+// calm-poc-phk.7: given hooks installed by the immediate predecessor
 // generation, when install-hooks runs, then every predecessor artifact is
 // recognized, replaced with the agent-fitness-functions generation, stale
 // predecessor files are cleaned up, and the upgrade is idempotent.
