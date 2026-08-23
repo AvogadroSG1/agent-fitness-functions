@@ -39,3 +39,4 @@ tools/roslyn-analyzer/bin/
 
 # APM dependencies
 apm_modules/
+.serena/

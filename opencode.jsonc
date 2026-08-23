@@ -1,10 +1,33 @@
 {
   // OpenCode Configuration (https://opencode.ai)
   "$schema": "https://opencode.ai/config.json",
-
+    "disabled_providers": [
+    "databricks",
+    "openrouter",
+    "opencode",
+    "github-copilot",
+    "anthropic"
+  ],
   // Enable default Language Server Protocol support
   "lsp": true,
-
+  "references": {
+    "agent_docs": {
+      "path": "~/peter_code/ai_support/agent_docs",
+      "description": "Use for engineering principles, adr formats, conventional-comments guide, and repository guide."
+    },
+    "ai-support": {
+      "path": "~/peter_code/ai_support",
+      "description": "Use for shared AI support code and documentation."
+    },
+    "scratch-work": {
+      "path": "~/peter_code/scratch_work",
+      "description": "Use for reproducible scratch work."
+    },
+    "work-notes": {
+      "path": "~/ObsidianNotes/Work",
+      "description": "Use for authoritative work documentation."
+    }
+  },
   "permission": {
     // Read permissions: allow all repository files except sensitive secrets
     "read": {
@@ -28,14 +51,12 @@
       "~/.npmrc": "deny",
       "~/.pypirc": "deny"
     },
-
     // Edit permissions: allow general file editing while protecting git and opencode internals
     "edit": {
       "*": "allow",
       ".git/**": "deny",
       ".opencode/**": "deny"
     },
-
     // Bash permissions: vetted commands for git, build, test, and package tools
     "bash": {
       "*": "allow",
@@ -112,7 +133,6 @@
       "go*": "allow",
       //"// END FORGE ALLOW"
     },
-
     // Built-in tools allowed unconditionally
     "glob": "allow",
     "grep": "allow",
