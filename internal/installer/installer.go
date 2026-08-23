@@ -261,6 +261,48 @@ func RunRollback(args []string, stdout, stderr io.Writer, getenv func(string) st
 	return err
 }
 
+// RunPublishCurrent is the internal, hidden subcommand `install.sh` delegates
+// the current-pointer swap to: `agent-fitness-functions internal
+// publish-current --state-root <root> --version <v>`. A shell-only `ln -sfn`
+// is NOT atomic — it is an unlink-then-symlink sequence, so a reader can
+// observe current missing entirely (ENOENT) between the two steps. Rather
+// than reimplementing the atomic temp-symlink-plus-rename dance in POSIX
+// shell (a second, harder-to-verify implementation of the same logic),
+// install.sh extracts and verifies the version directory itself, then
+// delegates the actual pointer swap to that freshly-extracted binary, which
+// calls the same publishCurrent every other lifecycle command (upgrade,
+// rollback) uses.
+func RunPublishCurrent(args []string, stdout, stderr io.Writer, getenv func(string) string) error {
+	flags := flag.NewFlagSet("internal publish-current", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	stateRoot := flags.String("state-root", "", "resolved installer state root")
+	version := flags.String("version", "", "version directory name under versions/ to publish as current")
+	if err := flags.Parse(args); err != nil {
+		return usageError{err: err}
+	}
+	if flags.NArg() > 0 {
+		return usageError{err: errors.New("publish-current accepts no positional arguments")}
+	}
+	if *stateRoot == "" || *version == "" {
+		return usageError{err: errors.New("publish-current requires --state-root and --version")}
+	}
+	if err := validateVersionSegment(*version); err != nil {
+		return usageError{err: err}
+	}
+	if filepath.Base(*stateRoot) != productDirName {
+		return usageError{err: fmt.Errorf("refusing to publish current: %q does not look like a product-owned state root", *stateRoot)}
+	}
+	versionDir := filepath.Join(*stateRoot, "versions", *version)
+	if !verifiedSentinelExists(versionDir) {
+		return fmt.Errorf("refusing to publish unverified version directory %s", versionDir)
+	}
+	if err := publishCurrent(*stateRoot, versionDir); err != nil {
+		return fmt.Errorf("publish current pointer: %w", err)
+	}
+	_, err := fmt.Fprintf(stdout, "published %s as current\n", *version)
+	return err
+}
+
 // publishVersionDirectory extracts archivePath into a fresh staging directory
 // under cacheDir (ADR-0005's scratch-space requirement), moves the fully
 // extracted tree into targetDir, then writes the .verified sentinel last —
@@ -419,7 +461,28 @@ func parseArchiveVersion(archivePath string) (string, error) {
 	if match == nil {
 		return "", fmt.Errorf("archive name %q does not match agent-fitness-functions-<version>-darwin-arm64.tar.gz", filepath.Base(archivePath))
 	}
-	return match[1], nil
+	version := match[1]
+	if err := validateVersionSegment(version); err != nil {
+		return "", fmt.Errorf("archive name %q has an invalid version segment: %w", filepath.Base(archivePath), err)
+	}
+	return version, nil
+}
+
+// validateVersionSegment rejects version strings that cannot safely be used
+// as a single path segment under versions/: empty, ".", "..", or anything
+// containing a "/" (which could otherwise escape the versions directory when
+// joined into a path).
+func validateVersionSegment(version string) error {
+	if version == "" {
+		return errors.New("version must not be empty")
+	}
+	if version == "." || version == ".." {
+		return fmt.Errorf("version %q is not a valid path segment", version)
+	}
+	if strings.Contains(version, "/") {
+		return fmt.Errorf("version %q must not contain %q", version, "/")
+	}
+	return nil
 }
 
 // extractArchive extracts a tar.gz archive into destDir, rejecting any entry

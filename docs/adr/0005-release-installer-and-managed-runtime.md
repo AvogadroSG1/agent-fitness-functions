@@ -334,6 +334,15 @@ user's shell profile or global environment.
 - Only `darwin-arm64` is supported at ship time; any other platform or architecture
   has no installer path until the follow-on bd issue's work extends the archive
   matrix.
+- **Descoped in v1:** `runtimes/dotnet-sdk` (the third managed component, the optional
+  local contributor path for rebuilding `tools/roslyn-analyzer` from source) is not
+  implemented in this pass. The release archive ships a prebuilt, self-contained Roslyn
+  analyzer (see "`.NET 8 SDK and the Roslyn analyzer`" above), which removes any
+  end-user need for a managed .NET SDK to run governance checks; only a contributor
+  rebuilding the analyzer from source would want it, and that path remains a manual,
+  documented local setup for now. Provisioning `runtimes/dotnet-sdk` through the same
+  atomic `versions/<version>` + `current` shape as `runtimes/calm` and `runtimes/python`
+  ships in a follow-on issue rather than this one.
 
 ## Impact
 

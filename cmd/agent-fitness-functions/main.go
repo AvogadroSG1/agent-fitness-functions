@@ -60,6 +60,8 @@ func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *ht
 		return runRollbackCommand(args[1:], stdout, stderr)
 	case "runtime":
 		return runRuntimeCommand(args[1:], stdout, stderr)
+	case "internal":
+		return runInternalCommand(args[1:], stdout, stderr)
 	default:
 		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", args[0])
 		return 2
@@ -143,6 +145,32 @@ func runRuntimeCommand(args []string, stdout, stderr io.Writer) int {
 		return 0
 	default:
 		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", "runtime "+args[0])
+		return 2
+	}
+}
+
+// runInternalCommand dispatches hidden subcommands that exist only for
+// delegation from other installer entrypoints, not for direct operator use:
+// `internal publish-current` is how scripts/install.sh performs the atomic
+// current-pointer swap after extraction, since a shell-only `ln -sfn` is not
+// atomic (see installer.RunPublishCurrent).
+func runInternalCommand(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 0 {
+		_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions internal <publish-current>")
+		return 2
+	}
+	switch args[0] {
+	case "publish-current":
+		if err := installer.RunPublishCurrent(args[1:], stdout, stderr, os.Getenv); err != nil {
+			_, _ = fmt.Fprintln(stderr, err)
+			if installer.IsUsageError(err) {
+				return 2
+			}
+			return 1
+		}
+		return 0
+	default:
+		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", "internal "+args[0])
 		return 2
 	}
 }

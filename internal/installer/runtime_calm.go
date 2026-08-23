@@ -14,16 +14,19 @@ import (
 // tools/calm-runtime/{package.json,package-lock.json} from assetDir there and
 // running `npm ci` against them, then verifying the result.
 //
-// ADR-0005 describes this as `npm ci --prefix <targetDir>`; this
-// implementation instead runs npm with its working directory set to
-// targetDir directly (equivalent effect — npm ci installs into the directory
-// containing the package.json/package-lock.json it operates on). The two
-// forms differ in this environment: `npm ci --prefix <dir>` run from a
-// different cwd fails with a spurious "Missing: <cwd-basename>@<version> from
-// lock file" EUSAGE error in the installed npm version, while running npm
-// with Dir set to targetDir (equivalent to `cd targetDir && npm ci`) works
-// correctly. `npm ls --json --prefix <path>` (used by verifyCalmRuntime,
-// unaffected by this quirk) is used exactly as ADR-0005 specifies.
+// ADR-0005 describes this as `npm ci --prefix <targetDir>`; npm ci is run
+// here with Dir set to targetDir instead (equivalent effect — npm ci installs
+// into the directory containing the package.json/package-lock.json it
+// operates on) for robustness across npm versions: `--prefix` behaved
+// inconsistently in some npm 11 environments. `npm ls --json --prefix <path>`
+// (used by verifyCalmRuntime, unaffected by this) is used exactly as
+// ADR-0005 specifies.
+//
+// --ignore-scripts is passed because the committed lockfile pins zero
+// packages with an install script (enforced by
+// TestManagedToolPinsHaveNoInstallScripts in pins_drift_test.go); this keeps
+// provisioning from silently starting to execute arbitrary npm lifecycle
+// scripts if a future dependency bump introduces one.
 func provisionCalmRuntime(targetDir, assetDir string) error {
 	lockDir := filepath.Join(assetDir, "calm-runtime")
 	for _, name := range []string{"package.json", "package-lock.json"} {
@@ -32,7 +35,7 @@ func provisionCalmRuntime(targetDir, assetDir string) error {
 		}
 	}
 
-	cmd := exec.Command("npm", "ci")
+	cmd := exec.Command("npm", "ci", "--ignore-scripts")
 	cmd.Dir = targetDir
 	output, err := cmd.CombinedOutput()
 	if err != nil {

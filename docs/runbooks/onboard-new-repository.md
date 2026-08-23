@@ -60,12 +60,44 @@ from the mounted `configs/<repo>/config.json`.
   onboard` validates this and, when the working-tree basename is not a valid name, tells
   you to pass `--repo <name>`.
 - The `agent-fitness-functions` binary on `PATH`.
+- For production: write access to the deployment's `configs/` and `caller-repos.json`
+  artifacts, and mTLS client credentials issued for an authorized caller CN.
+
+### Getting the binary on `PATH` — installer (recommended)
+
+Per ADR-0005, the supported way to get a working `agent-fitness-functions` without a
+source checkout is the release installer:
+
+```bash
+scripts/install.sh --archive agent-fitness-functions-<version>-darwin-arm64.tar.gz \
+  --checksums SHA256SUMS --provision-runtimes
+```
+
+- `--provision-runtimes` provisions the pinned managed CALM CLI and Python
+  (radon/pyyaml) runtimes the analyzers need, into product-owned state under
+  `$XDG_STATE_HOME/agent-fitness-functions/` (default `~/.local/state`) — no manual
+  `npm install -g` or `pip install` required. It still requires a host `node`/`npm` and
+  `python3` as documented (not product-managed) bootstrap prerequisites.
+- Add `$XDG_STATE_HOME/agent-fitness-functions/current/bin` to `PATH` once install.sh
+  reports it.
+- `agent-fitness-functions runtime doctor` verifies the managed CALM/Python runtimes
+  are present, pinned, and healthy — run it any time after installing, and after
+  `upgrade`/`rollback`.
+- `agent-fitness-functions upgrade --archive <archive> --checksums <checksums>` installs
+  a new version through the same verified atomic path, retaining exactly one
+  predecessor; `agent-fitness-functions rollback` repoints `current` back at that
+  predecessor (reconciling the managed runtime pointers too); `agent-fitness-functions
+  uninstall --yes` removes all product-owned installer state.
+
+### Source-checkout alternative (manual prerequisites)
+
+If you are working from a source checkout instead of an installed release (e.g.
+repository development), the manual prerequisite path still applies:
+
 - `python3` with `pyyaml` for the hooks and violation formatter:
   `python3 -m pip install -r hooks/requirements.txt`.
 - The FINOS `calm` CLI 1.40.0 on `PATH` for the server (`npm install -g
   @finos/calm-cli@1.40.0`).
-- For production: write access to the deployment's `configs/` and `caller-repos.json`
-  artifacts, and mTLS client credentials issued for an authorized caller CN.
 
 ## Local / developer path — one command
 
