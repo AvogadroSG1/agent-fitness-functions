@@ -1,0 +1,21 @@
+internal/devcerts/certification_test.go
+  s_35b3127e21180f::t_87263b577cdf5d 1-10,12-13,20-23,26,28,30-32,34-47,49-52,54-62,65-67,72-76,81-85,90-106,110-117,120-121,123-132,137,143-146,153-160
+  s_35b3127e21180f::t_87166c3d391520 14-19,24-25,27,29,33,48,53,63-64,68-71,77-80,86-89,107-109,118-119,122,133-136,138-142,147-152
+  s_35b3127e21180f::t_1578fb9eb89926 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "885b940676043ace1a57029d69acd0e496e167eb",
+  "prompts": {},
+  "sessions": {
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
