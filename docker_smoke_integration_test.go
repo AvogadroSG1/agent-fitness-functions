@@ -22,7 +22,8 @@ func TestDockerComposeFirstGenerationReachesHealthyFromIsolatedRoot(t *testing.T
 	if output, err := exec.Command("docker", "info").CombinedOutput(); err != nil {
 		t.Skipf("Docker unavailable: %v\n%s", err, output)
 	}
-	witnessRoot, witnessBefore := isolationWitness(t)
+	const witnessRoot = "certs"
+	witnessPublishedBefore, witnessBefore := observeManagedRoot(t, witnessRoot)
 	certRoot := filepath.Join(t.TempDir(), "certs")
 	if err := devcerts.Publish(certRoot, false); err != nil {
 		t.Fatalf("Publish(isolated Compose root): %v", err)
@@ -88,8 +89,12 @@ func TestDockerComposeFirstGenerationReachesHealthyFromIsolatedRoot(t *testing.T
 		t.Fatalf("remove generation B source: %v", err)
 	}
 	assertRuntimeHealthAndPublicFiles(t, composeArgs)
-	if after := managedVersionDigests(t, witnessRoot); after != witnessBefore {
-		t.Fatalf("Compose smoke modified unrelated managed certificate material\nbefore=%v\nafter=%v", witnessBefore, after)
+	witnessPublishedAfter, witnessAfter := observeManagedRoot(t, witnessRoot)
+	if witnessPublishedBefore != witnessPublishedAfter {
+		t.Fatalf("Compose smoke changed publication state of the real %s root: published before=%v, after=%v", witnessRoot, witnessPublishedBefore, witnessPublishedAfter)
+	}
+	if witnessPublishedBefore && witnessAfter != witnessBefore {
+		t.Fatalf("Compose smoke modified the real %s certificate generation\nbefore=%v\nafter=%v", witnessRoot, witnessBefore, witnessAfter)
 	}
 }
 
@@ -256,25 +261,23 @@ func composeExec(t *testing.T, composeArgs []string, script string) string {
 	return string(output)
 }
 
-// isolationWitness publishes a managed certificate generation in a root that
-// the Compose smoke test never mounts or otherwise touches. Hashing its files
-// before and after the smoke run proves the test's filesystem operations stay
-// confined to the isolated roots it explicitly manages (certRoot, secondRoot)
-// instead of leaking into unrelated certificate material.
-func isolationWitness(t *testing.T) (root string, digests [5][32]byte) {
-	t.Helper()
-	root = filepath.Join(t.TempDir(), "certs")
-	if err := devcerts.Publish(root, false); err != nil {
-		t.Fatalf("Publish(isolation witness root): %v", err)
-	}
-	return root, managedVersionDigests(t, root)
-}
-
-func managedVersionDigests(t *testing.T, root string) [5][32]byte {
+// observeManagedRoot reports whether root already resolves to a published
+// managed certificate generation and, if so, the SHA-256 digests of its five
+// material files. It never creates, publishes, or otherwise mutates root — it
+// only observes state that some other process (a developer's prior local
+// bootstrap, `agent-fitness-functions-serve`, etc.) may have left behind.
+//
+// The Compose smoke test uses this against the repository's real default
+// certificate root — "certs", the path cmd/agent-fitness-functions/main.go,
+// internal/client/devcerts.go, daemon.go, and onboard.go all resolve to by
+// default — to prove the smoke run never falls back onto (and so corrupts or
+// silently manufactures) that developer-facing root instead of staying
+// confined to the isolated roots it explicitly manages (certRoot, secondRoot).
+func observeManagedRoot(t *testing.T, root string) (published bool, digests [5][32]byte) {
 	t.Helper()
 	version, err := devcerts.ResolveManagedVersion(root)
 	if err != nil {
-		t.Fatalf("ResolveManagedVersion(%s): %v", root, err)
+		return false, [5][32]byte{}
 	}
 	paths := version.Paths()
 	var result [5][32]byte
@@ -285,5 +288,5 @@ func managedVersionDigests(t *testing.T, root string) [5][32]byte {
 		}
 		result[i] = sha256.Sum256(content)
 	}
-	return result
+	return true, result
 }
