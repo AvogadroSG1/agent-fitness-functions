@@ -20,8 +20,11 @@ import (
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/client"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/installer"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/server"
 )
+
+const usageLine = "usage: agent-fitness-functions <client validate|client install-hooks|client onboard|client resolve-dev-cert-version|server start|baseline|doctor|uninstall|upgrade|rollback>"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -33,11 +36,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions <client validate|client install-hooks|client onboard|client resolve-dev-cert-version|server start|baseline|doctor>")
+		_, _ = fmt.Fprintln(stderr, usageLine)
 		return 2
 	}
 
 	switch args[0] {
+	case "--help", "-h", "help":
+		_, _ = fmt.Fprintln(stdout, usageLine)
+		return 0
 	case "client":
 		return runClient(args[1:], stdout, stderr, httpClient, starter)
 	case "server":
@@ -46,6 +52,12 @@ func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *ht
 		return runDoctorCommand(args[1:], stdout, stderr, httpClient)
 	case "baseline":
 		return runBaselineCommand(args[1:], stdout, stderr)
+	case "uninstall":
+		return runUninstallCommand(args[1:], stdout, stderr)
+	case "upgrade":
+		return runUpgradeCommand(args[1:], stdout, stderr)
+	case "rollback":
+		return runRollbackCommand(args[1:], stdout, stderr)
 	default:
 		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", args[0])
 		return 2
@@ -56,6 +68,43 @@ func runDoctorCommand(args []string, stdout, stderr io.Writer, httpClient *http.
 	if err := client.RunDoctor(args, stdout, stderr, httpClient); err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
 		if client.IsUsageError(err) {
+			return 2
+		}
+		return 1
+	}
+	return 0
+}
+
+// runUninstallCommand, runUpgradeCommand, and runRollbackCommand are the
+// ADR-0005 lifecycle subcommands: uninstall removes product-owned installer
+// state, upgrade installs a new version through the same verified atomic path
+// install.sh uses, and rollback repoints current at the retained predecessor.
+func runUninstallCommand(args []string, stdout, stderr io.Writer) int {
+	if err := installer.RunUninstall(args, stdout, stderr, os.Getenv); err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		if installer.IsUsageError(err) {
+			return 2
+		}
+		return 1
+	}
+	return 0
+}
+
+func runUpgradeCommand(args []string, stdout, stderr io.Writer) int {
+	if err := installer.RunUpgrade(args, stdout, stderr, os.Getenv); err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		if installer.IsUsageError(err) {
+			return 2
+		}
+		return 1
+	}
+	return 0
+}
+
+func runRollbackCommand(args []string, stdout, stderr io.Writer) int {
+	if err := installer.RunRollback(args, stdout, stderr, os.Getenv); err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		if installer.IsUsageError(err) {
 			return 2
 		}
 		return 1
