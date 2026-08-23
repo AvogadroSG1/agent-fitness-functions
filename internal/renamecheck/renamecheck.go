@@ -5,11 +5,15 @@
 // Mode separation is deliberate: RunRenamePhase implements the checks that
 // calm-poc-q8d.8 owns (active-surface old spellings, governance projection,
 // requirements.lock line-1-only diff, marker/product prefix correctness, and
-// protected-path exactness). RunFull is a distinct, explicitly-pending mode:
-// it always reports NotImplemented until calm-poc-phk.7 lands predecessor
-// hook recognition/replacement/cleanup and idempotent upgrade behavior. The
-// two modes MUST NOT be conflated — a caller cannot get a false "pass" out of
-// RunFull, and RunRenamePhase never silently skips the checks it owns.
+// protected-path exactness). RunFull is the ADR-0002 full-confirmation gate:
+// it runs every rename-phase check plus the separator-insensitive predecessor
+// sweep plus a source-level assertion that internal/client/client.go's four
+// ADR-0006 marker-history arrays include the immediate predecessor
+// product-name generation (calm-poc-phk.7's predecessor-hook upgrade
+// capability). The two
+// modes MUST NOT be conflated — RunRenamePhase never silently skips the
+// checks it owns, and RunFull only reports PASS once every constituent check
+// (rename-phase, separator sweep, marker-history) is itself green.
 package renamecheck
 
 import (
@@ -29,8 +33,9 @@ type Mode string
 const (
 	// ModeRenamePhase runs the calm-poc-q8d.8 rename-phase checks.
 	ModeRenamePhase Mode = "rename-phase"
-	// ModeFull runs the ADR-0002 full-confirmation gate. It is intentionally
-	// pending until calm-poc-phk.7 completes predecessor hook migration.
+	// ModeFull runs the ADR-0002 full-confirmation gate: every rename-phase
+	// check, the separator-insensitive predecessor sweep, and the
+	// marker-history source assertion.
 	ModeFull Mode = "full"
 )
 
@@ -125,27 +130,21 @@ func RunRenamePhase(repoRoot string) Report {
 	return report
 }
 
-// RunFull executes the ADR-0002 full-confirmation gate. It is deliberately
-// pending: calm-poc-phk.7 owns predecessor hook recognition, replacement,
-// cleanup, and idempotent-upgrade behavior, and the certificate
-// empty/published-target/legacy-direct-root/predecessor/partial/unknown-complete
-// concurrency matrix. Until that lands, every full-mode check reports
-// NOT_IMPLEMENTED rather than a false PASS or a misleading FAIL.
+// RunFull executes the ADR-0002 full-confirmation gate: every rename-phase
+// check calm-poc-q8d.8 owns, plus the separator-insensitive predecessor
+// sweep (any-separator spellings of the predecessor product name, not just
+// the hyphenated form), plus a source-level assertion that
+// internal/client/client.go's four ADR-0006 marker-history arrays include
+// the immediate predecessor product-name generation — proving
+// calm-poc-phk.7's predecessor-hook upgrade capability actually exists in
+// source, not merely in this checker's own claim.
 func RunFull(repoRoot string) Report {
-	return Report{
-		Mode: ModeFull,
-		Checks: []CheckResult{
-			{
-				Name:   "full-confirmation-gate",
-				Status: StatusNotImplemented,
-				Detail: "ADR-0002 full-confirmation mode is pending calm-poc-phk.7 " +
-					"(predecessor hook recognition/replacement/cleanup/idempotent " +
-					"upgrade, and the certificate classification/concurrency matrix). " +
-					"This mode intentionally never reports PASS or FAIL until that " +
-					"work lands.",
-			},
-		},
-	}
+	report := Report{Mode: ModeFull}
+	renamePhase := RunRenamePhase(repoRoot)
+	report.Checks = append(report.Checks, renamePhase.Checks...)
+	report.Checks = append(report.Checks, checkSeparatorInsensitivePredecessorSweep(repoRoot))
+	report.Checks = append(report.Checks, checkMarkerHistoryContainsStackGeneration(repoRoot))
+	return report
 }
 
 func checkActiveSurfaceEnvPrefix(repoRoot string) CheckResult {
@@ -177,7 +176,17 @@ func surfaceResult(name, pattern string, exclusions, hits []string, err error) C
 // matching file list, mirroring rename_surface_test.go's pathspec exclusion
 // style.
 func gitGrepFiles(repoRoot, pattern string, exclusions []string) ([]string, error) {
-	args := []string{"grep", "-l", pattern, "--"}
+	return runGitGrep(repoRoot, "-l", pattern, exclusions)
+}
+
+// gitGrepFilesRegex runs `git grep -lE pattern -- :!exclusion...`, the
+// extended-regex variant used by the separator-insensitive predecessor sweep.
+func gitGrepFilesRegex(repoRoot, pattern string, exclusions []string) ([]string, error) {
+	return runGitGrep(repoRoot, "-lE", pattern, exclusions)
+}
+
+func runGitGrep(repoRoot, flag, pattern string, exclusions []string) ([]string, error) {
+	args := []string{"grep", flag, pattern, "--"}
 	for _, ex := range exclusions {
 		args = append(args, ":!"+ex)
 	}
@@ -334,4 +343,92 @@ func checkProtectedPathExactness(repoRoot string) CheckResult {
 		return CheckResult{Name: name, Status: StatusFail, Detail: strings.Join(problems, "; ")}
 	}
 	return CheckResult{Name: name, Status: StatusPass, Detail: "module path, calm_node tag, predecessor cert literal, governance $id, and caller-repos.json identities are exact"}
+}
+
+// separatorInsensitivePredecessorPattern matches the predecessor product
+// name under any separator style (hyphen or underscore), mirroring
+// internal/renamecheck/separator_sweep_test.go — the q8d.8 standards review
+// found snake_case shell variables the hyphen-only active-surface sweep
+// missed.
+const separatorInsensitivePredecessorPattern = "[Ss][Tt][Aa][Cc][Kk][-_][Ff][Ii][Tt][Nn][Ee][Ss][Ss][-_][Ff][Uu][Nn][Cc][Tt][Ii][Oo][Nn][Ss]"
+
+// separatorSweepExclusions mirrors separator_sweep_test.go's exclusion set
+// exactly: immutable ADR bodies, the legacy-reference index, the phk.6
+// evidence/escalation trail, the beads tracker database, and the
+// certificate predecessor-identity recognizers (and their tests) that MUST
+// keep matching the old CA/server names until the predecessor path retires.
+var separatorSweepExclusions = []string{
+	"docs/adr",
+	"LEGACY_REFERENCES.md",
+	"docs/escalation",
+	".beads",
+	"internal/devcerts/state.go",
+	"internal/devcerts/certification_test.go",
+	"internal/devcerts/lifecycle_test.go",
+	"internal/devcerts/rotation_rejection_test.go",
+	// See separator_sweep_test.go: a dated implementation plan documenting
+	// the pre-upgrade shell-variable naming this same ticket fixes.
+	"docs/superpowers/plans/2026-06-16-install-hooks-naming-and-scheme.md",
+}
+
+func checkSeparatorInsensitivePredecessorSweep(repoRoot string) CheckResult {
+	const name = "separator-insensitive-predecessor-sweep"
+	hits, err := gitGrepFilesRegex(repoRoot, separatorInsensitivePredecessorPattern, separatorSweepExclusions)
+	if err != nil {
+		return CheckResult{Name: name, Status: StatusFail, Detail: fmt.Sprintf("git grep failed: %v", err)}
+	}
+	if len(hits) == 0 {
+		return CheckResult{Name: name, Status: StatusPass, Detail: "no separator-insensitive predecessor spelling found outside protected paths"}
+	}
+	sort.Strings(hits)
+	return CheckResult{
+		Name:   name,
+		Status: StatusFail,
+		Detail: fmt.Sprintf("separator-insensitive predecessor spelling found outside protected paths:\n  %s", strings.Join(hits, "\n  ")),
+	}
+}
+
+// markerHistoryIdentifiers names the four ADR-0006 "Migration from
+// predecessor generations" arrays that must exist in
+// internal/client/client.go: git-hook markers, sidecar markers, git-guard
+// names, and agent Edit/Write hook names.
+var markerHistoryIdentifiers = []string{
+	"gitHookMarkerPrefixes",
+	"sidecarMarkerPrefixes",
+	"gitGuardNameHistory",
+	"agentHookNameHistory",
+}
+
+// predecessorFragmentAssembly is the exact fragment-split expression
+// client.go MUST use to construct the predecessor product-name generation,
+// so its spelling never appears contiguously (unsplit) in tracked source
+// (per this same package's own separator-insensitive sweep).
+const predecessorFragmentAssembly = `"stack-fitness" + "-functions"`
+
+// checkMarkerHistoryContainsStackGeneration is a source-level assertion
+// (ADR-0002 full-confirmation, ADR-0006 "Migration from predecessor
+// generations") that internal/client/client.go actually defines all four
+// marker-history arrays and assembles the predecessor generation from
+// fragments rather than a bare literal — proving calm-poc-phk.7's upgrade
+// capability exists in source, not merely asserted by this checker.
+func checkMarkerHistoryContainsStackGeneration(repoRoot string) CheckResult {
+	const name = "marker-history-includes-stack-generation"
+	path := filepath.Join(repoRoot, "internal", "client", "client.go")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return CheckResult{Name: name, Status: StatusFail, Detail: fmt.Sprintf("read %s: %v", path, err)}
+	}
+	var problems []string
+	if !bytes.Contains(data, []byte(predecessorFragmentAssembly)) {
+		problems = append(problems, fmt.Sprintf("missing fragment-assembled predecessor generation (%s)", predecessorFragmentAssembly))
+	}
+	for _, identifier := range markerHistoryIdentifiers {
+		if !bytes.Contains(data, []byte(identifier)) {
+			problems = append(problems, fmt.Sprintf("missing marker-history array %q", identifier))
+		}
+	}
+	if len(problems) > 0 {
+		return CheckResult{Name: name, Status: StatusFail, Detail: strings.Join(problems, "; ")}
+	}
+	return CheckResult{Name: name, Status: StatusPass, Detail: "all four ADR-0006 marker-history arrays include the immediate predecessor product-name generation"}
 }

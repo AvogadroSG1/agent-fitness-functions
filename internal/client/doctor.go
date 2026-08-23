@@ -514,7 +514,7 @@ func gitGuardSettingsResult(repoRoot string) checkResult {
 		return checkResult{name: name, detail: err.Error(), remediation: "agent-fitness-functions client install-hooks"}
 	}
 	entries := preToolUseEntries(ensureHooksSection(settings))
-	if _, _, found := findClaudeHookEntry(entries, []string{gitGuardName, legacyGitGuardName}); !found {
+	if _, _, found := findClaudeHookEntry(entries, gitGuardNameHistory); !found {
 		return checkResult{
 			name:        name,
 			detail:      "no Bash git-guard PreToolUse entry in .claude/settings.json",
@@ -535,7 +535,7 @@ func editWriteHookResult(repoRoot string) checkResult {
 		return checkResult{name: name, detail: err.Error(), warning: true}
 	}
 	entries := preToolUseEntries(ensureHooksSection(settings))
-	if _, _, found := findClaudeHookEntry(entries, []string{agentHookName}); found {
+	if _, _, found := findClaudeHookEntry(entries, agentHookNameHistory); found {
 		return checkResult{name: name, detail: "configured in .claude/settings.json", passed: true}
 	}
 	return checkResult{
