@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/installer"
 )
 
 // AnalyzeCSharpFile analyzes one C# file through the Roslyn analyzer CLI.
@@ -65,7 +67,36 @@ func AnalyzeCSharpFileWithProject(ctx context.Context, file, csprojPath, cliPath
 	return result, nil
 }
 
+// managedRoslynAnalyzerPath returns the shipped self-contained Roslyn
+// analyzer under this install's published binary version
+// ($XDG_STATE_HOME/agent-fitness-functions/current/share/roslyn-analyzer/),
+// per ADR-0005 slice 10: an installed root's own analyzer takes precedence
+// over any source-tree-relative candidate. Returns "" when running from a
+// source checkout with no such installed root (the common dev/test case),
+// leaving defaultRoslynCLI's existing candidates and PATH fallback in
+// effect.
+func managedRoslynAnalyzerPath(getenv func(string) string) string {
+	dir := filepath.Join(installer.StateRoot(getenv), "current", "share", "roslyn-analyzer")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.Contains(entry.Name(), "RoslynAnalyzer") {
+			continue
+		}
+		info, err := entry.Info()
+		if err == nil && info.Mode()&0o111 != 0 {
+			return filepath.Join(dir, entry.Name())
+		}
+	}
+	return ""
+}
+
 func defaultRoslynCLI() string {
+	if managed := managedRoslynAnalyzerPath(os.Getenv); managed != "" {
+		return managed
+	}
 	candidates := []string{
 		filepath.Join("tools", "roslyn-analyzer", "bin", "Release", "net8.0", "CalmRoslynAnalyzer"),
 		filepath.Join("tools", "roslyn-analyzer", "bin", "Release", "net8.0", "CalmRoslynAnalyzer.exe"),

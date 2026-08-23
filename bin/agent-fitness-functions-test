@@ -24,8 +24,25 @@ usage() {
   echo "    AGENT_FITNESS_FUNCTIONS_CLIENT_CERT  mTLS client certificate path (overrides cert dir)" >&2
   echo "    AGENT_FITNESS_FUNCTIONS_CLIENT_KEY   mTLS client private key path (overrides cert dir)" >&2
   echo "    AGENT_FITNESS_FUNCTIONS_CLIENT_CA    server CA bundle path (overrides cert dir)" >&2
+  echo "" >&2
+  echo "  Managed CALM/Python runtimes installed under XDG_STATE_HOME (ADR-0005)" >&2
+  echo "  take PATH precedence over whatever is already on PATH when present." >&2
   exit 0
 }
+
+# ADR-0005 slice 10: prefer this install's managed CALM/Python runtime
+# binaries (e.g. the python3 this script's own JSON-parsing calls use) via
+# the state root's current pointers when present, falling back to whatever
+# is already on PATH. A no-op in a plain source checkout, where neither
+# managed bin directory exists.
+_agent_fitness_functions_state_root="${XDG_STATE_HOME:-$HOME/.local/state}/agent-fitness-functions"
+for _agent_fitness_functions_managed_bin in \
+  "$_agent_fitness_functions_state_root/runtimes/python/current/bin" \
+  "$_agent_fitness_functions_state_root/runtimes/calm/current/node_modules/.bin"; do
+  [[ -d "$_agent_fitness_functions_managed_bin" ]] && PATH="$_agent_fitness_functions_managed_bin:$PATH"
+done
+unset _agent_fitness_functions_state_root _agent_fitness_functions_managed_bin
+export PATH
 
 [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]] && usage
 [[ $# -ne 1 ]] && { echo "error: expected exactly one argument" >&2; usage; }

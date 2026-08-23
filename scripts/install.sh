@@ -5,19 +5,26 @@ set -euo pipefail
 # release archive's checksum BEFORE extraction, publishes it under an
 # XDG-state-rooted versions/<version>/ directory, writes a .verified completion
 # sentinel last, and atomically repoints "current" at it. Every subsequent
-# lifecycle operation (upgrade, rollback, uninstall) is a subcommand of the
-# installed binary itself, not of this script.
+# lifecycle operation (upgrade, rollback, uninstall, and now runtime
+# provisioning) is a subcommand of the installed binary itself, not of this
+# script: --provision-runtimes below is a thin delegation to `agent-fitness-
+# functions runtime provision`, not a second provisioning implementation.
 
 product_name="agent-fitness-functions"
 
 usage() {
   cat <<'EOF' >&2
-usage: install.sh --archive <path> --checksums <path>
+usage: install.sh --archive <path> --checksums <path> [--provision-runtimes]
        install.sh --help
 
   Options:
-    --archive <path>    path to a agent-fitness-functions-<version>-darwin-arm64.tar.gz release archive
-    --checksums <path>  path to the SHA256SUMS manifest covering that archive
+    --archive <path>       path to a agent-fitness-functions-<version>-darwin-arm64.tar.gz release archive
+    --checksums <path>     path to the SHA256SUMS manifest covering that archive
+    --provision-runtimes   after publishing, run the installed binary's
+                           `runtime provision` to provision the managed CALM
+                           CLI and Python (radon/pyyaml) runtimes. Requires a
+                           host node/npm and python3 (documented, not
+                           product-managed, bootstrap prerequisites).
 
   Environment:
     XDG_STATE_HOME   product-owned install root (default: ~/.local/state)
@@ -30,6 +37,7 @@ EOF
 
 archive=""
 checksums=""
+provision_runtimes=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --archive)
@@ -39,6 +47,10 @@ while [ $# -gt 0 ]; do
     --checksums)
       checksums="${2:-}"
       shift 2
+      ;;
+    --provision-runtimes)
+      provision_runtimes=1
+      shift
       ;;
     --help|-h)
       usage
@@ -140,3 +152,7 @@ ln -sfn "versions/$version" "$current_link"
 
 echo "installed $product_name $version at $state_root"
 echo "add $current_link/bin to PATH to use it"
+
+if [ "$provision_runtimes" -eq 1 ]; then
+  "$current_link/bin/$product_name" runtime provision
+fi

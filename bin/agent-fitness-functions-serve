@@ -15,8 +15,24 @@ usage() {
   echo "    AGENT_FITNESS_FUNCTIONS_SRC   path to the calm-poc repo (default: auto-detected)" >&2
   echo "    GIT_SHA    image tag suffix           (default: git short SHA)" >&2
   echo "    BUILD_DATE image build timestamp      (default: current UTC time)" >&2
+  echo "" >&2
+  echo "  Managed CALM/Python runtimes installed under XDG_STATE_HOME (ADR-0005)" >&2
+  echo "  take PATH precedence over whatever is already on PATH when present." >&2
   exit 0
 }
+
+# ADR-0005 slice 10: prefer this install's managed CALM/Python runtime
+# binaries via the state root's current pointers when present, falling back
+# to whatever is already on PATH. A no-op in a plain source checkout, where
+# neither managed bin directory exists.
+_agent_fitness_functions_state_root="${XDG_STATE_HOME:-$HOME/.local/state}/agent-fitness-functions"
+for _agent_fitness_functions_managed_bin in \
+  "$_agent_fitness_functions_state_root/runtimes/python/current/bin" \
+  "$_agent_fitness_functions_state_root/runtimes/calm/current/node_modules/.bin"; do
+  [[ -d "$_agent_fitness_functions_managed_bin" ]] && PATH="$_agent_fitness_functions_managed_bin:$PATH"
+done
+unset _agent_fitness_functions_state_root _agent_fitness_functions_managed_bin
+export PATH
 
 rebuild=0
 for arg in "$@"; do
