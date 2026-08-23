@@ -1,0 +1,35 @@
+installer_contract_test.go
+  s_35b3127e21180f::t_7b5762246c39bc 1-181
+scripts/install.sh
+  s_35b3127e21180f::t_9c9f71d8e29487 133-139
+  s_35b3127e21180f::t_ece30744fb4741 1-132,140-142
+cmd/agent-fitness-functions/main.go
+  s_35b3127e21180f::t_83d9c4e7b225b9 78-114
+  s_35b3127e21180f::t_5bfb17fde3abdc 23,27
+  s_35b3127e21180f::t_014766d90cd8a3 39,44-46,55-60
+  s_35b3127e21180f::t_7d251f5f98c7fc 28
+internal/installer/installer.go
+  s_35b3127e21180f::t_9b10d4906d52e0 1-517
+scripts/package-release.sh
+  s_35b3127e21180f::t_7e42521e4fbf7d 1-100
+installer_upgrade_rollback_test.go
+  s_35b3127e21180f::t_4434d0bb03ed6f 1-142
+internal/installer/installer_test.go
+  s_35b3127e21180f::t_cdfcdd460bbc50 1-161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "dbc6423a13caf896d948423ab9fc81cb059b1549",
+  "prompts": {},
+  "sessions": {
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
