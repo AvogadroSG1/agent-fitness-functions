@@ -1,0 +1,110 @@
+internal/devcerts/managed.go
+  s_35b3127e21180f::t_ab668c9957f62e 198
+  s_35b3127e21180f::t_6fd303ff8dc693 155,164,194,203,274,278
+  s_35b3127e21180f::t_8c181dfec012dc 159
+  s_35b3127e21180f::t_f0de185c739b82 152-154
+  s_35b3127e21180f::t_32e3149256d206 156-158
+  s_35b3127e21180f::t_7848e048e7526b 160-163
+  s_35b3127e21180f::t_f642cf4cca73b7 165-167,191-193
+  s_35b3127e21180f::t_9781b7c2e25542 195-197
+  s_35b3127e21180f::t_71396da4d341e8 199-202
+  s_35b3127e21180f::t_e9f7cef9c3dd97 204-206,271-273
+  s_35b3127e21180f::t_f4c9c371e40d1e 275-277
+  s_35b3127e21180f::t_84f874aa41ac90 279-281
+  s_52386f3d54f8a4::t_1088d3849bb7f2 1-151,168-190,207-270,282-326
+internal/devcerts/managed_test.go
+  s_35b3127e21180f::t_f26c2ff3e8c46f 7
+  s_35b3127e21180f::t_ab516cddb661cd 4-6
+  s_35b3127e21180f::t_9ab7f48cdfeb1c 8-10
+  s_35b3127e21180f::t_21c7304318fe17 1-3,11-346
+hooks/pre_commit_test.go
+  s_309a462b99391f::t_6a524a1c73f67e 356,375-377,380-382,427,429,479-482
+installed_hook_mtls_test.go
+  s_309a462b99391f::t_3d32853a1e1e4a 19-22,32-33,40,76-81,83-85,93-169
+.claude/settings.json
+  s_35b3127e21180f::t_dacc281d0920a8 8
+README.md
+  s_35b3127e21180f::t_5a1b03e87a4007 89-92,96-100,103-107,140
+bin/stack-fitness-functions-test
+  s_35b3127e21180f::t_6089ab3485e8c2 64-70,87-120
+bin_helper_mtls_test.go
+  s_35b3127e21180f::t_6ff9a660347584 20-21,71,95-100,104-106,153-158,202-203,258,283-410,422
+cmd/stack-fitness-functions/main.go
+  s_35b3127e21180f::t_6f0cb270cf4705 36,79,89-90
+cmd/stack-fitness-functions/main_test.go
+  s_35b3127e21180f::t_c3eadeef643fe5 29,33-92
+demo_agent_governed_edit_test.go
+  s_35b3127e21180f::t_9551829e169070 1-157
+hooks/managed_tls_test.go
+  s_35b3127e21180f::t_419b9e104fca45 1-239
+hooks/pre-commit.sh
+  s_35b3127e21180f::t_d151af43bcf38b 11-45,102
+hooks/pre-push.sh
+  s_35b3127e21180f::t_d642e105377a2b 11-45,95
+hooks/pre-tool-use.sh
+  s_35b3127e21180f::t_d98d379c558797 10-44,260
+hooks/pre_push_test.go
+  s_35b3127e21180f::t_542583688b6189 41,61-63,66-68
+hooks/pre_tool_use_test.go
+  s_35b3127e21180f::t_02b2ee8521bf87 305,326-328,331-333
+internal/client/client.go
+  s_35b3127e21180f::t_c5aeac23215a8f 68-70,492,496-504,514-527
+internal/client/client_test.go
+  s_35b3127e21180f::t_0c84ce10d290b1 277,308,467-492
+internal/client/daemon.go
+  s_35b3127e21180f::t_a796cb0fbcd1cb 4-5,15-16,27-94,113-118,120-121,124,127-130,132-138
+internal/client/daemon_test.go
+  s_35b3127e21180f::t_7a05e4e9b8757f 14-15,18-23,25-40,42-43,49-68,72-87,89-92,94-99,101-102,232-233,238,243-270
+internal/client/devcerts.go
+  s_35b3127e21180f::t_66dd2c754f5657 3-11,35-57
+internal/client/devcerts_test.go
+  s_35b3127e21180f::t_3e030de0b9b1e4 1-32
+internal/client/doctor.go
+  s_35b3127e21180f::t_2a4d9aefb2e2de 30-34,67-70,97-99,102-107,111-120,128-132,241-243,251-255,297-299,307-309,329,331,434,460-469
+internal/client/doctor_test.go
+  s_35b3127e21180f::t_86110406bba336 7,15-16,19-57
+internal/client/hookassets/pre-commit.sh
+  s_35b3127e21180f::t_251742b2e3da8f 11-45,102
+internal/client/hookassets/pre-push.sh
+  s_35b3127e21180f::t_69a61eec0ed46d 11-45,95
+internal/client/hookassets/pre-tool-use.sh
+  s_35b3127e21180f::t_e60537d1350beb 10-44,260
+internal/client/onboard.go
+  s_35b3127e21180f::t_83223ac87850d1 5-6,17,61-63,93-95,132-152,159,165-167,171-204,267,286-291,296-300,365-368,373,375,475,477,481-486,488,496,498-500,502-520,522
+internal/client/onboard_test.go
+  s_35b3127e21180f::t_d70bd41dc30e5e 5-9,11-16,21-23,26-367
+scripts/demo-agent-governed-edit.sh
+  s_35b3127e21180f::t_5e55ec735f3475 38,44-47,54-67,69-118,122-123,143-146,239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "87ab195c61a45f320769090e31bf56ba7e745529",
+  "prompts": {},
+  "sessions": {
+    "s_309a462b99391f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "66325eea-3725-4ef4-bc77-7e967aef0258",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    },
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    },
+    "s_52386f3d54f8a4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a52546b4460310944",
+        "model": "unknown"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
