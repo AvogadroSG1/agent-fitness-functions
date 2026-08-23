@@ -1,0 +1,22 @@
+internal/devcerts/managed.go
+  s_35b3127e21180f::t_4803917d51265b 352
+  s_35b3127e21180f::t_c384a968f9e585 341
+internal/devcerts/managed_test.go
+  s_35b3127e21180f::t_b580802b9d8e5b 347-382
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "82227100095ed0410cb4150afe751bdcef7fcafb",
+  "prompts": {},
+  "sessions": {
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
