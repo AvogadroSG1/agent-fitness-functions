@@ -1,0 +1,27 @@
+opencode.jsonc
+  h_56c22cd4a131f7 4-10,13-30
+  s_35b3127e21180f::t_9b49d199d6ecf8 143
+.gitignore
+  s_35b3127e21180f::t_0018a35c2e451b 42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "060201f1eb27f347ab63aab3f54a4e361b6f04e3",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  },
+  "sessions": {
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
