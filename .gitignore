@@ -38,4 +38,4 @@ tmp/
 tools/roslyn-analyzer/bin/
 
 # npm install output for the committed CALM CLI lockfile (package-lock.json IS committed)
-tools/calm-runtime/node_modules/
+tools/calm-runtime/node_modules/.opencode/
