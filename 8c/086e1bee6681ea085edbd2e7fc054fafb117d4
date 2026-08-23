@@ -1,0 +1,23 @@
+cmd/rename-verify/main.go
+  s_35b3127e21180f::t_9dede7ecdb0c62 2
+internal/renamecheck/renamecheck.go
+  s_35b3127e21180f::t_dd4617fc27c310 2,76,88-94,152-153,157-158,270
+rename_surface_test.go
+  s_35b3127e21180f::t_78ff2c80155ddb 25-26,28-30,40,43,54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "8c086e1bee6681ea085edbd2e7fc054fafb117d4",
+  "prompts": {},
+  "sessions": {
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
