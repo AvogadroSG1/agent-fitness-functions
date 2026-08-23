@@ -23,7 +23,7 @@ func TestPreToolUseBlocksWriteViolation(t *testing.T) {
 	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+printf '%s\n' "$*" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"block","violations":[{"message":"too complex"}]}\n'
 `)
 	payload := `{"tool_name":"Write","tool_input":{"file_path":"sample.go","content":"package sample\nfunc Run() {}\n"}}`
@@ -48,7 +48,7 @@ func TestPreToolUseAllowsEditAdvisory(t *testing.T) {
 	writeFile(t, filepath.Join(repo, "sample.py"), "print('old')\n")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+printf '%s\n' "$*" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"advisory","violations":[{"message":"warning only"}]}\n'
 `)
 	payload := `{"tool_name":"Edit","tool_input":{"file_path":"sample.py","old_string":"print('old')","new_string":"print('new')"}}`
@@ -88,7 +88,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --content-file)
       shift
-      cat "$1" > "$STACK_FITNESS_FUNCTIONS_LOG"
+      cat "$1" > "$AGENT_FITNESS_FUNCTIONS_LOG"
       ;;
   esac
   shift
@@ -113,7 +113,7 @@ func TestPreToolUseAllowsPassWithAbsolutePath(t *testing.T) {
 	writeFile(t, path, "namespace Demo;\n")
 	logPath := filepath.Join(t.TempDir(), "calm.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+printf '%s\n' "$*" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
 printf '{"status":"pass"}\n'
 `)
 	payload := `{"tool_name":"Write","tool_input":{"file_path":"` + path + `","content":"namespace Demo;\n"}}`
@@ -145,10 +145,10 @@ func TestPreToolUseChecksRunningDaemonKnownBadAndGood(t *testing.T) {
 	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
 	fitnessBin := buildFitnessBin(t)
 	daemon := startFitnessDaemon(t, fitnessBin)
-	t.Setenv("STACK_FITNESS_FUNCTIONS_REPO_NAME", "repo-one")
-	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CERT", daemon.clientCertPath)
-	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_KEY", daemon.clientKeyPath)
-	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CA", daemon.serverCAPath)
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_REPO_NAME", "repo-one")
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_CLIENT_CERT", daemon.clientCertPath)
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_CLIENT_KEY", daemon.clientKeyPath)
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_CLIENT_CA", daemon.serverCAPath)
 
 	badPayload := `{"tool_name":"Write","tool_input":{"file_path":"sample.go","content":"package sample\nfunc Score(kind string, retries int, urgent bool) int {\nscore := 0\nif kind == \"create\" { score++ }\nif kind == \"update\" { score++ }\nif kind == \"delete\" { score++ }\nif kind == \"manual\" { score++ }\nif kind == \"batch\" { score++ }\nif kind == \"sync\" { score++ }\nif retries > 0 { score++ }\nif retries > 1 { score++ }\nif retries > 2 { score++ }\nif urgent { score++ }\nreturn score\n}\n"}}`
 	output, err := runPreToolUseWithBin(t, repo, badPayload, fitnessBin, "", "", daemon.url)
@@ -174,7 +174,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --content-file)
       shift
-      python3 - "$1" "$STACK_FITNESS_FUNCTIONS_LOG" <<'PY'
+      python3 - "$1" "$AGENT_FITNESS_FUNCTIONS_LOG" <<'PY'
 import pathlib
 import sys
 
@@ -273,7 +273,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --content-file)
       shift
-      wc -c < "$1" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+      wc -c < "$1" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
       ;;
   esac
   shift
@@ -306,7 +306,7 @@ func TestPreToolUseForwardsDiscoveredMTLSCerts(t *testing.T) {
 
 	logPath := filepath.Join(t.TempDir(), "calls.log")
 	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$STACK_FITNESS_FUNCTIONS_LOG"
+printf '%s\n' "$*" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
 echo '{"status":"pass"}'
 `)
 
@@ -316,7 +316,7 @@ echo '{"status":"pass"}'
 	command.Stdin = strings.NewReader(payload)
 	command.Env = append(os.Environ(),
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"STACK_FITNESS_FUNCTIONS_LOG="+logPath,
+		"AGENT_FITNESS_FUNCTIONS_LOG="+logPath,
 	)
 	if out, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("pre-tool-use failed: %v\n%s", err, out)
@@ -353,13 +353,13 @@ func runPreToolUseWithBin(t *testing.T, repo, payload, fitnessBin, pathDir, logP
 		env = append(env, "PATH="+pathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	}
 	if fitnessBin != "" {
-		env = append(env, "STACK_FITNESS_FUNCTIONS_BIN="+fitnessBin)
+		env = append(env, "AGENT_FITNESS_FUNCTIONS_BIN="+fitnessBin)
 	}
 	if logPath != "" {
-		env = append(env, "STACK_FITNESS_FUNCTIONS_LOG="+logPath)
+		env = append(env, "AGENT_FITNESS_FUNCTIONS_LOG="+logPath)
 	}
 	if addr != "" {
-		env = append(env, "STACK_FITNESS_FUNCTIONS_ADDR="+addr)
+		env = append(env, "AGENT_FITNESS_FUNCTIONS_ADDR="+addr)
 	}
 	command.Env = env
 	return command.CombinedOutput()
@@ -424,7 +424,7 @@ func startFitnessDaemon(t *testing.T, fitnessBin string) fitnessDaemon {
 	command.Dir = filepath.Dir(cwd)
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
-	command.Env = append(os.Environ(), "STACK_FITNESS_FUNCTIONS_CONFIGS_DIR="+configsDir)
+	command.Env = append(os.Environ(), "AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR="+configsDir)
 	if err := command.Start(); err != nil {
 		t.Fatalf("start bridge daemon: %v", err)
 	}
@@ -471,7 +471,7 @@ func writeMTLSFixture(t *testing.T, dir, clientCN string) (string, string, strin
 	}
 	ca := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "stack-fitness-functions-test-ca"},
+		Subject:               pkix.Name{CommonName: "agent-fitness-functions-test-ca"},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(time.Hour),
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,

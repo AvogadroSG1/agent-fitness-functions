@@ -12,7 +12,7 @@ import (
 // failure: it prints the machine-readable {"status":"error",...} object and exits with
 // the reserved infra exit code (3).
 const infraErrorBin = `#!/usr/bin/env bash
-printf '%s\n' '{"status":"error","error_kind":"not_configured","message":"repository sample is not configured on the governance server (HTTP 404)","remediation":"run stack-fitness-functions client onboard, or create configs/sample/config.json on the server"}'
+printf '%s\n' '{"status":"error","error_kind":"not_configured","message":"repository sample is not configured on the governance server (HTTP 404)","remediation":"run agent-fitness-functions client onboard, or create configs/sample/config.json on the server"}'
 exit 3
 `
 
@@ -27,7 +27,7 @@ func runPreCommitInfra(t *testing.T, onErrorMode string) ([]byte, error) {
 	command.Dir = repo
 	env := append(os.Environ(), "PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	if onErrorMode != "" {
-		env = append(env, "STACK_FITNESS_FUNCTIONS_ON_ERROR="+onErrorMode)
+		env = append(env, "AGENT_FITNESS_FUNCTIONS_ON_ERROR="+onErrorMode)
 	}
 	command.Env = env
 	return command.CombinedOutput()
@@ -93,7 +93,7 @@ func TestPreToolUseInfraErrorAdvisoryAllowsEdit(t *testing.T) {
 	command.Stdin = strings.NewReader(payload)
 	command.Env = append(os.Environ(),
 		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"STACK_FITNESS_FUNCTIONS_ON_ERROR=advisory",
+		"AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory",
 	)
 	output, err := command.CombinedOutput()
 	if err != nil {

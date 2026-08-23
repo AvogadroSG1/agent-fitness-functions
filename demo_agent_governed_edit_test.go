@@ -24,26 +24,26 @@ func TestDemoAgentGovernedEditTLSModeMatrix(t *testing.T) {
 		},
 		{
 			name: "managed selected root", resolver: "printf 'versions/v-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\\n'", wantCalls: 1,
-			env:        []string{"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR=/selected/certs"},
+			env:        []string{"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR=/selected/certs"},
 			wantOutput: []string{"mode=managed", "client_cert=/selected/certs/versions/v-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/client.crt", "selector=unset"},
 		},
 		{
 			name: "external", wantCalls: 0,
 			env: []string{
-				"STACK_FITNESS_FUNCTIONS_CLIENT_CERT=/external/client.crt",
-				"STACK_FITNESS_FUNCTIONS_CLIENT_KEY=/external/client.key",
-				"STACK_FITNESS_FUNCTIONS_CLIENT_CA=/external/ca.crt",
+				"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT=/external/client.crt",
+				"AGENT_FITNESS_FUNCTIONS_CLIENT_KEY=/external/client.key",
+				"AGENT_FITNESS_FUNCTIONS_CLIENT_CA=/external/ca.crt",
 			},
 			wantOutput: []string{"mode=external", "client_cert=/external/client.crt", "client_key=/external/client.key", "client_ca=/external/ca.crt", "selector=unset"},
 		},
 		{
 			name: "ambiguity", wantExit: 2, wantCalls: 0,
-			env:        []string{"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR=/managed", "STACK_FITNESS_FUNCTIONS_CLIENT_CERT=/external/client.crt"},
-			wantOutput: []string{"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs"},
+			env:        []string{"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR=/managed", "AGENT_FITNESS_FUNCTIONS_CLIENT_CERT=/external/client.crt"},
+			wantOutput: []string{"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs"},
 		},
 		{
 			name: "malformed resolver output", resolver: "printf 'versions/not-valid\\n'", wantExit: 1, wantCalls: 1,
-			wantOutput: []string{"stack-fitness-functions returned an invalid managed certificate version"},
+			wantOutput: []string{"agent-fitness-functions returned an invalid managed certificate version"},
 		},
 		{
 			name: "resolver failure", resolver: "echo 'demo resolver failed safely' >&2; exit 7", wantExit: 7, wantCalls: 1,
@@ -67,13 +67,13 @@ func TestDemoAgentGovernedEditTLSModeMatrix(t *testing.T) {
 			binary := writeDemoStub(t, logPath, resolver)
 			command := exec.Command("bash", filepath.Join("scripts", "demo-agent-governed-edit.sh"))
 			command.Env = append(os.Environ(),
-				"STACK_FITNESS_FUNCTIONS_BIN="+binary,
-				"STACK_FITNESS_FUNCTIONS_DEMO_TLS_CONTRACT_ONLY=1",
-				"STACK_FITNESS_FUNCTIONS_ADDR=",
-				"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR=",
-				"STACK_FITNESS_FUNCTIONS_CLIENT_CERT=",
-				"STACK_FITNESS_FUNCTIONS_CLIENT_KEY=",
-				"STACK_FITNESS_FUNCTIONS_CLIENT_CA=",
+				"AGENT_FITNESS_FUNCTIONS_BIN="+binary,
+				"AGENT_FITNESS_FUNCTIONS_DEMO_TLS_CONTRACT_ONLY=1",
+				"AGENT_FITNESS_FUNCTIONS_ADDR=",
+				"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR=",
+				"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT=",
+				"AGENT_FITNESS_FUNCTIONS_CLIENT_KEY=",
+				"AGENT_FITNESS_FUNCTIONS_CLIENT_CA=",
 				"DEMO_TEST_TMP_ROOT="+tempRoot,
 				"PATH="+stubDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 			)
@@ -121,17 +121,17 @@ func TestDemoAgentGovernedEditKeepsResolvedPathsAfterRotation(t *testing.T) {
 		t.Fatalf("Symlink(current): %v", err)
 	}
 	logPath := filepath.Join(t.TempDir(), "calls")
-	resolver := "target=$(readlink \"$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"); rm -f \"$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; ln -s \"" + rotated + "\" \"$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; printf '%s\\n' \"$target\""
+	resolver := "target=$(readlink \"$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"); rm -f \"$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; ln -s \"" + rotated + "\" \"$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; printf '%s\\n' \"$target\""
 	binary := writeDemoStub(t, logPath, resolver)
 	command := exec.Command("bash", filepath.Join("scripts", "demo-agent-governed-edit.sh"))
 	command.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+binary,
-		"STACK_FITNESS_FUNCTIONS_DEMO_TLS_CONTRACT_ONLY=1",
-		"STACK_FITNESS_FUNCTIONS_ADDR=",
-		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+root,
-		"STACK_FITNESS_FUNCTIONS_CLIENT_CERT=",
-		"STACK_FITNESS_FUNCTIONS_CLIENT_KEY=",
-		"STACK_FITNESS_FUNCTIONS_CLIENT_CA=",
+		"AGENT_FITNESS_FUNCTIONS_BIN="+binary,
+		"AGENT_FITNESS_FUNCTIONS_DEMO_TLS_CONTRACT_ONLY=1",
+		"AGENT_FITNESS_FUNCTIONS_ADDR=",
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+root,
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT=",
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_KEY=",
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CA=",
 	)
 	output, err := command.CombinedOutput()
 	if err != nil {
@@ -148,7 +148,7 @@ func TestDemoAgentGovernedEditKeepsResolvedPathsAfterRotation(t *testing.T) {
 
 func writeDemoStub(t *testing.T, logPath, resolver string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "stack-fitness-functions")
+	path := filepath.Join(t.TempDir(), "agent-fitness-functions")
 	script := "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >>" + shellQuote(logPath) + "\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then " + resolver + "; resolver_rc=$?; exit \"$resolver_rc\"; fi\nexit 99\n"
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatalf("WriteFile(demo stub): %v", err)

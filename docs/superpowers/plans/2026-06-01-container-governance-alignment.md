@@ -17,12 +17,12 @@
 | `Explaination.md` | Rewrite | Remove stale references to `/tmp/calm-bridge` and `.calm/config.json` as primary governance source; redirect to `CONTEXT.md` |
 | `README.md` | Modify | Add **Governance Layer Deployment** section near top; reframe project as enterprise governance layer with sandbox subordination |
 | `CONTEXT.md` | Modify | Clarify that local `.calm/config.json` cannot weaken enforcement; state container `configs/<repo>/config.json` is authoritative |
-| `docs/runbooks/red-green-demo.md` | Modify | Add historical notice banner; retain content, update local binary references from `/tmp/calm-bridge` to `${STACK_FITNESS_FUNCTIONS_BIN:-calm-bridge}` |
+| `docs/runbooks/red-green-demo.md` | Modify | Add historical notice banner; retain content, update local binary references from `/tmp/calm-bridge` to `${AGENT_FITNESS_FUNCTIONS_BIN:-calm-bridge}` |
 | `docs/spec/engineering-spec.md` | Modify | Add historical notice banner (PoC-era spec, superseded by container model) |
-| `hooks/pre-push.sh` | Rewrite | Add mTLS forwarding, `STACK_FITNESS_FUNCTIONS_REPO_NAME` resolution, remote-mode logic, HTTPS enforcement on par with `pre-commit.sh` |
+| `hooks/pre-push.sh` | Rewrite | Add mTLS forwarding, `AGENT_FITNESS_FUNCTIONS_REPO_NAME` resolution, remote-mode logic, HTTPS enforcement on par with `pre-commit.sh` |
 | `hooks/pre-tool-use.sh` | Modify | Add HTTPS enforcement block for remote bridge (mirrors the pattern in `pre-commit.sh`) |
-| `.claude/settings.json` | Modify | Update `PreToolUse` command to use `STACK_FITNESS_FUNCTIONS_BIN` from the local build path with `STACK_FITNESS_FUNCTIONS_ADDR` pointing to HTTPS when remote, or keep loopback with correct binary path |
-| `bin/calm-test` | Modify | Fix hardcoded `/tmp/calm-bridge` default; add `STACK_FITNESS_FUNCTIONS_REPO_NAME` support; label script as local-sandbox-only in usage text |
+| `.claude/settings.json` | Modify | Update `PreToolUse` command to use `AGENT_FITNESS_FUNCTIONS_BIN` from the local build path with `AGENT_FITNESS_FUNCTIONS_ADDR` pointing to HTTPS when remote, or keep loopback with correct binary path |
+| `bin/calm-test` | Modify | Fix hardcoded `/tmp/calm-bridge` default; add `AGENT_FITNESS_FUNCTIONS_REPO_NAME` support; label script as local-sandbox-only in usage text |
 | `docker-compose.yml` | Modify | Add explicit comment stating production Helm chart is external to this repository |
 | `.gitignore` | Verify | Confirm `**/__pycache__/` and `**/*.pyc` already present (they are — no change needed) |
 | `hooks/__pycache__/` | Remove | Untrack and remove all `.pyc` files from git index |
@@ -153,14 +153,14 @@ The local `.calm` mode (described in the CLI tools section below) is a **sandbox
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `STACK_FITNESS_FUNCTIONS_ADDR` | Yes | Full HTTPS URL, e.g. `https://calm-governance.example:7890` |
-| `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE` | Yes (set to `1`) | Opt-in to non-loopback bridge addresses |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_CERT` | Yes (mTLS) | Path to PEM-encoded client certificate |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_KEY` | Yes (mTLS) | Path to PEM-encoded client private key |
-| `STACK_FITNESS_FUNCTIONS_CLIENT_CA` | Yes (mTLS) | Path to PEM-encoded CA bundle for server verification |
-| `STACK_FITNESS_FUNCTIONS_REPO_NAME` | Recommended | Logical repository name (overrides working-tree basename) |
+| `AGENT_FITNESS_FUNCTIONS_ADDR` | Yes | Full HTTPS URL, e.g. `https://calm-governance.example:7890` |
+| `AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE` | Yes (set to `1`) | Opt-in to non-loopback bridge addresses |
+| `AGENT_FITNESS_FUNCTIONS_CLIENT_CERT` | Yes (mTLS) | Path to PEM-encoded client certificate |
+| `AGENT_FITNESS_FUNCTIONS_CLIENT_KEY` | Yes (mTLS) | Path to PEM-encoded client private key |
+| `AGENT_FITNESS_FUNCTIONS_CLIENT_CA` | Yes (mTLS) | Path to PEM-encoded CA bundle for server verification |
+| `AGENT_FITNESS_FUNCTIONS_REPO_NAME` | Recommended | Logical repository name (overrides working-tree basename) |
 
-All hooks enforce HTTPS when `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` is set. Connections over plain HTTP to a non-loopback address are rejected at the hook layer.
+All hooks enforce HTTPS when `AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` is set. Connections over plain HTTP to a non-loopback address are rejected at the hook layer.
 ```
 
 - [ ] **Step 2: Verify the section renders without broken Markdown**
@@ -281,15 +281,15 @@ In `docs/runbooks/red-green-demo.md`, find:
 ```
 - Build the bridge: `go build -o /tmp/calm-bridge ./cmd/calm-bridge`
 - Start the daemon on loopback: `/tmp/calm-bridge serve --addr 127.0.0.1:7890`
-- Run commits with `STACK_FITNESS_FUNCTIONS_BIN=/tmp/calm-bridge STACK_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:7890`
+- Run commits with `AGENT_FITNESS_FUNCTIONS_BIN=/tmp/calm-bridge AGENT_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:7890`
 ```
 
 Replace with:
 
 ```
 - Build the bridge: `go build -o .tmp/calm-bridge ./cmd/calm-bridge`
-- Start the daemon on loopback: `STACK_FITNESS_FUNCTIONS_BIN=.tmp/calm-bridge .tmp/calm-bridge serve --addr 127.0.0.1:7890`
-- Run commits with `STACK_FITNESS_FUNCTIONS_BIN=.tmp/calm-bridge STACK_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:7890`
+- Start the daemon on loopback: `AGENT_FITNESS_FUNCTIONS_BIN=.tmp/calm-bridge .tmp/calm-bridge serve --addr 127.0.0.1:7890`
+- Run commits with `AGENT_FITNESS_FUNCTIONS_BIN=.tmp/calm-bridge AGENT_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:7890`
 ```
 
 Find all remaining `/tmp/calm-bridge` occurrences in the runbook:
@@ -346,7 +346,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com> - claude-sonnet-4-6"
 **Files:**
 - Modify: `hooks/pre-push.sh`
 
-The current `pre-push.sh` is missing: (a) mTLS credential forwarding (`STACK_FITNESS_FUNCTIONS_CLIENT_CERT`, `STACK_FITNESS_FUNCTIONS_CLIENT_KEY`, `STACK_FITNESS_FUNCTIONS_CLIENT_CA`), (b) `STACK_FITNESS_FUNCTIONS_REPO_NAME` resolution, (c) HTTPS enforcement when `STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1`, (d) `remote_mode` flag and content-file handling for remote mode (parallel to `pre-commit.sh`). The script also uses `--repo "$repo"` (absolute path) instead of the logical repo name when in remote mode.
+The current `pre-push.sh` is missing: (a) mTLS credential forwarding (`AGENT_FITNESS_FUNCTIONS_CLIENT_CERT`, `AGENT_FITNESS_FUNCTIONS_CLIENT_KEY`, `AGENT_FITNESS_FUNCTIONS_CLIENT_CA`), (b) `AGENT_FITNESS_FUNCTIONS_REPO_NAME` resolution, (c) HTTPS enforcement when `AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1`, (d) `remote_mode` flag and content-file handling for remote mode (parallel to `pre-commit.sh`). The script also uses `--repo "$repo"` (absolute path) instead of the logical repo name when in remote mode.
 
 Replace the complete content of `hooks/pre-push.sh` with:
 
@@ -356,12 +356,12 @@ Replace the complete content of `hooks/pre-push.sh` with:
 set -euo pipefail
 
 repo=$(git rev-parse --show-toplevel)
-calm_bridge=${STACK_FITNESS_FUNCTIONS_BIN:-calm-bridge}
-addr=${STACK_FITNESS_FUNCTIONS_ADDR:-}
-client_cert=${STACK_FITNESS_FUNCTIONS_CLIENT_CERT:-}
-client_key=${STACK_FITNESS_FUNCTIONS_CLIENT_KEY:-}
-client_ca=${STACK_FITNESS_FUNCTIONS_CLIENT_CA:-}
-repo_name=${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}
+calm_bridge=${AGENT_FITNESS_FUNCTIONS_BIN:-calm-bridge}
+addr=${AGENT_FITNESS_FUNCTIONS_ADDR:-}
+client_cert=${AGENT_FITNESS_FUNCTIONS_CLIENT_CERT:-}
+client_key=${AGENT_FITNESS_FUNCTIONS_CLIENT_KEY:-}
+client_ca=${AGENT_FITNESS_FUNCTIONS_CLIENT_CA:-}
+repo_name=${AGENT_FITNESS_FUNCTIONS_REPO_NAME:-}
 remote_mode=0
 repo_arg=$repo
 blocked=0
@@ -394,12 +394,12 @@ PYCHECK
 }
 
 if [[ -n "$addr" ]] && ! bridge_addr_is_loopback "$addr"; then
-  if [[ "${STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE:-}" != "1" ]]; then
-    echo "STACK_FITNESS_FUNCTIONS_ADDR must be loopback unless STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1 is set" >&2
+  if [[ "${AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE:-}" != "1" ]]; then
+    echo "AGENT_FITNESS_FUNCTIONS_ADDR must be loopback unless AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1 is set" >&2
     exit 1
   fi
   if ! bridge_addr_is_https "$addr"; then
-    echo "remote STACK_FITNESS_FUNCTIONS_ADDR must use https" >&2
+    echo "remote AGENT_FITNESS_FUNCTIONS_ADDR must use https" >&2
     exit 1
   fi
   remote_mode=1
@@ -523,7 +523,7 @@ Expected: multiple lines showing the newly added variables and functions.
 git add hooks/pre-push.sh
 git commit -m "feat(hooks): align pre-push.sh to full remote governance contract
 
-Add mTLS credential forwarding, STACK_FITNESS_FUNCTIONS_REPO_NAME resolution, HTTPS
+Add mTLS credential forwarding, AGENT_FITNESS_FUNCTIONS_REPO_NAME resolution, HTTPS
 enforcement for non-loopback bridges, and remote_mode flag — matching
 the pre-commit.sh implementation. Logical repo name now used as --repo
 argument in remote mode.
@@ -539,7 +539,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com> - claude-sonnet-4-6"
 **Files:**
 - Modify: `hooks/pre-tool-use.sh`
 
-The script already handles `STACK_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA` and `STACK_FITNESS_FUNCTIONS_REPO_NAME`. It is missing only the `bridge_addr_is_https` check and the corresponding enforcement block. The fix is surgical: add the `bridge_addr_is_https` function (copy from `pre-commit.sh`) and the enforcement guard immediately after the loopback guard.
+The script already handles `AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA` and `AGENT_FITNESS_FUNCTIONS_REPO_NAME`. It is missing only the `bridge_addr_is_https` check and the corresponding enforcement block. The fix is surgical: add the `bridge_addr_is_https` function (copy from `pre-commit.sh`) and the enforcement guard immediately after the loopback guard.
 
 - [ ] **Step 1: Add bridge_addr_is_https function**
 
@@ -561,8 +561,8 @@ PYCHECK
 Find the existing guard block:
 
 ```bash
-if [[ -n "$addr" && "${STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE:-}" != "1" ]] && ! bridge_addr_is_loopback "$addr"; then
-  echo "STACK_FITNESS_FUNCTIONS_ADDR must be loopback unless STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1 is set" >&2
+if [[ -n "$addr" && "${AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE:-}" != "1" ]] && ! bridge_addr_is_loopback "$addr"; then
+  echo "AGENT_FITNESS_FUNCTIONS_ADDR must be loopback unless AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1 is set" >&2
   exit 2
 fi
 ```
@@ -571,12 +571,12 @@ Replace with:
 
 ```bash
 if [[ -n "$addr" ]] && ! bridge_addr_is_loopback "$addr"; then
-  if [[ "${STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE:-}" != "1" ]]; then
-    echo "STACK_FITNESS_FUNCTIONS_ADDR must be loopback unless STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1 is set" >&2
+  if [[ "${AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE:-}" != "1" ]]; then
+    echo "AGENT_FITNESS_FUNCTIONS_ADDR must be loopback unless AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1 is set" >&2
     exit 2
   fi
   if ! bridge_addr_is_https "$addr"; then
-    echo "remote STACK_FITNESS_FUNCTIONS_ADDR must use https" >&2
+    echo "remote AGENT_FITNESS_FUNCTIONS_ADDR must use https" >&2
     exit 2
   fi
 fi
@@ -619,7 +619,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com> - claude-sonnet-4-6"
 **Files:**
 - Modify: `.claude/settings.json`
 
-The current `PreToolUse` command hardcodes `STACK_FITNESS_FUNCTIONS_BIN=/Users/poconnor/peter_code/calm-poc/.tmp/calm-bridge` and `STACK_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:7890`. This is intentional — it wires the hook to the locally built binary at the loopback address. The `/usr/bin/true` concern in the spec does not apply here; the hook is active. However, the path hardcodes a specific user's home directory, which will break for any other developer. The correct form uses a relative path resolution via `$PWD`.
+The current `PreToolUse` command hardcodes `AGENT_FITNESS_FUNCTIONS_BIN=/Users/poconnor/peter_code/calm-poc/.tmp/calm-bridge` and `AGENT_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:7890`. This is intentional — it wires the hook to the locally built binary at the loopback address. The `/usr/bin/true` concern in the spec does not apply here; the hook is active. However, the path hardcodes a specific user's home directory, which will break for any other developer. The correct form uses a relative path resolution via `$PWD`.
 
 - [ ] **Step 1: Update the PreToolUse command to use a portable path**
 
@@ -630,7 +630,7 @@ Replace the current `PreToolUse` hooks array with:
   {
     "hooks": [
       {
-        "command": "STACK_FITNESS_FUNCTIONS_BIN=\"$(pwd)/.tmp/calm-bridge\" STACK_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:7890 \"$(pwd)/hooks/pre-tool-use.sh\"",
+        "command": "AGENT_FITNESS_FUNCTIONS_BIN=\"$(pwd)/.tmp/calm-bridge\" AGENT_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:7890 \"$(pwd)/hooks/pre-tool-use.sh\"",
         "type": "command"
       }
     ],
@@ -662,32 +662,32 @@ Co-Authored-By: Claude Code <noreply@anthropic.com> - claude-sonnet-4-6"
 
 ---
 
-## Task 9: Update bin/calm-test — fix binary default, add STACK_FITNESS_FUNCTIONS_REPO_NAME, label as sandbox-only
+## Task 9: Update bin/calm-test — fix binary default, add AGENT_FITNESS_FUNCTIONS_REPO_NAME, label as sandbox-only
 
 **Files:**
 - Modify: `bin/calm-test`
 
 Three issues:
 
-1. Default `STACK_FITNESS_FUNCTIONS_BIN` is hardcoded to `/tmp/calm-bridge` — must use `.tmp/calm-bridge` relative to the script location, or fall back to a `calm-bridge` on PATH.
-2. The script reads governance from the local `.calm/config.json` only; it has no path to use `STACK_FITNESS_FUNCTIONS_REPO_NAME` for remote container checks.
+1. Default `AGENT_FITNESS_FUNCTIONS_BIN` is hardcoded to `/tmp/calm-bridge` — must use `.tmp/calm-bridge` relative to the script location, or fall back to a `calm-bridge` on PATH.
+2. The script reads governance from the local `.calm/config.json` only; it has no path to use `AGENT_FITNESS_FUNCTIONS_REPO_NAME` for remote container checks.
 3. The usage text does not label it as sandbox-only.
 
-- [ ] **Step 1: Fix the binary default and add STACK_FITNESS_FUNCTIONS_REPO_NAME support**
+- [ ] **Step 1: Fix the binary default and add AGENT_FITNESS_FUNCTIONS_REPO_NAME support**
 
 In `bin/calm-test`, find:
 
 ```bash
-bridge="${STACK_FITNESS_FUNCTIONS_BIN:-/tmp/calm-bridge}"
-addr="${STACK_FITNESS_FUNCTIONS_ADDR:-http://127.0.0.1:7890}"
+bridge="${AGENT_FITNESS_FUNCTIONS_BIN:-/tmp/calm-bridge}"
+addr="${AGENT_FITNESS_FUNCTIONS_ADDR:-http://127.0.0.1:7890}"
 ```
 
 Replace with:
 
 ```bash
-bridge="${STACK_FITNESS_FUNCTIONS_BIN:-calm-bridge}"
-addr="${STACK_FITNESS_FUNCTIONS_ADDR:-http://127.0.0.1:7890}"
-repo_name="${STACK_FITNESS_FUNCTIONS_REPO_NAME:-}"
+bridge="${AGENT_FITNESS_FUNCTIONS_BIN:-calm-bridge}"
+addr="${AGENT_FITNESS_FUNCTIONS_ADDR:-http://127.0.0.1:7890}"
+repo_name="${AGENT_FITNESS_FUNCTIONS_REPO_NAME:-}"
 ```
 
 - [ ] **Step 2: Update usage text to declare sandbox-only scope**
@@ -702,23 +702,23 @@ Replace with:
 
 ```bash
   echo "  LOCAL SANDBOX ONLY: checks fitness functions against a locally running CALM bridge." >&2
-  echo "  For remote container governance, configure STACK_FITNESS_FUNCTIONS_ADDR, STACK_FITNESS_FUNCTIONS_ALLOW_REMOTE=1," >&2
-  echo "  STACK_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA, and STACK_FITNESS_FUNCTIONS_REPO_NAME, then run the hook directly." >&2
+  echo "  For remote container governance, configure AGENT_FITNESS_FUNCTIONS_ADDR, AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1," >&2
+  echo "  AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA, and AGENT_FITNESS_FUNCTIONS_REPO_NAME, then run the hook directly." >&2
 ```
 
 Also update the Environment section in `usage()`. Find:
 
 ```bash
-  echo "    STACK_FITNESS_FUNCTIONS_BIN   path to calm-bridge binary (default: /tmp/calm-bridge)" >&2
-  echo "    STACK_FITNESS_FUNCTIONS_ADDR  bridge address (default: http://127.0.0.1:7890)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_BIN   path to calm-bridge binary (default: /tmp/calm-bridge)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_ADDR  bridge address (default: http://127.0.0.1:7890)" >&2
 ```
 
 Replace with:
 
 ```bash
-  echo "    STACK_FITNESS_FUNCTIONS_BIN   path to calm-bridge binary (default: calm-bridge on PATH)" >&2
-  echo "    STACK_FITNESS_FUNCTIONS_ADDR  bridge address (default: http://127.0.0.1:7890)" >&2
-  echo "    STACK_FITNESS_FUNCTIONS_REPO_NAME    logical repo name override (default: derived from git root)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_BIN   path to calm-bridge binary (default: calm-bridge on PATH)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_ADDR  bridge address (default: http://127.0.0.1:7890)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_REPO_NAME    logical repo name override (default: derived from git root)" >&2
 ```
 
 - [ ] **Step 3: Use repo_name when invoking the bridge check**
@@ -761,7 +761,7 @@ Expected: no output (exit 0).
 - [ ] **Step 5: Verify the changes**
 
 ```bash
-grep -n 'STACK_FITNESS_FUNCTIONS_BIN\|STACK_FITNESS_FUNCTIONS_REPO_NAME\|LOCAL SANDBOX\|repo_arg' /Users/poconnor/peter_code/calm-poc/bin/calm-test
+grep -n 'AGENT_FITNESS_FUNCTIONS_BIN\|AGENT_FITNESS_FUNCTIONS_REPO_NAME\|LOCAL SANDBOX\|repo_arg' /Users/poconnor/peter_code/calm-poc/bin/calm-test
 ```
 
 Expected: lines showing all four patterns present.
@@ -770,10 +770,10 @@ Expected: lines showing all four patterns present.
 
 ```bash
 git add bin/calm-test
-git commit -m "feat(bin): fix calm-test binary default, add STACK_FITNESS_FUNCTIONS_REPO_NAME support, label as sandbox-only
+git commit -m "feat(bin): fix calm-test binary default, add AGENT_FITNESS_FUNCTIONS_REPO_NAME support, label as sandbox-only
 
 - Default binary is now 'calm-bridge' on PATH (not /tmp/calm-bridge)
-- STACK_FITNESS_FUNCTIONS_REPO_NAME overrides the --repo argument for remote container checks
+- AGENT_FITNESS_FUNCTIONS_REPO_NAME overrides the --repo argument for remote container checks
 - Usage text explicitly labels the tool as a local sandbox utility
 
 Co-Authored-By: Peter O'Connor <poconnor@stackoverflow.com>
@@ -911,7 +911,7 @@ Expected: at least 8 lines.
 - [ ] **Step 9: Verify bin/calm-test no longer defaults to /tmp**
 
 ```bash
-grep 'STACK_FITNESS_FUNCTIONS_BIN.*tmp' bin/calm-test || echo "clean"
+grep 'AGENT_FITNESS_FUNCTIONS_BIN.*tmp' bin/calm-test || echo "clean"
 ```
 
 Expected: `clean`
@@ -935,7 +935,7 @@ Expected: clean working tree. All tasks committed individually above.
 | CONTEXT.md: clarify governed repo cannot weaken via local config | Task 4 |
 | red-green-demo.md: historical banner | Task 5 |
 | engineering-spec.md: historical banner | Task 5 |
-| pre-push.sh: mTLS forwarding, STACK_FITNESS_FUNCTIONS_REPO_NAME, HTTPS enforcement, remote_mode | Task 6 |
+| pre-push.sh: mTLS forwarding, AGENT_FITNESS_FUNCTIONS_REPO_NAME, HTTPS enforcement, remote_mode | Task 6 |
 | pre-tool-use.sh: HTTPS enforcement for remote bridges | Task 7 |
 | .claude/settings.json: audit/restore PreToolUse | Task 8 |
 | bin/calm-test: remote container support, sandbox label | Task 9 |

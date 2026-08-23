@@ -1,4 +1,4 @@
-// Package client owns the commit-time validation client for stack-fitness-functions.
+// Package client owns the commit-time validation client for agent-fitness-functions.
 package client
 
 import (
@@ -29,7 +29,7 @@ var embeddedHooks embed.FS
 
 // Hook artifact naming. Generated git-hook artifacts carry the product name.
 // FINOS CALM surfaces (.calm/, configs/, calm-poc, the calm CLI) are unaffected.
-const hookProductPrefix = "stack-fitness-functions"
+const hookProductPrefix = "agent-fitness-functions"
 
 const (
 	gitGuardName       = hookProductPrefix + "-git-guard"
@@ -208,14 +208,14 @@ func (installer hookInstaller) refreshHookSidecar(hooksDir, hookName, embeddedPa
 }
 
 func (installer hookInstaller) resolveUnmanagedHook(targetHook, hooksDir, hookName, embeddedPath string) (bool, error) {
-	if os.Getenv("STACK_FITNESS_FUNCTIONS_HOOK_APPEND") == "1" {
+	if os.Getenv("AGENT_FITNESS_FUNCTIONS_HOOK_APPEND") == "1" {
 		return true, installer.appendHookSidecar(targetHook, hooksDir, hookName, embeddedPath)
 	}
-	if os.Getenv("STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE") == "1" {
+	if os.Getenv("AGENT_FITNESS_FUNCTIONS_HOOK_OVERWRITE") == "1" {
 		return false, nil
 	}
 	_, _ = fmt.Fprintf(installer.stderr, "refusing to overwrite existing unmanaged %s hook: %s\n", hookName, targetHook)
-	_, _ = fmt.Fprintln(installer.stderr, "set STACK_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1 to replace it, or STACK_FITNESS_FUNCTIONS_HOOK_APPEND=1 to append")
+	_, _ = fmt.Fprintln(installer.stderr, "set AGENT_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1 to replace it, or AGENT_FITNESS_FUNCTIONS_HOOK_APPEND=1 to append")
 	return true, errors.New("refusing to overwrite existing unmanaged hook")
 }
 

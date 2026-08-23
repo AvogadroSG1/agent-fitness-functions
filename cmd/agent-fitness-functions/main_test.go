@@ -37,7 +37,7 @@ func TestRunResolveDevCertVersionProtocol(t *testing.T) {
 	if err := devcerts.Publish(root, false); err != nil {
 		t.Fatalf("Publish(%q): %v", root, err)
 	}
-	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", root)
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR", root)
 
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"client", "resolve-dev-cert-version"}, &stdout, &stderr)
@@ -62,7 +62,7 @@ func TestRunResolveDevCertVersionUsageAndFailureProtocol(t *testing.T) {
 	})
 
 	t.Run("missing publication is runtime failure", func(t *testing.T) {
-		t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", filepath.Join(t.TempDir(), "missing"))
+		t.Setenv("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR", filepath.Join(t.TempDir(), "missing"))
 		var stdout, stderr bytes.Buffer
 		code := run([]string{"client", "resolve-dev-cert-version"}, &stdout, &stderr)
 		if code != 1 || stdout.Len() != 0 {
@@ -75,7 +75,7 @@ func TestRunResolveDevCertVersionUsageAndFailureProtocol(t *testing.T) {
 }
 
 func TestRunClientValidateRejectsSelectorConflictBeforeFilesystem(t *testing.T) {
-	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", filepath.Join(t.TempDir(), "missing"))
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR", filepath.Join(t.TempDir(), "missing"))
 	var stdout, stderr bytes.Buffer
 	code := run([]string{
 		"client", "validate",
@@ -86,15 +86,15 @@ func TestRunClientValidateRejectsSelectorConflictBeforeFilesystem(t *testing.T) 
 	if code != 2 || stdout.Len() != 0 {
 		t.Fatalf("exit/stdout = %d/%q, want 2/empty", code, stdout.String())
 	}
-	want := "STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs\n"
+	want := "AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs\n"
 	if stderr.String() != want {
 		t.Fatalf("stderr = %q, want %q", stderr.String(), want)
 	}
 }
 
 func TestRunServeDefaultsToWorkingDirectoryManagedCertificates(t *testing.T) {
-	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
-	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", "")
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR", "")
 	workingDirectory := t.TempDir()
 	originalWorkingDirectory, err := os.Getwd()
 	if err != nil {
@@ -119,12 +119,12 @@ func TestRunServeDefaultsToWorkingDirectoryManagedCertificates(t *testing.T) {
 }
 
 func TestRunServeRequiresTLSForTrustedProxyHeaders(t *testing.T) {
-	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
 	// A client-cert-only env var selects the plain-HTTP server mode (see
 	// TestResolveServerStartTLSModeProvenance's "client cert alone preserves HTTP"
 	// case) so this test exercises the trusted-proxy/TLS validation itself rather
 	// than the unrelated default managed-certificate resolution.
-	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CERT", "/external/client.crt")
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_CLIENT_CERT", "/external/client.crt")
 
 	var stderr bytes.Buffer
 	code := runServe([]string{
@@ -142,7 +142,7 @@ func TestRunServeRequiresTLSForTrustedProxyHeaders(t *testing.T) {
 }
 
 func TestRunServeRequiresTrustedProxyClientCNs(t *testing.T) {
-	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
 
 	var stderr bytes.Buffer
 	code := runServe([]string{
@@ -162,7 +162,7 @@ func TestRunServeRequiresTrustedProxyClientCNs(t *testing.T) {
 }
 
 func TestResolveTLSPathPrefersFlagThenEnv(t *testing.T) {
-	const envName = "STACK_FITNESS_FUNCTIONS_TLS_CERT"
+	const envName = "AGENT_FITNESS_FUNCTIONS_TLS_CERT"
 	t.Setenv(envName, "/env/server.crt")
 	if got := resolveTLSPath("/flag/server.crt", envName); got != "/flag/server.crt" {
 		t.Fatalf("resolveTLSPath with flag set = %q, want flag value to win", got)
@@ -219,13 +219,13 @@ func TestResolveServerStartTLSModeProvenance(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", tt.selector)
-			t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CERT", tt.serverCert)
-			t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_KEY", tt.serverKey)
-			t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CA", tt.serverCA)
-			t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CERT", tt.clientCert)
-			t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_KEY", tt.clientKey)
-			t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CA", tt.clientCA)
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR", tt.selector)
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_CERT", tt.serverCert)
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_KEY", tt.serverKey)
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_CA", tt.serverCA)
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_CLIENT_CERT", tt.clientCert)
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_CLIENT_KEY", tt.clientKey)
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_CLIENT_CA", tt.clientCA)
 			getwdCalls := 0
 			mode, err := resolveServerStartTLSMode(tt.certFlag, tt.keyFlag, tt.caFlag, func() (string, error) {
 				getwdCalls++
@@ -253,18 +253,18 @@ func TestResolveServerStartTLSModeProvenance(t *testing.T) {
 func TestResolveServerStartTLSModeDoesNotGetWorkingDirectoryForExternalTLS(t *testing.T) {
 	for _, source := range []string{"flags", "environment"} {
 		t.Run(source, func(t *testing.T) {
-			t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", "")
-			t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CERT", "")
-			t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_KEY", "")
-			t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CA", "")
-			t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CERT", "")
-			t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_KEY", "")
-			t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CA", "")
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR", "")
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_CERT", "")
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_KEY", "")
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_CA", "")
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_CLIENT_CERT", "")
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_CLIENT_KEY", "")
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_CLIENT_CA", "")
 			cert, key, ca := "server.crt", "server.key", "ca.crt"
 			if source == "environment" {
-				t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CERT", cert)
-				t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_KEY", key)
-				t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CA", ca)
+				t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_CERT", cert)
+				t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_KEY", key)
+				t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_CA", ca)
 				cert, key, ca = "", "", ""
 			}
 			mode, err := resolveServerStartTLSMode(cert, key, ca, func() (string, error) {
@@ -281,7 +281,7 @@ func TestResolveServerStartTLSModeDoesNotGetWorkingDirectoryForExternalTLS(t *te
 }
 
 func TestResolveServerStartTLSModeReportsWorkingDirectoryFailureOnlyForDefaultManagedMode(t *testing.T) {
-	for _, name := range []string{"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", "STACK_FITNESS_FUNCTIONS_TLS_CERT", "STACK_FITNESS_FUNCTIONS_TLS_KEY", "STACK_FITNESS_FUNCTIONS_TLS_CA", "STACK_FITNESS_FUNCTIONS_CLIENT_CERT", "STACK_FITNESS_FUNCTIONS_CLIENT_KEY", "STACK_FITNESS_FUNCTIONS_CLIENT_CA"} {
+	for _, name := range []string{"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR", "AGENT_FITNESS_FUNCTIONS_TLS_CERT", "AGENT_FITNESS_FUNCTIONS_TLS_KEY", "AGENT_FITNESS_FUNCTIONS_TLS_CA", "AGENT_FITNESS_FUNCTIONS_CLIENT_CERT", "AGENT_FITNESS_FUNCTIONS_CLIENT_KEY", "AGENT_FITNESS_FUNCTIONS_CLIENT_CA"} {
 		t.Setenv(name, "")
 	}
 	_, err := resolveServerStartTLSMode("", "", "", func() (string, error) {
@@ -294,8 +294,8 @@ func TestResolveServerStartTLSModeReportsWorkingDirectoryFailureOnlyForDefaultMa
 
 func TestRunServeRejectsManagedConflictBeforeFilesystemSideEffects(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "missing-certs")
-	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", root)
-	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CA", "/external/ca.crt")
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR", root)
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_CLIENT_CA", "/external/ca.crt")
 	var stderr bytes.Buffer
 	code := runServe([]string{"--addr", "127.0.0.1:0"}, &stderr)
 	if code != 2 {
@@ -306,15 +306,15 @@ func TestRunServeRejectsManagedConflictBeforeFilesystemSideEffects(t *testing.T)
 	}
 }
 
-// TestRunServeReadsTLSEnvVarsAsFallback proves the three STACK_FITNESS_FUNCTIONS_TLS_*
+// TestRunServeReadsTLSEnvVarsAsFallback proves the three AGENT_FITNESS_FUNCTIONS_TLS_*
 // env vars are honored: with all three set (and no flags), the all-or-none validation
 // passes and failure comes from loading the bogus cert files — not from a missing-flag
 // error. Without the fallback the server would have silently started plain HTTP.
 func TestRunServeReadsTLSEnvVarsAsFallback(t *testing.T) {
-	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
-	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CERT", filepath.Join(t.TempDir(), "server.crt"))
-	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_KEY", filepath.Join(t.TempDir(), "server.key"))
-	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CA", filepath.Join(t.TempDir(), "ca.crt"))
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_CERT", filepath.Join(t.TempDir(), "server.crt"))
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_KEY", filepath.Join(t.TempDir(), "server.key"))
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_CA", filepath.Join(t.TempDir(), "ca.crt"))
 
 	var stderr bytes.Buffer
 	code := runServe([]string{"--addr", "127.0.0.1:0"}, &stderr)
@@ -332,10 +332,10 @@ func TestRunServeReadsTLSEnvVarsAsFallback(t *testing.T) {
 // TestRunServePartialTLSEnvVarsFailValidation proves setting only some of the TLS env
 // vars fails the all-or-none check with a message naming both the flags and env vars.
 func TestRunServePartialTLSEnvVarsFailValidation(t *testing.T) {
-	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
-	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CERT", filepath.Join(t.TempDir(), "server.crt"))
-	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_KEY", "")
-	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CA", "")
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_CERT", filepath.Join(t.TempDir(), "server.crt"))
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_KEY", "")
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_CA", "")
 
 	var stderr bytes.Buffer
 	code := runServe([]string{"--addr", "127.0.0.1:0"}, &stderr)
@@ -345,7 +345,7 @@ func TestRunServePartialTLSEnvVarsFailValidation(t *testing.T) {
 	if !strings.Contains(stderr.String(), "tls requires") {
 		t.Fatalf("stderr = %q, want all-or-none TLS validation error", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "STACK_FITNESS_FUNCTIONS_TLS_CERT") {
+	if !strings.Contains(stderr.String(), "AGENT_FITNESS_FUNCTIONS_TLS_CERT") {
 		t.Fatalf("stderr = %q, want validation error to mention the env vars", stderr.String())
 	}
 }
@@ -353,10 +353,10 @@ func TestRunServePartialTLSEnvVarsFailValidation(t *testing.T) {
 // TestRunServeTLSFlagsOverrideEnvVars proves flags win over the env fallback: a flag
 // cert+key pair with only one env var still trips the all-or-none check (no CA anywhere).
 func TestRunServeTLSFlagsOverrideEnvVars(t *testing.T) {
-	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
-	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CERT", filepath.Join(t.TempDir(), "env-server.crt"))
-	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_KEY", "")
-	t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CA", "")
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_CERT", filepath.Join(t.TempDir(), "env-server.crt"))
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_KEY", "")
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_TLS_CA", "")
 
 	var stderr bytes.Buffer
 	code := runServe([]string{
@@ -373,7 +373,7 @@ func TestRunServeTLSFlagsOverrideEnvVars(t *testing.T) {
 }
 
 func TestRunDispatchesServerStart(t *testing.T) {
-	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
 
 	var stderr bytes.Buffer
 	code := run([]string{
@@ -646,7 +646,7 @@ func TestRunDispatchesClientOnboardUsageError(t *testing.T) {
 
 func TestRunClientOnboardCertificatesOnlyPublishesManagedRoot(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "certs")
-	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", root)
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR", root)
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"client", "onboard", "--certificates-only"}, &stdout, &stderr)
 	if code != 0 {
@@ -666,7 +666,7 @@ func TestRunClientOnboardCertificatesOnlyPublishesManagedRoot(t *testing.T) {
 
 func TestRunClientOnboardCertificatesOnlyAcceptsForceWithoutBroadeningState(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", root)
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR", root)
 	seed := filepath.Join(root, "unknown")
 	if err := os.WriteFile(seed, []byte("preserve me\n"), 0o640); err != nil {
 		t.Fatalf("seed unsupported state: %v", err)
@@ -1063,7 +1063,7 @@ func testRunServeStopsOnSignal(t *testing.T, signal os.Signal) {
 		t.Fatalf("close listener: %v", err)
 	}
 	configDir := writeMountedServeConfigDir(t)
-	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", configDir)
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR", configDir)
 	certRoot := filepath.Join(t.TempDir(), "certs")
 	if err := devcerts.Publish(certRoot, false); err != nil {
 		t.Fatalf("Publish(%q): %v", certRoot, err)
@@ -1080,7 +1080,7 @@ func testRunServeStopsOnSignal(t *testing.T, signal os.Signal) {
 	if !roots.AppendCertsFromPEM(caPEM) {
 		t.Fatal("AppendCertsFromPEM(CA) failed")
 	}
-	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", certRoot)
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR", certRoot)
 
 	done := make(chan int, 1)
 	go func() {

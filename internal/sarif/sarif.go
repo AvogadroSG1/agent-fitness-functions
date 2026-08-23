@@ -74,7 +74,7 @@ func Convert(resp fitness.ValidationResult, repoRoot string) any {
 			{
 				Tool: tool{
 					Driver: driver{
-						Name:           "stack-fitness-functions",
+						Name:           "agent-fitness-functions",
 						InformationURI: "https://calm.finos.org",
 						Rules:          rules,
 					},

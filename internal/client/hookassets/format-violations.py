@@ -2,7 +2,7 @@
 """Format CALM bridge JSON as agent-readable YAML.
 
 Usage:
-  stack-fitness-functions client validate ... | python3 hooks/format-violations.py \
+  agent-fitness-functions client validate ... | python3 hooks/format-violations.py \
       --mode <block|advisory> --file <relative/path>
 """
 from __future__ import annotations
@@ -30,7 +30,7 @@ def _load_guidance() -> dict[str, dict[str, Any]]:
 
     POC: data is inline. To externalize, replace this body with:
         import os
-        path = os.environ.get("STACK_FITNESS_FUNCTIONS_GUIDANCE_FILE", <default_path>)
+        path = os.environ.get("AGENT_FITNESS_FUNCTIONS_GUIDANCE_FILE", <default_path>)
         return yaml.safe_load(open(path))
     Call sites never change.
     """

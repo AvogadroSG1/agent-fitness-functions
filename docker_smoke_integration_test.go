@@ -33,7 +33,7 @@ func TestDockerComposeFirstGenerationReachesHealthyFromIsolatedRoot(t *testing.T
 	}
 	certRoot = filepath.Join(resolvedRoot, filepath.Base(certRoot))
 	override := filepath.Join(t.TempDir(), "compose.override.yml")
-	overrideContent := "services:\n  stack-fitness-functions:\n    volumes:\n      - " + strconv.Quote(certRoot+":/app/certs:ro") + "\n    ports:\n      - \"127.0.0.1::7890\"\n"
+	overrideContent := "services:\n  agent-fitness-functions:\n    volumes:\n      - " + strconv.Quote(certRoot+":/app/certs:ro") + "\n    ports:\n      - \"127.0.0.1::7890\"\n"
 	if err := os.WriteFile(override, []byte(overrideContent), 0o600); err != nil {
 		t.Fatalf("write Compose override: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestDockerComposeFirstGenerationReachesHealthyFromIsolatedRoot(t *testing.T
 	if versionB == versionA {
 		t.Fatalf("rotation version B = version A = %q", versionA)
 	}
-	restart := exec.Command("docker", append(composeArgs, "restart", "stack-fitness-functions")...)
+	restart := exec.Command("docker", append(composeArgs, "restart", "agent-fitness-functions")...)
 	if output, err := restart.CombinedOutput(); err != nil {
 		t.Fatalf("docker compose restart: %v\n%s", err, output)
 	}
@@ -97,7 +97,7 @@ func TestDockerImageHealthSupportsPlainHTTPAndExplicitTLS(t *testing.T) {
 	if output, err := exec.Command("docker", "info").CombinedOutput(); err != nil {
 		t.Skipf("Docker unavailable: %v\n%s", err, output)
 	}
-	tag := fmt.Sprintf("stack-fitness-functions:q8d11-health-%d", os.Getpid())
+	tag := fmt.Sprintf("agent-fitness-functions:q8d11-health-%d", os.Getpid())
 	build := exec.Command("docker", "build", "--build-arg", "TARGETOS=linux", "--build-arg", "TARGETARCH="+runtime.GOARCH, "--tag", tag, ".")
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("docker build health-mode image: %v\n%s", err, output)
@@ -114,7 +114,7 @@ func TestDockerImageHealthSupportsPlainHTTPAndExplicitTLS(t *testing.T) {
 		t.Fatalf("Abs(.): %v", err)
 	}
 	runHealthContainer(t, tag, "plain", []string{
-		"--env", "STACK_FITNESS_FUNCTIONS_CLIENT_CA=/unrelated/client-ca.crt",
+		"--env", "AGENT_FITNESS_FUNCTIONS_CLIENT_CA=/unrelated/client-ca.crt",
 	}, root)
 
 	certRoot := filepath.Join(t.TempDir(), "certs")
@@ -128,9 +128,9 @@ func TestDockerImageHealthSupportsPlainHTTPAndExplicitTLS(t *testing.T) {
 	paths := version.Paths()
 	runHealthContainer(t, tag, "explicit", []string{
 		"--mount", "type=bind,src=" + filepath.Dir(paths.CA) + ",dst=/external,readonly",
-		"--env", "STACK_FITNESS_FUNCTIONS_TLS_CERT=/external/server.crt",
-		"--env", "STACK_FITNESS_FUNCTIONS_TLS_KEY=/external/server.key",
-		"--env", "STACK_FITNESS_FUNCTIONS_TLS_CA=/external/ca.crt",
+		"--env", "AGENT_FITNESS_FUNCTIONS_TLS_CERT=/external/server.crt",
+		"--env", "AGENT_FITNESS_FUNCTIONS_TLS_KEY=/external/server.key",
+		"--env", "AGENT_FITNESS_FUNCTIONS_TLS_CA=/external/ca.crt",
 	}, root)
 }
 
@@ -143,7 +143,7 @@ func runHealthContainer(t *testing.T, image, mode string, extraArgs []string, ro
 		"--health-interval", "1s", "--health-timeout", "2s", "--health-start-period", "1s", "--health-retries", "10",
 		"--mount", "type=bind,src=" + filepath.Join(root, "configs") + ",dst=/app/configs,readonly",
 		"--mount", "type=bind,src=" + filepath.Join(root, "caller-repos.json") + ",dst=/app/caller-repos.json,readonly",
-		"--env", "STACK_FITNESS_FUNCTIONS_CONFIGS_DIR=/app/configs",
+		"--env", "AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR=/app/configs",
 	}
 	args = append(args, extraArgs...)
 	args = append(args, image, "--addr", "0.0.0.0:7890")
@@ -218,7 +218,7 @@ func importManagedVersion(t *testing.T, sourceRoot, destinationRoot string) stri
 
 func runtimeVersion(t *testing.T, composeArgs []string) string {
 	t.Helper()
-	output := composeExec(t, composeArgs, "cat /run/stack-fitness-functions/pinned-dev-cert-version")
+	output := composeExec(t, composeArgs, "cat /run/agent-fitness-functions/pinned-dev-cert-version")
 	if strings.Count(output, "\n") != 1 || !strings.HasSuffix(output, "\n") {
 		t.Fatalf("runtime version bytes = %q, want one version line", output)
 	}
@@ -227,20 +227,20 @@ func runtimeVersion(t *testing.T, composeArgs []string) string {
 
 func assertRuntimeHealthAndPublicFiles(t *testing.T, composeArgs []string) {
 	t.Helper()
-	entries := composeExec(t, composeArgs, "ls -1 /run/stack-fitness-functions")
+	entries := composeExec(t, composeArgs, "ls -1 /run/agent-fitness-functions")
 	if entries != "health-ca.crt\npinned-dev-cert-version\n" {
 		t.Fatalf("runtime entries = %q, want exactly two public artifacts", entries)
 	}
 	for _, name := range []string{"health-ca.crt", "pinned-dev-cert-version"} {
-		if mode := composeExec(t, composeArgs, "stat -c %a /run/stack-fitness-functions/"+name); mode != "644\n" {
+		if mode := composeExec(t, composeArgs, "stat -c %a /run/agent-fitness-functions/"+name); mode != "644\n" {
 			t.Fatalf("runtime %s mode = %q, want 644", name, mode)
 		}
 	}
-	content := composeExec(t, composeArgs, "cat /run/stack-fitness-functions/health-ca.crt /run/stack-fitness-functions/pinned-dev-cert-version")
+	content := composeExec(t, composeArgs, "cat /run/agent-fitness-functions/health-ca.crt /run/agent-fitness-functions/pinned-dev-cert-version")
 	if strings.Contains(content, "PRIVATE KEY") || strings.Contains(content, "owner") || strings.Contains(content, "token") {
 		t.Fatal("runtime artifacts contain private key or ownership evidence")
 	}
-	output := composeExec(t, composeArgs, "curl --fail --silent --cacert /run/stack-fitness-functions/health-ca.crt https://127.0.0.1:7890/health")
+	output := composeExec(t, composeArgs, "curl --fail --silent --cacert /run/agent-fitness-functions/health-ca.crt https://127.0.0.1:7890/health")
 	if output != "" {
 		t.Fatalf("runtime health command output = %q, want empty", output)
 	}
@@ -248,7 +248,7 @@ func assertRuntimeHealthAndPublicFiles(t *testing.T, composeArgs []string) {
 
 func composeExec(t *testing.T, composeArgs []string, script string) string {
 	t.Helper()
-	command := exec.Command("docker", append(composeArgs, "exec", "-T", "stack-fitness-functions", "sh", "-c", script)...)
+	command := exec.Command("docker", append(composeArgs, "exec", "-T", "agent-fitness-functions", "sh", "-c", script)...)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("docker compose exec: %v\n%s", err, output)

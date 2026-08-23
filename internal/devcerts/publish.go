@@ -1,4 +1,4 @@
-// Package devcerts publishes local development certificates managed by stack-fitness-functions.
+// Package devcerts publishes local development certificates managed by agent-fitness-functions.
 package devcerts
 
 import (

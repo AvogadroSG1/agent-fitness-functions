@@ -10,15 +10,15 @@ import (
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 )
 
-// stubBridge writes a fake `stack-fitness-functions` binary that records the
+// stubBridge writes a fake `agent-fitness-functions` binary that records the
 // arguments of each invocation (one per line) into recordPath and emits a
 // passing validation response so the helper completes without a real server.
 func stubBridge(t *testing.T, dir, recordPath string) string {
 	t.Helper()
-	bridge := filepath.Join(dir, "stack-fitness-functions")
+	bridge := filepath.Join(dir, "agent-fitness-functions")
 	script := "#!/usr/bin/env bash\n" +
-		"if [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then printf '%s\\n' \"$*\" >> " + shellQuote(recordPath) + "; readlink \"$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; exit 0; fi\n" +
-		"printf 'selector=%s|%s\\n' \"${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}\" \"$*\" >> " + shellQuote(recordPath) + "\n" +
+		"if [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then printf '%s\\n' \"$*\" >> " + shellQuote(recordPath) + "; readlink \"$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; exit 0; fi\n" +
+		"printf 'selector=%s|%s\\n' \"${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}\" \"$*\" >> " + shellQuote(recordPath) + "\n" +
 		"echo '{\"status\":\"pass\"}'\n"
 	if err := os.WriteFile(bridge, []byte(script), 0o755); err != nil {
 		t.Fatalf("write stub bridge: %v", err)
@@ -59,14 +59,14 @@ func newGitRepoWithFile(t *testing.T) (string, string) {
 // the helper defaulted to plain HTTP with no certs and every check returned
 // HTTP 401.
 func TestStackFitnessFunctionsTestPassesMTLS(t *testing.T) {
-	helper, err := filepath.Abs(filepath.Join("bin", "stack-fitness-functions-test"))
+	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
 		t.Fatalf("abs helper path: %v", err)
 	}
 
 	_, file := newGitRepoWithFile(t)
 
-	// A cert directory the helper should auto-discover via STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR.
+	// A cert directory the helper should auto-discover via AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR.
 	certDir := t.TempDir()
 	version := publishManagedCertFixture(t, certDir)
 
@@ -75,9 +75,9 @@ func TestStackFitnessFunctionsTestPassesMTLS(t *testing.T) {
 
 	cmd := exec.Command(helper, file)
 	cmd.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+bridge,
-		"STACK_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
-		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
+		"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
+		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -112,10 +112,10 @@ func TestStackFitnessFunctionsTestPassesMTLS(t *testing.T) {
 }
 
 // TestStackFitnessFunctionsTestEnvOverridesCerts verifies explicit
-// STACK_FITNESS_FUNCTIONS_CLIENT_* env vars take precedence over directory
+// AGENT_FITNESS_FUNCTIONS_CLIENT_* env vars take precedence over directory
 // discovery, following 12-factor config precedence.
 func TestStackFitnessFunctionsTestEnvOverridesCerts(t *testing.T) {
-	helper, err := filepath.Abs(filepath.Join("bin", "stack-fitness-functions-test"))
+	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
 		t.Fatalf("abs helper path: %v", err)
 	}
@@ -134,11 +134,11 @@ func TestStackFitnessFunctionsTestEnvOverridesCerts(t *testing.T) {
 
 	cmd := exec.Command(helper, file)
 	cmd.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+bridge,
-		"STACK_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
-		"STACK_FITNESS_FUNCTIONS_CLIENT_CERT="+filepath.Join(envCertDir, "hook.crt"),
-		"STACK_FITNESS_FUNCTIONS_CLIENT_KEY="+filepath.Join(envCertDir, "hook.key"),
-		"STACK_FITNESS_FUNCTIONS_CLIENT_CA="+filepath.Join(envCertDir, "roots.crt"),
+		"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
+		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT="+filepath.Join(envCertDir, "hook.crt"),
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_KEY="+filepath.Join(envCertDir, "hook.key"),
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CA="+filepath.Join(envCertDir, "roots.crt"),
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -172,7 +172,7 @@ func TestStackFitnessFunctionsTestEnvOverridesCerts(t *testing.T) {
 // when the working tree has no configs/<basename> or .calm/config.json to infer the
 // governance repo name from. Regression guard against masking a misconfigured repo.
 func TestStackFitnessFunctionsTestErrorsWhenRepoNameUndetectable(t *testing.T) {
-	helper, err := filepath.Abs(filepath.Join("bin", "stack-fitness-functions-test"))
+	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
 		t.Fatalf("abs helper path: %v", err)
 	}
@@ -189,15 +189,15 @@ func TestStackFitnessFunctionsTestErrorsWhenRepoNameUndetectable(t *testing.T) {
 
 	cmd := exec.Command(helper, file)
 	cmd.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+bridge,
-		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
+		"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
 	)
 	out, err := cmd.CombinedOutput()
 	if err == nil {
 		t.Fatalf("helper succeeded, want failure when repo name is undetectable; output=%s", out)
 	}
-	if !strings.Contains(string(out), "STACK_FITNESS_FUNCTIONS_REPO_NAME") {
-		t.Fatalf("output = %s, want remediation naming STACK_FITNESS_FUNCTIONS_REPO_NAME", out)
+	if !strings.Contains(string(out), "AGENT_FITNESS_FUNCTIONS_REPO_NAME") {
+		t.Fatalf("output = %s, want remediation naming AGENT_FITNESS_FUNCTIONS_REPO_NAME", out)
 	}
 	if recorded, readErr := os.ReadFile(recordPath); readErr != nil || strings.Contains(string(recorded), "client validate") {
 		t.Fatalf("client validate was invoked before repo-name detection; calls=%q error=%v", recorded, readErr)
@@ -205,10 +205,10 @@ func TestStackFitnessFunctionsTestErrorsWhenRepoNameUndetectable(t *testing.T) {
 }
 
 // TestStackFitnessFunctionsTestUsesExplicitRepoName verifies an explicit
-// STACK_FITNESS_FUNCTIONS_REPO_NAME is forwarded to client validate, which is the
+// AGENT_FITNESS_FUNCTIONS_REPO_NAME is forwarded to client validate, which is the
 // supported way to name the governance repo when detection cannot infer it.
 func TestStackFitnessFunctionsTestUsesExplicitRepoName(t *testing.T) {
-	helper, err := filepath.Abs(filepath.Join("bin", "stack-fitness-functions-test"))
+	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
 		t.Fatalf("abs helper path: %v", err)
 	}
@@ -223,9 +223,9 @@ func TestStackFitnessFunctionsTestUsesExplicitRepoName(t *testing.T) {
 
 	cmd := exec.Command(helper, file)
 	cmd.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+bridge,
-		"STACK_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
-		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
+		"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
+		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -242,7 +242,7 @@ func TestStackFitnessFunctionsTestUsesExplicitRepoName(t *testing.T) {
 }
 
 func TestStackFitnessFunctionsTestFailsWhenClientValidateFails(t *testing.T) {
-	helper, err := filepath.Abs(filepath.Join("bin", "stack-fitness-functions-test"))
+	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
 		t.Fatalf("abs helper path: %v", err)
 	}
@@ -253,9 +253,9 @@ func TestStackFitnessFunctionsTestFailsWhenClientValidateFails(t *testing.T) {
 	publishManagedCertFixture(t, certDir)
 
 	bridgeDir := t.TempDir()
-	bridge := filepath.Join(bridgeDir, "stack-fitness-functions")
+	bridge := filepath.Join(bridgeDir, "agent-fitness-functions")
 	script := "#!/usr/bin/env bash\n" +
-		"if [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then readlink \"$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; exit 0; fi\n" +
+		"if [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then readlink \"$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; exit 0; fi\n" +
 		"echo 'check failed with HTTP 403: caller \"dev-hook-pool\" is not authorized for repository \"wrong-repo\"' >&2\n" +
 		"exit 1\n"
 	if err := os.WriteFile(bridge, []byte(script), 0o755); err != nil {
@@ -264,9 +264,9 @@ func TestStackFitnessFunctionsTestFailsWhenClientValidateFails(t *testing.T) {
 
 	cmd := exec.Command(helper, file)
 	cmd.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+bridge,
-		"STACK_FITNESS_FUNCTIONS_REPO_NAME=wrong-repo",
-		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
+		"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
+		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=wrong-repo",
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
 	)
 	out, err := cmd.CombinedOutput()
 	if err == nil {
@@ -281,7 +281,7 @@ func TestStackFitnessFunctionsTestFailsWhenClientValidateFails(t *testing.T) {
 }
 
 func TestStackFitnessFunctionsTestManagedFailureMatrix(t *testing.T) {
-	helper, err := filepath.Abs(filepath.Join("bin", "stack-fitness-functions-test"))
+	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
 		t.Fatalf("Abs(helper): %v", err)
 	}
@@ -294,7 +294,7 @@ func TestStackFitnessFunctionsTestManagedFailureMatrix(t *testing.T) {
 		extraEnv []string
 		want     string
 	}{
-		{name: "ambiguity", resolver: "exit 99", extraEnv: []string{"STACK_FITNESS_FUNCTIONS_CLIENT_CERT=/external/client.crt"}, want: "cannot be combined with explicit client TLS inputs"},
+		{name: "ambiguity", resolver: "exit 99", extraEnv: []string{"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT=/external/client.crt"}, want: "cannot be combined with explicit client TLS inputs"},
 		{name: "malformed", resolver: "printf 'versions/not-valid\\n'", want: "invalid managed certificate version"},
 		{name: "resolver failure", resolver: "echo 'helper resolver failed safely' >&2; exit 7", want: "helper resolver failed safely"},
 	}
@@ -303,12 +303,12 @@ func TestStackFitnessFunctionsTestManagedFailureMatrix(t *testing.T) {
 			bridge := writeBinHelperStub(t, tt.resolver)
 			command := exec.Command(helper, file)
 			command.Env = append(os.Environ(),
-				"STACK_FITNESS_FUNCTIONS_BIN="+bridge,
-				"STACK_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
-				"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
-				"STACK_FITNESS_FUNCTIONS_CLIENT_CERT=",
-				"STACK_FITNESS_FUNCTIONS_CLIENT_KEY=",
-				"STACK_FITNESS_FUNCTIONS_CLIENT_CA=",
+				"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
+				"AGENT_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
+				"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
+				"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT=",
+				"AGENT_FITNESS_FUNCTIONS_CLIENT_KEY=",
+				"AGENT_FITNESS_FUNCTIONS_CLIENT_CA=",
 			)
 			command.Env = append(command.Env, tt.extraEnv...)
 			output, err := command.CombinedOutput()
@@ -327,7 +327,7 @@ func TestStackFitnessFunctionsTestManagedFailureMatrix(t *testing.T) {
 }
 
 func TestStackFitnessFunctionsTestKeepsResolvedPathsAfterRotation(t *testing.T) {
-	helper, err := filepath.Abs(filepath.Join("bin", "stack-fitness-functions-test"))
+	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
 		t.Fatalf("Abs(helper): %v", err)
 	}
@@ -337,16 +337,16 @@ func TestStackFitnessFunctionsTestKeepsResolvedPathsAfterRotation(t *testing.T) 
 	const rotated = "versions/v-dddddddddddddddddddddddddddddddd"
 	copyBinHelperVersion(t, filepath.Join(certDir, filepath.FromSlash(resolved)), filepath.Join(certDir, filepath.FromSlash(rotated)))
 	logPath := filepath.Join(t.TempDir(), "calls")
-	bridge := filepath.Join(t.TempDir(), "stack-fitness-functions")
+	bridge := filepath.Join(t.TempDir(), "agent-fitness-functions")
 	script := `#!/usr/bin/env bash
 if [[ "$*" == "client resolve-dev-cert-version" ]]; then
-  target=$(readlink "$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current")
-  rm -f "$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current"
-  ln -s "` + rotated + `" "$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current"
+  target=$(readlink "$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current")
+  rm -f "$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current"
+  ln -s "` + rotated + `" "$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current"
   printf '%s\n' "$target"
   exit 0
 fi
-printf 'selector=%s|%s\n' "${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}" "$*" >>` + shellQuote(logPath) + `
+printf 'selector=%s|%s\n' "${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}" "$*" >>` + shellQuote(logPath) + `
 printf '{"status":"pass"}\n'
 `
 	if err := os.WriteFile(bridge, []byte(script), 0o755); err != nil {
@@ -354,12 +354,12 @@ printf '{"status":"pass"}\n'
 	}
 	command := exec.Command(helper, file)
 	command.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+bridge,
-		"STACK_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
-		"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
-		"STACK_FITNESS_FUNCTIONS_CLIENT_CERT=",
-		"STACK_FITNESS_FUNCTIONS_CLIENT_KEY=",
-		"STACK_FITNESS_FUNCTIONS_CLIENT_CA=",
+		"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
+		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT=",
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_KEY=",
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CA=",
 	)
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("helper failed: %v\n%s", err, output)
@@ -377,7 +377,7 @@ printf '{"status":"pass"}\n'
 
 func writeBinHelperStub(t *testing.T, resolver string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "stack-fitness-functions")
+	path := filepath.Join(t.TempDir(), "agent-fitness-functions")
 	script := "#!/usr/bin/env bash\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then " + resolver + "; resolver_rc=$?; exit \"$resolver_rc\"; fi\nprintf '{\"status\":\"pass\"}\\n"
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatalf("WriteFile(stub): %v", err)

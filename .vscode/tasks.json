@@ -4,7 +4,7 @@
     {
       "label": "CALM: Check Current File",
       "type": "shell",
-      "command": "mkdir -p .calm && stack-fitness-functions client validate --file ${relativeFile} --repo ${workspaceFolder} --format sarif > .calm/results.sarif",
+      "command": "mkdir -p .calm && agent-fitness-functions client validate --file ${relativeFile} --repo ${workspaceFolder} --format sarif > .calm/results.sarif",
       "group": "test",
       "presentation": {
         "reveal": "silent",
@@ -16,7 +16,7 @@
     {
       "label": "CALM: Watch (run on save)",
       "type": "shell",
-      "command": "while true; do inotifywait -e close_write ${file} 2>/dev/null || fswatch -1 ${file} 2>/dev/null; mkdir -p .calm && stack-fitness-functions client validate --file ${relativeFile} --repo ${workspaceFolder} --format sarif > .calm/results.sarif; done",
+      "command": "while true; do inotifywait -e close_write ${file} 2>/dev/null || fswatch -1 ${file} 2>/dev/null; mkdir -p .calm && agent-fitness-functions client validate --file ${relativeFile} --repo ${workspaceFolder} --format sarif > .calm/results.sarif; done",
       "isBackground": true,
       "group": "test",
       "presentation": {

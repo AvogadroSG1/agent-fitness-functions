@@ -5,7 +5,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/generate-dev-certs.sh [--force]
 
-Delegates local development certificate publication to stack-fitness-functions.
+Delegates local development certificate publication to agent-fitness-functions.
 USAGE
 }
 
@@ -18,4 +18,4 @@ case "${1:-}" in
 esac
 [[ $# -le 1 ]] || { echo "too many arguments" >&2; usage >&2; exit 2; }
 
-exec stack-fitness-functions "${args[@]}"
+exec agent-fitness-functions "${args[@]}"

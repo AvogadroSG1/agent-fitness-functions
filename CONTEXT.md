@@ -1,4 +1,4 @@
-# Stack Fitness Functions — How It Works
+# Agent Fitness Functions — How It Works
 
 This document answers the questions most likely to arise when someone encounters this proof of concept for the first time. It follows the conversation that shaped the implementation.
 
@@ -6,7 +6,7 @@ This document answers the questions most likely to arise when someone encounters
 
 ## Language
 
-**stack-fitness-functions**:
+**agent-fitness-functions**:
 The product and binary. The single tool that validates source against architecture fitness functions, in both client and server roles.
 _Avoid_: bridge as a product name.
 
@@ -33,7 +33,7 @@ The wire contract spoken by both client and server — the request a client send
 _Avoid_: CheckRequest, CheckResponse.
 
 **Naming rule**:
-Always spell the product out — `stack-fitness-functions`. No abbreviations. Env vars use the derived prefix `STACK_FITNESS_FUNCTIONS_*`; bin helpers use the full name (`stack-fitness-functions-serve`, `stack-fitness-functions-test`). Descriptive over short.
+Always spell the product out — `agent-fitness-functions`. No abbreviations. Env vars use the derived prefix `AGENT_FITNESS_FUNCTIONS_*`; bin helpers use the full name (`agent-fitness-functions-serve`, `agent-fitness-functions-test`). Descriptive over short.
 
 ## Relationships
 
@@ -52,7 +52,7 @@ sequenceDiagram
     participant Dev as Developer
     participant Hook as pre-commit hook
     participant Config as configs/<repo>/config.json
-    participant Server as stack-fitness-functions server
+    participant Server as agent-fitness-functions server
     participant Analyzer as Language Analyzer
 
     Dev->>Hook: git commit
@@ -98,19 +98,19 @@ A linter such as `golangci-lint` also checks cyclomatic complexity. For a single
 
 | Concern | Linter | CALM |
 |---|---|---|
-| Who owns the rules | The team (rules live in the repo) | The organization (thresholds live in the stack-fitness-functions server) |
+| Who owns the rules | The team (rules live in the repo) | The organization (thresholds live in the agent-fitness-functions server) |
 | Who can raise the bar | Any developer with a config edit | The architecture team, explicitly |
 | Cross-language consistency | Separate tool per language, separate config per repo | One server, one set of thresholds, Go + Python + C# |
 | Audit trail | None — linting leaves no organizational record | Server logs every Validation Result |
 | What the rules represent | Code style and common bugs | Architectural principles the organization has committed to |
 
-The practical consequence: a team cannot quietly relax a threshold when their code fails. Any threshold change requires an explicit decision from whoever owns the stack-fitness-functions server. CALM forces the conversation; a linter config edit avoids it.
+The practical consequence: a team cannot quietly relax a threshold when their code fails. Any threshold change requires an explicit decision from whoever owns the agent-fitness-functions server. CALM forces the conversation; a linter config edit avoids it.
 
 ```mermaid
 graph TD
     subgraph org ["Organization Ownership — CALM"]
         OA["Architecture Team"]
-        OB["stack-fitness-functions server\nthresholds & governance"]
+        OB["agent-fitness-functions server\nthresholds & governance"]
         OC["graft (Go)"]
         OD["ringstation (Python)"]
         OE["slackstatus (C#)"]
@@ -153,13 +153,13 @@ What these metrics cannot catch: a function that is simple in isolation but orch
 
 | Component | Location | Purpose |
 |---|---|---|
-| `stack-fitness-functions` binary | `/app/stack-fitness-functions` (built from `cmd/stack-fitness-functions`) | CLI for `client validate`, `client install-hooks`, `client onboard`, `server start`, `baseline`, and `doctor` |
-| Container service | `docker compose up` via `bin/stack-fitness-functions-serve` (Docker Desktop) | **Primary runtime** — starts the server on `localhost:7890` |
+| `agent-fitness-functions` binary | `/app/agent-fitness-functions` (built from `cmd/agent-fitness-functions`) | CLI for `client validate`, `client install-hooks`, `client onboard`, `server start`, `baseline`, and `doctor` |
+| Container service | `docker compose up` via `bin/agent-fitness-functions-serve` (Docker Desktop) | **Primary runtime** — starts the server on `localhost:7890` |
 | Governance rules | `internal/server/checker.go`, `patterns/governance.json` | Thresholds and enabled functions |
-| Pre-commit and agent Edit/Write hooks | Embedded by `stack-fitness-functions client install-hooks` (or `client onboard`) | Commit-time and pre-write enforcement in governed repos; both `PreToolUse` entries are registered in `.claude/settings.json` automatically |
+| Pre-commit and agent Edit/Write hooks | Embedded by `agent-fitness-functions client install-hooks` (or `client onboard`) | Commit-time and pre-write enforcement in governed repos; both `PreToolUse` entries are registered in `.claude/settings.json` automatically |
 | `configs/<repo>/config.json` | Mounted into the container | Governance config for the logical repo |
 | `.calm/config.json` | Optional local repository sandbox | Developer sandbox only — **has no effect on container governance**; container always resolves from `configs/<repo>/config.json` |
-| `stack-fitness-functions-test` | `~/.local/bin/stack-fitness-functions-test` | Ad-hoc file validation without committing |
+| `agent-fitness-functions-test` | `~/.local/bin/agent-fitness-functions-test` | Ad-hoc file validation without committing |
 
 ---
 
@@ -177,4 +177,4 @@ The `client validate` path now resolves project-local namespaces with `--project
 
 **Next calibration step:** Extend `AnalyzeRepository` to pass `--project <nearest-csproj>` to the Roslyn CLI for each `.cs` file, regenerate baselines, read the resulting P10 DDC distribution, and update the `minimum` in `patterns/governance.json` accordingly.
 
-*Authored By Peter O'Connor with Assistance from Claude Code (claude-sonnet-4-6) · 2026-06-04 · stack-fitness-functions Context & FAQ*
+*Authored By Peter O'Connor with Assistance from Claude Code (claude-sonnet-4-6) · 2026-06-04 · agent-fitness-functions Context & FAQ*

@@ -196,12 +196,12 @@ func TestDaemonStartArgsUsesManagedSelectorWithoutTLSArguments(t *testing.T) {
 	if !slices.Equal(args, want) {
 		t.Fatalf("daemonStartArgs = %v, want %v", args, want)
 	}
-	env := daemonStartEnv(cfg, []string{"PATH=/bin", envDevCertDir + "=/old", "STACK_FITNESS_FUNCTIONS_RUNTIME_DIR=/run/old"})
+	env := daemonStartEnv(cfg, []string{"PATH=/bin", envDevCertDir + "=/old", "AGENT_FITNESS_FUNCTIONS_RUNTIME_DIR=/run/old"})
 	if !slices.Contains(env, envDevCertDir+"=/repo/certs") {
 		t.Fatalf("daemon env = %v, want managed selector", env)
 	}
 	for _, value := range env {
-		if strings.HasPrefix(value, "STACK_FITNESS_FUNCTIONS_RUNTIME_DIR=") {
+		if strings.HasPrefix(value, "AGENT_FITNESS_FUNCTIONS_RUNTIME_DIR=") {
 			t.Fatalf("daemon env retained host runtime directory: %q", value)
 		}
 	}

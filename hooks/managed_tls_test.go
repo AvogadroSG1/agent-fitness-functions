@@ -33,7 +33,7 @@ func TestManagedResolverFailuresHaveHookSpecificExits(t *testing.T) {
 			t.Run(tt.name+"/"+resolver.name, func(t *testing.T) {
 				repo, input := managedHookRepo(t, tt.script)
 				binary := writeHookStub(t, "#!/usr/bin/env bash\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then "+resolver.resolution+"; exit 0; fi\nprintf '{\"status\":\"pass\"}\\n'")
-				output, exit := runManagedHook(t, repo, tt.script, binary, input, []string{"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR=" + filepath.Join(repo, "certs")})
+				output, exit := runManagedHook(t, repo, tt.script, binary, input, []string{"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR=" + filepath.Join(repo, "certs")})
 				if exit != tt.wantExit {
 					t.Fatalf("exit = %d, want %d; output=%s", exit, tt.wantExit, output)
 				}
@@ -59,8 +59,8 @@ func TestManagedSelectorConflictHasHookSpecificExits(t *testing.T) {
 			repo, input := managedHookRepo(t, tt.name)
 			binary := writeHookStub(t, "#!/usr/bin/env bash\nexit 99\n")
 			output, exit := runManagedHook(t, repo, tt.name, binary, input, []string{
-				"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR=" + filepath.Join(repo, "certs"),
-				"STACK_FITNESS_FUNCTIONS_CLIENT_CERT=/external/client.crt",
+				"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR=" + filepath.Join(repo, "certs"),
+				"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT=/external/client.crt",
 			})
 			if exit != tt.wantExit || !strings.Contains(string(output), "cannot be combined with explicit client TLS inputs") {
 				t.Fatalf("exit/output = %d/%q, want %d selector conflict", exit, output, tt.wantExit)
@@ -80,13 +80,13 @@ func TestExternalHookTLSNeverInvokesManagedResolver(t *testing.T) {
 					t.Fatalf("WriteFile(%s): %v", name, err)
 				}
 			}
-			binary := writeHookStub(t, "#!/usr/bin/env bash\nprintf 'selector=%s|%s\\n' \"${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}\" \"$*\" >>\"$CALL_LOG\"\nprintf '{\"status\":\"pass\"}\\n'")
+			binary := writeHookStub(t, "#!/usr/bin/env bash\nprintf 'selector=%s|%s\\n' \"${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}\" \"$*\" >>\"$CALL_LOG\"\nprintf '{\"status\":\"pass\"}\\n'")
 			output, exit := runManagedHook(t, repo, script, binary, input, []string{
 				"CALL_LOG=" + logPath,
-				"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR=",
-				"STACK_FITNESS_FUNCTIONS_CLIENT_CERT=" + filepath.Join(external, "client.crt"),
-				"STACK_FITNESS_FUNCTIONS_CLIENT_KEY=" + filepath.Join(external, "client.key"),
-				"STACK_FITNESS_FUNCTIONS_CLIENT_CA=" + filepath.Join(external, "ca.crt"),
+				"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR=",
+				"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT=" + filepath.Join(external, "client.crt"),
+				"AGENT_FITNESS_FUNCTIONS_CLIENT_KEY=" + filepath.Join(external, "client.key"),
+				"AGENT_FITNESS_FUNCTIONS_CLIENT_CA=" + filepath.Join(external, "ca.crt"),
 			})
 			if exit != 0 {
 				t.Fatalf("external hook exit = %d; output=%s", exit, output)
@@ -113,18 +113,18 @@ func TestManagedHooksUnsetSelectorAndKeepResolvedPathsAcrossRotation(t *testing.
 			logPath := filepath.Join(t.TempDir(), "calls")
 			binary := writeHookStub(t, `#!/usr/bin/env bash
 if [[ "$*" == "client resolve-dev-cert-version" ]]; then
-  target=$(readlink "$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current")
-  rm -f "$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current"
-  ln -s "`+rotatedTarget+`" "$STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR/current"
+  target=$(readlink "$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current")
+  rm -f "$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current"
+  ln -s "`+rotatedTarget+`" "$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current"
   printf '%s\n' "$target"
   exit 0
 fi
-printf 'selector=%s|%s\n' "${STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}" "$*" >>"$CALL_LOG"
+printf 'selector=%s|%s\n' "${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}" "$*" >>"$CALL_LOG"
 printf '{"status":"pass"}\n'
 `)
 			output, exit := runManagedHook(t, repo, script, binary, input, []string{
 				"CALL_LOG=" + logPath,
-				"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR=" + certRoot,
+				"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR=" + certRoot,
 			})
 			if exit != 0 {
 				t.Fatalf("managed hook exit = %d; output=%s", exit, output)
@@ -209,7 +209,7 @@ esac
 
 func writeHookStub(t *testing.T, content string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "stack-fitness-functions")
+	path := filepath.Join(t.TempDir(), "agent-fitness-functions")
 	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
 		t.Fatalf("WriteFile(stub): %v", err)
 	}
@@ -222,7 +222,7 @@ func runManagedHook(t *testing.T, repo, script, binary, input string, extraEnv [
 	command.Dir = repo
 	command.Stdin = strings.NewReader(input)
 	command.Env = append(os.Environ(),
-		"STACK_FITNESS_FUNCTIONS_BIN="+binary,
+		"AGENT_FITNESS_FUNCTIONS_BIN="+binary,
 		"FAKE_GIT_REPO="+repo,
 		"PATH="+filepath.Join(repo, ".test-bin")+string(os.PathListSeparator)+os.Getenv("PATH"),
 	)

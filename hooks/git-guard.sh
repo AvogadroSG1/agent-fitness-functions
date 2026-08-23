@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# stack-fitness-functions git-guard PreToolUse hook
+# agent-fitness-functions git-guard PreToolUse hook
 # Blocks git commands that bypass fitness-function enforcement before they execute.
 set -euo pipefail
 
@@ -19,14 +19,14 @@ PY
 [[ -z "$command" ]] && exit 0
 
 deny() {
-  echo "stack-fitness-functions git-guard: $1" >&2
+  echo "agent-fitness-functions git-guard: $1" >&2
   echo "  Fix fitness-function violations in the code rather than bypassing enforcement." >&2
   exit 2
 }
 
 # Block --no-verify (short: -n) on git commit
 if echo "$command" | grep -qE 'git\s+commit\s+.*--no-verify'; then
-  deny "'git commit --no-verify' is blocked. stack-fitness-functions hooks must run."
+  deny "'git commit --no-verify' is blocked. agent-fitness-functions hooks must run."
 fi
 short_n_blocked=$(python3 - "$command" <<'PY'
 import re, sys
@@ -39,7 +39,7 @@ else:
 PY
 )
 if [[ "$short_n_blocked" == "1" ]]; then
-  deny "'git commit -n' (--no-verify shorthand) is blocked. stack-fitness-functions hooks must run."
+  deny "'git commit -n' (--no-verify shorthand) is blocked. agent-fitness-functions hooks must run."
 fi
 
 # Block --no-gpg-sign
@@ -49,7 +49,7 @@ fi
 
 # Block --ff-only merges (the specific bypass tactic: fast-forward to a pre-existing commit)
 if echo "$command" | grep -qE 'git\s+(merge|pull)\s+.*--ff-only'; then
-  deny "'git merge/pull --ff-only' is blocked when stack-fitness-functions enforcement is active. Use a regular merge or rebase so the stack-fitness-functions pre-commit hook fires."
+  deny "'git merge/pull --ff-only' is blocked when agent-fitness-functions enforcement is active. Use a regular merge or rebase so the agent-fitness-functions pre-commit hook fires."
 fi
 
 # Block force push (not --force-with-lease, which is safe)
