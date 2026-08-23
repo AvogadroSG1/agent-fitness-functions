@@ -245,8 +245,17 @@ func RunRollback(args []string, stdout, stderr io.Writer, getenv func(string) st
 	}
 
 	predecessor := candidates[0]
-	if err := publishCurrent(root, filepath.Join(versionsDir, predecessor)); err != nil {
+	predecessorDir := filepath.Join(versionsDir, predecessor)
+	if err := publishCurrent(root, predecessorDir); err != nil {
 		return fmt.Errorf("repoint current pointer: %w", err)
+	}
+	// ADR-0005: rollback reconciles every runtimes/<tool>/current pointer to
+	// the restored version's own pinned manifest, not merely the binary — a
+	// rolled-back binary paired with a mismatched CALM/radon version could
+	// otherwise silently produce a different verdict than the version being
+	// restored.
+	if err := reconcileRuntimePointers(root, predecessorDir); err != nil {
+		return fmt.Errorf("reconcile managed runtime pointers: %w", err)
 	}
 	_, err = fmt.Fprintf(stdout, "rolled back to %s\n", predecessor)
 	return err

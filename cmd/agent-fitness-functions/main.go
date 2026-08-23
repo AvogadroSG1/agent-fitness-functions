@@ -24,7 +24,7 @@ import (
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/server"
 )
 
-const usageLine = "usage: agent-fitness-functions <client validate|client install-hooks|client onboard|client resolve-dev-cert-version|server start|baseline|doctor|uninstall|upgrade|rollback>"
+const usageLine = "usage: agent-fitness-functions <client validate|client install-hooks|client onboard|client resolve-dev-cert-version|server start|baseline|doctor|uninstall|upgrade|rollback|runtime provision|runtime doctor>"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -58,6 +58,8 @@ func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *ht
 		return runUpgradeCommand(args[1:], stdout, stderr)
 	case "rollback":
 		return runRollbackCommand(args[1:], stdout, stderr)
+	case "runtime":
+		return runRuntimeCommand(args[1:], stdout, stderr)
 	default:
 		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", args[0])
 		return 2
@@ -110,6 +112,39 @@ func runRollbackCommand(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// runRuntimeCommand dispatches the ADR-0005 managed-runtime subcommands:
+// `runtime provision` (used by install.sh --provision-runtimes) and
+// `runtime doctor [--repair]`.
+func runRuntimeCommand(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 0 {
+		_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions runtime <provision|doctor>")
+		return 2
+	}
+	switch args[0] {
+	case "provision":
+		if err := installer.RunRuntimeProvision(args[1:], stdout, stderr, os.Getenv); err != nil {
+			_, _ = fmt.Fprintln(stderr, err)
+			if installer.IsUsageError(err) {
+				return 2
+			}
+			return 1
+		}
+		return 0
+	case "doctor":
+		if err := installer.RunRuntimeDoctor(args[1:], stdout, stderr, os.Getenv); err != nil {
+			_, _ = fmt.Fprintln(stderr, err)
+			if installer.IsUsageError(err) {
+				return 2
+			}
+			return 1
+		}
+		return 0
+	default:
+		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", "runtime "+args[0])
+		return 2
+	}
 }
 
 func runBaselineCommand(args []string, stdout, stderr io.Writer) int {
