@@ -525,7 +525,7 @@ func ensureDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, s
 // attempted so the user sees a setup problem, not a bare timeout.
 func describeDaemonFailure(cfg DaemonStartConfig, cause error) error {
 	tlsState := "off"
-	if cfg.TLSCert != "" {
+	if cfg.ManagedRoot != "" {
 		tlsState = "on"
 	}
 	return fmt.Errorf("%w [addr=%s tls=%s dev-cert-dir=%s configs-dir=%s]", cause, cfg.Addr, tlsState, orNone(cfg.CertDir), orNone(cfg.ConfigsDir))

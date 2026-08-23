@@ -10,6 +10,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"math/big"
 	"net"
 	"net/http"
@@ -26,24 +27,34 @@ import (
 	"time"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/client"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/server"
 )
 
-func TestRunServeRequiresTLSForTrustedProxyHeaders(t *testing.T) {
+func TestRunServeDefaultsToWorkingDirectoryManagedCertificates(t *testing.T) {
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", writeMountedServeConfigDir(t))
+	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", "")
+	workingDirectory := t.TempDir()
+	originalWorkingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	if err := os.Chdir(workingDirectory); err != nil {
+		t.Fatalf("Chdir(%q): %v", workingDirectory, err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(originalWorkingDirectory) })
 
 	var stderr bytes.Buffer
 	code := runServe([]string{
 		"--addr", "127.0.0.1:0",
-		"--trusted-proxy-headers",
-		"--trusted-proxy-client-cns", "proxy-gateway",
 	}, &stderr)
 
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
 	}
-	if !strings.Contains(stderr.String(), "trusted proxy mode requires TLS") {
-		t.Fatalf("stderr = %q, want trusted proxy TLS validation error", stderr.String())
+	if !strings.Contains(stderr.String(), "resolve managed server certificate version") || !strings.Contains(stderr.String(), filepath.Join(workingDirectory, "certs")) && !strings.Contains(stderr.String(), "invalid managed certificate root") {
+		t.Fatalf("stderr = %q, want working-directory managed certificate resolution error", stderr.String())
 	}
 }
 
@@ -79,6 +90,136 @@ func TestResolveTLSPathPrefersFlagThenEnv(t *testing.T) {
 	t.Setenv(envName, "")
 	if got := resolveTLSPath("", envName); got != "" {
 		t.Fatalf("resolveTLSPath with neither set = %q, want empty", got)
+	}
+}
+
+func TestResolveServerStartTLSModeProvenance(t *testing.T) {
+	tests := []struct {
+		name        string
+		selector    string
+		certFlag    string
+		keyFlag     string
+		caFlag      string
+		serverCert  string
+		serverKey   string
+		serverCA    string
+		clientCert  string
+		clientKey   string
+		clientCA    string
+		wantManaged string
+		wantTLS     server.ServerTLSConfig
+		wantHTTP    bool
+		wantErr     bool
+		wantGetwd   int
+	}{
+		{name: "direct default", wantManaged: "/work/certs", wantGetwd: 1},
+		{name: "managed selector", selector: "/managed", wantManaged: "/managed"},
+		{name: "server cert flag selects external", certFlag: "/flag/server.crt", wantTLS: server.ServerTLSConfig{CertPath: "/flag/server.crt"}},
+		{name: "server key flag selects external", keyFlag: "/flag/server.key", wantTLS: server.ServerTLSConfig{KeyPath: "/flag/server.key"}},
+		{name: "server CA flag selects external", caFlag: "/flag/ca.crt", wantTLS: server.ServerTLSConfig{CAPath: "/flag/ca.crt"}},
+		{name: "server cert env selects external", serverCert: "/env/server.crt", wantTLS: server.ServerTLSConfig{CertPath: "/env/server.crt"}},
+		{name: "server key env selects external", serverKey: "/env/server.key", wantTLS: server.ServerTLSConfig{KeyPath: "/env/server.key"}},
+		{name: "server CA env selects external", serverCA: "/env/ca.crt", wantTLS: server.ServerTLSConfig{CAPath: "/env/ca.crt"}},
+		{name: "flags override server env", certFlag: "/flag/server.crt", keyFlag: "/flag/server.key", caFlag: "/flag/ca.crt", serverCert: "/env/server.crt", serverKey: "/env/server.key", serverCA: "/env/ca.crt", wantTLS: server.ServerTLSConfig{CertPath: "/flag/server.crt", KeyPath: "/flag/server.key", CAPath: "/flag/ca.crt"}},
+		{name: "client cert alone preserves HTTP", clientCert: "/client/client.crt", wantHTTP: true},
+		{name: "client key alone preserves HTTP", clientKey: "/client/client.key", wantHTTP: true},
+		{name: "client CA alone preserves HTTP", clientCA: "/client/ca.crt", wantHTTP: true},
+		{name: "managed conflicts server flag", selector: "/managed", certFlag: "/flag/server.crt", wantErr: true},
+		{name: "managed conflicts server key flag", selector: "/managed", keyFlag: "/flag/server.key", wantErr: true},
+		{name: "managed conflicts server CA flag", selector: "/managed", caFlag: "/flag/ca.crt", wantErr: true},
+		{name: "managed conflicts server cert env", selector: "/managed", serverCert: "/env/server.crt", wantErr: true},
+		{name: "managed conflicts server key env", selector: "/managed", serverKey: "/env/server.key", wantErr: true},
+		{name: "managed conflicts server env", selector: "/managed", serverCA: "/env/ca.crt", wantErr: true},
+		{name: "managed conflicts client cert", selector: "/managed", clientCert: "/client/client.crt", wantErr: true},
+		{name: "managed conflicts client key", selector: "/managed", clientKey: "/client/client.key", wantErr: true},
+		{name: "managed conflicts client CA", selector: "/managed", clientCA: "/client/ca.crt", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", tt.selector)
+			t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CERT", tt.serverCert)
+			t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_KEY", tt.serverKey)
+			t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CA", tt.serverCA)
+			t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CERT", tt.clientCert)
+			t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_KEY", tt.clientKey)
+			t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CA", tt.clientCA)
+			getwdCalls := 0
+			mode, err := resolveServerStartTLSMode(tt.certFlag, tt.keyFlag, tt.caFlag, func() (string, error) {
+				getwdCalls++
+				return "/work", nil
+			})
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("resolveServerStartTLSMode error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if getwdCalls != tt.wantGetwd {
+				t.Fatalf("Getwd calls = %d, want %d", getwdCalls, tt.wantGetwd)
+			}
+			if mode.ManagedRoot != tt.wantManaged {
+				t.Fatalf("ManagedRoot = %q, want %q", mode.ManagedRoot, tt.wantManaged)
+			}
+			if mode.TLS != tt.wantTLS {
+				t.Fatalf("TLS = %+v, want %+v", mode.TLS, tt.wantTLS)
+			}
+			if tt.wantHTTP && (mode.ManagedRoot != "" || mode.TLS.Enabled()) {
+				t.Fatalf("client-only mode = %+v, want plain HTTP server mode", mode)
+			}
+		})
+	}
+}
+
+func TestResolveServerStartTLSModeDoesNotGetWorkingDirectoryForExternalTLS(t *testing.T) {
+	for _, source := range []string{"flags", "environment"} {
+		t.Run(source, func(t *testing.T) {
+			t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", "")
+			t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CERT", "")
+			t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_KEY", "")
+			t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CA", "")
+			t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CERT", "")
+			t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_KEY", "")
+			t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CA", "")
+			cert, key, ca := "server.crt", "server.key", "ca.crt"
+			if source == "environment" {
+				t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CERT", cert)
+				t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_KEY", key)
+				t.Setenv("STACK_FITNESS_FUNCTIONS_TLS_CA", ca)
+				cert, key, ca = "", "", ""
+			}
+			mode, err := resolveServerStartTLSMode(cert, key, ca, func() (string, error) {
+				return "", errors.New("injected Getwd failure")
+			})
+			if err != nil {
+				t.Fatalf("explicit external TLS consulted working directory: %v", err)
+			}
+			if mode.TLS.CertPath != "server.crt" || mode.ManagedRoot != "" {
+				t.Fatalf("mode = %+v, want explicit external TLS", mode)
+			}
+		})
+	}
+}
+
+func TestResolveServerStartTLSModeReportsWorkingDirectoryFailureOnlyForDefaultManagedMode(t *testing.T) {
+	for _, name := range []string{"STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", "STACK_FITNESS_FUNCTIONS_TLS_CERT", "STACK_FITNESS_FUNCTIONS_TLS_KEY", "STACK_FITNESS_FUNCTIONS_TLS_CA", "STACK_FITNESS_FUNCTIONS_CLIENT_CERT", "STACK_FITNESS_FUNCTIONS_CLIENT_KEY", "STACK_FITNESS_FUNCTIONS_CLIENT_CA"} {
+		t.Setenv(name, "")
+	}
+	_, err := resolveServerStartTLSMode("", "", "", func() (string, error) {
+		return "", errors.New("injected Getwd failure")
+	})
+	if err == nil || !strings.Contains(err.Error(), "resolve server working directory") {
+		t.Fatalf("default managed mode error = %v, want working-directory failure", err)
+	}
+}
+
+func TestRunServeRejectsManagedConflictBeforeFilesystemSideEffects(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "missing-certs")
+	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", root)
+	t.Setenv("STACK_FITNESS_FUNCTIONS_CLIENT_CA", "/external/ca.crt")
+	var stderr bytes.Buffer
+	code := runServe([]string{"--addr", "127.0.0.1:0"}, &stderr)
+	if code != 2 {
+		t.Fatalf("runServe conflict exit = %d, want 2; stderr=%q", code, stderr.String())
+	}
+	if _, err := os.Lstat(root); !os.IsNotExist(err) {
+		t.Fatalf("managed root side effect before conflict rejection: %v", err)
 	}
 }
 
@@ -162,8 +303,8 @@ func TestRunDispatchesServerStart(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
 	}
-	if !strings.Contains(stderr.String(), "trusted proxy mode requires TLS") {
-		t.Fatalf("stderr = %q, want server start to dispatch to former serve behavior", stderr.String())
+	if !strings.Contains(stderr.String(), "trusted proxy mode requires at least one trusted proxy client CN") {
+		t.Fatalf("stderr = %q, want managed server start dispatch validation", stderr.String())
 	}
 }
 
@@ -840,15 +981,32 @@ func testRunServeStopsOnSignal(t *testing.T, signal os.Signal) {
 	}
 	configDir := writeMountedServeConfigDir(t)
 	t.Setenv("STACK_FITNESS_FUNCTIONS_CONFIGS_DIR", configDir)
+	certRoot := filepath.Join(t.TempDir(), "certs")
+	if err := devcerts.Publish(certRoot, false); err != nil {
+		t.Fatalf("Publish(%q): %v", certRoot, err)
+	}
+	version, err := devcerts.ResolveManagedVersion(certRoot)
+	if err != nil {
+		t.Fatalf("ResolveManagedVersion: %v", err)
+	}
+	caPEM, err := os.ReadFile(version.Paths().CA)
+	if err != nil {
+		t.Fatalf("ReadFile(CA): %v", err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(caPEM) {
+		t.Fatal("AppendCertsFromPEM(CA) failed")
+	}
+	t.Setenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR", certRoot)
 
 	done := make(chan int, 1)
 	go func() {
 		done <- runServe([]string{"--addr", addr}, &bytes.Buffer{})
 	}()
 
-	client := &http.Client{Timeout: time.Second}
+	client := &http.Client{Timeout: time.Second, Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}}}
 	for range 40 {
-		response, err := client.Get("http://" + addr + "/health")
+		response, err := client.Get("https://" + addr + "/health")
 		if err == nil {
 			_ = response.Body.Close()
 			break

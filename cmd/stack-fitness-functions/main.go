@@ -139,6 +139,14 @@ func runServe(args []string, stderr io.Writer) int {
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
+	tlsMode, err := resolveServerStartTLSMode(*tlsCert, *tlsKey, *tlsCA, os.Getwd)
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, err)
+		if isUsageError(err) {
+			return 2
+		}
+		return 1
+	}
 
 	rateLimiter, err := buildRateLimiter()
 	if err != nil {
@@ -165,16 +173,66 @@ func runServe(args []string, stderr io.Writer) int {
 		},
 		BlockOnWarmup:   *blockOnWarmup,
 		AnalyzerTimeout: analyzerTimeout,
-		TLS: server.ServerTLSConfig{
-			CertPath: resolveTLSPath(*tlsCert, "STACK_FITNESS_FUNCTIONS_TLS_CERT"),
-			KeyPath:  resolveTLSPath(*tlsKey, "STACK_FITNESS_FUNCTIONS_TLS_KEY"),
-			CAPath:   resolveTLSPath(*tlsCA, "STACK_FITNESS_FUNCTIONS_TLS_CA"),
-		},
+		TLS:             tlsMode.TLS,
+		ManagedRoot:     tlsMode.ManagedRoot,
+		RuntimeDir:      os.Getenv("STACK_FITNESS_FUNCTIONS_RUNTIME_DIR"),
 	}); err != nil && !errors.Is(err, context.Canceled) {
 		_, _ = fmt.Fprintln(stderr, err)
 		return 1
 	}
 	return 0
+}
+
+type serverStartTLSMode struct {
+	TLS         server.ServerTLSConfig
+	ManagedRoot string
+}
+
+func resolveServerStartTLSMode(certFlag, keyFlag, caFlag string, getWorkingDirectory func() (string, error)) (serverStartTLSMode, error) {
+	selector := os.Getenv("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR")
+	serverInputs := []string{
+		certFlag,
+		keyFlag,
+		caFlag,
+		os.Getenv("STACK_FITNESS_FUNCTIONS_TLS_CERT"),
+		os.Getenv("STACK_FITNESS_FUNCTIONS_TLS_KEY"),
+		os.Getenv("STACK_FITNESS_FUNCTIONS_TLS_CA"),
+	}
+	clientInputs := []string{
+		os.Getenv("STACK_FITNESS_FUNCTIONS_CLIENT_CERT"),
+		os.Getenv("STACK_FITNESS_FUNCTIONS_CLIENT_KEY"),
+		os.Getenv("STACK_FITNESS_FUNCTIONS_CLIENT_CA"),
+	}
+	if selector != "" && (hasNonEmpty(serverInputs) || hasNonEmpty(clientInputs)) {
+		return serverStartTLSMode{}, usageError{err: errors.New("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit server or client TLS inputs")}
+	}
+	if hasNonEmpty(serverInputs) {
+		return serverStartTLSMode{TLS: server.ServerTLSConfig{
+			CertPath: resolveTLSPath(certFlag, "STACK_FITNESS_FUNCTIONS_TLS_CERT"),
+			KeyPath:  resolveTLSPath(keyFlag, "STACK_FITNESS_FUNCTIONS_TLS_KEY"),
+			CAPath:   resolveTLSPath(caFlag, "STACK_FITNESS_FUNCTIONS_TLS_CA"),
+		}}, nil
+	}
+	if hasNonEmpty(clientInputs) {
+		return serverStartTLSMode{}, nil
+	}
+	if selector != "" {
+		return serverStartTLSMode{ManagedRoot: selector}, nil
+	}
+	workingDirectory, err := getWorkingDirectory()
+	if err != nil {
+		return serverStartTLSMode{}, fmt.Errorf("resolve server working directory: %w", err)
+	}
+	return serverStartTLSMode{ManagedRoot: filepath.Join(workingDirectory, "certs")}, nil
+}
+
+func hasNonEmpty(values []string) bool {
+	for _, value := range values {
+		if value != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveServerConfigDir prefers the --configs-dir flag, falling back to

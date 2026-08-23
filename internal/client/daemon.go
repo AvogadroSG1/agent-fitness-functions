@@ -18,19 +18,21 @@ const (
 	envClientCA   = "STACK_FITNESS_FUNCTIONS_CLIENT_CA"
 	envDevCertDir = "STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR"
 	envConfigsDir = "STACK_FITNESS_FUNCTIONS_CONFIGS_DIR"
+	envServerCert = "STACK_FITNESS_FUNCTIONS_TLS_CERT"
+	envServerKey  = "STACK_FITNESS_FUNCTIONS_TLS_KEY"
+	envServerCA   = "STACK_FITNESS_FUNCTIONS_TLS_CA"
 )
 
 // DaemonStartConfig describes how the auto-started local daemon must be launched so
 // the default https client can reach it. Local is true only for the zero-config
 // loopback path, where dev TLS material and a repo configs directory are provisioned.
 type DaemonStartConfig struct {
-	Addr       string
-	Local      bool
-	TLSCert    string
-	TLSKey     string
-	TLSCA      string
-	ConfigsDir string
-	CertDir    string
+	Addr        string
+	Local       bool
+	ManagedRoot string
+	ConfigsDir  string
+	CertDir     string
+	Env         []string
 }
 
 // prepareDaemonStart resolves the auto-start configuration and, on the zero-config
@@ -39,17 +41,20 @@ type DaemonStartConfig struct {
 // passed no explicit client TLS flags and the addr is an https loopback URL.
 func prepareDaemonStart(addr, certDir, repoRoot, certFlag, keyFlag, caFlag string) (DaemonStartConfig, error) {
 	cfg := DaemonStartConfig{Addr: addr, CertDir: certDir}
-	explicitTLS := certFlag != "" || keyFlag != "" || caFlag != ""
-	if explicitTLS || certDir == "" || !isLocalHTTPS(addr) {
+	explicitTLS := certFlag != "" || keyFlag != "" || caFlag != "" || os.Getenv(envClientCert) != "" || os.Getenv(envClientKey) != "" || os.Getenv(envClientCA) != ""
+	selector := os.Getenv(envDevCertDir)
+	explicitServerTLS := os.Getenv(envServerCert) != "" || os.Getenv(envServerKey) != "" || os.Getenv(envServerCA) != ""
+	if selector != "" && (explicitTLS || explicitServerTLS) {
+		return DaemonStartConfig{}, usageError{err: errors.New("STACK_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit server or client TLS inputs")}
+	}
+	if explicitTLS || explicitServerTLS || certDir == "" || !isLocalHTTPS(addr) {
 		return cfg, nil
 	}
 	if err := EnsureDevCerts(certDir); err != nil {
 		return DaemonStartConfig{}, err
 	}
 	cfg.Local = true
-	cfg.TLSCert = filepath.Join(certDir, "current", devServerCertName)
-	cfg.TLSKey = filepath.Join(certDir, "current", devServerKeyName)
-	cfg.TLSCA = filepath.Join(certDir, "current", devCACertName)
+	cfg.ManagedRoot = certDir
 	cfg.ConfigsDir = resolveConfigsDir(repoRoot)
 	return cfg, nil
 }
@@ -145,9 +150,6 @@ func isLocalHTTPS(addr string) bool {
 func daemonStartArgs(cfg DaemonStartConfig) []string {
 	listenAddr := strings.TrimPrefix(strings.TrimPrefix(cfg.Addr, "http://"), "https://")
 	args := []string{"server", "start", "--addr", listenAddr}
-	if cfg.TLSCert != "" {
-		args = append(args, "--tls-cert", cfg.TLSCert, "--tls-key", cfg.TLSKey, "--tls-ca", cfg.TLSCA)
-	}
 	if cfg.ConfigsDir != "" {
 		args = append(args, "--configs-dir", cfg.ConfigsDir)
 	}
@@ -164,6 +166,7 @@ func StartDaemon(cfg DaemonStartConfig) error {
 		return err
 	}
 	command := exec.Command(executable, daemonStartArgs(cfg)...)
+	command.Env = daemonStartEnv(cfg, cfg.Env)
 	command.Stdout = io.Discard
 	command.Stderr = io.Discard
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -171,6 +174,24 @@ func StartDaemon(cfg DaemonStartConfig) error {
 		return err
 	}
 	return command.Process.Release()
+}
+
+func daemonStartEnv(cfg DaemonStartConfig, base []string) []string {
+	if base == nil {
+		base = os.Environ()
+	}
+	filtered := make([]string, 0, len(base)+1)
+	for _, value := range base {
+		name, _, _ := strings.Cut(value, "=")
+		if name == envDevCertDir || name == "STACK_FITNESS_FUNCTIONS_RUNTIME_DIR" {
+			continue
+		}
+		filtered = append(filtered, value)
+	}
+	if cfg.ManagedRoot != "" {
+		filtered = append(filtered, envDevCertDir+"="+cfg.ManagedRoot)
+	}
+	return filtered
 }
 
 func firstNonEmpty(values ...string) string {

@@ -171,25 +171,29 @@ func TestEnsureDevCertsRejectsPartialSet(t *testing.T) {
 	}
 }
 
-func TestDaemonStartArgsIncludesTLSAndConfigsDir(t *testing.T) {
+func TestDaemonStartArgsUsesManagedSelectorWithoutTLSArguments(t *testing.T) {
 	cfg := DaemonStartConfig{
-		Addr:       "https://127.0.0.1:7890",
-		Local:      true,
-		TLSCert:    "/certs/server.crt",
-		TLSKey:     "/certs/server.key",
-		TLSCA:      "/certs/ca.crt",
-		ConfigsDir: "/repo/configs",
+		Addr:        "https://127.0.0.1:7890",
+		Local:       true,
+		ManagedRoot: "/repo/certs",
+		ConfigsDir:  "/repo/configs",
 	}
 	args := daemonStartArgs(cfg)
 	want := []string{
 		"server", "start", "--addr", "127.0.0.1:7890",
-		"--tls-cert", "/certs/server.crt",
-		"--tls-key", "/certs/server.key",
-		"--tls-ca", "/certs/ca.crt",
 		"--configs-dir", "/repo/configs",
 	}
 	if !slices.Equal(args, want) {
 		t.Fatalf("daemonStartArgs = %v, want %v", args, want)
+	}
+	env := daemonStartEnv(cfg, []string{"PATH=/bin", envDevCertDir + "=/old", "STACK_FITNESS_FUNCTIONS_RUNTIME_DIR=/run/old"})
+	if !slices.Contains(env, envDevCertDir+"=/repo/certs") {
+		t.Fatalf("daemon env = %v, want managed selector", env)
+	}
+	for _, value := range env {
+		if strings.HasPrefix(value, "STACK_FITNESS_FUNCTIONS_RUNTIME_DIR=") {
+			t.Fatalf("daemon env retained host runtime directory: %q", value)
+		}
 	}
 }
 
@@ -219,8 +223,8 @@ func TestPrepareDaemonStartProvisionsLocalDevMode(t *testing.T) {
 	if !cfg.Local {
 		t.Fatal("cfg.Local = false, want true for https loopback zero-config path")
 	}
-	if cfg.TLSCert != filepath.Join(certDir, "current", devServerCertName) || cfg.TLSCA != filepath.Join(certDir, "current", devCACertName) {
-		t.Fatalf("cfg tls paths = %+v, want dev cert dir paths", cfg)
+	if cfg.ManagedRoot != certDir {
+		t.Fatalf("cfg.ManagedRoot = %q, want %q", cfg.ManagedRoot, certDir)
 	}
 	if cfg.ConfigsDir != filepath.Join(repoRoot, "configs") {
 		t.Fatalf("cfg.ConfigsDir = %q, want <repo>/configs", cfg.ConfigsDir)
@@ -231,6 +235,7 @@ func TestPrepareDaemonStartProvisionsLocalDevMode(t *testing.T) {
 }
 
 func TestPrepareDaemonStartSkipsWhenExplicitTLSFlags(t *testing.T) {
+	t.Setenv(envDevCertDir, "")
 	certDir := filepath.Join(t.TempDir(), "certs")
 	cfg, err := prepareDaemonStart("https://127.0.0.1:7890", certDir, t.TempDir(), "/my/cert", "/my/key", "/my/ca")
 	if err != nil {
@@ -241,6 +246,47 @@ func TestPrepareDaemonStartSkipsWhenExplicitTLSFlags(t *testing.T) {
 	}
 	if _, err := os.Stat(certDir); !os.IsNotExist(err) {
 		t.Fatalf("dev certs generated despite explicit flags: stat err = %v", err)
+	}
+}
+
+func TestPrepareDaemonStartRejectsManagedSelectorWithExplicitClientTLSBeforePublication(t *testing.T) {
+	certDir := filepath.Join(t.TempDir(), "certs")
+	t.Setenv(envDevCertDir, certDir)
+	_, err := prepareDaemonStart("https://127.0.0.1:7890", certDir, t.TempDir(), "client.crt", "client.key", "ca.crt")
+	if err == nil || !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("prepareDaemonStart conflict error = %v", err)
+	}
+	if _, statErr := os.Lstat(certDir); !os.IsNotExist(statErr) {
+		t.Fatalf("managed root changed before conflict rejection: %v", statErr)
+	}
+}
+
+func TestPrepareDaemonStartPreservesServerTLSEnvAsExternalWithoutManagedSelector(t *testing.T) {
+	certDir := filepath.Join(t.TempDir(), "certs")
+	t.Setenv(envDevCertDir, "")
+	t.Setenv(envServerCA, "/external/ca.crt")
+	cfg, err := prepareDaemonStart("https://127.0.0.1:7890", certDir, t.TempDir(), "", "", "")
+	if err != nil {
+		t.Fatalf("prepareDaemonStart external server TLS: %v", err)
+	}
+	if cfg.ManagedRoot != "" || cfg.Local {
+		t.Fatalf("cfg = %+v, want external daemon mode", cfg)
+	}
+	if _, statErr := os.Lstat(certDir); !os.IsNotExist(statErr) {
+		t.Fatalf("managed root changed in external mode: %v", statErr)
+	}
+}
+
+func TestPrepareDaemonStartRejectsManagedSelectorWithServerTLSEnv(t *testing.T) {
+	certDir := filepath.Join(t.TempDir(), "certs")
+	t.Setenv(envDevCertDir, certDir)
+	t.Setenv(envServerCA, "/external/ca.crt")
+	_, err := prepareDaemonStart("https://127.0.0.1:7890", certDir, t.TempDir(), "", "", "")
+	if err == nil || !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("prepareDaemonStart managed/server conflict error = %v", err)
+	}
+	if _, statErr := os.Lstat(certDir); !os.IsNotExist(statErr) {
+		t.Fatalf("managed root changed before conflict rejection: %v", statErr)
 	}
 }
 

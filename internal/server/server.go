@@ -14,6 +14,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
@@ -63,8 +64,12 @@ type ServeOptions struct {
 	NewStore        func(context.Context, string) (*ConfigStore, error)
 	HandlerOptions  HandlerOptions
 	TLS             ServerTLSConfig
+	ManagedRoot     string
+	RuntimeDir      string
 	BlockOnWarmup   bool
 	AnalyzerTimeout time.Duration
+	tlsConfig       *tls.Config
+	runtime         *managedRuntime
 }
 
 // NewHandler builds the stack-fitness-functions HTTP daemon routes.
@@ -392,6 +397,12 @@ func serveWithOptions(ctx context.Context, options ServeOptions) error {
 	if err := validateServeOptions(options); err != nil {
 		return err
 	}
+	prepared, err := prepareServeTLS(options)
+	if err != nil {
+		return err
+	}
+	options.tlsConfig = prepared.config
+	options.runtime = prepared.runtime
 	store, err := options.NewStore(ctx, options.ConfigDir)
 	if err != nil {
 		return err
@@ -410,11 +421,14 @@ func applyServeInternalDefaults(options *ServeOptions) {
 }
 
 func validateServeOptions(options ServeOptions) error {
+	if options.ManagedRoot != "" && options.TLS.Enabled() {
+		return errors.New("managed development certificates cannot be combined with explicit server TLS inputs")
+	}
 	if err := options.TLS.Validate(); err != nil {
 		return err
 	}
 	if options.HandlerOptions.TrustedProxyHeaders {
-		if !options.TLS.Enabled() {
+		if !options.TLS.Enabled() && options.ManagedRoot == "" {
 			return errors.New("trusted proxy mode requires TLS")
 		}
 		if len(options.HandlerOptions.TrustedProxyClientCNs) == 0 {
@@ -422,6 +436,36 @@ func validateServeOptions(options ServeOptions) error {
 		}
 	}
 	return nil
+}
+
+type preparedServerTLS struct {
+	config  *tls.Config
+	runtime *managedRuntime
+}
+
+func prepareServeTLS(options ServeOptions) (preparedServerTLS, error) {
+	if options.ManagedRoot == "" {
+		config, err := loadServerTLSConfig(options.TLS)
+		return preparedServerTLS{config: config}, err
+	}
+	version, err := devcerts.ResolveManagedVersion(options.ManagedRoot)
+	if err != nil {
+		return preparedServerTLS{}, fmt.Errorf("resolve managed server certificate version: %w", err)
+	}
+	material, err := devcerts.LoadManagedServer(version)
+	if err != nil {
+		return preparedServerTLS{}, fmt.Errorf("load managed server TLS: %w", err)
+	}
+	var runtime *managedRuntime
+	if options.RuntimeDir != "" {
+		runtime = &managedRuntime{version: version.RelativePath(), ca: material.CA}
+	}
+	return preparedServerTLS{config: &tls.Config{
+		Certificates: []tls.Certificate{material.Certificate},
+		ClientCAs:    material.ClientCAs,
+		ClientAuth:   tls.VerifyClientCertIfGiven,
+		MinVersion:   tls.VersionTLS12,
+	}, runtime: runtime}, nil
 }
 
 func runServer(ctx context.Context, store *ConfigStore, options ServeOptions) error {
@@ -432,6 +476,11 @@ func runServer(ctx context.Context, store *ConfigStore, options ServeOptions) er
 	listener, err := net.Listen("tcp", options.Addr)
 	if err != nil {
 		return err
+	}
+	if options.runtime != nil {
+		if err := publishManagedRuntime(options.RuntimeDir, *options.runtime, defaultRuntimeOperations); err != nil {
+			return errors.Join(err, listener.Close())
+		}
 	}
 	checker := Checker{
 		ConfigStore:        store,
@@ -450,10 +499,8 @@ func runServer(ctx context.Context, store *ConfigStore, options ServeOptions) er
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 	}
-	if options.TLS.Enabled() {
-		if server.TLSConfig, err = loadServerTLSConfig(options.TLS); err != nil {
-			return err
-		}
+	if options.tlsConfig != nil {
+		server.TLSConfig = options.tlsConfig
 		listener = tlsListener(listener, server.TLSConfig)
 	}
 

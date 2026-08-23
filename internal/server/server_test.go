@@ -17,10 +17,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/calm"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 	"github.com/fsnotify/fsnotify"
 )
@@ -472,6 +474,193 @@ func TestServeWithTLSDisablesCleartextHTTP(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("Serve did not stop after context cancellation")
+	}
+}
+
+func TestServeManagedTLSRemainsHealthyAfterPinnedSourceRemoval(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "certs")
+	if err := devcerts.Publish(root, false); err != nil {
+		t.Fatalf("Publish(%q): %v", root, err)
+	}
+	version, err := devcerts.ResolveManagedVersion(root)
+	if err != nil {
+		t.Fatalf("ResolveManagedVersion: %v", err)
+	}
+	caPath := version.Paths().CA
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	if err := os.Mkdir(runtimeDir, 0o755); err != nil {
+		t.Fatalf("Mkdir(runtime): %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	addr := reserveLoopbackAddr(t)
+	configDir := writeMountedServeConfigDir(t)
+	ready := &readySignalWriter{ch: make(chan string, 1)}
+	done := make(chan error, 1)
+	go func() {
+		done <- serveWithOptions(ctx, ServeOptions{
+			Addr:        addr,
+			ConfigDir:   configDir,
+			Ready:       ready,
+			NewStore:    NewConfigStore,
+			ManagedRoot: root,
+			RuntimeDir:  runtimeDir,
+		})
+	}()
+	select {
+	case <-ready.ch:
+	case <-time.After(3 * time.Second):
+		t.Fatal("managed server did not become ready")
+	}
+	client := newTestHTTPSClient(t, caPath)
+	if err := os.RemoveAll(filepath.Join(root, filepath.FromSlash(version.RelativePath()))); err != nil {
+		t.Fatalf("remove pinned source: %v", err)
+	}
+	waitForHealthHTTPS(t, client, "https://"+addr)
+	cancel()
+	if err := <-done; err != nil && err != context.Canceled {
+		t.Fatalf("managed server returned %v", err)
+	}
+}
+
+func TestServeManagedRuntimeFailureOccursBeforeListen(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "certs")
+	if err := devcerts.Publish(root, false); err != nil {
+		t.Fatalf("Publish(%q): %v", root, err)
+	}
+	addr := reserveLoopbackAddr(t)
+	err := serveWithOptions(context.Background(), ServeOptions{
+		Addr:        addr,
+		ConfigDir:   writeMountedServeConfigDir(t),
+		Ready:       io.Discard,
+		NewStore:    NewConfigStore,
+		ManagedRoot: root,
+		RuntimeDir:  filepath.Join(t.TempDir(), "missing"),
+	})
+	if err == nil {
+		t.Fatal("serveWithOptions succeeded with invalid runtime directory")
+	}
+	listener, listenErr := net.Listen("tcp", addr)
+	if listenErr != nil {
+		t.Fatalf("listener was opened before runtime failure: %v", listenErr)
+	}
+	_ = listener.Close()
+}
+
+func TestCompetingManagedStartupCannotReplaceActiveRuntimeArtifacts(t *testing.T) {
+	rootA := filepath.Join(t.TempDir(), "certs-a")
+	rootB := filepath.Join(t.TempDir(), "certs-b")
+	for _, root := range []string{rootA, rootB} {
+		if err := devcerts.Publish(root, false); err != nil {
+			t.Fatalf("Publish(%q): %v", root, err)
+		}
+	}
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	if err := os.Mkdir(runtimeDir, 0o755); err != nil {
+		t.Fatalf("Mkdir(runtime): %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	addr := reserveLoopbackAddr(t)
+	configDir := writeMountedServeConfigDir(t)
+	ready := &readySignalWriter{ch: make(chan string, 1)}
+	done := make(chan error, 1)
+	go func() {
+		done <- serveWithOptions(ctx, ServeOptions{Addr: addr, ConfigDir: configDir, Ready: ready, NewStore: NewConfigStore, ManagedRoot: rootA, RuntimeDir: runtimeDir})
+	}()
+	select {
+	case <-ready.ch:
+	case <-time.After(3 * time.Second):
+		t.Fatal("first managed server did not become ready")
+	}
+	versionA, err := os.ReadFile(filepath.Join(runtimeDir, "pinned-dev-cert-version"))
+	if err != nil {
+		t.Fatalf("ReadFile(version A): %v", err)
+	}
+	caA, err := os.ReadFile(filepath.Join(runtimeDir, "health-ca.crt"))
+	if err != nil {
+		t.Fatalf("ReadFile(CA A): %v", err)
+	}
+
+	err = serveWithOptions(context.Background(), ServeOptions{Addr: addr, ConfigDir: configDir, Ready: io.Discard, NewStore: NewConfigStore, ManagedRoot: rootB, RuntimeDir: runtimeDir})
+	if err == nil {
+		t.Fatal("competing startup unexpectedly acquired active address")
+	}
+	if got, readErr := os.ReadFile(filepath.Join(runtimeDir, "pinned-dev-cert-version")); readErr != nil || !bytes.Equal(got, versionA) {
+		t.Fatalf("competing startup replaced version: got=%q err=%v want=%q", got, readErr, versionA)
+	}
+	if got, readErr := os.ReadFile(filepath.Join(runtimeDir, "health-ca.crt")); readErr != nil || !bytes.Equal(got, caA) {
+		t.Fatalf("competing startup replaced health CA: err=%v equal=%v", readErr, bytes.Equal(got, caA))
+	}
+	cancel()
+	if err := <-done; err != nil && err != context.Canceled {
+		t.Fatalf("first managed server returned %v", err)
+	}
+}
+
+func TestPrepareServeTLSRestartReplacesPinnedGenerationAndSurvivesSourceRemoval(t *testing.T) {
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	if err := os.Mkdir(runtimeDir, 0o755); err != nil {
+		t.Fatalf("Mkdir(runtime): %v", err)
+	}
+	var previousVersion string
+	var previousSerial string
+	for i := range 2 {
+		root := filepath.Join(t.TempDir(), "certs")
+		if err := devcerts.Publish(root, false); err != nil {
+			t.Fatalf("Publish(%d): %v", i, err)
+		}
+		prepared, err := prepareServeTLS(ServeOptions{ManagedRoot: root, RuntimeDir: runtimeDir})
+		if err != nil {
+			t.Fatalf("prepareServeTLS(%d): %v", i, err)
+		}
+		if prepared.runtime == nil {
+			t.Fatalf("prepareServeTLS(%d) omitted runtime publication", i)
+		}
+		if err := publishManagedRuntime(runtimeDir, *prepared.runtime, defaultRuntimeOperations); err != nil {
+			t.Fatalf("publishManagedRuntime(%d): %v", i, err)
+		}
+		versionBytes, err := os.ReadFile(filepath.Join(runtimeDir, "pinned-dev-cert-version"))
+		if err != nil {
+			t.Fatalf("ReadFile(version %d): %v", i, err)
+		}
+		version := strings.TrimSuffix(string(versionBytes), "\n")
+		serial := prepared.config.Certificates[0].Leaf.SerialNumber.String()
+		if i > 0 && (version == previousVersion || serial == previousSerial) {
+			t.Fatalf("restart retained generation: version=%q serial=%q", version, serial)
+		}
+		previousVersion, previousSerial = version, serial
+		if err := os.RemoveAll(filepath.Join(root, filepath.FromSlash(version))); err != nil {
+			t.Fatalf("remove source generation %d: %v", i, err)
+		}
+		if len(prepared.config.Certificates) != 1 || prepared.config.Certificates[0].Leaf == nil {
+			t.Fatalf("in-memory TLS config lost after source removal %d", i)
+		}
+	}
+}
+
+func TestPrepareServeTLSExplicitModeDoesNotPublishRuntimeArtifacts(t *testing.T) {
+	cert, key, ca := writeTestServerTLSFiles(t)
+	runtimeDir := t.TempDir()
+	prepared, err := prepareServeTLS(ServeOptions{
+		TLS:        ServerTLSConfig{CertPath: cert, KeyPath: key, CAPath: ca},
+		RuntimeDir: runtimeDir,
+	})
+	if err != nil {
+		t.Fatalf("prepareServeTLS(explicit): %v", err)
+	}
+	if prepared.config == nil || len(prepared.config.Certificates) != 1 {
+		t.Fatalf("explicit TLS config = %+v, want existing path loader result", prepared.config)
+	}
+	if prepared.runtime != nil {
+		t.Fatalf("explicit TLS prepared managed runtime = %+v", prepared.runtime)
+	}
+	entries, err := os.ReadDir(runtimeDir)
+	if err != nil {
+		t.Fatalf("ReadDir(runtime): %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("explicit TLS published managed runtime artifacts: %v", entries)
 	}
 }
 
