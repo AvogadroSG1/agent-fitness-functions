@@ -1,0 +1,64 @@
+internal/client/client.go
+  s_35b3127e21180f::t_d5c7dbb369c297 388-390
+  s_35b3127e21180f::t_d0601b45c0abd1 34-39,48-88,90-98,102-123
+  s_35b3127e21180f::t_fa90f1558a0e12 410-412
+  s_35b3127e21180f::t_b10530c7299d4f 124,265,269-278,281-286,294-299,304-353
+  s_35b3127e21180f::t_c9af2add169239 242,247
+  s_35b3127e21180f::t_0aa4be1635dfe2 493,502
+cmd/rename-verify/main.go
+  s_35b3127e21180f::t_5d8bb2e71c4e9a 15-17
+  s_35b3127e21180f::t_fd87f335e84ac7 18-21
+internal/client/doctor.go
+  s_35b3127e21180f::t_168d74940a623a 517
+  s_35b3127e21180f::t_01b34e45c43d03 538
+internal/renamecheck/renamecheck_test.go
+  s_35b3127e21180f::t_4d1cd09ffaa950 60-66,71-72,75-76,79-80
+  s_35b3127e21180f::t_1464bb830c0dcd 81
+internal/client/predecessor_upgrade_test.go
+  s_35b3127e21180f::t_43070df12bcb2f 1-160,247-264
+  s_35b3127e21180f::t_e9362d30c2e066 161-246
+internal/renamecheck/separator_sweep_test.go
+  s_35b3127e21180f::t_64296222eefe37 20-26
+  s_35b3127e21180f::t_259a31f4dcde3b 1-19,27-33
+internal/renamecheck/renamecheck.go
+  s_35b3127e21180f::t_a767fc771b3f12 133-137,142-147
+  s_35b3127e21180f::t_55b8a8235398ef 369-371
+  s_35b3127e21180f::t_900ed4f07c3262 402-405
+  s_35b3127e21180f::t_a3d192f975ad6d 138-140
+  s_35b3127e21180f::t_ee4998fab82e90 347-368,372-401,406-432,434
+  s_35b3127e21180f::t_8ab5cda248a4f0 11-13
+  s_35b3127e21180f::t_a22c781ca1885e 36-38
+  s_35b3127e21180f::t_49889d652563d3 179-189
+  s_35b3127e21180f::t_6fc5eefa2c2fd9 433
+  s_35b3127e21180f::t_3e3c67ac5ad685 8-10,14-16
+hooks/pre-commit.sh
+  s_35b3127e21180f::t_42e1039adb09d4 6,33,188
+hooks/pre-push.sh
+  s_35b3127e21180f::t_5a23621692c528 6,33,192
+hooks/pre-tool-use.sh
+  s_35b3127e21180f::t_647504291d9cde 5,32,272
+internal/client/hookassets/pre-commit.sh
+  s_35b3127e21180f::t_d81d5e0c04dc36 6,33,188
+internal/client/hookassets/pre-push.sh
+  s_35b3127e21180f::t_e36f7d701e656f 6,33,192
+internal/client/hookassets/pre-tool-use.sh
+  s_35b3127e21180f::t_f6293e086d6bea 5,32,272
+scripts/baseline.sh
+  s_35b3127e21180f::t_304632a818d4fa 5,7-8,11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "2bf4e03fdd525bf7031b40cae411d5302316f0d0",
+  "prompts": {},
+  "sessions": {
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
