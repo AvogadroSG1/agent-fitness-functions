@@ -1,0 +1,29 @@
+hooks/requirements.txt
+  s_35b3127e21180f::t_c4b9fc47ca97a6 1
+tools/calm-runtime/README.md
+  s_35b3127e21180f::t_7e8c6c85d51352 1-11
+tools/calm-runtime/package.json
+  s_35b3127e21180f::t_cfc5fc2f3c8e51 1-9
+.gitignore
+  s_35b3127e21180f::t_42c28c74152b8b 38-41
+requirements.lock
+  s_35b3127e21180f::t_a7049de785adca 7-11
+tools/calm-runtime/package-lock.json
+  s_35b3127e21180f::t_8addf1e4a2b35b 1-1864
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "678c8bd45637bcc89a49eea088ccb008ba8badd0",
+  "prompts": {},
+  "sessions": {
+    "s_35b3127e21180f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12827e79-df2f-4c5b-91fd-866eaaba5333",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
