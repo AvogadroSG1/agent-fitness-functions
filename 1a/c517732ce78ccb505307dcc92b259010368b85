@@ -1,0 +1,19 @@
+.gitignore
+  s_83dbcc34cc959f::t_b314e9efa81d37 33-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "1ac517732ce78ccb505307dcc92b259010368b85",
+  "prompts": {},
+  "sessions": {
+    "s_83dbcc34cc959f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c4a7d49-1edd-4afb-9597-ab59a54539a8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
