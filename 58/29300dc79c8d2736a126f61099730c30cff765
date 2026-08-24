@@ -1,0 +1,42 @@
+internal/client/failure.go
+  s_83dbcc34cc959f::t_959464331f0cef 26
+  s_83dbcc34cc959f::t_b9eee623139138 90
+  s_83dbcc34cc959f::t_4656b99958bb9c 175-178,193-199,202-204
+  s_83dbcc34cc959f::t_aa12a282ff2539 200-201
+  s_83dbcc34cc959f::t_538de3e03e6cca 78-89,91-96,205
+  s_83dbcc34cc959f::t_1298d9ba06c52e 206
+internal/client/daemon_log_test.go
+  s_83dbcc34cc959f::t_de5b09f675919e 1-109
+internal/client/client.go
+  s_83dbcc34cc959f::t_6ad4b02cdab669 775-780,782-784
+  s_83dbcc34cc959f::t_015b612a59160d 797-798,804
+internal/client/daemon_conflict_test.go
+  s_83dbcc34cc959f::t_ae01a19fce7593 1-113
+docs/runbooks/onboard-new-repository.md
+  s_83dbcc34cc959f::t_05a63dcf72ba5f 386
+  s_83dbcc34cc959f::t_d33638c94002f6 384
+internal/client/daemon.go
+  s_83dbcc34cc959f::t_c1616217b62e95 50
+  s_83dbcc34cc959f::t_ed33561023b11b 275
+  s_83dbcc34cc959f::t_e2d9c4efc238bb 300,303
+  s_83dbcc34cc959f::t_8d31d66084dbcc 7
+  s_83dbcc34cc959f::t_5e1df5cccf4e66 251-274,276-282,288,292-294,296-297,307-316
+  s_83dbcc34cc959f::t_34f8d6bb008b14 53-59,62,125-137,148,152
+  s_83dbcc34cc959f::t_e0a012c664f9c4 317
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "5829300dc79c8d2736a126f61099730c30cff765",
+  "prompts": {},
+  "sessions": {
+    "s_83dbcc34cc959f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c4a7d49-1edd-4afb-9597-ab59a54539a8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
