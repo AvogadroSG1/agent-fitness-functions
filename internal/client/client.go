@@ -772,9 +772,16 @@ func ensureDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, s
 		return nil
 	}
 	// A TLS/certificate handshake failure is not fixed by (re)starting a daemon, and
-	// auto-start would race an already-listening server. Surface it directly so it is
-	// classified as a tls_failure rather than a misleading health-wait timeout.
+	// auto-start would race an already-listening server. In managed local mode this
+	// client's own dev-cert material has already loaded cleanly by the time the probe
+	// runs, so a TLS failure here means the listener on the shared port belongs to
+	// someone else's daemon; name that conflict instead of reporting raw cert wording.
+	// Outside managed local mode the TLS material is caller-supplied, so a genuine
+	// external CA mismatch is still possible and the raw error is preserved.
 	if isTLSError(probeErr) {
+		if cfg.Local {
+			return daemonConflictError{addr: addr, cause: probeErr}
+		}
 		return probeErr
 	}
 	if err := starter(cfg); err != nil {
@@ -787,13 +794,14 @@ func ensureDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, s
 }
 
 // describeDaemonFailure annotates a health-wait timeout with what auto-start
-// attempted so the user sees a setup problem, not a bare timeout.
+// attempted, including the captured daemon log path, so the user sees a
+// setup problem (and where to look), not a bare timeout.
 func describeDaemonFailure(cfg DaemonStartConfig, cause error) error {
 	tlsState := "off"
 	if cfg.ManagedRoot != "" {
 		tlsState = "on"
 	}
-	return fmt.Errorf("%w [addr=%s tls=%s dev-cert-dir=%s configs-dir=%s]", cause, cfg.Addr, tlsState, orNone(cfg.CertDir), orNone(cfg.ConfigsDir))
+	return fmt.Errorf("%w [addr=%s tls=%s dev-cert-dir=%s configs-dir=%s log=%s]", cause, cfg.Addr, tlsState, orNone(cfg.CertDir), orNone(cfg.ConfigsDir), orNone(daemonLogPath(cfg)))
 }
 
 func orNone(value string) string {

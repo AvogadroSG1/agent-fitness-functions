@@ -381,8 +381,9 @@ violation)` block. A real block is a *successful* check whose status is `block` 
 
 | `error_kind` | Trigger | Meaning | Fix |
 |--------------|---------|---------|-----|
-| `server_unreachable` | dial refused / timeout / daemon auto-start failure | The governance server could not be reached at all | Run `agent-fitness-functions doctor`; the local daemon auto-starts on `client validate` when dev certs and a repo config exist |
+| `server_unreachable` | dial refused / timeout / daemon auto-start failure | The governance server could not be reached at all | Run `agent-fitness-functions doctor`; the local daemon auto-starts on `client validate` when dev certs and a repo config exist. Its stdout/stderr are captured at `<repo>/certs/daemon.log` — check it when auto-start fails |
 | `tls_failure` | TLS handshake / certificate-material error | The client and server did not agree on TLS | Run `doctor`; regenerate dev certs with `scripts/generate-dev-certs.sh --force` |
+| `port_conflict` | TLS probe failure against a live listener on the shared default local port, in managed local mode | Another repository's local daemon — or a stale daemon from before certificate rotation — already owns the configured local port | Identify it with `lsof -i :7890` and stop it, or rerun with a distinct `--addr` |
 | `unauthenticated` | HTTP 401 | The server rejected the client certificate | Run `doctor`; regenerate dev certs, or set `AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA` to a trusted pair |
 | `unauthorized` | HTTP 403 | The certificate's CN is not authorized for this repo | Add the CN to `caller-repos.json` for the repo on the server, then redeploy |
 | `not_configured` | HTTP 404 | No `configs/<repo>/config.json` on the server, or `--repo`/`AGENT_FITNESS_FUNCTIONS_REPO_NAME` does not match the config directory | Run `client onboard`, or create `configs/<repo>/config.json` on the server |

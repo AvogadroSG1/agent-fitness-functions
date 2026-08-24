@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/url"
@@ -46,11 +47,19 @@ var (
 	publishManagedCertificates = devcerts.Publish
 	resolveManagedVersion      = devcerts.ResolveManagedVersion
 	loadManagedClient          = devcerts.LoadManagedClient
+	daemonExecutable           = os.Executable
 )
+
+// hasExplicitClientTLS reports whether the caller supplied client TLS material
+// directly (flags or env), as opposed to selecting managed dev certificates.
+func hasExplicitClientTLS(certFlag, keyFlag, caFlag string) bool {
+	return certFlag != "" || keyFlag != "" || caFlag != "" ||
+		os.Getenv(envClientCert) != "" || os.Getenv(envClientKey) != "" || os.Getenv(envClientCA) != ""
+}
 
 func resolveClientTLSMode(certFlag, keyFlag, caFlag, defaultRoot string) (clientTLSMode, error) {
 	selector := os.Getenv(envDevCertDir)
-	explicit := certFlag != "" || keyFlag != "" || caFlag != "" || os.Getenv(envClientCert) != "" || os.Getenv(envClientKey) != "" || os.Getenv(envClientCA) != ""
+	explicit := hasExplicitClientTLS(certFlag, keyFlag, caFlag)
 	if selector != "" && explicit {
 		return clientTLSMode{}, usageError{err: errors.New("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit client TLS inputs")}
 	}
@@ -113,6 +122,19 @@ type DaemonStartConfig struct {
 	Env         []string
 }
 
+// hasExplicitServerTLS reports whether the caller supplied server TLS material
+// directly via env, bypassing managed dev-certificate provisioning.
+func hasExplicitServerTLS() bool {
+	return os.Getenv(envServerCert) != "" || os.Getenv(envServerKey) != "" || os.Getenv(envServerCA) != ""
+}
+
+// skipsManagedProvisioning reports whether dev-certificate provisioning must be
+// skipped: unmanaged client TLS, caller-supplied server TLS, no cert dir, or an
+// addr that is not a local https loopback URL.
+func skipsManagedProvisioning(mode clientTLSMode, explicitServerTLS bool, certDir, addr string) bool {
+	return !mode.managed || explicitServerTLS || certDir == "" || !isLocalHTTPS(addr)
+}
+
 // prepareDaemonStart resolves the auto-start configuration and, on the zero-config
 // loopback path, materializes dev certificates so the auto-started TLS server and
 // this client trust the same CA. Dev material is only provisioned when the caller
@@ -123,11 +145,11 @@ func prepareDaemonStart(addr, certDir, repoRoot, certFlag, keyFlag, caFlag strin
 		return DaemonStartConfig{}, err
 	}
 	selector := os.Getenv(envDevCertDir)
-	explicitServerTLS := os.Getenv(envServerCert) != "" || os.Getenv(envServerKey) != "" || os.Getenv(envServerCA) != ""
+	explicitServerTLS := hasExplicitServerTLS()
 	if selector != "" && explicitServerTLS {
 		return DaemonStartConfig{}, usageError{err: errors.New("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit server or client TLS inputs")}
 	}
-	if !mode.managed || explicitServerTLS || certDir == "" || !isLocalHTTPS(addr) {
+	if skipsManagedProvisioning(mode, explicitServerTLS, certDir, addr) {
 		return DaemonStartConfig{Addr: addr, CertDir: certDir}, nil
 	}
 	material, err := loadClientTLSMode(mode, true)
@@ -226,24 +248,71 @@ func daemonStartArgs(cfg DaemonStartConfig) []string {
 	return args
 }
 
+// daemonLogPath is where the detached daemon's stdout/stderr are captured: beside
+// the gitignored dev certs, so it is repo-scoped and never committed. Empty when
+// no cert dir was resolved — output capture is then simply unavailable.
+func daemonLogPath(cfg DaemonStartConfig) string {
+	if cfg.CertDir == "" {
+		return ""
+	}
+	return filepath.Join(cfg.CertDir, "daemon.log")
+}
+
+// openDaemonLog opens the daemon log for append, creating it if needed, and writes
+// a parent-side start header naming the listen address — so even an exec that never
+// produces output leaves a trace. Falls back to io.Discard (never an error) when
+// there is no log destination or the file cannot be opened: output capture is a
+// diagnostic aid, never a new failure mode for daemon auto-start.
+func openDaemonLog(cfg DaemonStartConfig, listenAddr string) io.WriteCloser {
+	path := daemonLogPath(cfg)
+	if path == "" {
+		return nopWriteCloser{io.Discard}
+	}
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nopWriteCloser{io.Discard}
+	}
+	_, _ = fmt.Fprintf(file, "starting daemon addr=%s\n", listenAddr)
+	return file
+}
+
+type nopWriteCloser struct{ io.Writer }
+
+func (nopWriteCloser) Close() error { return nil }
+
 // StartDaemon starts a detached daemon process using the current executable.
 func StartDaemon(cfg DaemonStartConfig) error {
 	if cfg.Local && cfg.ConfigsDir == "" {
 		return errors.New("no repository configs directory found: set AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR or add <repo>/configs/<repo>/config.json before auto-starting the local daemon")
 	}
-	executable, err := os.Executable()
+	executable, err := daemonExecutable()
 	if err != nil {
 		return err
 	}
-	command := exec.Command(executable, daemonStartArgs(cfg)...)
+	args := daemonStartArgs(cfg)
+	log := openDaemonLog(cfg, listenAddrFromArgs(args))
+	command := exec.Command(executable, args...)
 	command.Env = daemonStartEnv(cfg, cfg.Env)
-	command.Stdout = io.Discard
-	command.Stderr = io.Discard
+	command.Stdout = log
+	command.Stderr = log
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := command.Start(); err != nil {
+		_ = log.Close()
 		return err
 	}
+	_ = log.Close()
 	return command.Process.Release()
+}
+
+// listenAddrFromArgs recovers the listen address daemonStartArgs computed, so the
+// start-header log line names the same address the child was told to bind.
+func listenAddrFromArgs(args []string) string {
+	for i, arg := range args {
+		if arg == "--addr" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return ""
 }
 
 func daemonStartEnv(cfg DaemonStartConfig, base []string) []string {

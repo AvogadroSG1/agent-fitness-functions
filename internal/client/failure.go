@@ -23,6 +23,7 @@ const (
 	errorKindNotConfigured     = "not_configured"
 	errorKindInvalidRequest    = "invalid_request"
 	errorKindServerError       = "server_error"
+	errorKindPortConflict      = "port_conflict"
 )
 
 // InfraErrorExitCode is the `client validate` process exit code reserved for an
@@ -73,6 +74,25 @@ type transportError struct {
 
 func (e transportError) Error() string { return e.err.Error() }
 func (e transportError) Unwrap() error { return e.err }
+
+// daemonConflictError reports a TLS probe failure against a live listener on the shared
+// default local daemon port when this client's own managed dev-cert material has
+// already loaded cleanly. That combination means the listener trusts a different dev
+// CA — almost always another repository's local daemon, or a stale one from before a
+// certificate rotation — and not that this client's certificates are corrupt.
+type daemonConflictError struct {
+	addr  string
+	cause error
+}
+
+func (e daemonConflictError) Error() string {
+	return fmt.Sprintf(
+		"%s is already serving TLS that this client does not trust, most likely another repository's local daemon (or a stale daemon from before certificate rotation) owns this port; stop it or rerun with a distinct --addr (%v)",
+		e.addr, e.cause,
+	)
+}
+
+func (e daemonConflictError) Unwrap() error { return e.cause }
 
 // infraErrorReport is the machine-readable object `client validate` prints to stdout on
 // an infrastructure failure. It extends the /check result JSON shape ({"status":...})
@@ -152,6 +172,10 @@ func httpStatusInfraError(statusErr httpStatusError, repo string) infraError {
 // TLS/cert problem versus an unreachable server. It also covers daemon auto-start
 // failures, which surface here as generic (non-status) errors.
 func connectionInfraError(err error) infraError {
+	var conflict daemonConflictError
+	if errors.As(err, &conflict) {
+		return portConflictInfraError(conflict)
+	}
 	if isTLSError(err) {
 		return infraError{
 			kind:        errorKindTLSFailure,
@@ -163,6 +187,20 @@ func connectionInfraError(err error) infraError {
 		kind:        errorKindServerUnreachable,
 		message:     "cannot reach the governance server: " + err.Error(),
 		remediation: "run `agent-fitness-functions doctor`; the local daemon auto-starts on `client validate` when dev certs and a repo config exist",
+	}
+}
+
+// portConflictInfraError maps a daemonConflictError to its infra-error kind: the
+// contested address is already held by a daemon that does not trust this repository's
+// dev CA, so the fix is to stop it or move this client to a distinct port.
+func portConflictInfraError(conflict daemonConflictError) infraError {
+	return infraError{
+		kind: errorKindPortConflict,
+		message: fmt.Sprintf(
+			"a daemon that does not trust this repository's dev CA is already listening at %s (most likely another repository's local daemon, or a stale one from before certificate rotation): %v",
+			conflict.addr, conflict.cause,
+		),
+		remediation: "identify the conflicting daemon with `lsof -i :<port>` and stop it, or rerun with a distinct --addr; only one repository can use the shared default local daemon port at a time",
 	}
 }
 
