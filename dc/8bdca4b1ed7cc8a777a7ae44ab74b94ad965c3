@@ -1,0 +1,21 @@
+internal/analyzer/python_test.go
+  s_83dbcc34cc959f::t_523cc3d1835109 210-213
+  s_83dbcc34cc959f::t_b2e745ccc88fd8 251-254
+  s_83dbcc34cc959f::t_cdd3d4a2d99f09 172-175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "dc8bdca4b1ed7cc8a777a7ae44ab74b94ad965c3",
+  "prompts": {},
+  "sessions": {
+    "s_83dbcc34cc959f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c4a7d49-1edd-4afb-9597-ab59a54539a8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
