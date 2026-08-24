@@ -169,6 +169,10 @@ func TestAnalyzePythonFileUsesSingleRadonAPISubprocessWhenRadonHasPythonShebang(
 	fakePython := fakeRadonPython(t, dir, logPath)
 	fakeRadonWithShebang(t, dir, fakePython)
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	// A managed runtime installed on this machine (state root resolved via
+	// XDG_STATE_HOME, per ADR-0005) MUST NOT shadow the PATH shim under test;
+	// pin an empty state root so managedRadonPath finds nothing.
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 
 	result, err := AnalyzePythonFile(context.Background(), file, "")
 	if err != nil {
@@ -203,6 +207,10 @@ func TestAnalyzePythonFileFallsBackToRadonCLIWhenFastPathSubprocessFails(t *test
 	logPath := filepath.Join(dir, "radon-degraded.log")
 	fakeShellRadonWithCLIFallback(t, dir, logPath, file)
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	// A managed runtime installed on this machine (state root resolved via
+	// XDG_STATE_HOME, per ADR-0005) MUST NOT shadow the PATH shim under test;
+	// pin an empty state root so managedRadonPath finds nothing.
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	python, _, ok := radonPythonCommand("radon")
 	if !ok || !strings.HasSuffix(python, "bash") {
 		t.Fatalf("radonPythonCommand = %q, %t; want bash fast-path command", python, ok)
@@ -240,6 +248,10 @@ func TestAnalyzePythonFileFallsBackToRadonCLIWhenFastPathUnavailable(t *testing.
 	logPath := filepath.Join(dir, "radon-cli.log")
 	fakeRadonCLI(t, dir, logPath, file)
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	// A managed runtime installed on this machine (state root resolved via
+	// XDG_STATE_HOME, per ADR-0005) MUST NOT shadow the PATH shim under test;
+	// pin an empty state root so managedRadonPath finds nothing.
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 
 	result, err := AnalyzePythonFile(context.Background(), file, "")
 	if err != nil {
