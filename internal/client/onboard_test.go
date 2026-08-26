@@ -162,7 +162,7 @@ func TestRunOnboardNoncanonicalExternalCNMakesZeroMutations(t *testing.T) {
 	}
 }
 
-func TestRunOnboardValidExternalTLSAuthorizesActualCNWithoutAutostart(t *testing.T) {
+func TestRunOnboardValidExternalTLSRegistersActualCNWithoutAutostart(t *testing.T) {
 	const wantCN = "external-run-client"
 	clientFixture := writeExternalClientTLSFixture(t, wantCN)
 	serverFixture := writeExternalClientTLSFixture(t, "unrelated-server-hierarchy-client")
@@ -170,6 +170,10 @@ func TestRunOnboardValidExternalTLSAuthorizesActualCNWithoutAutostart(t *testing
 		switch request.URL.Path {
 		case "/health":
 			w.WriteHeader(http.StatusOK)
+		case "/register":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"repo": "sample", "created": true})
 		case "/preflight":
 			_ = json.NewEncoder(w).Encode(preflightReport{
 				AuthenticatedCN: wantCN, RepoConfigured: true, RepoConfigValid: true,
@@ -206,12 +210,11 @@ func TestRunOnboardValidExternalTLSAuthorizesActualCNWithoutAutostart(t *testing
 	if starterCalls != 0 {
 		t.Fatalf("starter calls = %d, want 0 for external TLS", starterCalls)
 	}
-	bindings, err := os.ReadFile(filepath.Join(repo, callerRepoBindingsFileName))
-	if err != nil {
-		t.Fatalf("ReadFile(caller bindings): %v", err)
+	if _, statErr := os.Stat(filepath.Join(repo, callerRepoBindingsFileName)); !os.IsNotExist(statErr) {
+		t.Fatalf("local caller bindings written in external mode (stat err=%v), want none — a remote server never sees local files", statErr)
 	}
-	if !bytes.Contains(bindings, []byte(`"`+wantCN+`"`)) || bytes.Contains(bindings, []byte(`"dev-hook-pool"`)) {
-		t.Fatalf("caller bindings = %s, want actual external CN", bindings)
+	if !strings.Contains(stdout.String(), "registered sample") {
+		t.Fatalf("stdout = %q, want a registration confirmation", stdout.String())
 	}
 }
 

@@ -403,14 +403,13 @@ func onboardConfigsDir(repoRoot string) string {
 
 func (o *onboarder) run() error {
 	_, _ = fmt.Fprintf(o.stdout, "Onboarding %q (enforcement=%s, addr=%s)\n", o.repoName, o.enforcement, o.addr)
-	steps := []func() error{
-		o.ensureCerts,
-		o.scaffoldConfig,
-		o.authorizeCaller,
-		o.installHooks,
-		o.startDaemon,
-		o.runDoctor,
+	steps := []func() error{o.ensureCerts}
+	if o.tlsMode.managed {
+		steps = append(steps, o.scaffoldConfig, o.authorizeCaller)
+	} else {
+		steps = append(steps, o.registerRemote)
 	}
+	steps = append(steps, o.installHooks, o.startDaemon, o.runDoctor)
 	for _, step := range steps {
 		if err := step(); err != nil {
 			return err
@@ -621,6 +620,82 @@ func writeCallerBindings(path string, document map[string]any) error {
 	return nil
 }
 
+// registerRequestBody is the JSON body POSTed to /register — a client-side
+// mirror of internal/server's RegisterRequest, duplicated so this package
+// never imports internal/server.
+type registerRequestBody struct {
+	Repo             string          `json:"repo"`
+	EnforcementMode  string          `json:"enforcement-mode,omitempty"`
+	FitnessFunctions map[string]bool `json:"fitness-functions"`
+}
+
+// registerResponseBody is the JSON response from /register — a client-side
+// mirror of internal/server's RegisterResponse.
+type registerResponseBody struct {
+	Repo    string `json:"repo"`
+	Created bool   `json:"created"`
+}
+
+// registerRemote is the external-TLS-mode counterpart to scaffoldConfig +
+// authorizeCaller: a remote server never sees local config/caller-binding
+// files, so onboard instead self-service-registers the repo via POST
+// /register, carrying the selected fitness functions and enforcement mode.
+func (o *onboarder) registerRemote() error {
+	o.step("Remote registration: %s/register", o.addr)
+	body, err := json.Marshal(registerRequestBody{
+		Repo:             o.repoName,
+		EnforcementMode:  o.enforcement,
+		FitnessFunctions: o.registrationFunctions(),
+	})
+	if err != nil {
+		return fmt.Errorf("encoding register request: %w", err)
+	}
+	resp, err := o.httpClient.Post(strings.TrimRight(o.addr, "/")+"/register", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("POST %s/register: %w", o.addr, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	return o.handleRegisterResponse(resp)
+}
+
+// registrationFunctions is the fitness-functions map registerRemote sends:
+// the --functions selection when present, else the all-five default (the
+// server has no other way to learn the default subset a remote onboard
+// intends).
+func (o *onboarder) registrationFunctions() map[string]bool {
+	if o.selectedFunctions != nil {
+		return o.selectedFunctions
+	}
+	return enabledFitnessFunctions()
+}
+
+// handleRegisterResponse maps the /register HTTP outcome to a progress detail
+// line (success) or an actionable error (conflict / other failure).
+func (o *onboarder) handleRegisterResponse(resp *http.Response) error {
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusCreated:
+		o.reportRegisterSuccess(resp)
+		return nil
+	case http.StatusConflict:
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("repository %q is already registered with a different configuration at %s; an admin CN is required to change it: %s",
+			o.repoName, o.addr, strings.TrimSpace(string(body)))
+	default:
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("POST %s/register: unexpected status %s: %s", o.addr, resp.Status, strings.TrimSpace(string(body)))
+	}
+}
+
+func (o *onboarder) reportRegisterSuccess(resp *http.Response) {
+	var decoded registerResponseBody
+	_ = json.NewDecoder(resp.Body).Decode(&decoded)
+	if decoded.Created {
+		o.detail("registered %s with %s", o.repoName, o.enforcement)
+		return
+	}
+	o.detail("%s already registered with matching governance", o.repoName)
+}
+
 func (o onboarder) installHooks() error {
 	o.step("Installing hooks (git + agent Edit/Write validation)")
 	return RunInstallHooks([]string{o.repoRoot}, o.stdout, o.stderr)
@@ -679,7 +754,17 @@ func (o *onboarder) runDoctor() error {
 	return runDoctorWithConfig(cfg, o.stdout)
 }
 
+// printManualRemainder prints whatever step still requires operator action.
+// In managed/local mode that is the same manual production hand-off it has
+// always been: the config and caller-binding files onboard wrote are local
+// only, so a shared container deployment still needs them copied over. In
+// external mode registerRemote already registered the repo against the
+// server named by --addr, so there is nothing left to copy.
 func (o onboarder) printManualRemainder() {
+	if !o.tlsMode.managed {
+		_, _ = fmt.Fprintf(o.stdout, "\n%s is registered with %s. No manual config hand-off is needed.\n", o.repoName, o.addr)
+		return
+	}
 	configPath := filepath.Join(o.configsDir, o.repoName, "config.json")
 	bindingsPath := onboardCallerBindingsPath(o.configsDir)
 	_, _ = fmt.Fprintf(o.stdout, "\n%s is governed locally.\n", o.repoName)
