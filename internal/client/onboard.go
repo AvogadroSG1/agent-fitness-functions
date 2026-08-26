@@ -85,7 +85,7 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 	if err != nil {
 		return onboarder{}, err
 	}
-	selectedFunctions, err := resolveSelectedFunctions(parsedFlags.functions)
+	selectedFunctions, err := resolveSelectedFunctions(parsedFlags.functions, parsedFlags.certificatesOnly, stdout)
 	if err != nil {
 		return onboarder{}, err
 	}
@@ -161,11 +161,31 @@ func parseOnboardFlags(args []string) (onboardFlags, error) {
 	}, nil
 }
 
-func resolveSelectedFunctions(functionsFlag string) (map[string]bool, error) {
-	if functionsFlag == "" {
+// resolveSelectedFunctions resolves the fitness functions the scaffolded config
+// enables. --functions wins outright. Otherwise, a real interactive terminal
+// (and not --certificates-only, which never scaffolds a config) gets the
+// picker checklist instead of the silent all-five default; every
+// non-interactive context (go test, CI, pipes, --certificates-only) keeps
+// today's nil selection unchanged.
+func resolveSelectedFunctions(functionsFlag string, certificatesOnly bool, stdout io.Writer) (map[string]bool, error) {
+	if functionsFlag != "" {
+		return parseFunctionsFlag(functionsFlag)
+	}
+	if certificatesOnly || !stdinIsTerminal(os.Stdin) {
 		return nil, nil
 	}
-	return parseFunctionsFlag(functionsFlag)
+	return promptSelectedFunctions(stdout)
+}
+
+// promptSelectedFunctions loads the embedded catalog and runs the interactive
+// picker over the real stdin/stdout, isolated so resolveSelectedFunctions
+// stays a simple sequence of checks.
+func promptSelectedFunctions(stdout io.Writer) (map[string]bool, error) {
+	options, err := loadPickerOptions()
+	if err != nil {
+		return nil, err
+	}
+	return runFunctionPicker(os.Stdin, stdout, options)
 }
 
 func resolveCertificatesOnlyOnboarder(extraArgs []string, forceDevCertRotation bool) (onboarder, error) {
