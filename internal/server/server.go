@@ -105,6 +105,7 @@ func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOpti
 	mux.HandleFunc("/state", withAuthenticatedCaller(stateHandler(checker, options), options))
 	mux.HandleFunc("/preflight", withAuthenticatedCaller(preflightHandler(checker, options), options))
 	mux.HandleFunc("/configs", withAuthenticatedCaller(configsHandler(checker, options), options))
+	mux.HandleFunc("/register", withAuthenticatedCaller(registerHandler(checker, options), options))
 	mux.HandleFunc("/functions", withAuthenticatedCaller(functionsHandler(checker, options), options))
 	mux.HandleFunc("/shutdown", withAuthenticatedCaller(shutdownHandler(checker, options, cancelDeferred, shutdown), options))
 	return mux

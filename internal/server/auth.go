@@ -21,6 +21,9 @@ type HandlerOptions struct {
 	TrustedProxyClientCNs        []string
 	RateLimiter                  RateLimiter
 	MaxConcurrentAnalysesPerRepo int
+	// DisableRegistration turns off POST /register (self-service repo
+	// onboarding) even when the route is wired, returning 403 for every call.
+	DisableRegistration bool
 }
 
 type ServerTLSConfig struct {

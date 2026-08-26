@@ -33,6 +33,7 @@ type ConfigEntry struct {
 type ConfigStore struct {
 	mu               sync.RWMutex
 	watchMu          sync.Mutex
+	registerMu       sync.Mutex
 	entries          map[string]ConfigEntry
 	repoDirs         map[string]string
 	callerPolicy     CallerRepoPolicy
