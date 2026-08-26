@@ -87,6 +87,32 @@ func TestPublishBootstrapsSafeEmptyRootWithGitignore(t *testing.T) {
 	assertExactEntries(t, root, []string{".gitignore", "current", "versions"})
 }
 
+func TestPublishPreservesPublishedTargetWhenDaemonLogPresent(t *testing.T) {
+	root := t.TempDir()
+	if err := devcerts.Publish(root, false); err != nil {
+		t.Fatalf("initial Publish: %v", err)
+	}
+	daemonLog := filepath.Join(root, "daemon.log")
+	writeFixture(t, daemonLog, "starting daemon addr=https://127.0.0.1:7890\n", 0o644)
+	beforeTarget, err := os.Readlink(filepath.Join(root, "current"))
+	if err != nil {
+		t.Fatalf("Readlink(current): %v", err)
+	}
+
+	if err := devcerts.Publish(root, false); err != nil {
+		t.Fatalf("Publish with daemon.log present failed: %v", err)
+	}
+
+	afterTarget, err := os.Readlink(filepath.Join(root, "current"))
+	if err != nil {
+		t.Fatalf("Readlink(current) after re-publish: %v", err)
+	}
+	if beforeTarget != afterTarget {
+		t.Fatalf("target changed: before=%q after=%q", beforeTarget, afterTarget)
+	}
+	assertExactEntries(t, root, []string{"current", "daemon.log", "versions"})
+}
+
 func TestPublishMigratesValidDirectRootTargetWithoutChangingBytes(t *testing.T) {
 	root := t.TempDir()
 	seedRootWithGeneratedMaterial(t, root)

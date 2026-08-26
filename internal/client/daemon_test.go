@@ -164,6 +164,25 @@ func TestEnsureDevCertsIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestEnsureDevCertsIsIdempotentWithDaemonLog(t *testing.T) {
+	certDir := filepath.Join(t.TempDir(), "certs")
+	if err := EnsureDevCerts(certDir); err != nil {
+		t.Fatalf("first EnsureDevCerts returned error: %v", err)
+	}
+	daemonLog := filepath.Join(certDir, "daemon.log")
+	writeFileTest(t, daemonLog, "starting daemon addr=https://127.0.0.1:7890\n")
+	before := readDevCertSet(t, filepath.Join(certDir, "current"))
+	if err := EnsureDevCerts(certDir); err != nil {
+		t.Fatalf("second EnsureDevCerts with daemon.log returned error: %v", err)
+	}
+	after := readDevCertSet(t, filepath.Join(certDir, "current"))
+	for name, data := range before {
+		if !bytes.Equal(data, after[name]) {
+			t.Fatalf("%s changed on second EnsureDevCerts with daemon.log, want idempotent no-op", name)
+		}
+	}
+}
+
 func TestEnsureDevCertsRejectsPartialSet(t *testing.T) {
 	certDir := t.TempDir()
 	writeFileTest(t, filepath.Join(certDir, devCACertName), "stale")

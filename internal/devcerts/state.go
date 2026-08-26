@@ -69,7 +69,7 @@ func classifyRoot(root string, now time.Time, lockHeld bool) (classifiedRoot, er
 
 	for _, entry := range entries {
 		name := entry.Name()
-		if name == ".gitignore" && safeGitignore(root) || name == "current" || name == "versions" || isManagedName(name) || lockHeld && name == lockName {
+		if name == ".gitignore" && safeGitignore(root) || name == "daemon.log" && safeDaemonLog(root) || name == "current" || name == "versions" || isManagedName(name) || lockHeld && name == lockName {
 			continue
 		}
 		return classifiedRoot{state: statePartial, unsafe: true}, nil

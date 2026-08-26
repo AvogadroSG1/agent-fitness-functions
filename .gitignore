@@ -1,5 +1,7 @@
 # Go build outputs
 /agent-fitness-functions
+/bin/agent-fitness-functions
+/bin/rename-verify
 /dist/
 **/obj/
 *.exe

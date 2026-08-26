@@ -110,6 +110,11 @@ func safeGitignore(root string) bool {
 	return err == nil && info.Mode().IsRegular()
 }
 
+func safeDaemonLog(root string) bool {
+	info, err := os.Lstat(filepath.Join(root, "daemon.log"))
+	return err == nil && info.Mode().IsRegular()
+}
+
 func validateParent(root string) error {
 	parent := filepath.Dir(filepath.Clean(root))
 	info, err := os.Lstat(parent)
