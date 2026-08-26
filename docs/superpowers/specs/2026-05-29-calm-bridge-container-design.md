@@ -594,4 +594,37 @@ Valid values: `"block"` (default, fail-closed), `"advisory"` (log and pass), `"p
 
 ---
 
+## Amendment (2026-08-26): POST /register
+
+The "No write endpoint" decision above (line 244) is superseded, by user-approved
+design change, not deleted: the server now exposes `POST /register` for
+self-service repo registration.
+
+- **What it does**: an authenticated caller can register its own repo,
+  writing `configs/<repo>/config.json` and updating `caller-repos.json` at
+  runtime. A caller may only bind its own CN to a new repo entry; changing
+  the config of a repo that already exists requires an admin CN. Replays of
+  the same registration request are idempotent.
+- **Git remains authoritative for production**: this endpoint is a
+  local/staging convenience. Kubernetes/Helm production deployments continue
+  to source `configs/` and `caller-repos.json` from git via the volume mount
+  → hot-reload path described above; the Helm chart's ConfigMaps/Secrets
+  remain read-only and authoritative there.
+- **Kill switch**: setting `AGENT_FITNESS_FUNCTIONS_DISABLE_REGISTRATION=1`
+  disables the endpoint entirely; `0` (the default recorded in
+  `docker-compose.yml`) leaves it enabled.
+- **Compose deployment impact**: the local/staging `docker-compose.yml` now
+  mounts `./configs:/app/configs` and
+  `./caller-repos.json:/app/caller-repos.json` read-write (dropping `:ro`)
+  so the server process can persist self-service registrations. The
+  `./certs:/app/certs:ro` mount and the container's `read_only: true`
+  rootfs are unchanged.
+- **caller-repos.json is rewritten in place, never renamed**: because it is
+  a single-file bind mount, a rename-based atomic write would replace the
+  bind-mounted inode inside the container without updating the host mount,
+  silently orphaning writes. The server writes the file's contents in
+  place instead.
+
+---
+
 *Authored By Peter O'Connor with Assistance from Claude Code (databricks-claude-opus-4-6) · 2026-05-29 · calm-bridge containerization design — revision 2 incorporating review findings*

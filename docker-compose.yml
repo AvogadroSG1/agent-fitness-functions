@@ -21,15 +21,16 @@ services:
       - --addr
       - 0.0.0.0:7890
     volumes:
-      - ./configs:/app/configs:ro
+      - ./configs:/app/configs
       - ./certs:/app/certs:ro
-      - ./caller-repos.json:/app/caller-repos.json:ro
+      - ./caller-repos.json:/app/caller-repos.json
     environment:
       AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs
       AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR: /app/certs
       AGENT_FITNESS_FUNCTIONS_RUNTIME_DIR: /run/agent-fitness-functions
       AGENT_FITNESS_FUNCTIONS_RATE_LIMIT: "100"
       AGENT_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"
+      AGENT_FITNESS_FUNCTIONS_DISABLE_REGISTRATION: "0"
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent --cacert /run/agent-fitness-functions/health-ca.crt https://127.0.0.1:7890/health || exit 1"]
       interval: 30s
