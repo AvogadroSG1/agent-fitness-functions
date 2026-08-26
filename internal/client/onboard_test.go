@@ -413,7 +413,7 @@ func TestValidateEnforcement(t *testing.T) {
 
 func TestRenderScaffoldConfigFillsAllFiveFunctions(t *testing.T) {
 	for _, enforcement := range []string{"advisory", "block"} {
-		content, err := renderScaffoldConfig(enforcement)
+		content, err := renderScaffoldConfig(enforcement, nil)
 		if err != nil {
 			t.Fatalf("renderScaffoldConfig(%q): %v", enforcement, err)
 		}
