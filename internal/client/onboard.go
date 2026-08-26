@@ -61,6 +61,7 @@ type onboarder struct {
 	tlsMode              clientTLSMode
 	tlsMaterial          clientTLSMaterial
 	callerCN             string
+	selectedFunctions    map[string]bool
 }
 
 // RunOnboard performs the whole local 0-to-governed sequence in one command:
@@ -80,6 +81,64 @@ func RunOnboard(args []string, stdout, stderr io.Writer, httpClient *http.Client
 }
 
 func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(DaemonStartConfig) error) (onboarder, error) {
+	parsedFlags, err := parseOnboardFlags(args)
+	if err != nil {
+		return onboarder{}, err
+	}
+	selectedFunctions, err := resolveSelectedFunctions(parsedFlags.functions, parsedFlags.certificatesOnly, stdout)
+	if err != nil {
+		return onboarder{}, err
+	}
+	if _, err := resolveClientTLSMode("", "", "", ""); err != nil {
+		return onboarder{}, err
+	}
+	if parsedFlags.certificatesOnly {
+		return resolveCertificatesOnlyOnboarder(parsedFlags.extra, parsedFlags.forceDevCertRotation)
+	}
+	mode, repoRoot, repoName, err := resolveOnboardRepoIdentity(parsedFlags.enforcement, parsedFlags.extra, parsedFlags.repo)
+	if err != nil {
+		return onboarder{}, err
+	}
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: 3 * time.Second}
+	}
+	tlsResolution, err := resolveOnboardTLS(parsedFlags.addr, repoRoot, httpClient)
+	if err != nil {
+		return onboarder{}, err
+	}
+	return onboarder{
+		repoName:             repoName,
+		repoRoot:             repoRoot,
+		enforcement:          mode,
+		addr:                 parsedFlags.addr,
+		configsDir:           onboardConfigsDir(repoRoot),
+		certDir:              tlsResolution.certDir,
+		stdout:               stdout,
+		stderr:               stderr,
+		httpClient:           tlsResolution.httpClient,
+		starter:              starter,
+		forceDevCertRotation: parsedFlags.forceDevCertRotation,
+		tlsMode:              tlsResolution.tlsMode,
+		tlsMaterial:          tlsResolution.tlsMaterial,
+		callerCN:             tlsResolution.callerCN,
+		selectedFunctions:    selectedFunctions,
+	}, nil
+}
+
+// onboardFlags holds the parsed `client onboard` flag set plus its positional
+// arguments, so resolveOnboarder can be a readable sequence of calls over
+// plain values instead of threading *string flag pointers through helpers.
+type onboardFlags struct {
+	repo                 string
+	enforcement          string
+	addr                 string
+	certificatesOnly     bool
+	forceDevCertRotation bool
+	functions            string
+	extra                []string
+}
+
+func parseOnboardFlags(args []string) (onboardFlags, error) {
 	flags := flag.NewFlagSet("client onboard", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	repo := flags.String("repo", "", "governance repository name (defaults to the git working-tree basename)")
@@ -87,119 +146,197 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 	addr := flags.String("addr", defaultOnboardAddr, "governance daemon base URL")
 	certificatesOnly := flags.Bool("certificates-only", false, "publish managed development certificates only")
 	forceDevCertRotation := flags.Bool("force-dev-cert-rotation", false, "request managed development certificate rotation")
+	functionsFlag := flags.String("functions", "", "comma-separated subset of fitness functions to enable (default: all five)")
 	if err := flags.Parse(args); err != nil {
-		return onboarder{}, usageError{err: err}
+		return onboardFlags{}, usageError{err: err}
 	}
-	if _, err := resolveClientTLSMode("", "", "", ""); err != nil {
-		return onboarder{}, err
+	return onboardFlags{
+		repo:                 *repo,
+		enforcement:          *enforcement,
+		addr:                 *addr,
+		certificatesOnly:     *certificatesOnly,
+		forceDevCertRotation: *forceDevCertRotation,
+		functions:            *functionsFlag,
+		extra:                flags.Args(),
+	}, nil
+}
+
+// resolveSelectedFunctions resolves the fitness functions the scaffolded config
+// enables. --functions wins outright. Otherwise, a real interactive terminal
+// (and not --certificates-only, which never scaffolds a config) gets the
+// picker checklist instead of the silent all-five default; every
+// non-interactive context (go test, CI, pipes, --certificates-only) keeps
+// today's nil selection unchanged.
+func resolveSelectedFunctions(functionsFlag string, certificatesOnly bool, stdout io.Writer) (map[string]bool, error) {
+	if functionsFlag != "" {
+		return parseFunctionsFlag(functionsFlag)
 	}
-	if *certificatesOnly {
-		if len(flags.Args()) != 0 {
-			return onboarder{}, usageError{err: errors.New("client onboard --certificates-only accepts no repository path")}
-		}
-		certDir := os.Getenv(envDevCertDir)
-		if certDir == "" {
-			workingDir, err := os.Getwd()
-			if err != nil {
-				return onboarder{}, fmt.Errorf("resolve development certificate directory: %w", err)
-			}
-			if root := resolveRepoRoot("", ""); root != "" {
-				workingDir = root
-			}
-			certDir = filepath.Join(workingDir, "certs")
-		}
-		return onboarder{certDir: certDir, certificatesOnly: true, forceDevCertRotation: *forceDevCertRotation}, nil
+	if certificatesOnly || !stdinIsTerminal(os.Stdin) {
+		return nil, nil
 	}
-	mode, err := validateEnforcement(*enforcement)
+	return promptSelectedFunctions(stdout)
+}
+
+// promptSelectedFunctions loads the embedded catalog and runs the interactive
+// picker over the real stdin/stdout, isolated so resolveSelectedFunctions
+// stays a simple sequence of checks.
+func promptSelectedFunctions(stdout io.Writer) (map[string]bool, error) {
+	options, err := loadPickerOptions()
 	if err != nil {
-		return onboarder{}, err
+		return nil, err
 	}
-	pathArg, err := onboardPathArg(flags.Args())
+	return runFunctionPicker(os.Stdin, stdout, options)
+}
+
+func resolveCertificatesOnlyOnboarder(extraArgs []string, forceDevCertRotation bool) (onboarder, error) {
+	if len(extraArgs) != 0 {
+		return onboarder{}, usageError{err: errors.New("client onboard --certificates-only accepts no repository path")}
+	}
+	certDir := os.Getenv(envDevCertDir)
+	if certDir == "" {
+		workingDir, err := os.Getwd()
+		if err != nil {
+			return onboarder{}, fmt.Errorf("resolve development certificate directory: %w", err)
+		}
+		if root := resolveRepoRoot("", ""); root != "" {
+			workingDir = root
+		}
+		certDir = filepath.Join(workingDir, "certs")
+	}
+	return onboarder{certDir: certDir, certificatesOnly: true, forceDevCertRotation: forceDevCertRotation}, nil
+}
+
+// resolveOnboardRepoIdentity validates the enforcement mode and resolves the
+// positional repository path into a repo root and repo name, in the same
+// order resolveOnboarder previously performed them inline.
+func resolveOnboardRepoIdentity(enforcementFlag string, extraArgs []string, repoFlag string) (string, string, string, error) {
+	mode, err := validateEnforcement(enforcementFlag)
 	if err != nil {
-		return onboarder{}, err
+		return "", "", "", err
+	}
+	pathArg, err := onboardPathArg(extraArgs)
+	if err != nil {
+		return "", "", "", err
 	}
 	repoRoot, err := onboardRepoRoot(pathArg)
 	if err != nil {
-		return onboarder{}, err
+		return "", "", "", err
 	}
-	repoName, err := resolveOnboardRepoName(*repo, repoRoot)
+	repoName, err := resolveOnboardRepoName(repoFlag, repoRoot)
 	if err != nil {
-		return onboarder{}, err
+		return "", "", "", err
 	}
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 3 * time.Second}
-	}
+	return mode, repoRoot, repoName, nil
+}
+
+// onboardTLSResolution is the outcome of resolveOnboardTLS: the dev cert
+// directory, resolved TLS mode/material, caller identity, and (for the
+// external-TLS path) the httpClient reconfigured with that material.
+type onboardTLSResolution struct {
+	certDir     string
+	tlsMode     clientTLSMode
+	tlsMaterial clientTLSMaterial
+	callerCN    string
+	httpClient  *http.Client
+}
+
+// resolveOnboardTLS resolves the client TLS mode for repoRoot and, for the
+// external-certificate path, loads and validates that material and confirms
+// an already-running healthy daemon before returning.
+func resolveOnboardTLS(addr, repoRoot string, httpClient *http.Client) (onboardTLSResolution, error) {
 	certDir := resolveDevCertDir(repoRoot)
 	tlsMode, err := resolveClientTLSMode("", "", "", certDir)
 	if err != nil {
-		return onboarder{}, err
+		return onboardTLSResolution{}, err
 	}
 	callerCN := devClientCommonName
 	var tlsMaterial clientTLSMaterial
 	if !tlsMode.managed {
 		tlsMaterial, callerCN, err = loadExternalOnboardMaterial(tlsMode)
 		if err != nil {
-			return onboarder{}, err
+			return onboardTLSResolution{}, err
 		}
 		configuredClient, configureErr := configureClientTLSMaterial(httpClient, tlsMaterial)
 		if configureErr != nil {
-			return onboarder{}, usageError{err: fmt.Errorf("invalid external client TLS material: %w", configureErr)}
+			return onboardTLSResolution{}, usageError{err: fmt.Errorf("invalid external client TLS material: %w", configureErr)}
 		}
-		if !isHealthy(configuredClient, *addr) {
-			return onboarder{}, usageError{err: fmt.Errorf("external client TLS onboarding requires an already-running healthy daemon at %s; automatic daemon startup requires managed development certificates", *addr)}
+		if !isHealthy(configuredClient, addr) {
+			return onboardTLSResolution{}, usageError{err: fmt.Errorf("external client TLS onboarding requires an already-running healthy daemon at %s; automatic daemon startup requires managed development certificates", addr)}
 		}
 		httpClient = configuredClient
 	}
-	return onboarder{
-		repoName:             repoName,
-		repoRoot:             repoRoot,
-		enforcement:          mode,
-		addr:                 *addr,
-		configsDir:           onboardConfigsDir(repoRoot),
-		certDir:              certDir,
-		stdout:               stdout,
-		stderr:               stderr,
-		httpClient:           httpClient,
-		starter:              starter,
-		forceDevCertRotation: *forceDevCertRotation,
-		tlsMode:              tlsMode,
-		tlsMaterial:          tlsMaterial,
-		callerCN:             callerCN,
+	return onboardTLSResolution{
+		certDir:     certDir,
+		tlsMode:     tlsMode,
+		tlsMaterial: tlsMaterial,
+		callerCN:    callerCN,
+		httpClient:  httpClient,
 	}, nil
 }
 
 func loadExternalOnboardMaterial(mode clientTLSMode) (clientTLSMaterial, string, error) {
-	if mode.cert == "" || mode.key == "" || mode.ca == "" {
-		return clientTLSMaterial{}, "", usageError{err: errors.New("external client TLS onboarding requires certificate, key, and CA inputs")}
+	if err := validateExternalTLSInputs(mode); err != nil {
+		return clientTLSMaterial{}, "", err
 	}
-	pair, err := tls.LoadX509KeyPair(mode.cert, mode.key)
+	pair, err := loadExternalKeyPair(mode)
 	if err != nil {
-		return clientTLSMaterial{}, "", usageError{err: fmt.Errorf("invalid external client certificate/key pair: %w", err)}
+		return clientTLSMaterial{}, "", err
 	}
-	if len(pair.Certificate) == 0 {
-		return clientTLSMaterial{}, "", usageError{err: errors.New("external client certificate contains no leaf certificate")}
-	}
-	leaf, err := x509.ParseCertificate(pair.Certificate[0])
+	leaf, callerCN, err := parseExternalLeafCertificate(pair)
 	if err != nil {
-		return clientTLSMaterial{}, "", usageError{err: fmt.Errorf("invalid external client leaf certificate: %w", err)}
+		return clientTLSMaterial{}, "", err
 	}
-	callerCN := leaf.Subject.CommonName
-	if callerCN == "" {
-		return clientTLSMaterial{}, "", usageError{err: errors.New("external client certificate leaf common name must be non-empty")}
-	}
-	if strings.TrimSpace(callerCN) != callerCN {
-		return clientTLSMaterial{}, "", usageError{err: errors.New("external client certificate leaf common name must not have leading or trailing whitespace")}
-	}
-	caPEM, err := os.ReadFile(mode.ca)
+	roots, err := loadExternalCAPool(mode)
 	if err != nil {
-		return clientTLSMaterial{}, "", usageError{err: fmt.Errorf("read external client CA: %w", err)}
-	}
-	roots := x509.NewCertPool()
-	if !roots.AppendCertsFromPEM(caPEM) {
-		return clientTLSMaterial{}, "", usageError{err: errors.New("external client CA contains no PEM certificates")}
+		return clientTLSMaterial{}, "", err
 	}
 	pair.Leaf = leaf
 	return clientTLSMaterial{mode: mode, certificate: pair, roots: roots}, callerCN, nil
+}
+
+func validateExternalTLSInputs(mode clientTLSMode) error {
+	if mode.cert == "" || mode.key == "" || mode.ca == "" {
+		return usageError{err: errors.New("external client TLS onboarding requires certificate, key, and CA inputs")}
+	}
+	return nil
+}
+
+func loadExternalKeyPair(mode clientTLSMode) (tls.Certificate, error) {
+	pair, err := tls.LoadX509KeyPair(mode.cert, mode.key)
+	if err != nil {
+		return tls.Certificate{}, usageError{err: fmt.Errorf("invalid external client certificate/key pair: %w", err)}
+	}
+	if len(pair.Certificate) == 0 {
+		return tls.Certificate{}, usageError{err: errors.New("external client certificate contains no leaf certificate")}
+	}
+	return pair, nil
+}
+
+func parseExternalLeafCertificate(pair tls.Certificate) (*x509.Certificate, string, error) {
+	leaf, err := x509.ParseCertificate(pair.Certificate[0])
+	if err != nil {
+		return nil, "", usageError{err: fmt.Errorf("invalid external client leaf certificate: %w", err)}
+	}
+	callerCN := leaf.Subject.CommonName
+	if callerCN == "" {
+		return nil, "", usageError{err: errors.New("external client certificate leaf common name must be non-empty")}
+	}
+	if strings.TrimSpace(callerCN) != callerCN {
+		return nil, "", usageError{err: errors.New("external client certificate leaf common name must not have leading or trailing whitespace")}
+	}
+	return leaf, callerCN, nil
+}
+
+func loadExternalCAPool(mode clientTLSMode) (*x509.CertPool, error) {
+	caPEM, err := os.ReadFile(mode.ca)
+	if err != nil {
+		return nil, usageError{err: fmt.Errorf("read external client CA: %w", err)}
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(caPEM) {
+		return nil, usageError{err: errors.New("external client CA contains no PEM certificates")}
+	}
+	return roots, nil
 }
 
 // onboardRepoRoot requires a real git working tree: onboard scaffolds certs,
@@ -266,14 +403,13 @@ func onboardConfigsDir(repoRoot string) string {
 
 func (o *onboarder) run() error {
 	_, _ = fmt.Fprintf(o.stdout, "Onboarding %q (enforcement=%s, addr=%s)\n", o.repoName, o.enforcement, o.addr)
-	steps := []func() error{
-		o.ensureCerts,
-		o.scaffoldConfig,
-		o.authorizeCaller,
-		o.installHooks,
-		o.startDaemon,
-		o.runDoctor,
+	steps := []func() error{o.ensureCerts}
+	if o.tlsMode.managed {
+		steps = append(steps, o.scaffoldConfig, o.authorizeCaller)
+	} else {
+		steps = append(steps, o.registerRemote)
 	}
+	steps = append(steps, o.installHooks, o.startDaemon, o.runDoctor)
 	for _, step := range steps {
 		if err := step(); err != nil {
 			return err
@@ -309,7 +445,7 @@ func (o onboarder) scaffoldConfig() error {
 		o.detail("already present — leaving unchanged")
 		return nil
 	}
-	content, err := renderScaffoldConfig(o.enforcement)
+	content, err := renderScaffoldConfig(o.enforcement, o.selectedFunctions)
 	if err != nil {
 		return err
 	}
@@ -319,8 +455,24 @@ func (o onboarder) scaffoldConfig() error {
 	if err := os.WriteFile(configPath, content, 0o644); err != nil {
 		return fmt.Errorf("writing %s: %w", configPath, err)
 	}
-	o.detail("scaffolded %s config with all five fitness functions enabled", o.enforcement)
+	o.detail("scaffolded %s config with %s", o.enforcement, scaffoldedFunctionsDetail(o.selectedFunctions))
 	return nil
+}
+
+// scaffoldedFunctionsDetail describes the enabled subset for the onboard progress
+// line: the default (nil selection) keeps the existing "all five fitness functions
+// enabled" wording an existing test greps for; a subset names exactly which ones.
+func scaffoldedFunctionsDetail(selected map[string]bool) string {
+	if selected == nil {
+		return "all five fitness functions enabled"
+	}
+	enabled := make([]string, 0, len(fitnessFunctionKeys))
+	for _, key := range fitnessFunctionKeys {
+		if selected[key] {
+			enabled = append(enabled, key)
+		}
+	}
+	return fmt.Sprintf("fitness functions enabled: %s", strings.Join(enabled, ", "))
 }
 
 // scaffoldConfigDocument is the config shape written by onboard. It carries the
@@ -334,7 +486,7 @@ type scaffoldConfigDocument struct {
 // renderScaffoldConfig loads the embedded advisory/block template (whose
 // fitness-functions map is empty) and fills every one of the five functions so
 // the written config is explicit, matching the onboarding runbook's example.
-func renderScaffoldConfig(enforcement string) ([]byte, error) {
+func renderScaffoldConfig(enforcement string, selected map[string]bool) ([]byte, error) {
 	raw, err := embeddedConfigTemplates.ReadFile("configtemplates/" + enforcement + "-template.json")
 	if err != nil {
 		return nil, fmt.Errorf("reading embedded config template: %w", err)
@@ -343,7 +495,11 @@ func renderScaffoldConfig(enforcement string) ([]byte, error) {
 	if err := json.Unmarshal(raw, &config); err != nil {
 		return nil, fmt.Errorf("parsing embedded config template: %w", err)
 	}
-	config.FitnessFunctions = enabledFitnessFunctions()
+	if selected != nil {
+		config.FitnessFunctions = selected
+	} else {
+		config.FitnessFunctions = enabledFitnessFunctions()
+	}
 	encoded, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("encoding scaffolded config: %w", err)
@@ -464,6 +620,82 @@ func writeCallerBindings(path string, document map[string]any) error {
 	return nil
 }
 
+// registerRequestBody is the JSON body POSTed to /register — a client-side
+// mirror of internal/server's RegisterRequest, duplicated so this package
+// never imports internal/server.
+type registerRequestBody struct {
+	Repo             string          `json:"repo"`
+	EnforcementMode  string          `json:"enforcement-mode,omitempty"`
+	FitnessFunctions map[string]bool `json:"fitness-functions"`
+}
+
+// registerResponseBody is the JSON response from /register — a client-side
+// mirror of internal/server's RegisterResponse.
+type registerResponseBody struct {
+	Repo    string `json:"repo"`
+	Created bool   `json:"created"`
+}
+
+// registerRemote is the external-TLS-mode counterpart to scaffoldConfig +
+// authorizeCaller: a remote server never sees local config/caller-binding
+// files, so onboard instead self-service-registers the repo via POST
+// /register, carrying the selected fitness functions and enforcement mode.
+func (o *onboarder) registerRemote() error {
+	o.step("Remote registration: %s/register", o.addr)
+	body, err := json.Marshal(registerRequestBody{
+		Repo:             o.repoName,
+		EnforcementMode:  o.enforcement,
+		FitnessFunctions: o.registrationFunctions(),
+	})
+	if err != nil {
+		return fmt.Errorf("encoding register request: %w", err)
+	}
+	resp, err := o.httpClient.Post(strings.TrimRight(o.addr, "/")+"/register", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("POST %s/register: %w", o.addr, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	return o.handleRegisterResponse(resp)
+}
+
+// registrationFunctions is the fitness-functions map registerRemote sends:
+// the --functions selection when present, else the all-five default (the
+// server has no other way to learn the default subset a remote onboard
+// intends).
+func (o *onboarder) registrationFunctions() map[string]bool {
+	if o.selectedFunctions != nil {
+		return o.selectedFunctions
+	}
+	return enabledFitnessFunctions()
+}
+
+// handleRegisterResponse maps the /register HTTP outcome to a progress detail
+// line (success) or an actionable error (conflict / other failure).
+func (o *onboarder) handleRegisterResponse(resp *http.Response) error {
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusCreated:
+		o.reportRegisterSuccess(resp)
+		return nil
+	case http.StatusConflict:
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("repository %q is already registered with a different configuration at %s; an admin CN is required to change it: %s",
+			o.repoName, o.addr, strings.TrimSpace(string(body)))
+	default:
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("POST %s/register: unexpected status %s: %s", o.addr, resp.Status, strings.TrimSpace(string(body)))
+	}
+}
+
+func (o *onboarder) reportRegisterSuccess(resp *http.Response) {
+	var decoded registerResponseBody
+	_ = json.NewDecoder(resp.Body).Decode(&decoded)
+	if decoded.Created {
+		o.detail("registered %s with %s", o.repoName, o.enforcement)
+		return
+	}
+	o.detail("%s already registered with matching governance", o.repoName)
+}
+
 func (o onboarder) installHooks() error {
 	o.step("Installing hooks (git + agent Edit/Write validation)")
 	return RunInstallHooks([]string{o.repoRoot}, o.stdout, o.stderr)
@@ -522,7 +754,17 @@ func (o *onboarder) runDoctor() error {
 	return runDoctorWithConfig(cfg, o.stdout)
 }
 
+// printManualRemainder prints whatever step still requires operator action.
+// In managed/local mode that is the same manual production hand-off it has
+// always been: the config and caller-binding files onboard wrote are local
+// only, so a shared container deployment still needs them copied over. In
+// external mode registerRemote already registered the repo against the
+// server named by --addr, so there is nothing left to copy.
 func (o onboarder) printManualRemainder() {
+	if !o.tlsMode.managed {
+		_, _ = fmt.Fprintf(o.stdout, "\n%s is registered with %s. No manual config hand-off is needed.\n", o.repoName, o.addr)
+		return
+	}
 	configPath := filepath.Join(o.configsDir, o.repoName, "config.json")
 	bindingsPath := onboardCallerBindingsPath(o.configsDir)
 	_, _ = fmt.Fprintf(o.stdout, "\n%s is governed locally.\n", o.repoName)

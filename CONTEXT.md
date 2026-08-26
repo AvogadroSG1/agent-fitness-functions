@@ -74,6 +74,8 @@ sequenceDiagram
 
 The **server** is the authority. The hook is the enforcement point. The governed repository cannot change thresholds — only which functions are active and what enforcement mode to use.
 
+The server boots with **zero configs** — an empty `configs/` directory is a valid steady state ("awaiting registration"), not a deployment error. Two unprivileged/self-service endpoints exist for that state: `GET /functions` is an unprivileged, repo-agnostic catalog of the five fitness functions (description, threshold, operator, unit) that any authenticated caller can read before any repo is registered; `POST /register` lets an authenticated caller self-service-create `configs/<repo>/config.json` and bind their own certificate CN in `caller-repos.json` in one call — idempotent for a matching replay (`created: false`), 409 (admin CN required) when the repo already exists with a different configuration, and disabled entirely by the kill switch `AGENT_FITNESS_FUNCTIONS_DISABLE_REGISTRATION=1`.
+
 ---
 
 ## Can a developer bypass the hook?

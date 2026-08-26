@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -161,7 +162,7 @@ func TestRunOnboardNoncanonicalExternalCNMakesZeroMutations(t *testing.T) {
 	}
 }
 
-func TestRunOnboardValidExternalTLSAuthorizesActualCNWithoutAutostart(t *testing.T) {
+func TestRunOnboardValidExternalTLSRegistersActualCNWithoutAutostart(t *testing.T) {
 	const wantCN = "external-run-client"
 	clientFixture := writeExternalClientTLSFixture(t, wantCN)
 	serverFixture := writeExternalClientTLSFixture(t, "unrelated-server-hierarchy-client")
@@ -169,6 +170,10 @@ func TestRunOnboardValidExternalTLSAuthorizesActualCNWithoutAutostart(t *testing
 		switch request.URL.Path {
 		case "/health":
 			w.WriteHeader(http.StatusOK)
+		case "/register":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"repo": "sample", "created": true})
 		case "/preflight":
 			_ = json.NewEncoder(w).Encode(preflightReport{
 				AuthenticatedCN: wantCN, RepoConfigured: true, RepoConfigValid: true,
@@ -205,12 +210,11 @@ func TestRunOnboardValidExternalTLSAuthorizesActualCNWithoutAutostart(t *testing
 	if starterCalls != 0 {
 		t.Fatalf("starter calls = %d, want 0 for external TLS", starterCalls)
 	}
-	bindings, err := os.ReadFile(filepath.Join(repo, callerRepoBindingsFileName))
-	if err != nil {
-		t.Fatalf("ReadFile(caller bindings): %v", err)
+	if _, statErr := os.Stat(filepath.Join(repo, callerRepoBindingsFileName)); !os.IsNotExist(statErr) {
+		t.Fatalf("local caller bindings written in external mode (stat err=%v), want none — a remote server never sees local files", statErr)
 	}
-	if !bytes.Contains(bindings, []byte(`"`+wantCN+`"`)) || bytes.Contains(bindings, []byte(`"dev-hook-pool"`)) {
-		t.Fatalf("caller bindings = %s, want actual external CN", bindings)
+	if !strings.Contains(stdout.String(), "registered sample") {
+		t.Fatalf("stdout = %q, want a registration confirmation", stdout.String())
 	}
 }
 
@@ -413,7 +417,7 @@ func TestValidateEnforcement(t *testing.T) {
 
 func TestRenderScaffoldConfigFillsAllFiveFunctions(t *testing.T) {
 	for _, enforcement := range []string{"advisory", "block"} {
-		content, err := renderScaffoldConfig(enforcement)
+		content, err := renderScaffoldConfig(enforcement, nil)
 		if err != nil {
 			t.Fatalf("renderScaffoldConfig(%q): %v", enforcement, err)
 		}
@@ -686,4 +690,89 @@ func stringListFromCallers(t *testing.T, document map[string]any, callerCN strin
 		repos = append(repos, item.(string))
 	}
 	return repos
+}
+
+// TestOnboardExternalModeRegistersRepoAgainstRemoteServerInsteadOfWritingLocalFiles
+// locks the WP7 self-service contract: with external TLS material pointing at
+// a remote governance server, onboard registers the repo via POST /register —
+// carrying the selected fitness functions — instead of scaffolding
+// configs/<repo>/config.json and caller-repos.json locally, which a remote
+// server would never see. Local file writes remain the managed/local-daemon
+// path only.
+func TestOnboardExternalModeRegistersRepoAgainstRemoteServerInsteadOfWritingLocalFiles(t *testing.T) {
+	const wantCN = "external-run-client"
+	clientFixture := writeExternalClientTLSFixture(t, wantCN)
+	serverFixture := writeExternalClientTLSFixture(t, "unrelated-server-hierarchy-client")
+	var mu sync.Mutex
+	var registerBodies []map[string]any
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/register":
+			var body map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			mu.Lock()
+			registerBodies = append(registerBodies, body)
+			mu.Unlock()
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"repo": body["repo"], "created": true})
+		case "/preflight":
+			_ = json.NewEncoder(w).Encode(preflightReport{
+				AuthenticatedCN: wantCN, RepoConfigured: true, RepoConfigValid: true,
+				CallerAuthorized: true, EnforcementMode: "advisory",
+			})
+		default:
+			http.NotFound(w, request)
+		}
+	}))
+	server.TLS = &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{serverFixture.server},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    clientFixture.roots,
+	}
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	repo := t.TempDir()
+	useDeterministicGitClientTest(t, repo)
+	t.Setenv(envDevCertDir, "")
+	t.Setenv(envClientCert, clientFixture.clientCert)
+	t.Setenv(envClientKey, clientFixture.clientKey)
+	t.Setenv(envClientCA, serverFixture.ca)
+	var stdout bytes.Buffer
+	err := RunOnboard([]string{"--repo", "sample", "--addr", server.URL, "--functions", "cyclomatic-complexity,logic-density", repo}, &stdout, io.Discard, &http.Client{Timeout: 3 * time.Second}, func(DaemonStartConfig) error {
+		t.Fatal("external onboarding must not call starter")
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("RunOnboard external register: %v\n%s", err, stdout.String())
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(registerBodies) != 1 {
+		t.Fatalf("POST /register calls = %d, want 1 (external mode must register remotely)", len(registerBodies))
+	}
+	body := registerBodies[0]
+	if body["repo"] != "sample" {
+		t.Fatalf("register body repo = %v, want sample", body["repo"])
+	}
+	functions, ok := body["fitness-functions"].(map[string]any)
+	if !ok {
+		t.Fatalf("register body fitness-functions = %v, want map", body["fitness-functions"])
+	}
+	if functions["cyclomatic-complexity"] != true || functions["logic-density"] != true || functions["interface-width"] != false {
+		t.Fatalf("register body fitness-functions = %v, want selected subset explicit", functions)
+	}
+	if _, err := os.Stat(filepath.Join(repo, "configs", "sample", "config.json")); !os.IsNotExist(err) {
+		t.Fatalf("local config scaffolded in external mode (stat err=%v), want none", err)
+	}
+	if _, err := os.Stat(filepath.Join(repo, callerRepoBindingsFileName)); !os.IsNotExist(err) {
+		t.Fatalf("local caller bindings written in external mode (stat err=%v), want none", err)
+	}
 }

@@ -33,6 +33,7 @@ type ConfigEntry struct {
 type ConfigStore struct {
 	mu               sync.RWMutex
 	watchMu          sync.Mutex
+	registerMu       sync.Mutex
 	entries          map[string]ConfigEntry
 	repoDirs         map[string]string
 	callerPolicy     CallerRepoPolicy
@@ -85,12 +86,9 @@ func newConfigStore(ctx context.Context, dir string, opts configStoreOptions) (*
 	}
 	opts = withConfigStoreDefaults(opts)
 	cleanDir := filepath.Clean(dir)
-	entries, repoDirs, validCount, err := scanMountedConfigs(cleanDir, opts.readFile)
+	entries, repoDirs, _, err := scanMountedConfigs(cleanDir, opts.readFile)
 	if err != nil {
 		return nil, err
-	}
-	if validCount == 0 {
-		return nil, fmt.Errorf("loading config store: no valid configs found in %q", cleanDir)
 	}
 	callerPolicyPath := callerRepoBindingsPath(cleanDir)
 	callerPolicy, err := loadCallerRepoPolicy(opts.readFile, callerPolicyPath)
@@ -118,28 +116,34 @@ func newConfigStore(ctx context.Context, dir string, opts configStoreOptions) (*
 		cancel:           cancel,
 		loopDone:         make(chan struct{}),
 	}
-	if err := store.ensureWatch(store.dir); err != nil {
+	if err := store.watchInitialPaths(repoDirs); err != nil {
 		cancel()
 		_ = watcher.Close()
-		return nil, fmt.Errorf("watch config directory %q: %w", store.dir, err)
-	}
-	for _, repoDir := range repoDirs {
-		if err := store.ensureWatch(filepath.Join(store.dir, repoDir)); err != nil {
-			cancel()
-			_ = watcher.Close()
-			return nil, fmt.Errorf("watch repository config directory %q: %w", repoDir, err)
-		}
-	}
-	callerPolicyDir := filepath.Dir(store.callerPolicyPath)
-	if callerPolicyDir != store.dir {
-		if err := store.ensureWatch(callerPolicyDir); err != nil {
-			cancel()
-			_ = watcher.Close()
-			return nil, fmt.Errorf("watch caller policy directory %q: %w", callerPolicyDir, err)
-		}
+		return nil, err
 	}
 	go store.watch(ctx)
 	return store, nil
+}
+
+// watchInitialPaths registers filesystem watches for the config root, every
+// discovered repository directory, and the caller policy directory.
+func (s *ConfigStore) watchInitialPaths(repoDirs map[string]string) error {
+	if err := s.ensureWatch(s.dir); err != nil {
+		return fmt.Errorf("watch config directory %q: %w", s.dir, err)
+	}
+	for _, repoDir := range repoDirs {
+		if err := s.ensureWatch(filepath.Join(s.dir, repoDir)); err != nil {
+			return fmt.Errorf("watch repository config directory %q: %w", repoDir, err)
+		}
+	}
+	callerPolicyDir := filepath.Dir(s.callerPolicyPath)
+	if callerPolicyDir == s.dir {
+		return nil
+	}
+	if err := s.ensureWatch(callerPolicyDir); err != nil {
+		return fmt.Errorf("watch caller policy directory %q: %w", callerPolicyDir, err)
+	}
+	return nil
 }
 
 // Close releases store resources.
@@ -232,19 +236,11 @@ func (s *ConfigStore) CallerIsAdmin(caller string) bool {
 func (s *ConfigStore) watch(ctx context.Context) {
 	defer close(s.loopDone)
 	timer := time.NewTimer(s.debounceDelay)
-	if !timer.Stop() {
-		select {
-		case <-timer.C:
-		default:
-		}
-	}
+	drainTimer(timer)
 	pending := map[string]struct{}{}
 	timerActive := false
 	for {
-		var timerC <-chan time.Time
-		if timerActive {
-			timerC = timer.C
-		}
+		timerC := activeTimerChannel(timer, timerActive)
 		select {
 		case <-ctx.Done():
 			return
@@ -252,30 +248,72 @@ func (s *ConfigStore) watch(ctx context.Context) {
 			if !ok {
 				return
 			}
-			key, reload := s.handleEvent(event)
-			if !reload {
-				continue
-			}
-			pending[key] = struct{}{}
-			timerActive = resetConfigStoreTimer(timer, timerActive, s.debounceDelay)
+			timerActive = s.recordWatchEvent(event, pending, timer, timerActive)
 		case _, ok := <-s.watcher.Errors():
 			if !ok {
 				return
 			}
 		case <-timerC:
 			timerActive = false
-			for key := range pending {
-				if key == callerPolicyReloadKey {
-					if err := s.reloadCallerRepoPolicy(ctx); err != nil && ctx.Err() != nil {
-						return
-					}
-				} else if err := s.reloadRepo(ctx, key); err != nil && ctx.Err() != nil {
-					return
-				}
-				delete(pending, key)
+			if !s.flushPendingReloads(ctx, pending) {
+				return
 			}
 		}
 	}
+}
+
+// activeTimerChannel returns timer's fire channel when the debounce timer is
+// active, or nil (which blocks forever in a select) otherwise.
+func activeTimerChannel(timer *time.Timer, active bool) <-chan time.Time {
+	if !active {
+		return nil
+	}
+	return timer.C
+}
+
+// drainTimer stops timer and discards an already-fired tick, leaving it idle
+// and safe to Reset from the watch loop.
+func drainTimer(timer *time.Timer) {
+	if timer.Stop() {
+		return
+	}
+	select {
+	case <-timer.C:
+	default:
+	}
+}
+
+// recordWatchEvent folds one fsnotify event into pending and returns whether
+// the debounce timer is now active.
+func (s *ConfigStore) recordWatchEvent(event fsnotify.Event, pending map[string]struct{}, timer *time.Timer, timerActive bool) bool {
+	key, reload := s.handleEvent(event)
+	if !reload {
+		return timerActive
+	}
+	pending[key] = struct{}{}
+	return resetConfigStoreTimer(timer, timerActive, s.debounceDelay)
+}
+
+// flushPendingReloads reloads every pending key once the debounce timer
+// fires, draining pending as it goes. It reports false when a reload failed
+// because ctx was cancelled, signaling the caller to stop the watch loop.
+func (s *ConfigStore) flushPendingReloads(ctx context.Context, pending map[string]struct{}) bool {
+	for key := range pending {
+		if err := s.reloadPendingKey(ctx, key); err != nil && ctx.Err() != nil {
+			return false
+		}
+		delete(pending, key)
+	}
+	return true
+}
+
+// reloadPendingKey reloads the caller policy or one repository config,
+// depending on which pending key fired.
+func (s *ConfigStore) reloadPendingKey(ctx context.Context, key string) error {
+	if key == callerPolicyReloadKey {
+		return s.reloadCallerRepoPolicy(ctx)
+	}
+	return s.reloadRepo(ctx, key)
 }
 
 func (s *ConfigStore) handleEvent(event fsnotify.Event) (string, bool) {
@@ -461,12 +499,8 @@ func (s *ConfigStore) forgetWatch(path string) {
 }
 
 func scanMountedConfigs(dir string, readFile func(string) ([]byte, error)) (map[string]ConfigEntry, map[string]string, int, error) {
-	info, err := os.Stat(dir)
-	if err != nil {
-		return nil, nil, 0, fmt.Errorf("stat config directory %q: %w", dir, err)
-	}
-	if !info.IsDir() {
-		return nil, nil, 0, fmt.Errorf("config directory %q is not a directory", dir)
+	if err := statConfigDir(dir); err != nil {
+		return nil, nil, 0, err
 	}
 	children, err := os.ReadDir(dir)
 	if err != nil {
@@ -476,34 +510,61 @@ func scanMountedConfigs(dir string, readFile func(string) ([]byte, error)) (map[
 	repoDirs := make(map[string]string, len(children))
 	validCount := 0
 	for _, child := range children {
-		if !child.IsDir() {
+		repo, entry, ok, err := loadChildConfig(dir, child, repoDirs, readFile)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+		if !ok {
 			continue
 		}
-		repo, nameErr := validateRepoName(child.Name())
-		if nameErr != nil {
-			continue
+		entries[repo] = entry
+		if entry.Valid {
+			validCount++
 		}
-		if previous, ok := repoDirs[repo]; ok && previous != child.Name() {
-			return nil, nil, 0, fmt.Errorf("duplicate normalized repository name %q from %q and %q", repo, previous, child.Name())
-		}
-		repoDirs[repo] = child.Name()
-		content, readErr := readFile(filepath.Join(dir, child.Name(), configFileName))
-		if readErr != nil {
-			if errors.Is(readErr, os.ErrNotExist) {
-				continue
-			}
-			entries[repo] = ConfigEntry{Valid: false, Error: configReadError(readErr)}
-			continue
-		}
-		config, parseErr := parseConfigContent(content)
-		if parseErr != nil {
-			entries[repo] = ConfigEntry{Valid: false, Error: parseErr.Error()}
-			continue
-		}
-		entries[repo] = ConfigEntry{Config: config, Valid: true, LastValidAt: time.Now().UTC()}
-		validCount++
 	}
 	return entries, repoDirs, validCount, nil
+}
+
+// statConfigDir confirms the mounted config root exists and is a directory.
+func statConfigDir(dir string) error {
+	info, err := os.Stat(dir)
+	if err != nil {
+		return fmt.Errorf("stat config directory %q: %w", dir, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("config directory %q is not a directory", dir)
+	}
+	return nil
+}
+
+// loadChildConfig resolves one config-root child into a repository config
+// entry. It reports ok=false for entries to skip (non-directories, invalid
+// repo names, or a missing config.json) and a non-nil error only for a
+// duplicate normalized repository name, which aborts the scan.
+func loadChildConfig(dir string, child os.DirEntry, repoDirs map[string]string, readFile func(string) ([]byte, error)) (string, ConfigEntry, bool, error) {
+	if !child.IsDir() {
+		return "", ConfigEntry{}, false, nil
+	}
+	repo, nameErr := validateRepoName(child.Name())
+	if nameErr != nil {
+		return "", ConfigEntry{}, false, nil
+	}
+	if previous, ok := repoDirs[repo]; ok && previous != child.Name() {
+		return "", ConfigEntry{}, false, fmt.Errorf("duplicate normalized repository name %q from %q and %q", repo, previous, child.Name())
+	}
+	repoDirs[repo] = child.Name()
+	content, readErr := readFile(filepath.Join(dir, child.Name(), configFileName))
+	if readErr != nil {
+		if errors.Is(readErr, os.ErrNotExist) {
+			return "", ConfigEntry{}, false, nil
+		}
+		return repo, ConfigEntry{Valid: false, Error: configReadError(readErr)}, true, nil
+	}
+	config, parseErr := parseConfigContent(content)
+	if parseErr != nil {
+		return repo, ConfigEntry{Valid: false, Error: parseErr.Error()}, true, nil
+	}
+	return repo, ConfigEntry{Config: config, Valid: true, LastValidAt: time.Now().UTC()}, true, nil
 }
 
 func withConfigStoreDefaults(opts configStoreOptions) configStoreOptions {
@@ -562,15 +623,11 @@ func repoNameForRepoDir(root, path string) (string, bool) {
 
 func repoNameForPath(root, path string, wantsConfig bool) (string, bool) {
 	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(path))
-	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+	if invalidRelConfigPath(rel, err) {
 		return "", false
 	}
 	parts := strings.Split(rel, string(os.PathSeparator))
-	if wantsConfig {
-		if len(parts) != 2 || parts[1] != configFileName {
-			return "", false
-		}
-	} else if len(parts) != 1 {
+	if !relPathPartsMatchShape(parts, wantsConfig) {
 		return "", false
 	}
 	repoName, nameErr := validateRepoName(parts[0])
@@ -578,6 +635,22 @@ func repoNameForPath(root, path string, wantsConfig bool) (string, bool) {
 		return "", false
 	}
 	return repoName, true
+}
+
+// invalidRelConfigPath reports whether rel (as produced by filepath.Rel
+// against the config root) cannot possibly name something under that root.
+func invalidRelConfigPath(rel string, err error) bool {
+	return err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
+// relPathPartsMatchShape reports whether the path segments below the config
+// root match a repo config file path (repo/config.json) or a bare repo
+// directory path (repo), depending on wantsConfig.
+func relPathPartsMatchShape(parts []string, wantsConfig bool) bool {
+	if wantsConfig {
+		return len(parts) == 2 && parts[1] == configFileName
+	}
+	return len(parts) == 1
 }
 
 func resetConfigStoreTimer(timer *time.Timer, active bool, delay time.Duration) bool {

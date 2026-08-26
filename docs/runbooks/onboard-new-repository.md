@@ -1,17 +1,53 @@
 # Onboarding a New Repository
 
 This runbook is the authoritative operator reference for onboarding a repository to
-the `agent-fitness-functions` governance system. It covers both paths:
+the `agent-fitness-functions` governance system. It covers three paths:
 
 - **Local / developer path** — one command, `agent-fitness-functions client onboard`,
   which provisions everything for a locally governed repo. For the hurried version see
   the [5-minute quickstart](../quickstart-0-to-governed.md).
-- **Production path** — the server-side steps that remain: getting the per-repo config
-  and the caller authorization into the shared container deployment, then redeploying.
+- **Self-service remote path** — the same `client onboard` command, run with external
+  TLS material against a remote server, registers the repo server-side via `POST
+  /register` in one authenticated call. See [Self-service path](#self-service-path)
+  below.
+- **Manual / air-gapped production path** — the server-side steps for when a live
+  `POST /register` call isn't possible: getting the per-repo config and the caller
+  authorization into the shared container deployment by hand, then redeploying.
 
 The tooling now automates what this runbook previously walked through by hand
 (config scaffolding, caller-authorization edits, hook installation, cert generation,
-daemon start). What remains genuinely manual is the production redeploy.
+daemon start). What remains genuinely manual is the production redeploy on the
+manual/air-gapped path below.
+
+## Self-service path
+
+The server now boots with **zero configs** — an empty `configs/` directory is a valid
+steady state ("awaiting registration"), not a deployment error. `client onboard` works
+from that empty state end to end:
+
+- `client functions` (offline, reads the embedded governance pattern) or `GET
+  /functions` (remote, unprivileged — any authenticated caller, no repo needs to exist
+  yet) lists the five-function catalog: description, threshold, operator, unit.
+- `--functions cyclomatic-complexity,logic-density` selects a subset instead of the
+  all-five default; an interactive TTY without `--functions` gets a picker checklist
+  over the same catalog instead of the silent default.
+- **In external/remote TLS mode** (`AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA` set,
+  `--addr` pointing at a server that is not a managed local dev daemon), `onboard`
+  self-service registers the repo with `POST /register` instead of writing local
+  `configs/<repo>/config.json` and `caller-repos.json` files — a remote server never
+  sees those local files. Registration creates the config server-side and binds the
+  caller's own certificate CN to the repo in one authenticated call; it is idempotent
+  (replaying the same registration returns 200 with `created: false`). Registering a
+  repo that already exists with a **different** configuration requires an admin CN
+  (409 otherwise). Operators can disable self-service registration entirely with the
+  kill switch `AGENT_FITNESS_FUNCTIONS_DISABLE_REGISTRATION=1`, falling back to the
+  manual/air-gapped path below.
+- **In managed/local mode** `onboard` keeps writing the local config and caller-binding
+  files as before — the local daemon reads those files directly, so there is nothing to
+  register remotely.
+
+The manual production path described below remains for air-gapped or otherwise
+disconnected deployments where a live `POST /register` call isn't possible.
 
 ## Mental model
 
@@ -132,10 +168,14 @@ Flags:
 | `--repo <name>` | working-tree basename | Governance repo name (validated against the grammar) |
 | `--enforcement <advisory\|block>` | `advisory` | Enforcement mode written into the scaffolded config |
 | `--addr <url>` | `https://127.0.0.1:7890` | Governance daemon base URL |
+| `--functions <a,b,...>` | all five | Comma-separated subset of fitness functions to enable |
 | `[path]` | `.` | Repository path |
 
-`onboard` is idempotent. When it finishes it prints the one remaining manual step for
-production governance (copy the config + caller entry to the deployment, redeploy).
+`onboard` is idempotent. In managed/local mode, when it finishes it prints the one
+remaining manual step for production governance (copy the config + caller entry to the
+deployment, redeploy) — see the manual/air-gapped path below. In external/remote TLS
+mode there is no remaining step: registration against `--addr` already happened via
+`POST /register` (see [Self-service path](#self-service-path) above).
 
 > **Enforcement default is `advisory`.** The scaffolded config starts in `advisory`
 > (report, don't block) so a first onboarding never blocks day-one commits on latent
@@ -169,10 +209,13 @@ unrelated Git hooks the installer refuses to overwrite them; set
 `AGENT_FITNESS_FUNCTIONS_HOOK_APPEND=1` (sidecar) or
 `AGENT_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` (replace).
 
-## Production path — server-side onboarding
+## Manual / air-gapped production path — server-side onboarding
 
-Production governance is served by the shared container. Two artifacts must reach that
-deployment.
+Production governance is served by the shared container. When a live `POST /register`
+call isn't possible (see [Self-service path](#self-service-path) above for the
+preferred, connected alternative) — an air-gapped deployment, or registration
+deliberately disabled with `AGENT_FITNESS_FUNCTIONS_DISABLE_REGISTRATION=1` — two
+artifacts must reach that deployment by hand instead.
 
 ### Step 1 — Produce the per-repo config
 

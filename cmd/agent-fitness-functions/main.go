@@ -24,7 +24,7 @@ import (
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/server"
 )
 
-const usageLine = "usage: agent-fitness-functions <client validate|client install-hooks|client onboard|client resolve-dev-cert-version|server start|baseline|doctor|uninstall|upgrade|rollback|runtime provision|runtime doctor>"
+const usageLine = "usage: agent-fitness-functions <client validate|client install-hooks|client onboard|client functions|client resolve-dev-cert-version|server start|baseline|doctor|uninstall|upgrade|rollback|runtime provision|runtime doctor>"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -40,31 +40,54 @@ func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *ht
 		return 2
 	}
 
+	if code, handled := dispatchPrimaryCommand(args, stdout, stderr, httpClient, starter); handled {
+		return code
+	}
+	if code, handled := dispatchLifecycleCommand(args, stdout, stderr); handled {
+		return code
+	}
+	_, _ = fmt.Fprintf(stderr, "unknown command %q\n", args[0])
+	return 2
+}
+
+// dispatchPrimaryCommand handles the everyday top-level subcommands (help,
+// client, server, doctor, baseline). It reports handled=false for anything
+// else so the caller can fall through to dispatchLifecycleCommand.
+func dispatchPrimaryCommand(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) (int, bool) {
 	switch args[0] {
 	case "--help", "-h", "help":
 		_, _ = fmt.Fprintln(stdout, usageLine)
-		return 0
+		return 0, true
 	case "client":
-		return runClient(args[1:], stdout, stderr, httpClient, starter)
+		return runClient(args[1:], stdout, stderr, httpClient, starter), true
 	case "server":
-		return runServer(args[1:], stderr)
+		return runServer(args[1:], stderr), true
 	case "doctor":
-		return runDoctorCommand(args[1:], stdout, stderr, httpClient)
+		return runDoctorCommand(args[1:], stdout, stderr, httpClient), true
 	case "baseline":
-		return runBaselineCommand(args[1:], stdout, stderr)
-	case "uninstall":
-		return runUninstallCommand(args[1:], stdout, stderr)
-	case "upgrade":
-		return runUpgradeCommand(args[1:], stdout, stderr)
-	case "rollback":
-		return runRollbackCommand(args[1:], stdout, stderr)
-	case "runtime":
-		return runRuntimeCommand(args[1:], stdout, stderr)
-	case "internal":
-		return runInternalCommand(args[1:], stdout, stderr)
+		return runBaselineCommand(args[1:], stdout, stderr), true
 	default:
-		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", args[0])
-		return 2
+		return 0, false
+	}
+}
+
+// dispatchLifecycleCommand handles the ADR-0005 lifecycle/runtime/internal
+// subcommands (uninstall, upgrade, rollback, runtime, internal). It reports
+// handled=false for anything else so the caller can report "unknown command".
+func dispatchLifecycleCommand(args []string, stdout, stderr io.Writer) (int, bool) {
+	switch args[0] {
+	case "uninstall":
+		return runUninstallCommand(args[1:], stdout, stderr), true
+	case "upgrade":
+		return runUpgradeCommand(args[1:], stdout, stderr), true
+	case "rollback":
+		return runRollbackCommand(args[1:], stdout, stderr), true
+	case "runtime":
+		return runRuntimeCommand(args[1:], stdout, stderr), true
+	case "internal":
+		return runInternalCommand(args[1:], stdout, stderr), true
+	default:
+		return 0, false
 	}
 }
 
@@ -188,7 +211,7 @@ func runBaselineCommand(args []string, stdout, stderr io.Writer) int {
 
 func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions client <validate|install-hooks|onboard|resolve-dev-cert-version>")
+		_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions client <validate|install-hooks|onboard|functions|resolve-dev-cert-version>")
 		return 2
 	}
 	switch args[0] {
@@ -198,6 +221,8 @@ func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client,
 		return clientExitCode(client.RunInstallHooks(args[1:], stdout, stderr), stderr)
 	case "onboard":
 		return clientExitCode(client.RunOnboard(args[1:], stdout, stderr, httpClient, starter), stderr)
+	case "functions":
+		return clientExitCode(client.RunFunctions(args[1:], stdout, nil), stderr)
 	case "resolve-dev-cert-version":
 		return clientExitCode(client.RunResolveDevCertVersion(args[1:], stdout), stderr)
 	default:
@@ -284,6 +309,7 @@ func runServe(args []string, stderr io.Writer) int {
 			TrustedProxyHeaders:   *trustedProxyHeaders,
 			TrustedProxyClientCNs: splitCommaSeparatedValues(*trustedProxyClientCNs),
 			RateLimiter:           rateLimiter,
+			DisableRegistration:   os.Getenv("AGENT_FITNESS_FUNCTIONS_DISABLE_REGISTRATION") == "1",
 		},
 		BlockOnWarmup:   *blockOnWarmup,
 		AnalyzerTimeout: analyzerTimeout,

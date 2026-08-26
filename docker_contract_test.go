@@ -165,14 +165,15 @@ func TestDockerComposeDeploymentContract(t *testing.T) {
 		"GIT_SHA: ${GIT_SHA:-dev}",
 		"BUILD_DATE: ${BUILD_DATE:-unknown}",
 		`"7890:7890"`,
-		"./configs:/app/configs:ro",
+		"./configs:/app/configs",
 		"./certs:/app/certs:ro",
-		"./caller-repos.json:/app/caller-repos.json:ro",
+		"./caller-repos.json:/app/caller-repos.json",
 		"AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR: /app/configs",
 		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR: /app/certs",
 		"AGENT_FITNESS_FUNCTIONS_RUNTIME_DIR: /run/agent-fitness-functions",
 		`AGENT_FITNESS_FUNCTIONS_RATE_LIMIT: "100"`,
 		`AGENT_FITNESS_FUNCTIONS_ANALYZER_TIMEOUT: "30s"`,
+		`AGENT_FITNESS_FUNCTIONS_DISABLE_REGISTRATION: "0"`,
 		`test: ["CMD-SHELL", "curl --fail --silent --cacert /run/agent-fitness-functions/health-ca.crt https://127.0.0.1:7890/health || exit 1"]`,
 		"interval: 30s",
 		"timeout: 5s",
@@ -199,6 +200,28 @@ func TestDockerComposeDeploymentContract(t *testing.T) {
 	for _, forbidden := range []string{"AGENT_FITNESS_FUNCTIONS_TLS_CERT", "AGENT_FITNESS_FUNCTIONS_TLS_KEY", "AGENT_FITNESS_FUNCTIONS_TLS_CA", "/app/certs/current"} {
 		mustNotContain(t, compose, forbidden)
 	}
+}
+
+// TestComposeMountsAreWritableForSelfServiceRegistration locks the deployment
+// side of POST /register: the configs directory and caller-repos.json must be
+// writable bind mounts so the server can persist self-service registrations,
+// while the certs mount and the read-only rootfs stay locked down. The
+// registration kill switch must be declared explicitly so operators see the
+// choice in the compose file.
+func TestComposeMountsAreWritableForSelfServiceRegistration(t *testing.T) {
+	content, err := os.ReadFile("docker-compose.yml")
+	if err != nil {
+		t.Fatalf("read docker-compose.yml: %v", err)
+	}
+	compose := string(content)
+
+	mustContain(t, compose, "./configs:/app/configs")
+	mustNotContain(t, compose, "./configs:/app/configs:ro")
+	mustContain(t, compose, "./caller-repos.json:/app/caller-repos.json")
+	mustNotContain(t, compose, "./caller-repos.json:/app/caller-repos.json:ro")
+	mustContain(t, compose, "./certs:/app/certs:ro")
+	mustContain(t, compose, "read_only: true")
+	mustContain(t, compose, `AGENT_FITNESS_FUNCTIONS_DISABLE_REGISTRATION: "0"`)
 }
 
 func TestRequirementsLockPinsTransitiveDependenciesWithHashes(t *testing.T) {

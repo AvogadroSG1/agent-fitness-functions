@@ -59,15 +59,26 @@ func TestNewConfigStoreReturnsErrorForMissingDirectory(t *testing.T) {
 	}
 }
 
-func TestNewConfigStoreReturnsErrorWhenStartupHasZeroValidConfigs(t *testing.T) {
+// TestNewConfigStoreBootsWhenStartupHasZeroValidConfigs locks the self-service
+// onboarding contract: a mounted repo with an unparsable config.json still
+// yields zero *valid* configs, but that no longer fails boot — the entry is
+// simply recorded as invalid and can be corrected (or a new repo registered)
+// without restarting the daemon.
+func TestNewConfigStoreBootsWhenStartupHasZeroValidConfigs(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
 	writeMountedConfig(t, dir, "repo-one", `{`)
 
-	_, err := NewConfigStore(context.Background(), dir)
-	if err == nil {
-		t.Fatal("NewConfigStore() error = nil, want error")
+	store, err := NewConfigStore(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("NewConfigStore() error = %v, want nil", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	entry, ok := store.Lookup("repo-one")
+	if !ok || entry.Valid {
+		t.Fatalf("Lookup(repo-one) = (%+v, %v), want a present but invalid entry", entry, ok)
 	}
 }
 

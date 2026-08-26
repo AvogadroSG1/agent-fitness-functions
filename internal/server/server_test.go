@@ -782,11 +782,32 @@ func TestServeReturnsErrorForMissingConfigDir(t *testing.T) {
 	}
 }
 
-func TestServeReturnsErrorForEmptyConfigDir(t *testing.T) {
+// TestServeBootsForEmptyConfigDirAwaitingRegistration locks the self-service
+// onboarding contract at the daemon-boot level: an empty configs directory is
+// a legitimate "awaiting registration" steady state, so Serve must come up
+// and answer health checks rather than failing startup.
+func TestServeBootsForEmptyConfigDirAwaitingRegistration(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	dir := t.TempDir()
-	err := serveWithDependencies(context.Background(), "127.0.0.1:0", dir, io.Discard, NewConfigStore)
-	if err == nil {
-		t.Fatal("Serve error = nil, want empty config dir error")
+	addr := reserveLoopbackAddr(t)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- serveWithDependencies(ctx, addr, dir, io.Discard, NewConfigStore)
+	}()
+
+	client := &http.Client{Timeout: time.Second}
+	waitForHealth(t, client, "http://"+addr)
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil && err != context.Canceled {
+			t.Fatalf("Serve returned %v, want nil or context.Canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Serve did not stop after context cancellation")
 	}
 }
 
