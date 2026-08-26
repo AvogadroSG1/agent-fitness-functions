@@ -46,10 +46,13 @@ func RunFunctions(args []string, stdout io.Writer, httpClient *http.Client) erro
 	flags.SetOutput(io.Discard)
 	addr := flags.String("addr", defaultOnboardAddr, "governance daemon base URL")
 	remote := flags.Bool("remote", false, "fetch the catalog from a live daemon instead of the embedded pattern")
+	clientCert := flags.String("client-cert", "", "client certificate for --remote (PEM)")
+	clientKey := flags.String("client-key", "", "client key for --remote (PEM)")
+	clientCA := flags.String("client-ca", "", "server CA bundle for --remote (PEM)")
 	if err := flags.Parse(args); err != nil {
 		return usageError{err: err}
 	}
-	entries, err := resolveFunctionCatalog(*remote, *addr, httpClient)
+	entries, err := resolveFunctionCatalog(*remote, *addr, httpClient, *clientCert, *clientKey, *clientCA)
 	if err != nil {
 		return err
 	}
@@ -57,11 +60,37 @@ func RunFunctions(args []string, stdout io.Writer, httpClient *http.Client) erro
 	return nil
 }
 
-func resolveFunctionCatalog(remote bool, addr string, httpClient *http.Client) ([]functionCatalogEntry, error) {
+func resolveFunctionCatalog(remote bool, addr string, httpClient *http.Client, certFlag, keyFlag, caFlag string) ([]functionCatalogEntry, error) {
 	if !remote {
 		return offlineFunctionCatalog()
 	}
-	return remoteFunctionCatalog(addr, httpClient)
+	client, err := remoteCatalogClient(httpClient, addr, certFlag, keyFlag, caFlag)
+	if err != nil {
+		return nil, err
+	}
+	return remoteFunctionCatalog(addr, client)
+}
+
+// remoteCatalogClient resolves the TLS material for --remote the same way
+// client validate does (flags, then AGENT_FITNESS_FUNCTIONS_CLIENT_* env, then
+// the managed dev-cert directory), minus the daemon auto-start: fetching a
+// catalog is read-only and must not spawn anything.
+func remoteCatalogClient(httpClient *http.Client, addr, certFlag, keyFlag, caFlag string) (*http.Client, error) {
+	if httpClient != nil {
+		return httpClient, nil
+	}
+	mode, err := resolveClientTLSMode(certFlag, keyFlag, caFlag, resolveDevCertDir(resolveRepoRoot("", "")))
+	if err != nil {
+		return nil, err
+	}
+	if mode.managed && !isLocalHTTPS(addr) {
+		mode = clientTLSMode{}
+	}
+	material, err := loadClientTLSMode(mode, mode.managed)
+	if err != nil {
+		return nil, err
+	}
+	return configureClientTLSMaterial(&http.Client{Timeout: 3 * time.Second}, material)
 }
 
 func offlineFunctionCatalog() ([]functionCatalogEntry, error) {
@@ -76,9 +105,6 @@ func offlineFunctionCatalog() ([]functionCatalogEntry, error) {
 }
 
 func remoteFunctionCatalog(addr string, httpClient *http.Client) ([]functionCatalogEntry, error) {
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 3 * time.Second}
-	}
 	body, err := fetchRemoteFunctions(httpClient, addr)
 	if err != nil {
 		return nil, err
