@@ -315,6 +315,84 @@ func TestRunDoctorReturnsErrorWhenChecksFail(t *testing.T) {
 	}
 }
 
+// --- WP3: doctor recognizes forge-redirected hook entries ---
+//
+// install-hooks (WP2) writes the git-guard and Edit/Write PreToolUse entries
+// into .claude/settings.local.json instead of .claude/settings.json when the
+// latter is forge-managed (forgeManagedClaudeSettings), because forge's own
+// `forge upgrade` command overwrites settings.json wholesale. doctor must
+// look in both files, and when an entry is missing from both because a forge
+// upgrade clobbered settings.json, its remediation must explain that instead
+// of just repeating "run install-hooks".
+
+func writeClaudeSettingsFileForTest(t *testing.T, repoRoot, name, content string) {
+	t.Helper()
+	claudeDir := filepath.Join(repoRoot, ".claude")
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		t.Fatalf("mkdir .claude: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(claudeDir, name), []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", name, err)
+	}
+}
+
+const settingsLocalWithGitGuardJSON = `{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "/repo/.git/hooks/agent-fitness-functions-git-guard" } ] }
+    ]
+  }
+}
+`
+
+const settingsLocalWithEditWriteJSON = `{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Edit|Write", "hooks": [ { "type": "command", "command": "/repo/.git/hooks/agent-fitness-functions-pre-tool-use" } ] }
+    ]
+  }
+}
+`
+
+func TestGitGuardSettingsResultFindsEntryInSettingsLocal(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeClaudeSettingsFileForTest(t, repoRoot, "settings.local.json", settingsLocalWithGitGuardJSON)
+
+	result := gitGuardSettingsResult(repoRoot)
+	if !result.passed {
+		t.Fatalf("gitGuardSettingsResult = %+v, want passed when entry is only in settings.local.json", result)
+	}
+	if !strings.Contains(result.detail, "settings.local.json") {
+		t.Fatalf("detail = %q, want it to name settings.local.json", result.detail)
+	}
+}
+
+func TestEditWriteHookResultFindsEntryInSettingsLocal(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeClaudeSettingsFileForTest(t, repoRoot, "settings.local.json", settingsLocalWithEditWriteJSON)
+
+	result := editWriteHookResult(repoRoot)
+	if !result.passed {
+		t.Fatalf("editWriteHookResult = %+v, want passed when entry is only in settings.local.json", result)
+	}
+	if !strings.Contains(result.detail, "settings.local.json") {
+		t.Fatalf("detail = %q, want it to name settings.local.json", result.detail)
+	}
+}
+
+func TestGitGuardSettingsResultFlagsForgeClobber(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeClaudeSettingsFileForTest(t, repoRoot, "settings.json", forgeTemplateSettingsJSON)
+
+	result := gitGuardSettingsResult(repoRoot)
+	if result.passed {
+		t.Fatalf("gitGuardSettingsResult = %+v, want failing when the entry is missing from a forge-clobbered settings.json", result)
+	}
+	if !strings.Contains(result.remediation, "forge upgrade") || !strings.Contains(result.remediation, "install-hooks") {
+		t.Fatalf("remediation = %q, want it to mention both forge upgrade and install-hooks", result.remediation)
+	}
+}
+
 func TestRunDoctorRejectsUnknownFlag(t *testing.T) {
 	var stdout, stderr strings.Builder
 	err := RunDoctor([]string{"--nope"}, &stdout, &stderr, &http.Client{Timeout: time.Second})

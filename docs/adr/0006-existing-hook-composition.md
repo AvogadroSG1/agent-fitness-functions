@@ -248,6 +248,51 @@ Because calm-poc-q8d.3 explicitly lists Claude/Codex/OpenCode coexistence in sco
 
 **Resolved during this review round:** whether Beads' `--chain` flag preserves a previously-inserted agent-fitness-functions sidecar call was reproduced empirically in a scratch worktree (`bd version 1.2.2`, see Confirmation and Supporting Evidence). It does. The reproduction also surfaced a mechanism detail this MADR did not previously account for: `bd init` sets `git config core.hooksPath` to `.beads/hooks/`, so git resolves `pre-commit` there instead of `.git/hooks/pre-commit` once Beads has initialized a repository. This does not require new installer logic: the existing `gitHookPath` helper (`internal/client/client.go:447-456`) already resolves the effective target file the same way git does, via `git rev-parse --git-path hooks/<name>`, which follows `core.hooksPath` transparently (Decision Outcome item 9). calm-poc-q8d.3 MUST add a regression fixture proving this composes correctly in a `core.hooksPath`-redirected repo, not new resolution code. This also corrects Option 3's cost analysis (Considered Options, above): Beads' own default install path does cooperate with `core.hooksPath`, it just does not free agent-fitness-functions from needing its own file-content composition logic, since Beads still owns whatever file that path resolves to.
 
+## Addendum (2026-08-28): dispatcher-chain recognition and forge-managed settings
+
+### Forge dispatcher-chain scenario
+
+The `forge` scaffolder generates repositories where `bd init` sets `core.hooksPath=.beads/hooks/`, and after `lefthook install --force` clobbers Beads' hook, `forge` rewrites the affected hook file (e.g. `.beads/hooks/pre-commit`) as a dispatcher chain:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+"$script_dir/<hook>.old" "$@"
+exec "$script_dir/<hook>.lefthook" "$@"
+```
+
+The dispatcher runs under `set -euo pipefail`, so a nonzero exit from the first stage (`.old`, which contains Beads' hook) exits the host immediately — identical propagation semantics to the inline error handling already specified in Decision Outcome 4 (Execution order and failure propagation), so no special case is needed. Advisory-mode validation exits 0 and the chain continues to the `exec`.
+
+### Known-owner detection misses the dispatcher without sibling-signature transfer
+
+Content-only known-owner detection (recognizing a direct substring marker in the host file like `BEGIN BEADS INTEGRATION`) would not identify the dispatcher chain case: the dispatcher file itself contains neither Beads' marker nor Lefthook's marker — those markers live in the *sibling* files it calls (`.beads/hooks/<hook>.old` and `.beads/hooks/<hook>.lefthook`). Before this addendum, `install-hooks` would treat an unmanaged dispatcher as an unrecognized hook, requiring an explicit escape hatch.
+
+### Sibling-signature transfer rule with fail-closed guard
+
+The refined known-owner detection adds a rule: an unmanaged host hook is treated as known-owner when it **references a sibling chain file by name** (either `<hook>.old` — lefthook's clobber-rename convention — or `<hook>.lefthook` — forge's repairBeadsHookChain rename) AND that sibling file's content carries a known-owner signature (`BEGIN BEADS INTEGRATION` substring or Lefthook-generated header).
+
+The fail-closed guard: a stale or unrelated sibling next to an unrelated hand-written host hook that never references it does NOT unlock auto-composition. A dispatcher cannot compose unless the referenced siblings prove their ownership via their own signatures. This preserves ADR-0006's "refuse, not guess" posture for anything without hard evidence.
+
+### Composition order and `set -e` propagation
+
+When the sibling-signature rule recognizes a dispatcher chain, composition proceeds exactly as specified in Decision Outcome 2–5: the agent-fitness-functions sidecar call is inserted before the dispatcher's terminal `exec "$@"` line (the same safe-insertion-point rule applies, just in the dispatcher context rather than a bare script). Execution order becomes: Beads hook (in `.old`) → agent-fitness-functions sidecar → Lefthook (in `.lefthook`).
+
+Because the dispatcher runs under `set -euo pipefail`, a nonzero exit from the Beads stage exits the entire host without reaching the agent-fitness-functions sidecar. When the sidecar runs (Beads succeeded), its own exit status determines whether the Lefthook stage runs: a block (nonzero) short-circuits the `exec`, preserving Decision Outcome 4's failure-propagation contract. Advisory-mode validation exits 0 and `exec` continues to Lefthook.
+
+### Forge-managed `.claude/settings.json` protection
+
+In forge-generated repositories, `.claude/settings.json` is on `forge upgrade`'s managed-file list and is overwritten wholesale on every `forge upgrade` run (and `forge upgrade --check` runs at every Claude session start via a SessionStart hook). Without protection, `agent-fitness-functions client install-hooks`' PreToolUse entries would be silently destroyed and recreated on each upgrade cycle.
+
+New behavior: when `.claude/settings.json` is detected as forge-managed (its SessionStart commands contain `forge upgrade` or `forge sync-allowlist`), `install-hooks` upserts the two PreToolUse entries (`git-guard` and `pre-tool-use`) into `.claude/settings.local.json` instead (Claude Code automatically merges both files, with `.local.json` entries taking precedence). Forge never wholesale-rewrites `settings.local.json` — its reconciler only edits between `// BEGIN FORGE ALLOW` / `// END FORGE ALLOW` markers — so PreToolUse entries survive the upgrade.
+
+Trade-off: `forge` gitignores `.claude/settings.local.json`, making PreToolUse entries per-machine: each fresh clone runs `agent-fitness-functions client install-hooks` once to set them up. Running `agent-fitness-functions client doctor` flags a missing PreToolUse entry (advisory `⚠` if absent), and its remediation explains that `forge upgrade` rewrites `.claude/settings.json` and entries are kept in `.claude/settings.local.json` on a per-machine basis.
+
+### Fixture evidence
+
+A forge-generated repository with both Beads and Lefthook installed, onboarded for agent-fitness-functions governance, now provides a real-world fixture for the dispatcher-chain scenario: the order of execution (Beads → agent-fitness-functions → Lefthook), idempotent composition without escape hatches, PreToolUse entries persisting across `forge upgrade` cycles, and `doctor` flagging absence correctly.
+
 ## Supporting Evidence
 
 - [ADR-0001: Rename calm-bridge to stack-fitness-functions](0001-rename-calm-bridge-to-stack-fitness-functions.md)
