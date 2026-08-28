@@ -195,12 +195,12 @@ agent-fitness-functions client install-hooks
 
 It installs and registers, with zero manual settings authoring:
 
-- `.git/hooks/pre-commit` — validates staged files at commit time.
-- `.git/hooks/pre-push` — push-time hook.
-- `.git/hooks/agent-fitness-functions-git-guard` — blocks bypass commands
+- `pre-commit` hook at the git-resolved hooks path (via `git rev-parse --git-path hooks/pre-commit`, which honors `core.hooksPath` when set — e.g., `.beads/hooks/pre-commit` in Beads-initialized repos, `.git/hooks/pre-commit` otherwise) — validates staged files at commit time.
+- `pre-push` hook at the git-resolved hooks path (via `git rev-parse --git-path hooks/pre-push`) — push-time hook.
+- `agent-fitness-functions-git-guard` at the git-resolved hooks path — blocks bypass commands
   (`--no-verify`, force-push, ff-only merges), registered as a Bash `PreToolUse` entry
   in `.claude/settings.json`.
-- `.git/hooks/agent-fitness-functions-pre-tool-use` (+ `format-violations.py`) — the
+- `agent-fitness-functions-pre-tool-use` (+ `format-violations.py`) at the git-resolved hooks path — the
   agent Edit/Write content-validation hook, registered as an `Edit|Write` `PreToolUse`
   entry in `.claude/settings.json`.
 
@@ -208,6 +208,14 @@ Both `.claude/settings.json` entries are upserted idempotently. If the repo alre
 unrelated Git hooks the installer refuses to overwrite them; set
 `AGENT_FITNESS_FUNCTIONS_HOOK_APPEND=1` (sidecar) or
 `AGENT_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` (replace).
+
+### forge-generated repositories
+
+Repositories initialized by the `forge` scaffolder come pre-wired with Beads and Lefthook in a chained composition. Onboarding with `agent-fitness-functions client install-hooks` auto-composes into that chain without needing any environment variables:
+
+- **Automatic composition:** `forge` creates a dispatcher hook (e.g. `.beads/hooks/pre-commit`) that calls Beads' hook (`.beads/hooks/pre-commit.old`) and then Lefthook's hook (`.beads/hooks/pre-commit.lefthook`). `install-hooks` recognizes this dispatcher pattern via the sibling-signature rule (the dispatcher references `.old` and `.lefthook` by name, and those siblings carry known-owner signatures) and inserts the agent-fitness-functions sidecar call before Lefthook's stage.
+- **Execution order:** Beads hook → agent-fitness-functions sidecar → Lefthook. All three stages run exactly once; a nonzero exit from Beads or agent-fitness-functions blocks the subsequent stages.
+- **PreToolUse entries in `.claude/settings.local.json`:** Because `forge upgrade` rewrites `.claude/settings.json` wholesale on every run (and runs at every Claude session start), PreToolUse entries cannot be stored there. `install-hooks` instead upserts them to `.claude/settings.local.json`, which `forge` gitignores and never overwrites. Entries are per-machine: run `agent-fitness-functions client install-hooks` once per fresh clone. Running `agent-fitness-functions client doctor` flags missing PreToolUse entries (advisory `⚠` if absent) and explains the per-machine setup.
 
 ## Manual / air-gapped production path — server-side onboarding
 

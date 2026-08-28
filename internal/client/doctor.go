@@ -507,21 +507,53 @@ func gitHookResult(repoRoot, hookName string) checkResult {
 	return checkResult{name: name, detail: path, passed: true}
 }
 
+// forgeClobberExplanation explains why a governed PreToolUse entry is missing from
+// both .claude/settings.json and .claude/settings.local.json when settings.json is
+// forge-managed (ADR-0006 "forge interop"): forge's own `forge upgrade` command
+// overwrites settings.json wholesale on every managed-file sync, so install-hooks (WP2)
+// redirects new entries to settings.local.json instead — but a repo onboarded before
+// that redirect existed, or one whose settings.local.json was deleted, would otherwise
+// see doctor repeat "run install-hooks" without explaining why the entry keeps
+// disappearing.
+const forgeClobberExplanation = "forge upgrade rewrites .claude/settings.json — re-run agent-fitness-functions client install-hooks (entries are kept in .claude/settings.local.json)"
+
+// claudeHookEntryLocation checks .claude/settings.json, then .claude/settings.local.json,
+// for a PreToolUse entry matching markers (as installed by applyClaudeHook). It returns
+// the relative path of whichever file the entry was found in, for use in a check's detail
+// line.
+func claudeHookEntryLocation(repoRoot string, markers []string) (file string, found bool, err error) {
+	for _, name := range []string{"settings.json", "settings.local.json"} {
+		relative := filepath.Join(".claude", name)
+		settings, loadErr := loadClaudeSettings(filepath.Join(repoRoot, relative))
+		if loadErr != nil {
+			return "", false, loadErr
+		}
+		entries := preToolUseEntries(ensureHooksSection(settings))
+		if _, _, ok := findClaudeHookEntry(entries, markers); ok {
+			return relative, true, nil
+		}
+	}
+	return "", false, nil
+}
+
 func gitGuardSettingsResult(repoRoot string) checkResult {
 	name := "agent git-guard hook"
-	settings, err := loadClaudeSettings(filepath.Join(repoRoot, ".claude", "settings.json"))
+	file, found, err := claudeHookEntryLocation(repoRoot, gitGuardNameHistory)
 	if err != nil {
 		return checkResult{name: name, detail: err.Error(), remediation: "agent-fitness-functions client install-hooks"}
 	}
-	entries := preToolUseEntries(ensureHooksSection(settings))
-	if _, _, found := findClaudeHookEntry(entries, gitGuardNameHistory); !found {
+	if !found {
+		remediation := "agent-fitness-functions client install-hooks"
+		if forgeManagedClaudeSettings(filepath.Join(repoRoot, ".claude", "settings.json")) {
+			remediation = forgeClobberExplanation
+		}
 		return checkResult{
 			name:        name,
-			detail:      "no Bash git-guard PreToolUse entry in .claude/settings.json",
-			remediation: "agent-fitness-functions client install-hooks",
+			detail:      "no Bash git-guard PreToolUse entry in .claude/settings.json or .claude/settings.local.json",
+			remediation: remediation,
 		}
 	}
-	return checkResult{name: name, detail: "configured in .claude/settings.json", passed: true}
+	return checkResult{name: name, detail: "configured in " + file, passed: true}
 }
 
 // editWriteHookResult reports the Edit|Write content-validation PreToolUse entry as
@@ -530,17 +562,20 @@ func gitGuardSettingsResult(repoRoot string) checkResult {
 // install-hooks.
 func editWriteHookResult(repoRoot string) checkResult {
 	name := "agent Edit/Write hook (optional)"
-	settings, err := loadClaudeSettings(filepath.Join(repoRoot, ".claude", "settings.json"))
+	file, found, err := claudeHookEntryLocation(repoRoot, agentHookNameHistory)
 	if err != nil {
 		return checkResult{name: name, detail: err.Error(), warning: true}
 	}
-	entries := preToolUseEntries(ensureHooksSection(settings))
-	if _, _, found := findClaudeHookEntry(entries, agentHookNameHistory); found {
-		return checkResult{name: name, detail: "configured in .claude/settings.json", passed: true}
+	if found {
+		return checkResult{name: name, detail: "configured in " + file, passed: true}
+	}
+	detail := "no Edit|Write PreToolUse entry (pre-write architecture validation not wired)"
+	if forgeManagedClaudeSettings(filepath.Join(repoRoot, ".claude", "settings.json")) {
+		detail = forgeClobberExplanation
 	}
 	return checkResult{
 		name:    name,
-		detail:  "no Edit|Write PreToolUse entry (pre-write architecture validation not wired)",
+		detail:  detail,
 		warning: true,
 	}
 }
