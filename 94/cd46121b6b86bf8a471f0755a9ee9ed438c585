@@ -1,0 +1,19 @@
+hooks/git_guard_test.go
+  s_c778e86937b9e7::t_1304917d9b80b6 1-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "94cd46121b6b86bf8a471f0755a9ee9ed438c585",
+  "prompts": {},
+  "sessions": {
+    "s_c778e86937b9e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5e15930-a07c-44cb-82f5-2baf38d23229",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
