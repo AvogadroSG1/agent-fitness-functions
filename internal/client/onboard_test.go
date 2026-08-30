@@ -353,7 +353,7 @@ func TestOnboardReusesOneManagedGenerationForStartupAndDoctor(t *testing.T) {
 	if err := o.ensureCerts(); err != nil {
 		t.Fatalf("ensureCerts: %v", err)
 	}
-	daemonCfg := daemonStartConfigFromMaterial(o.addr, o.repoRoot, o.tlsMaterial)
+	daemonCfg := daemonStartConfigFromMaterial(o.addr, o.tlsMaterial)
 	if !daemonCfg.Local || daemonCfg.TLSCert == "" {
 		t.Fatalf("daemon config did not reuse managed material: %+v", daemonCfg)
 	}

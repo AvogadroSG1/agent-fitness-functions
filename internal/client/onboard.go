@@ -102,7 +102,7 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 3 * time.Second}
 	}
-	tlsResolution, err := resolveOnboardTLS(parsedFlags.addr, repoRoot, httpClient)
+	tlsResolution, err := resolveOnboardTLS(parsedFlags.addr, httpClient)
 	if err != nil {
 		return onboarder{}, err
 	}
@@ -194,14 +194,7 @@ func resolveCertificatesOnlyOnboarder(extraArgs []string, forceDevCertRotation b
 	}
 	certDir := os.Getenv(envDevCertDir)
 	if certDir == "" {
-		workingDir, err := os.Getwd()
-		if err != nil {
-			return onboarder{}, fmt.Errorf("resolve development certificate directory: %w", err)
-		}
-		if root := resolveRepoRoot("", ""); root != "" {
-			workingDir = root
-		}
-		certDir = filepath.Join(workingDir, "certs")
+		certDir = governanceCertsDir()
 	}
 	return onboarder{certDir: certDir, certificatesOnly: true, forceDevCertRotation: forceDevCertRotation}, nil
 }
@@ -240,11 +233,11 @@ type onboardTLSResolution struct {
 	httpClient  *http.Client
 }
 
-// resolveOnboardTLS resolves the client TLS mode for repoRoot and, for the
+// resolveOnboardTLS resolves the client TLS mode and, for the
 // external-certificate path, loads and validates that material and confirms
 // an already-running healthy daemon before returning.
-func resolveOnboardTLS(addr, repoRoot string, httpClient *http.Client) (onboardTLSResolution, error) {
-	certDir := resolveDevCertDir(repoRoot)
+func resolveOnboardTLS(addr string, httpClient *http.Client) (onboardTLSResolution, error) {
+	certDir := resolveDevCertDir()
 	tlsMode, err := resolveClientTLSMode("", "", "", certDir)
 	if err != nil {
 		return onboardTLSResolution{}, err
@@ -717,7 +710,7 @@ func (o *onboarder) startDaemon() error {
 		o.detail("external daemon healthy; automatic startup disabled")
 		return nil
 	}
-	daemonCfg := daemonStartConfigFromMaterial(o.addr, o.repoRoot, o.tlsMaterial)
+	daemonCfg := daemonStartConfigFromMaterial(o.addr, o.tlsMaterial)
 	if err := ensureDaemon(httpClient, o.addr, daemonCfg, o.starter); err != nil {
 		return err
 	}

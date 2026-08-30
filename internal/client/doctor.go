@@ -98,7 +98,7 @@ func resolveDoctorConfig(args []string, httpClient *http.Client) (doctorConfig, 
 		return doctorConfig{}, err
 	}
 	repoRoot := resolveRepoRoot("", "")
-	certDir := resolveDevCertDir(repoRoot)
+	certDir := resolveDevCertDir()
 	mode, err := resolveClientTLSMode(*clientCert, *clientKey, *clientCA, certDir)
 	if err != nil {
 		return doctorConfig{}, err

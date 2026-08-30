@@ -831,8 +831,7 @@ func appendFile(path string, content []byte) (err error) {
 // local TLS material when applicable, configures the mTLS client, and ensures a
 // reachable daemon. It returns the client to use for the validation request.
 func establishDaemon(httpClient *http.Client, addr, repo, file, certFlag, keyFlag, caFlag string, starter func(DaemonStartConfig) error) (*http.Client, error) {
-	repoRoot := resolveRepoRoot(repo, file)
-	certDir := resolveDevCertDir(repoRoot)
+	certDir := resolveDevCertDir()
 	mode, err := resolveClientTLSMode(certFlag, keyFlag, caFlag, certDir)
 	if err != nil {
 		return nil, err
@@ -844,7 +843,7 @@ func establishDaemon(httpClient *http.Client, addr, repo, file, certFlag, keyFla
 	if err != nil {
 		return nil, err
 	}
-	daemonCfg := daemonStartConfigFromMaterial(addr, repoRoot, material)
+	daemonCfg := daemonStartConfigFromMaterial(addr, material)
 	configuredClient, err := configureClientTLSMaterial(httpClient, material)
 	if err != nil {
 		return nil, err

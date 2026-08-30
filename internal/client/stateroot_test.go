@@ -32,27 +32,12 @@ func governanceStateHome(t *testing.T) string {
 
 func TestResolveDevCertDirDefaultsToGovernanceRoot(t *testing.T) {
 	govRoot := governanceStateHome(t)
-	repoRoot := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(repoRoot, "certs"), 0o755); err != nil {
-		t.Fatal(err)
-	}
 
-	got := resolveDevCertDir(repoRoot)
+	got := resolveDevCertDir()
 
 	want := filepath.Join(govRoot, "certs")
 	if got != want {
-		t.Fatalf("resolveDevCertDir(%q) = %q, want machine governance root %q (repo-local certs/ must no longer be consulted)", repoRoot, got, want)
-	}
-}
-
-func TestResolveDevCertDirIgnoresEmptyRepoRoot(t *testing.T) {
-	govRoot := governanceStateHome(t)
-
-	got := resolveDevCertDir("")
-
-	want := filepath.Join(govRoot, "certs")
-	if got != want {
-		t.Fatalf("resolveDevCertDir(\"\") = %q, want %q (machine default must not depend on a resolved repo root)", got, want)
+		t.Fatalf("resolveDevCertDir() = %q, want machine governance root %q (repo-local certs/ is no longer consulted)", got, want)
 	}
 }
 
@@ -61,7 +46,7 @@ func TestResolveDevCertDirSelectorStillWins(t *testing.T) {
 	selector := filepath.Join(t.TempDir(), "pinned-certs")
 	t.Setenv(envDevCertDir, selector)
 
-	if got := resolveDevCertDir(t.TempDir()); got != selector {
+	if got := resolveDevCertDir(); got != selector {
 		t.Fatalf("resolveDevCertDir with selector = %q, want selector %q", got, selector)
 	}
 }
@@ -72,7 +57,7 @@ func TestResolveDevCertDirFallsBackToHomeStateWithoutXDG(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv(envDevCertDir, "")
 
-	got := resolveDevCertDir(t.TempDir())
+	got := resolveDevCertDir()
 
 	want := filepath.Join(home, ".local", "state", "agent-fitness-functions", "governance", "certs")
 	if got != want {
@@ -80,18 +65,14 @@ func TestResolveDevCertDirFallsBackToHomeStateWithoutXDG(t *testing.T) {
 	}
 }
 
-func TestResolveConfigsDirDefaultsToGovernanceRootEvenWhenRepoConfigsExists(t *testing.T) {
+func TestResolveConfigsDirDefaultsToGovernanceRoot(t *testing.T) {
 	govRoot := governanceStateHome(t)
-	repoRoot := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(repoRoot, "configs", "some-repo"), 0o755); err != nil {
-		t.Fatal(err)
-	}
 
-	got := resolveConfigsDir(repoRoot)
+	got := resolveConfigsDir()
 
 	want := filepath.Join(govRoot, "configs")
 	if got != want {
-		t.Fatalf("resolveConfigsDir(%q) = %q, want machine governance root %q (repo-local configs/ is the production handoff artifact, not the daemon's dir)", repoRoot, got, want)
+		t.Fatalf("resolveConfigsDir() = %q, want machine governance root %q (repo-local configs/ is the production handoff artifact, not the daemon's dir)", got, want)
 	}
 }
 
@@ -100,7 +81,7 @@ func TestResolveConfigsDirEnvOverrideStillWins(t *testing.T) {
 	override := filepath.Join(t.TempDir(), "mounted-configs")
 	t.Setenv(envConfigsDir, override)
 
-	if got := resolveConfigsDir(t.TempDir()); got != override {
+	if got := resolveConfigsDir(); got != override {
 		t.Fatalf("resolveConfigsDir with env override = %q, want %q", got, override)
 	}
 }

@@ -77,6 +77,23 @@ func resolveClientTLSMode(certFlag, keyFlag, caFlag, defaultRoot string) (client
 	return clientTLSMode{managed: true, root: root}, nil
 }
 
+// publishManagedRoot publishes the managed dev certificate set at root and
+// protects it from accidental git staging. When root is the machine
+// governance default (ADR-0007), it first creates the governance root so the
+// publisher's parent-directory check finds a real, pinned directory rather
+// than failing on a machine that has never published there before.
+func publishManagedRoot(root string) error {
+	if root == governanceCertsDir() {
+		if err := ensureGovernanceRoot(); err != nil {
+			return err
+		}
+	}
+	if err := publishManagedCertificates(root, false); err != nil {
+		return err
+	}
+	return ensureCertsIgnoreProtection(root)
+}
+
 func loadClientTLSMode(mode clientTLSMode, publish bool) (clientTLSMaterial, error) {
 	material := clientTLSMaterial{mode: mode}
 	if !mode.managed {
@@ -86,10 +103,7 @@ func loadClientTLSMode(mode clientTLSMode, publish bool) (clientTLSMaterial, err
 		return clientTLSMaterial{}, errors.New("could not determine managed development certificate root")
 	}
 	if publish {
-		if err := publishManagedCertificates(mode.root, false); err != nil {
-			return clientTLSMaterial{}, err
-		}
-		if err := ensureCertsIgnoreProtection(mode.root); err != nil {
+		if err := publishManagedRoot(mode.root); err != nil {
 			return clientTLSMaterial{}, err
 		}
 	}
@@ -139,7 +153,7 @@ func skipsManagedProvisioning(mode clientTLSMode, explicitServerTLS bool, certDi
 // loopback path, materializes dev certificates so the auto-started TLS server and
 // this client trust the same CA. Dev material is only provisioned when the caller
 // passed no explicit client TLS flags and the addr is an https loopback URL.
-func prepareDaemonStart(addr, certDir, repoRoot, certFlag, keyFlag, caFlag string) (DaemonStartConfig, error) {
+func prepareDaemonStart(addr, certDir, certFlag, keyFlag, caFlag string) (DaemonStartConfig, error) {
 	mode, err := resolveClientTLSMode(certFlag, keyFlag, caFlag, certDir)
 	if err != nil {
 		return DaemonStartConfig{}, err
@@ -156,10 +170,10 @@ func prepareDaemonStart(addr, certDir, repoRoot, certFlag, keyFlag, caFlag strin
 	if err != nil {
 		return DaemonStartConfig{}, err
 	}
-	return daemonStartConfigFromMaterial(addr, repoRoot, material), nil
+	return daemonStartConfigFromMaterial(addr, material), nil
 }
 
-func daemonStartConfigFromMaterial(addr, repoRoot string, material clientTLSMaterial) DaemonStartConfig {
+func daemonStartConfigFromMaterial(addr string, material clientTLSMaterial) DaemonStartConfig {
 	cfg := DaemonStartConfig{Addr: addr, CertDir: material.mode.root}
 	if !material.mode.managed {
 		return cfg
@@ -170,7 +184,7 @@ func daemonStartConfigFromMaterial(addr, repoRoot string, material clientTLSMate
 	cfg.TLSCert = paths.ServerCertificate
 	cfg.TLSKey = paths.ServerKey
 	cfg.TLSCA = paths.CA
-	cfg.ConfigsDir = resolveConfigsDir(repoRoot)
+	cfg.ConfigsDir = resolveConfigsDir()
 	return cfg
 }
 
@@ -198,32 +212,23 @@ func resolveRepoRoot(repo, file string) string {
 }
 
 // resolveDevCertDir mirrors the shell hooks: AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR
-// wins, otherwise <repo-root>/certs.
-func resolveDevCertDir(repoRoot string) string {
+// wins, otherwise the machine governance root (ADR-0007).
+func resolveDevCertDir() string {
 	if dir := os.Getenv(envDevCertDir); dir != "" {
 		return dir
 	}
-	if repoRoot == "" {
-		return ""
-	}
-	return filepath.Join(repoRoot, "certs")
+	return governanceCertsDir()
 }
 
-// resolveConfigsDir locates the repository configs directory the auto-started daemon
-// must serve. AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR wins; otherwise <repo-root>/configs
-// is used when it exists. An empty result is surfaced to the user at start time.
-func resolveConfigsDir(repoRoot string) string {
+// resolveConfigsDir locates the configs directory the auto-started daemon must
+// serve. AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR wins; otherwise the machine
+// governance root (ADR-0007) — the daemon's configs dir, not the tracked
+// per-repository <repo>/configs production handoff artifact.
+func resolveConfigsDir() string {
 	if dir := os.Getenv(envConfigsDir); dir != "" {
 		return dir
 	}
-	if repoRoot == "" {
-		return ""
-	}
-	candidate := filepath.Join(repoRoot, "configs")
-	if info, err := os.Stat(candidate); err == nil && info.IsDir() {
-		return candidate
-	}
-	return ""
+	return governanceConfigsDir()
 }
 
 func isLocalHTTPS(addr string) bool {
@@ -283,7 +288,7 @@ func (nopWriteCloser) Close() error { return nil }
 // StartDaemon starts a detached daemon process using the current executable.
 func StartDaemon(cfg DaemonStartConfig) error {
 	if cfg.Local && cfg.ConfigsDir == "" {
-		return errors.New("no repository configs directory found: set AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR or add <repo>/configs/<repo>/config.json before auto-starting the local daemon")
+		return errors.New("no governance configs directory found: run `agent-fitness-functions client onboard` in the repository (or set AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR) before auto-starting the local daemon")
 	}
 	executable, err := daemonExecutable()
 	if err != nil {
