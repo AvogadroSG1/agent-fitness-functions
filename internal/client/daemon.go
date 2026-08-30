@@ -287,6 +287,9 @@ func (nopWriteCloser) Close() error { return nil }
 
 // StartDaemon starts a detached daemon process using the current executable.
 func StartDaemon(cfg DaemonStartConfig) error {
+	// resolveConfigsDir always yields the governance default on the real CLI
+	// path, so this guard is defense in depth for hand-built configs (tests,
+	// future callers) rather than a reachable production failure.
 	if cfg.Local && cfg.ConfigsDir == "" {
 		return errors.New("no governance configs directory found: run `agent-fitness-functions client onboard` in the repository (or set AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR) before auto-starting the local daemon")
 	}

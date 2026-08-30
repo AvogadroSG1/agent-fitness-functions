@@ -139,8 +139,25 @@ ADR-0005's resolution (`$XDG_STATE_HOME/agent-fitness-functions`, defaulting
 `XDG_STATE_HOME` to `~/.local/state`). The `governance/` name MUST NOT collide
 with installer-owned `versions/`, `runtimes/`, or `current`. `uninstall`
 deliberately removes only installer-owned entries; governance state survives
-uninstall, and removing it is a documented manual step, because it embodies
-per-repository governance decisions rather than installable product bytes.
+uninstall because it embodies per-repository governance decisions rather than
+installable product bytes. Removing it is a manual step, documented in the
+onboarding runbook: delete the `governance/` directory under the state root.
+
+### Registration acknowledgement before the doctor gate
+
+A live daemon picks the synced config and caller binding up via fsnotify with a
+debounce, so the files onboard just wrote become visible a moment later. Onboard
+therefore polls `GET /preflight` until the daemon acknowledges the repository as
+configured and the caller as authorized (bounded wait) before running its doctor
+gate — otherwise doctor would race the reload and fail a freshly onboarded repo.
+
+### Shared bindings file serialization
+
+`caller-repos.json` is the one governance file every repository's onboard run
+mutates, so concurrent onboards could lose updates or tear the JSON. The
+read-modify-write cycle runs under an atomic fixed-path `mkdir` lock beside the
+file — the same portable primitive ADR-0004 chose — with a bounded wait and
+age-based reaping of a crashed writer's leftover lock directory.
 
 ### Repository config synchronization: copy, not symlink
 

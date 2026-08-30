@@ -125,6 +125,11 @@ scripts/install.sh --archive agent-fitness-functions-<version>-darwin-arm64.tar.
   predecessor (reconciling the managed runtime pointers too); `agent-fitness-functions
   uninstall --yes` removes all product-owned installer state.
 
+`uninstall --yes` removes only installer-owned state (`versions/`, `current`,
+`runtimes/`). The machine governance root survives it by design (ADR-0007); to
+remove local governance state too, delete the `governance/` directory under
+`${XDG_STATE_HOME:-~/.local/state}/agent-fitness-functions/` yourself.
+
 ### Source-checkout alternative (manual prerequisites)
 
 If you are working from a source checkout instead of an installed release (e.g.
@@ -164,7 +169,11 @@ This runs the whole 0-to-governed sequence and gates on `doctor` at the end:
 5. **Local daemon auto-start** — a TLS daemon on `https://127.0.0.1:7890` (generating
    dev certs and pointing at the resolved configs directory); a healthy daemon is a
    no-op. The health wait is 5 seconds.
-6. **`doctor` (final gate)** — the ordered checks below. Onboard fails (non-zero exit)
+6. **Registration acknowledgement** — onboard polls `GET /preflight` (up to 5
+   seconds) until the daemon reports the repo configured and the caller authorized,
+   absorbing the fsnotify reload debounce so the doctor gate never races a live
+   daemon that has not yet seen the files onboard just wrote.
+7. **`doctor` (final gate)** — the ordered checks below. Onboard fails (non-zero exit)
    if any non-advisory check fails.
 
 Flags:

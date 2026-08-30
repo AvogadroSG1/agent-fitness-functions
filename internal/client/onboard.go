@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"embed"
@@ -570,8 +571,16 @@ func onboardCallerBindingsPath(configsDir string) string {
 
 // ensureCallerBinding adds repoName to callerCN's repository list, creating the
 // file when absent and preserving all existing content (other callers, admins).
-// It reports whether the file was changed.
-func ensureCallerBinding(path, callerCN, repoName string) (bool, error) {
+// It reports whether the file was changed. The whole read-modify-write cycle
+// runs under an on-disk lock: the bindings file is machine-shared (ADR-0007),
+// so two `client onboard` runs in different repositories can race here, and an
+// unserialized cycle loses updates or tears the JSON.
+func ensureCallerBinding(path, callerCN, repoName string) (changed bool, err error) {
+	unlock, err := acquireBindingsLock(path)
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
 	document, err := loadCallerBindings(path)
 	if err != nil {
 		return false, err
@@ -586,6 +595,60 @@ func ensureCallerBinding(path, callerCN, repoName string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+const (
+	// bindingsLockWait bounds how long a writer waits for the lock; the
+	// critical section is a single small-file read+write, so contention
+	// clears in milliseconds and a full wait means something is wrong.
+	bindingsLockWait = 5 * time.Second
+	// bindingsLockStaleAge is the age past which a leftover lock directory
+	// is treated as a crashed writer's residue and reaped. Generous compared
+	// to the milliseconds a live writer holds it.
+	bindingsLockStaleAge = 30 * time.Second
+)
+
+// acquireBindingsLock serializes shared caller-repos.json writers with the
+// same portable primitive ADR-0004 chose for certificate publication: an
+// atomic fixed-path mkdir (no flock, works on macOS and Linux). A lock
+// directory older than bindingsLockStaleAge is reaped as crash residue.
+// When the bindings directory itself is unusable (unwritable, a path
+// component is a file), acquisition degrades to unlocked: the read/write
+// cycle is about to fail with its own canonical error anyway, and that error
+// is the one callers and tests key on. Only a lock genuinely held past the
+// wait bound is an acquisition error.
+func acquireBindingsLock(path string) (func(), error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return func() {}, nil
+	}
+	lockDir := path + ".lock"
+	deadline := time.Now().Add(bindingsLockWait)
+	for {
+		err := os.Mkdir(lockDir, 0o755)
+		if err == nil {
+			return func() { _ = os.Remove(lockDir) }, nil
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return func() {}, nil
+		}
+		reapStaleBindingsLock(lockDir)
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("caller bindings lock %s held for over %s; remove it if no onboard is running", lockDir, bindingsLockWait)
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+}
+
+// reapStaleBindingsLock removes a lock directory whose age exceeds
+// bindingsLockStaleAge — a crashed writer's leftover, since live writers
+// hold the lock for milliseconds. Best-effort: a losing race here simply
+// means another waiter reaped it first.
+func reapStaleBindingsLock(lockDir string) {
+	info, err := os.Stat(lockDir)
+	if err != nil || time.Since(info.ModTime()) < bindingsLockStaleAge {
+		return
+	}
+	_ = os.Remove(lockDir)
 }
 
 func loadCallerBindings(path string) (map[string]any, error) {
@@ -781,8 +844,16 @@ func (o *onboarder) awaitRegistration() error {
 // preflightAcknowledged reports whether GET /preflight already shows this
 // repository configured and this caller authorized.
 func (o *onboarder) preflightAcknowledged(httpClient *http.Client) (preflightReport, bool) {
+	// A short per-request timeout keeps the 5s poll budget meaning several
+	// attempts rather than one or two slow round trips (loopback daemon).
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
 	target := strings.TrimRight(o.addr, "/") + "/preflight?repo=" + o.repoName
-	response, err := httpClient.Get(target)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return preflightReport{}, false
+	}
+	response, err := httpClient.Do(request)
 	if err != nil {
 		return preflightReport{}, false
 	}
