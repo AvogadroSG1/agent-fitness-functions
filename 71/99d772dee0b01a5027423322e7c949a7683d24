@@ -1,0 +1,26 @@
+.agents/skills/git-pushing/.opencode/commands/telemetry-inspect.md
+  h_56c22cd4a131f7 1-10
+.agents/skills/git-pushing/.opencode/commands/telemetry-report.md
+  h_56c22cd4a131f7 1-9
+.agents/skills/git-pushing/SKILL.md
+  h_56c22cd4a131f7 1-109
+.agents/skills/git-pushing/scripts/smart_commit.sh
+  h_56c22cd4a131f7 1-397
+.agents/skills/git-pushing/skillrun.yaml
+  h_56c22cd4a131f7 1-14
+apm.lock.yaml
+  h_56c22cd4a131f7 1-165
+apm.yml
+  h_56c22cd4a131f7 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "7199d772dee0b01a5027423322e7c949a7683d24",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
