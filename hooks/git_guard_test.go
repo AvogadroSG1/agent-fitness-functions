@@ -27,6 +27,16 @@ func TestGitGuardBlocksGenuineBypasses(t *testing.T) {
 		{"push force long", `git push --force origin main`},
 		{"push force short", `git push -f`},
 		{"push force trailing", `git push origin main --force`},
+		{"env prefix", `env X=1 git commit -n -m x`},
+		{"wrapper bash -c", `bash -c "git commit -n -m x"`},
+		{"wrapper sh -c", `sh -c 'git commit --no-verify -m x'`},
+		{"wrapper eval", `eval 'git commit -n -m x'`},
+		{"dollar substitution", `echo "$(git commit --no-verify -m x)"`},
+		{"backtick substitution", "echo `git push --force`"},
+		{"heredoc apostrophe does not dodge -n", "git commit -n -F - <<EOF\nit's a message\nEOF"},
+		{"heredoc apostrophe does not dodge push -f", "git push -f origin main <<EOF\ndon't\nEOF"},
+		{"unparseable command fails closed on long flag", `git commit --no-verify -m "unterminated`},
+		{"ansi-c quote does not dodge -n", "git commit -n -m x && echo $'don\\'t'"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -61,6 +71,9 @@ func TestGitGuardAllowsBenignCommands(t *testing.T) {
 		{"rm -rf in other segment", `rm -rf ./build && git push origin main`},
 		{"git log -n alone", `git log -n 5`},
 		{"plain quiet commit", `git commit --quiet --message "x"`},
+		{"heredoc body text is data", "cat <<EOF\ngit commit -n instructions\nEOF"},
+		{"wrapper text in message", `git commit -m "run bash -c 'git commit -n' later"`},
+		{"ansi-c quote benign commit", "git commit -m \"x\" && echo $'don\\'t'"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
