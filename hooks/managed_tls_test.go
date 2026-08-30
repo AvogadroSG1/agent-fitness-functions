@@ -10,41 +10,6 @@ import (
 	"testing"
 )
 
-func TestManagedResolverFailuresHaveHookSpecificExits(t *testing.T) {
-	tests := []struct {
-		name     string
-		script   string
-		wantExit int
-	}{
-		{name: "pre-commit", script: "pre-commit.sh", wantExit: 2},
-		{name: "pre-push", script: "pre-push.sh", wantExit: 1},
-		{name: "pre-tool-use", script: "pre-tool-use.sh", wantExit: 2},
-	}
-	resolverCases := []struct {
-		name       string
-		resolution string
-		want       string
-	}{
-		{name: "malformed", resolution: "printf 'versions/not-valid\\n'", want: "invalid managed certificate version"},
-		{name: "failure", resolution: "echo 'managed resolution failed safely' >&2; exit 9", want: "managed resolution failed safely"},
-	}
-	for _, tt := range tests {
-		for _, resolver := range resolverCases {
-			t.Run(tt.name+"/"+resolver.name, func(t *testing.T) {
-				repo, input := managedHookRepo(t, tt.script)
-				binary := writeHookStub(t, "#!/usr/bin/env bash\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then "+resolver.resolution+"; exit 0; fi\nprintf '{\"status\":\"pass\"}\\n'")
-				output, exit := runManagedHook(t, repo, tt.script, binary, input, []string{"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR=" + filepath.Join(repo, "certs")})
-				if exit != tt.wantExit {
-					t.Fatalf("exit = %d, want %d; output=%s", exit, tt.wantExit, output)
-				}
-				if !strings.Contains(string(output), resolver.want) || strings.Contains(string(output), "PRIVATE KEY") {
-					t.Fatalf("output = %q, want safe %q diagnostic", output, resolver.want)
-				}
-			})
-		}
-	}
-}
-
 func TestManagedSelectorConflictHasHookSpecificExits(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -69,6 +34,11 @@ func TestManagedSelectorConflictHasHookSpecificExits(t *testing.T) {
 	}
 }
 
+// TestExternalHookTLSNeverInvokesManagedResolver asserts that explicit
+// AGENT_FITNESS_FUNCTIONS_CLIENT_* material still passes through to `client
+// validate` as --client-cert/--client-key/--client-ca flags, and that no
+// managed-mode resolver call is ever made (there is no resolver hook-side
+// under ADR-0007 — `client validate` owns managed resolution itself).
 func TestExternalHookTLSNeverInvokesManagedResolver(t *testing.T) {
 	for _, script := range []string{"pre-commit.sh", "pre-push.sh", "pre-tool-use.sh"} {
 		t.Run(script, func(t *testing.T) {
@@ -99,78 +69,6 @@ func TestExternalHookTLSNeverInvokesManagedResolver(t *testing.T) {
 				t.Fatalf("external hook calls = %q, want validate with exact paths and no resolver", calls)
 			}
 		})
-	}
-}
-
-func TestManagedHooksUnsetSelectorAndKeepResolvedPathsAcrossRotation(t *testing.T) {
-	const rotatedTarget = "versions/v-cccccccccccccccccccccccccccccccc"
-	for _, script := range []string{"pre-commit.sh", "pre-push.sh", "pre-tool-use.sh"} {
-		t.Run(script, func(t *testing.T) {
-			repo, input := managedHookRepo(t, script)
-			certRoot := filepath.Join(repo, "certs")
-			resolvedTarget := publishManagedCerts(t, certRoot)
-			copyManagedHookVersion(t, filepath.Join(certRoot, filepath.FromSlash(resolvedTarget)), filepath.Join(certRoot, filepath.FromSlash(rotatedTarget)))
-			logPath := filepath.Join(t.TempDir(), "calls")
-			binary := writeHookStub(t, `#!/usr/bin/env bash
-if [[ "$*" == "client resolve-dev-cert-version" ]]; then
-  target=$(readlink "$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current")
-  rm -f "$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current"
-  ln -s "`+rotatedTarget+`" "$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current"
-  printf '%s\n' "$target"
-  exit 0
-fi
-printf 'selector=%s|%s\n' "${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}" "$*" >>"$CALL_LOG"
-printf '{"status":"pass"}\n'
-`)
-			output, exit := runManagedHook(t, repo, script, binary, input, []string{
-				"CALL_LOG=" + logPath,
-				"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR=" + certRoot,
-			})
-			if exit != 0 {
-				t.Fatalf("managed hook exit = %d; output=%s", exit, output)
-			}
-			calls, err := os.ReadFile(logPath)
-			if err != nil {
-				t.Fatalf("ReadFile(calls): %v", err)
-			}
-			if !bytes.Contains(calls, []byte("selector=unset|")) {
-				t.Fatalf("selector remained set for child invocation: %s", calls)
-			}
-			resolvedClient := filepath.Join(certRoot, filepath.FromSlash(resolvedTarget), "client.crt")
-			rotatedClient := filepath.Join(certRoot, filepath.FromSlash(rotatedTarget), "client.crt")
-			if !bytes.Contains(calls, []byte("--client-cert "+resolvedClient)) || bytes.Contains(calls, []byte(rotatedClient)) {
-				t.Fatalf("hook did not keep resolved generation after rotation: %s", calls)
-			}
-			current, err := os.Readlink(filepath.Join(certRoot, "current"))
-			if err != nil || current != rotatedTarget {
-				t.Fatalf("current after resolver rotation = %q/%v, want %q", current, err, rotatedTarget)
-			}
-		})
-	}
-}
-
-func copyManagedHookVersion(t *testing.T, source, destination string) {
-	t.Helper()
-	if err := os.MkdirAll(destination, 0o755); err != nil {
-		t.Fatalf("MkdirAll(%q): %v", destination, err)
-	}
-	for _, file := range []struct {
-		name string
-		mode os.FileMode
-	}{
-		{name: "ca.crt", mode: 0o644},
-		{name: "client.crt", mode: 0o644},
-		{name: "client.key", mode: 0o600},
-		{name: "server.crt", mode: 0o644},
-		{name: "server.key", mode: 0o600},
-	} {
-		content, err := os.ReadFile(filepath.Join(source, file.name))
-		if err != nil {
-			t.Fatalf("ReadFile(%s): %v", file.name, err)
-		}
-		if err := os.WriteFile(filepath.Join(destination, file.name), content, file.mode); err != nil {
-			t.Fatalf("WriteFile(%s): %v", file.name, err)
-		}
 	}
 }
 

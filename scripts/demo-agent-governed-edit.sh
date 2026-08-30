@@ -65,7 +65,14 @@ print(parsed.hostname, parsed.port)
 PY
   )
 fi
-cert_dir="$demo_repo/certs"
+# ADR-0007 machine-scoped governance root: the demo's own shutdown_daemon call needs
+# raw cert file paths (it speaks straight to the daemon's admin endpoint, not through
+# `client validate`), so it still resolves managed material itself — but the default
+# managed root it resolves against is now the ONE machine root every governed repo
+# shares, not this throwaway repo's certs/. Mirrors internal/installer.StateRoot and
+# internal/client/stateroot.go's governanceCertsDir().
+machine_governance_certs_dir="${XDG_STATE_HOME:-$HOME/.local/state}/agent-fitness-functions/governance/certs"
+cert_dir="$machine_governance_certs_dir"
 client_cert=""
 client_key=""
 client_ca=""
@@ -88,7 +95,7 @@ select_tls_mode() {
     return 0
   fi
   tls_mode=managed
-  cert_dir=${selector:-$demo_repo/certs}
+  cert_dir=${selector:-$machine_governance_certs_dir}
 }
 
 resolve_selected_tls() {

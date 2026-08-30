@@ -290,54 +290,6 @@ printf '{"status":"pass"}\n'
 	}
 }
 
-func TestPreToolUseForwardsDiscoveredMTLSCerts(t *testing.T) {
-	repo := initGitRepo(t)
-	// git rev-parse --show-toplevel resolves symlinks (macOS /var -> /private/var),
-	// so resolve here too to match the cert paths the hook forwards.
-	if resolved, err := filepath.EvalSymlinks(repo); err == nil {
-		repo = resolved
-	}
-	runGit(t, repo, "config", "user.email", "t@example.com")
-	runGit(t, repo, "config", "user.name", "t")
-	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
-
-	certDir := filepath.Join(repo, "certs")
-	version := publishManagedCerts(t, certDir)
-
-	logPath := filepath.Join(t.TempDir(), "calls.log")
-	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
-echo '{"status":"pass"}'
-`)
-
-	payload := `{"tool_input":{"file_path":"sample.go","content":"package sample\n"}}`
-	command := exec.Command("bash", hookScriptPathFor(t, "pre-tool-use.sh"))
-	command.Dir = repo
-	command.Stdin = strings.NewReader(payload)
-	command.Env = append(os.Environ(),
-		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"AGENT_FITNESS_FUNCTIONS_LOG="+logPath,
-	)
-	if out, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("pre-tool-use failed: %v\n%s", err, out)
-	}
-
-	got := readFile(t, logPath)
-	if calls := strings.Count(got, "client resolve-dev-cert-version"); calls != 1 {
-		t.Fatalf("resolver calls = %d, want 1:\n%s", calls, got)
-	}
-	for _, want := range []string{
-		"--addr https://127.0.0.1:7890",
-		"--client-cert " + filepath.Join(certDir, filepath.FromSlash(version), "client.crt"),
-		"--client-key " + filepath.Join(certDir, filepath.FromSlash(version), "client.key"),
-		"--client-ca " + filepath.Join(certDir, filepath.FromSlash(version), "ca.crt"),
-	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("missing %q in invocations:\n%s", want, got)
-		}
-	}
-}
-
 func runPreToolUse(t *testing.T, repo, payload, fakeBin, logPath, addr string) ([]byte, error) {
 	t.Helper()
 	return runPreToolUseWithBin(t, repo, payload, "", fakeBin, logPath, addr)

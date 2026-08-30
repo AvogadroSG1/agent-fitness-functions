@@ -240,12 +240,15 @@ func TestPrepareDaemonStartProvisionsLocalDevMode(t *testing.T) {
 	t.Setenv(envClientCA, "")
 	repoRoot := t.TempDir()
 	certDir := filepath.Join(repoRoot, "certs")
-	if err := os.MkdirAll(filepath.Join(repoRoot, "configs"), 0o755); err != nil {
+	configsDir := filepath.Join(repoRoot, "configs")
+	if err := os.MkdirAll(configsDir, 0o755); err != nil {
 		t.Fatalf("mkdir configs: %v", err)
 	}
-	t.Setenv(envConfigsDir, "")
+	// resolveConfigsDir no longer infers <repo>/configs; the env override is
+	// the only way to name a configs dir explicitly (ADR-0007).
+	t.Setenv(envConfigsDir, configsDir)
 
-	cfg, err := prepareDaemonStart("https://127.0.0.1:7890", certDir, repoRoot, "", "", "")
+	cfg, err := prepareDaemonStart("https://127.0.0.1:7890", certDir, "", "", "")
 	if err != nil {
 		t.Fatalf("prepareDaemonStart returned error: %v", err)
 	}
@@ -258,8 +261,8 @@ func TestPrepareDaemonStartProvisionsLocalDevMode(t *testing.T) {
 	if filepath.Dir(filepath.Dir(cfg.TLSCert)) != filepath.Join(certDir, "versions") || filepath.Base(cfg.TLSCert) != devServerCertName || filepath.Dir(cfg.TLSCA) != filepath.Dir(cfg.TLSCert) || filepath.Base(cfg.TLSCA) != devCACertName {
 		t.Fatalf("cfg tls paths = %+v, want one pinned version", cfg)
 	}
-	if cfg.ConfigsDir != filepath.Join(repoRoot, "configs") {
-		t.Fatalf("cfg.ConfigsDir = %q, want <repo>/configs", cfg.ConfigsDir)
+	if cfg.ConfigsDir != configsDir {
+		t.Fatalf("cfg.ConfigsDir = %q, want env-selected %q", cfg.ConfigsDir, configsDir)
 	}
 	if _, err := os.Stat(cfg.TLSKey); err != nil {
 		t.Fatalf("dev certs not generated: %v", err)
@@ -288,7 +291,7 @@ func TestDaemonStartConfigKeepsResolvedServerPathsAfterCurrentRotation(t *testin
 		t.Fatalf("Symlink(rotated current): %v", err)
 	}
 
-	cfg := daemonStartConfigFromMaterial("https://127.0.0.1:7890", t.TempDir(), material)
+	cfg := daemonStartConfigFromMaterial("https://127.0.0.1:7890", material)
 	if cfg.TLSCert != want.ServerCertificate || cfg.TLSKey != want.ServerKey || cfg.TLSCA != want.CA {
 		t.Fatalf("daemon TLS paths after rotation = (%q, %q, %q), want pinned (%q, %q, %q)", cfg.TLSCert, cfg.TLSKey, cfg.TLSCA, want.ServerCertificate, want.ServerKey, want.CA)
 	}
@@ -297,7 +300,7 @@ func TestDaemonStartConfigKeepsResolvedServerPathsAfterCurrentRotation(t *testin
 func TestPrepareDaemonStartSkipsWhenExplicitTLSFlags(t *testing.T) {
 	t.Setenv(envDevCertDir, "")
 	certDir := filepath.Join(t.TempDir(), "certs")
-	cfg, err := prepareDaemonStart("https://127.0.0.1:7890", certDir, t.TempDir(), "/my/cert", "/my/key", "/my/ca")
+	cfg, err := prepareDaemonStart("https://127.0.0.1:7890", certDir, "/my/cert", "/my/key", "/my/ca")
 	if err != nil {
 		t.Fatalf("prepareDaemonStart returned error: %v", err)
 	}
@@ -312,7 +315,7 @@ func TestPrepareDaemonStartSkipsWhenExplicitTLSFlags(t *testing.T) {
 func TestPrepareDaemonStartRejectsManagedSelectorWithExplicitClientTLSBeforePublication(t *testing.T) {
 	certDir := filepath.Join(t.TempDir(), "certs")
 	t.Setenv(envDevCertDir, certDir)
-	_, err := prepareDaemonStart("https://127.0.0.1:7890", certDir, t.TempDir(), "client.crt", "client.key", "ca.crt")
+	_, err := prepareDaemonStart("https://127.0.0.1:7890", certDir, "client.crt", "client.key", "ca.crt")
 	if err == nil || !strings.Contains(err.Error(), "cannot be combined") {
 		t.Fatalf("prepareDaemonStart conflict error = %v", err)
 	}
@@ -325,7 +328,7 @@ func TestPrepareDaemonStartPreservesServerTLSEnvAsExternalWithoutManagedSelector
 	certDir := filepath.Join(t.TempDir(), "certs")
 	t.Setenv(envDevCertDir, "")
 	t.Setenv(envServerCA, "/external/ca.crt")
-	cfg, err := prepareDaemonStart("https://127.0.0.1:7890", certDir, t.TempDir(), "", "", "")
+	cfg, err := prepareDaemonStart("https://127.0.0.1:7890", certDir, "", "", "")
 	if err != nil {
 		t.Fatalf("prepareDaemonStart external server TLS: %v", err)
 	}
@@ -341,7 +344,7 @@ func TestPrepareDaemonStartRejectsManagedSelectorWithServerTLSEnv(t *testing.T) 
 	certDir := filepath.Join(t.TempDir(), "certs")
 	t.Setenv(envDevCertDir, certDir)
 	t.Setenv(envServerCA, "/external/ca.crt")
-	_, err := prepareDaemonStart("https://127.0.0.1:7890", certDir, t.TempDir(), "", "", "")
+	_, err := prepareDaemonStart("https://127.0.0.1:7890", certDir, "", "", "")
 	if err == nil || !strings.Contains(err.Error(), "cannot be combined") {
 		t.Fatalf("prepareDaemonStart managed/server conflict error = %v", err)
 	}
@@ -352,7 +355,7 @@ func TestPrepareDaemonStartRejectsManagedSelectorWithServerTLSEnv(t *testing.T) 
 
 func TestPrepareDaemonStartSkipsForNonLoopbackAddr(t *testing.T) {
 	certDir := filepath.Join(t.TempDir(), "certs")
-	cfg, err := prepareDaemonStart("https://example.com:7890", certDir, t.TempDir(), "", "", "")
+	cfg, err := prepareDaemonStart("https://example.com:7890", certDir, "", "", "")
 	if err != nil {
 		t.Fatalf("prepareDaemonStart returned error: %v", err)
 	}

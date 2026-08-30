@@ -336,31 +336,51 @@ func writeClaudeSettingsFileForTest(t *testing.T, repoRoot, name, content string
 	}
 }
 
-const settingsLocalWithGitGuardJSON = `{
+// settingsLocalWithPortableCommandJSON renders a settings.local.json carrying a single
+// PreToolUse entry using the portable `git rev-parse --git-path` command form
+// (portableHookCommand) that install-hooks now writes, so these fixtures match production
+// entries instead of the machine-local absolute paths a pre-fix install used to leave
+// behind.
+func settingsLocalWithPortableCommandJSON(t *testing.T, matcher, hookName string) string {
+	t.Helper()
+	encodedCommand, err := json.Marshal(portableHookCommand(hookName))
+	if err != nil {
+		t.Fatalf("marshal portable command: %v", err)
+	}
+	return `{
   "hooks": {
     "PreToolUse": [
-      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "/repo/.git/hooks/agent-fitness-functions-git-guard" } ] }
+      { "matcher": "` + matcher + `", "hooks": [ { "type": "command", "command": ` + string(encodedCommand) + ` } ] }
     ]
   }
 }
 `
+}
 
-const settingsLocalWithEditWriteJSON = `{
-  "hooks": {
-    "PreToolUse": [
-      { "matcher": "Edit|Write", "hooks": [ { "type": "command", "command": "/repo/.git/hooks/agent-fitness-functions-pre-tool-use" } ] }
-    ]
-  }
+// installHookScriptForTest writes a stand-in hook script at the path
+// `git rev-parse --git-path hooks/<name>` resolves to for repoRoot, so a doctor check that
+// resolves+stats a PreToolUse command's script (gitGuardSettingsResult, editWriteHookResult)
+// finds it installed, exactly as it would be on a machine that ran install-hooks.
+func installHookScriptForTest(t *testing.T, repoRoot, name string) {
+	t.Helper()
+	path := filepath.Join(repoRoot, ".git", "hooks", name)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir hooks dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("#!/usr/bin/env bash\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write hook script %s: %v", path, err)
+	}
 }
-`
 
 func TestGitGuardSettingsResultFindsEntryInSettingsLocal(t *testing.T) {
 	repoRoot := t.TempDir()
-	writeClaudeSettingsFileForTest(t, repoRoot, "settings.local.json", settingsLocalWithGitGuardJSON)
+	runGitClientTest(t, repoRoot, "init")
+	installHookScriptForTest(t, repoRoot, gitGuardName)
+	writeClaudeSettingsFileForTest(t, repoRoot, "settings.local.json", settingsLocalWithPortableCommandJSON(t, "Bash", gitGuardName))
 
 	result := gitGuardSettingsResult(repoRoot)
 	if !result.passed {
-		t.Fatalf("gitGuardSettingsResult = %+v, want passed when entry is only in settings.local.json", result)
+		t.Fatalf("gitGuardSettingsResult = %+v, want passed when entry is only in settings.local.json and its script is installed", result)
 	}
 	if !strings.Contains(result.detail, "settings.local.json") {
 		t.Fatalf("detail = %q, want it to name settings.local.json", result.detail)
@@ -369,11 +389,13 @@ func TestGitGuardSettingsResultFindsEntryInSettingsLocal(t *testing.T) {
 
 func TestEditWriteHookResultFindsEntryInSettingsLocal(t *testing.T) {
 	repoRoot := t.TempDir()
-	writeClaudeSettingsFileForTest(t, repoRoot, "settings.local.json", settingsLocalWithEditWriteJSON)
+	runGitClientTest(t, repoRoot, "init")
+	installHookScriptForTest(t, repoRoot, agentHookName)
+	writeClaudeSettingsFileForTest(t, repoRoot, "settings.local.json", settingsLocalWithPortableCommandJSON(t, "Edit|Write", agentHookName))
 
 	result := editWriteHookResult(repoRoot)
 	if !result.passed {
-		t.Fatalf("editWriteHookResult = %+v, want passed when entry is only in settings.local.json", result)
+		t.Fatalf("editWriteHookResult = %+v, want passed when entry is only in settings.local.json and its script is installed", result)
 	}
 	if !strings.Contains(result.detail, "settings.local.json") {
 		t.Fatalf("detail = %q, want it to name settings.local.json", result.detail)

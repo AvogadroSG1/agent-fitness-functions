@@ -60,13 +60,15 @@ func ensureCertsIgnoreProtection(certDir string) error {
 
 // EnsureDevCerts publishes the managed local development certificate set.
 func EnsureDevCerts(certDir string) error {
-	if err := devcerts.Publish(certDir, false); err != nil {
-		return err
-	}
-	return ensureCertsIgnoreProtection(certDir)
+	return ensureDevCerts(certDir, false)
 }
 
 func ensureDevCerts(certDir string, force bool) error {
+	if certDir == governanceCertsDir() {
+		if err := ensureGovernanceRoot(); err != nil {
+			return err
+		}
+	}
 	if err := devcerts.Publish(certDir, force); err != nil {
 		return err
 	}
@@ -80,11 +82,7 @@ func RunResolveDevCertVersion(args []string, stdout io.Writer) error {
 	}
 	root := os.Getenv(envDevCertDir)
 	if root == "" {
-		repoRoot := resolveRepoRoot("", "")
-		if repoRoot == "" {
-			return errors.New("resolve managed development certificate version: could not locate git root")
-		}
-		root = filepath.Join(repoRoot, "certs")
+		root = governanceCertsDir()
 	}
 	version, err := resolveManagedVersion(root)
 	if err != nil {

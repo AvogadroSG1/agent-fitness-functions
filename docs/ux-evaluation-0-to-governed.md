@@ -1,5 +1,12 @@
 # Platform UX Evaluation: 0 to Governed
 
+> **Historical snapshot.** This evaluation predates ADR-0007: managed dev
+> certificates and the daemon's configs directory now default to the machine
+> governance root (`~/.local/state/agent-fitness-functions/governance/`), not
+> `<repo>/certs` / `<repo>/configs` as described below. See
+> [ADR-0007](adr/0007-machine-scoped-shared-governance-state.md) and the
+> [onboarding runbook](runbooks/onboard-new-repository.md) for current behavior.
+
 **Date:** 2026-07-08
 **Lens:** Platform UX — every debug session a developer needs between "I added agent-fitness-functions to my repo" and "my coding agent is governed" is a product failure.
 **North star:** One command, zero debugging, from fresh clone to a governed coding agent.

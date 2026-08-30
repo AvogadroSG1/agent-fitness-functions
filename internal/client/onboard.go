@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"embed"
@@ -50,7 +51,8 @@ type onboarder struct {
 	repoRoot             string
 	enforcement          string
 	addr                 string
-	configsDir           string
+	configsDir           string // machine governance root the daemon serves (ADR-0007)
+	repoConfigsDir       string // tracked <repoRoot>/configs, the production handoff artifact
 	certDir              string
 	stdout               io.Writer
 	stderr               io.Writer
@@ -102,7 +104,7 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 3 * time.Second}
 	}
-	tlsResolution, err := resolveOnboardTLS(parsedFlags.addr, repoRoot, httpClient)
+	tlsResolution, err := resolveOnboardTLS(parsedFlags.addr, httpClient)
 	if err != nil {
 		return onboarder{}, err
 	}
@@ -111,7 +113,8 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 		repoRoot:             repoRoot,
 		enforcement:          mode,
 		addr:                 parsedFlags.addr,
-		configsDir:           onboardConfigsDir(repoRoot),
+		configsDir:           onboardConfigsDir(),
+		repoConfigsDir:       filepath.Join(repoRoot, "configs"),
 		certDir:              tlsResolution.certDir,
 		stdout:               stdout,
 		stderr:               stderr,
@@ -194,14 +197,7 @@ func resolveCertificatesOnlyOnboarder(extraArgs []string, forceDevCertRotation b
 	}
 	certDir := os.Getenv(envDevCertDir)
 	if certDir == "" {
-		workingDir, err := os.Getwd()
-		if err != nil {
-			return onboarder{}, fmt.Errorf("resolve development certificate directory: %w", err)
-		}
-		if root := resolveRepoRoot("", ""); root != "" {
-			workingDir = root
-		}
-		certDir = filepath.Join(workingDir, "certs")
+		certDir = governanceCertsDir()
 	}
 	return onboarder{certDir: certDir, certificatesOnly: true, forceDevCertRotation: forceDevCertRotation}, nil
 }
@@ -240,11 +236,11 @@ type onboardTLSResolution struct {
 	httpClient  *http.Client
 }
 
-// resolveOnboardTLS resolves the client TLS mode for repoRoot and, for the
+// resolveOnboardTLS resolves the client TLS mode and, for the
 // external-certificate path, loads and validates that material and confirms
 // an already-running healthy daemon before returning.
-func resolveOnboardTLS(addr, repoRoot string, httpClient *http.Client) (onboardTLSResolution, error) {
-	certDir := resolveDevCertDir(repoRoot)
+func resolveOnboardTLS(addr string, httpClient *http.Client) (onboardTLSResolution, error) {
+	certDir := resolveDevCertDir()
 	tlsMode, err := resolveClientTLSMode("", "", "", certDir)
 	if err != nil {
 		return onboardTLSResolution{}, err
@@ -391,14 +387,13 @@ func resolveOnboardRepoName(repoFlag, repoRoot string) (string, error) {
 	return "", usageError{err: fmt.Errorf("working-tree basename %q is not a valid repository name (must match %s); pass --repo <name>", name, repoNameRule)}
 }
 
-// onboardConfigsDir resolves the configs directory the same way the daemon does,
-// but returns the <repo>/configs default even when it does not yet exist so the
-// scaffold step can create it. AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR still wins.
-func onboardConfigsDir(repoRoot string) string {
-	if dir := os.Getenv(envConfigsDir); dir != "" {
-		return dir
-	}
-	return filepath.Join(repoRoot, "configs")
+// onboardConfigsDir resolves the DAEMON-facing configs directory onboard
+// registers this repository under: AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR wins,
+// otherwise the machine governance root (ADR-0007) — the same resolution the
+// auto-started daemon uses. This is distinct from repoConfigsDir, the tracked
+// <repoRoot>/configs production handoff artifact.
+func onboardConfigsDir() string {
+	return resolveConfigsDir()
 }
 
 func (o *onboarder) run() error {
@@ -409,7 +404,7 @@ func (o *onboarder) run() error {
 	} else {
 		steps = append(steps, o.registerRemote)
 	}
-	steps = append(steps, o.installHooks, o.startDaemon, o.runDoctor)
+	steps = append(steps, o.installHooks, o.startDaemon, o.awaitRegistration, o.runDoctor)
 	for _, step := range steps {
 		if err := step(); err != nil {
 			return err
@@ -438,13 +433,23 @@ func (o *onboarder) ensureCerts() error {
 	return nil
 }
 
+// scaffoldConfig scaffolds the tracked repo-local production artifact (if
+// absent) and then always re-syncs it, verbatim, into the shared machine
+// governance root the daemon actually serves (ADR-0007). The repo-local file
+// is the source of truth: a re-run never rewrites it, only the shared copy.
 func (o onboarder) scaffoldConfig() error {
-	configPath := filepath.Join(o.configsDir, o.repoName, "config.json")
+	configPath := filepath.Join(o.repoConfigsDir, o.repoName, "config.json")
 	o.step("Server-side config: %s", configPath)
 	if fileExists(configPath) {
 		o.detail("already present — leaving unchanged")
-		return nil
+	} else if err := o.writeScaffoldConfig(configPath); err != nil {
+		return err
 	}
+	return o.syncSharedConfig(configPath)
+}
+
+// writeScaffoldConfig renders and writes the fresh repo-local config template.
+func (o onboarder) writeScaffoldConfig(configPath string) error {
 	content, err := renderScaffoldConfig(o.enforcement, o.selectedFunctions)
 	if err != nil {
 		return err
@@ -456,6 +461,26 @@ func (o onboarder) scaffoldConfig() error {
 		return fmt.Errorf("writing %s: %w", configPath, err)
 	}
 	o.detail("scaffolded %s config with %s", o.enforcement, scaffoldedFunctionsDetail(o.selectedFunctions))
+	return nil
+}
+
+// syncSharedConfig copies the tracked repo-local config byte-for-byte into
+// the shared machine governance configs dir, overwriting any prior copy so a
+// re-onboard re-syncs a user-edited repo-local config. It creates the shared
+// dir itself rather than relying on ensureCerts having run first.
+func (o onboarder) syncSharedConfig(repoLocalConfigPath string) error {
+	content, err := os.ReadFile(repoLocalConfigPath)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", repoLocalConfigPath, err)
+	}
+	sharedPath := filepath.Join(o.configsDir, o.repoName, "config.json")
+	if err := os.MkdirAll(filepath.Dir(sharedPath), 0o755); err != nil {
+		return fmt.Errorf("creating shared config directory: %w", err)
+	}
+	if err := os.WriteFile(sharedPath, content, 0o644); err != nil {
+		return fmt.Errorf("writing %s: %w", sharedPath, err)
+	}
+	o.detail("registered with local governance daemon (%s)", filepath.Dir(sharedPath))
 	return nil
 }
 
@@ -546,8 +571,16 @@ func onboardCallerBindingsPath(configsDir string) string {
 
 // ensureCallerBinding adds repoName to callerCN's repository list, creating the
 // file when absent and preserving all existing content (other callers, admins).
-// It reports whether the file was changed.
-func ensureCallerBinding(path, callerCN, repoName string) (bool, error) {
+// It reports whether the file was changed. The whole read-modify-write cycle
+// runs under an on-disk lock: the bindings file is machine-shared (ADR-0007),
+// so two `client onboard` runs in different repositories can race here, and an
+// unserialized cycle loses updates or tears the JSON.
+func ensureCallerBinding(path, callerCN, repoName string) (changed bool, err error) {
+	unlock, err := acquireBindingsLock(path)
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
 	document, err := loadCallerBindings(path)
 	if err != nil {
 		return false, err
@@ -562,6 +595,60 @@ func ensureCallerBinding(path, callerCN, repoName string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+const (
+	// bindingsLockWait bounds how long a writer waits for the lock; the
+	// critical section is a single small-file read+write, so contention
+	// clears in milliseconds and a full wait means something is wrong.
+	bindingsLockWait = 5 * time.Second
+	// bindingsLockStaleAge is the age past which a leftover lock directory
+	// is treated as a crashed writer's residue and reaped. Generous compared
+	// to the milliseconds a live writer holds it.
+	bindingsLockStaleAge = 30 * time.Second
+)
+
+// acquireBindingsLock serializes shared caller-repos.json writers with the
+// same portable primitive ADR-0004 chose for certificate publication: an
+// atomic fixed-path mkdir (no flock, works on macOS and Linux). A lock
+// directory older than bindingsLockStaleAge is reaped as crash residue.
+// When the bindings directory itself is unusable (unwritable, a path
+// component is a file), acquisition degrades to unlocked: the read/write
+// cycle is about to fail with its own canonical error anyway, and that error
+// is the one callers and tests key on. Only a lock genuinely held past the
+// wait bound is an acquisition error.
+func acquireBindingsLock(path string) (func(), error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return func() {}, nil
+	}
+	lockDir := path + ".lock"
+	deadline := time.Now().Add(bindingsLockWait)
+	for {
+		err := os.Mkdir(lockDir, 0o755)
+		if err == nil {
+			return func() { _ = os.Remove(lockDir) }, nil
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return func() {}, nil
+		}
+		reapStaleBindingsLock(lockDir)
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("caller bindings lock %s held for over %s; remove it if no onboard is running", lockDir, bindingsLockWait)
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+}
+
+// reapStaleBindingsLock removes a lock directory whose age exceeds
+// bindingsLockStaleAge — a crashed writer's leftover, since live writers
+// hold the lock for milliseconds. Best-effort: a losing race here simply
+// means another waiter reaped it first.
+func reapStaleBindingsLock(lockDir string) {
+	info, err := os.Stat(lockDir)
+	if err != nil || time.Since(info.ModTime()) < bindingsLockStaleAge {
+		return
+	}
+	_ = os.Remove(lockDir)
 }
 
 func loadCallerBindings(path string) (map[string]any, error) {
@@ -717,12 +804,65 @@ func (o *onboarder) startDaemon() error {
 		o.detail("external daemon healthy; automatic startup disabled")
 		return nil
 	}
-	daemonCfg := daemonStartConfigFromMaterial(o.addr, o.repoRoot, o.tlsMaterial)
+	daemonCfg := daemonStartConfigFromMaterial(o.addr, o.tlsMaterial)
 	if err := ensureDaemon(httpClient, o.addr, daemonCfg, o.starter); err != nil {
 		return err
 	}
 	o.detail("daemon healthy")
 	return nil
+}
+
+// awaitRegistration waits for the (possibly already-running) daemon to
+// acknowledge this repository's registration before the doctor gate probes
+// it. The shared governance configs dir is picked up via fsnotify with a
+// debounce, so the files onboard just wrote become visible to a live daemon
+// a moment later — polling /preflight absorbs that window instead of letting
+// doctor race it and fail a freshly onboarded repo. External mode registers
+// synchronously over HTTP, so there is nothing to wait for.
+func (o *onboarder) awaitRegistration() error {
+	if !o.tlsMode.managed {
+		return nil
+	}
+	httpClient, err := configureClientTLSMaterial(o.httpClient, o.tlsMaterial)
+	if err != nil {
+		return err
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		report, ok := o.preflightAcknowledged(httpClient)
+		if ok {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("daemon at %s did not acknowledge %q within 5s (configured=%v authorized=%v); check the governance configs dir it serves",
+				o.addr, o.repoName, report.RepoConfigured, report.CallerAuthorized)
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+}
+
+// preflightAcknowledged reports whether GET /preflight already shows this
+// repository configured and this caller authorized.
+func (o *onboarder) preflightAcknowledged(httpClient *http.Client) (preflightReport, bool) {
+	// A short per-request timeout keeps the 5s poll budget meaning several
+	// attempts rather than one or two slow round trips (loopback daemon).
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	target := strings.TrimRight(o.addr, "/") + "/preflight?repo=" + o.repoName
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return preflightReport{}, false
+	}
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return preflightReport{}, false
+	}
+	defer func() { _ = response.Body.Close() }()
+	var report preflightReport
+	if response.StatusCode != http.StatusOK || json.NewDecoder(response.Body).Decode(&report) != nil {
+		return preflightReport{}, false
+	}
+	return report, report.RepoConfigured && report.CallerAuthorized
 }
 
 func (o *onboarder) runDoctor() error {
@@ -756,16 +896,19 @@ func (o *onboarder) runDoctor() error {
 
 // printManualRemainder prints whatever step still requires operator action.
 // In managed/local mode that is the same manual production hand-off it has
-// always been: the config and caller-binding files onboard wrote are local
-// only, so a shared container deployment still needs them copied over. In
-// external mode registerRemote already registered the repo against the
-// server named by --addr, so there is nothing left to copy.
+// always been: onboard registers the repo with this machine's shared local
+// governance daemon (repoConfigsDir synced into the shared configsDir, plus a
+// caller-repos.json entry in the governance root), but a production container
+// deployment is a separate target that still needs the tracked repo-local
+// config and the caller-binding entry copied over. In external mode
+// registerRemote already registered the repo against the server named by
+// --addr, so there is nothing left to copy.
 func (o onboarder) printManualRemainder() {
 	if !o.tlsMode.managed {
 		_, _ = fmt.Fprintf(o.stdout, "\n%s is registered with %s. No manual config hand-off is needed.\n", o.repoName, o.addr)
 		return
 	}
-	configPath := filepath.Join(o.configsDir, o.repoName, "config.json")
+	configPath := filepath.Join(o.repoConfigsDir, o.repoName, "config.json")
 	bindingsPath := onboardCallerBindingsPath(o.configsDir)
 	_, _ = fmt.Fprintf(o.stdout, "\n%s is governed locally.\n", o.repoName)
 	_, _ = fmt.Fprintln(o.stdout, "Remaining manual step for PRODUCTION governance:")

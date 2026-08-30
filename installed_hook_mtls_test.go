@@ -10,10 +10,15 @@ import (
 	"testing"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/client"
-	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 )
 
-func TestInstalledEmbeddedHooksConsumeGeneratedFirstPublication(t *testing.T) {
+// TestInstalledEmbeddedHooksPassSelectorThroughWithoutTLSMaterial pins the
+// ADR-0007 hook contract on the INSTALLED artifacts end to end: none of the
+// three embedded hooks resolves or forwards managed TLS material, and the
+// AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR selector reaches the child `client
+// validate` untouched — client validate owns managed resolution, which is what
+// keeps daemon auto-start working after a daemon death (calm-poc-wgi).
+func TestInstalledEmbeddedHooksPassSelectorThroughWithoutTLSMaterial(t *testing.T) {
 	repo := t.TempDir()
 	runGitCommand(t, repo, "init")
 	runGitCommand(t, repo, "config", "maintenance.auto", "false")
@@ -26,18 +31,11 @@ func TestInstalledEmbeddedHooksConsumeGeneratedFirstPublication(t *testing.T) {
 		t.Fatalf("RunInstallHooks: %v", err)
 	}
 	certRoot := filepath.Join(t.TempDir(), "managed-certs")
-	if err := devcerts.Publish(certRoot, false); err != nil {
-		t.Fatalf("Publish(first generation): %v", err)
-	}
-	version, err := os.Readlink(filepath.Join(certRoot, "current"))
-	if err != nil {
-		t.Fatalf("generated current is not a symlink: %v", err)
-	}
 
 	record := filepath.Join(t.TempDir(), "calls")
 	binDir := t.TempDir()
 	stub := filepath.Join(binDir, "agent-fitness-functions")
-	stubContent := "#!/usr/bin/env bash\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then printf '%s\\n' \"$*\" >>\"$AGENT_FITNESS_FUNCTIONS_LOG\"; readlink \"$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; exit 0; fi\nprintf 'selector=%s|%s\\n' \"${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}\" \"$*\" >>\"$AGENT_FITNESS_FUNCTIONS_LOG\"\nprintf '{\"status\":\"pass\"}\\n'\n"
+	stubContent := "#!/usr/bin/env bash\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then printf 'resolver-invoked\\n' >>\"$AGENT_FITNESS_FUNCTIONS_LOG\"; exit 9; fi\nprintf 'selector=%s|%s\\n' \"${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}\" \"$*\" >>\"$AGENT_FITNESS_FUNCTIONS_LOG\"\nprintf '{\"status\":\"pass\"}\\n'\n"
 	if err := os.WriteFile(stub, []byte(stubContent), 0o755); err != nil {
 		t.Fatalf("write stub binary: %v", err)
 	}
@@ -69,28 +67,32 @@ func TestInstalledEmbeddedHooksConsumeGeneratedFirstPublication(t *testing.T) {
 	pushInput := []byte("refs/heads/main " + head + " refs/heads/main " + base + "\n")
 	runInstalledHook(t, repo, filepath.Join(repo, ".git", "hooks", "pre-push"), env, pushInput)
 
+	assertSelectorPassthrough(t, record, certRoot, 3)
+}
+
+// assertSelectorPassthrough checks the recorded child invocations for the
+// ADR-0007 contract: no resolver call, no client TLS flags, and the selector
+// visible to every child exactly as the hook received it.
+func assertSelectorPassthrough(t *testing.T, record, certRoot string, wantCalls int) {
+	t.Helper()
 	calls, err := os.ReadFile(record)
 	if err != nil {
 		t.Fatalf("read hook calls: %v", err)
 	}
-	if count := bytes.Count(calls, []byte("client resolve-dev-cert-version")); count != 3 {
-		t.Fatalf("resolver appeared %d times, want once for each installed hook kind; calls:\n%s", count, calls)
+	if bytes.Contains(calls, []byte("resolver-invoked")) {
+		t.Fatalf("an installed hook still invokes client resolve-dev-cert-version; calls:\n%s", calls)
 	}
-	if count := bytes.Count(calls, []byte("selector=unset|")); count < 3 {
-		t.Fatalf("selector was not unset for all installed hook child calls; count=%d calls:\n%s", count, calls)
+	if bytes.Contains(calls, []byte("--client-cert")) {
+		t.Fatalf("an installed hook still forwards managed TLS flags; calls:\n%s", calls)
 	}
-	for _, path := range []string{
-		filepath.Join(certRoot, filepath.FromSlash(version), "client.crt"),
-		filepath.Join(certRoot, filepath.FromSlash(version), "client.key"),
-		filepath.Join(certRoot, filepath.FromSlash(version), "ca.crt"),
-	} {
-		if count := bytes.Count(calls, []byte(path)); count < 3 {
-			t.Fatalf("generated path %q appeared %d times, want all three installed hook kinds; calls:\n%s", path, count, calls)
-		}
+	if count := bytes.Count(calls, []byte("selector="+certRoot+"|")); count < wantCalls {
+		t.Fatalf("selector passthrough count = %d, want %d installed hook kinds; calls:\n%s", count, wantCalls, calls)
 	}
 }
 
-func TestInstalledSidecarAndAgentHooksConsumeManagedVersion(t *testing.T) {
+// TestInstalledSidecarAndAgentHooksPassSelectorThrough pins the same ADR-0007
+// contract for the append-mode sidecar copies of the hooks.
+func TestInstalledSidecarAndAgentHooksPassSelectorThrough(t *testing.T) {
 	t.Setenv("AGENT_FITNESS_FUNCTIONS_HOOK_APPEND", "1")
 	repo := t.TempDir()
 	runGitCommand(t, repo, "init")
@@ -110,17 +112,10 @@ func TestInstalledSidecarAndAgentHooksConsumeManagedVersion(t *testing.T) {
 		t.Fatalf("RunInstallHooks append mode: %v", err)
 	}
 	certRoot := filepath.Join(t.TempDir(), "managed-certs")
-	if err := devcerts.Publish(certRoot, false); err != nil {
-		t.Fatalf("Publish(first generation): %v", err)
-	}
-	version, err := os.Readlink(filepath.Join(certRoot, "current"))
-	if err != nil {
-		t.Fatalf("Readlink(current): %v", err)
-	}
 
 	record := filepath.Join(t.TempDir(), "calls")
 	stub := filepath.Join(t.TempDir(), "agent-fitness-functions")
-	stubContent := "#!/usr/bin/env bash\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then printf '%s\\n' \"$*\" >>\"$AGENT_FITNESS_FUNCTIONS_LOG\"; readlink \"$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; exit 0; fi\nprintf 'selector=%s|%s\\n' \"${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}\" \"$*\" >>\"$AGENT_FITNESS_FUNCTIONS_LOG\"\nprintf '{\"status\":\"pass\"}\\n'\n"
+	stubContent := "#!/usr/bin/env bash\nif [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then printf 'resolver-invoked\\n' >>\"$AGENT_FITNESS_FUNCTIONS_LOG\"; exit 9; fi\nprintf 'selector=%s|%s\\n' \"${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}\" \"$*\" >>\"$AGENT_FITNESS_FUNCTIONS_LOG\"\nprintf '{\"status\":\"pass\"}\\n'\n"
 	if err := os.WriteFile(stub, []byte(stubContent), 0o755); err != nil {
 		t.Fatalf("write stub: %v", err)
 	}
@@ -149,22 +144,7 @@ func TestInstalledSidecarAndAgentHooksConsumeManagedVersion(t *testing.T) {
 	pushInput := []byte("refs/heads/main " + head + " refs/heads/main " + base + "\n")
 	runInstalledHook(t, repo, filepath.Join(repo, ".git", "hooks", "agent-fitness-functions-pre-push"), env, pushInput)
 
-	calls, err := os.ReadFile(record)
-	if err != nil {
-		t.Fatalf("read calls: %v", err)
-	}
-	if count := bytes.Count(calls, []byte("client resolve-dev-cert-version")); count != 3 {
-		t.Fatalf("resolver calls = %d, want 3 for sidecar pre-commit/pre-push and agent; calls:\n%s", count, calls)
-	}
-	if count := bytes.Count(calls, []byte("selector=unset|")); count < 3 {
-		t.Fatalf("selector unset calls = %d, want at least 3; calls:\n%s", count, calls)
-	}
-	for _, name := range []string{"client.crt", "client.key", "ca.crt"} {
-		path := filepath.Join(certRoot, filepath.FromSlash(version), name)
-		if count := bytes.Count(calls, []byte(path)); count < 3 {
-			t.Fatalf("pinned path %q count = %d, want all three installed copy kinds; calls:\n%s", path, count, calls)
-		}
-	}
+	assertSelectorPassthrough(t, record, certRoot, 3)
 }
 
 func runInstalledHook(t *testing.T, repo, hook string, env []string, input []byte) {

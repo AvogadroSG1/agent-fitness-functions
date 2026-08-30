@@ -19,8 +19,12 @@ func TestDemoAgentGovernedEditTLSModeMatrix(t *testing.T) {
 		wantCalls  int
 	}{
 		{
+			// ADR-0007: the managed default root is now the ONE machine-scoped
+			// governance root under XDG_STATE_HOME, not the throwaway demo repo's
+			// certs/. The exact client_cert path is asserted below, against a
+			// per-subtest XDG_STATE_HOME, once wantOutput is built.
 			name: "managed default", resolver: "printf 'versions/v-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\n'", wantCalls: 1,
-			wantOutput: []string{"mode=managed", "/agent-demo/certs/versions/v-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/client.crt", "selector=unset"},
+			wantOutput: []string{"mode=managed", "selector=unset"},
 		},
 		{
 			name: "managed selected root", resolver: "printf 'versions/v-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\\n'", wantCalls: 1,
@@ -65,6 +69,16 @@ func TestDemoAgentGovernedEditTLSModeMatrix(t *testing.T) {
 				resolver = "exit 99"
 			}
 			binary := writeDemoStub(t, logPath, resolver)
+			// ADR-0007: the managed default cert root is now derived from
+			// XDG_STATE_HOME (the ONE machine governance root), so give each
+			// subtest its own to keep the assertion hermetic and precise.
+			xdgStateHome := t.TempDir()
+			wantOutput := tt.wantOutput
+			if tt.name == "managed default" {
+				wantClientCert := filepath.Join(xdgStateHome, "agent-fitness-functions", "governance", "certs",
+					"versions", "v-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "client.crt")
+				wantOutput = append(append([]string{}, tt.wantOutput...), "client_cert="+wantClientCert)
+			}
 			command := exec.Command("bash", filepath.Join("scripts", "demo-agent-governed-edit.sh"))
 			command.Env = append(os.Environ(),
 				"AGENT_FITNESS_FUNCTIONS_BIN="+binary,
@@ -75,6 +89,7 @@ func TestDemoAgentGovernedEditTLSModeMatrix(t *testing.T) {
 				"AGENT_FITNESS_FUNCTIONS_CLIENT_KEY=",
 				"AGENT_FITNESS_FUNCTIONS_CLIENT_CA=",
 				"DEMO_TEST_TMP_ROOT="+tempRoot,
+				"XDG_STATE_HOME="+xdgStateHome,
 				"PATH="+stubDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 			)
 			command.Env = append(command.Env, tt.env...)
@@ -90,7 +105,7 @@ func TestDemoAgentGovernedEditTLSModeMatrix(t *testing.T) {
 			if gotExit != tt.wantExit {
 				t.Fatalf("exit = %d, want %d; output=%s", gotExit, tt.wantExit, output)
 			}
-			for _, want := range tt.wantOutput {
+			for _, want := range wantOutput {
 				if !strings.Contains(string(output), want) {
 					t.Errorf("output missing %q:\n%s", want, output)
 				}

@@ -4,7 +4,10 @@ set -euo pipefail
 repo=$(git rev-parse --show-toplevel)
 agent_fitness_functions_bin=${AGENT_FITNESS_FUNCTIONS_BIN:-agent-fitness-functions}
 # The container/production server serves HTTPS with mandatory mTLS, so default to
-# an https loopback addr and auto-discover dev client credentials in <repo>/certs.
+# an https loopback addr. In managed mode (no explicit client TLS material), the
+# AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR selector — if set — passes through untouched
+# to `client validate`, which resolves the machine governance root itself (ADR-0007:
+# hooks never resolve, pin, or pass client TLS material in managed mode).
 # Explicit AGENT_FITNESS_FUNCTIONS_CLIENT_* env vars win (12-factor precedence).
 addr=${AGENT_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}
 managed_selector=${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR:-}
@@ -18,30 +21,11 @@ if [[ "$explicit_client_tls" -eq 1 ]]; then
   client_cert=${AGENT_FITNESS_FUNCTIONS_CLIENT_CERT:-}
   client_key=${AGENT_FITNESS_FUNCTIONS_CLIENT_KEY:-}
   client_ca=${AGENT_FITNESS_FUNCTIONS_CLIENT_CA:-}
-  unset AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR
 else
-  cert_dir=${managed_selector:-$repo/certs}
   client_cert=""
   client_key=""
   client_ca=""
 fi
-resolve_managed_client_tls() {
-  [[ "$addr" == https://* ]] || return 0
-  [[ "$explicit_client_tls" -eq 0 && -z "$client_cert" ]] || return 0
-  set +e
-  managed_version=$(AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="$cert_dir" "$agent_fitness_functions_bin" client resolve-dev-cert-version)
-  resolver_rc=$?
-  set -e
-  [[ "$resolver_rc" -eq 0 ]] || exit 2
-  if [[ ! "$managed_version" =~ ^versions/v-[0-9a-f]{32}$ ]]; then
-    echo "agent-fitness-functions returned an invalid managed certificate version" >&2
-    exit 2
-  fi
-  client_cert=$cert_dir/$managed_version/client.crt
-  client_key=$cert_dir/$managed_version/client.key
-  client_ca=$cert_dir/$managed_version/ca.crt
-  unset AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR
-}
 repo_name=${AGENT_FITNESS_FUNCTIONS_REPO_NAME:-}
 # Default the governance repo name to the working-tree basename (consistent with
 # pre-commit.sh); the absolute worktree path is not a valid ^[a-z][a-z0-9_-]{0,63}$
@@ -257,7 +241,6 @@ if [[ "$binary" == "True" || "$binary" == "true" ]]; then
   exit 2
 fi
 
-resolve_managed_client_tls
 args=(client validate --file "$file" --repo "$repo_arg" --content-file "$content_file" --language "$language")
 args+=(--addr "$addr")
 # Pass mTLS client cert+key only as a pair (the client requires both together);

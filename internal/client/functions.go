@@ -79,7 +79,7 @@ func remoteCatalogClient(httpClient *http.Client, addr, certFlag, keyFlag, caFla
 	if httpClient != nil {
 		return httpClient, nil
 	}
-	mode, err := resolveClientTLSMode(certFlag, keyFlag, caFlag, resolveDevCertDir(resolveRepoRoot("", "")))
+	mode, err := resolveClientTLSMode(certFlag, keyFlag, caFlag, resolveDevCertDir())
 	if err != nil {
 		return nil, err
 	}
