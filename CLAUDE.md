@@ -81,7 +81,7 @@ Several tests shell out to external tools. Integration tests (`*_integration_tes
 ### Other common commands
 
 ```bash
-scripts/generate-dev-certs.sh        # dev TLS + mTLS client certs into certs/ (gitignored)
+scripts/generate-dev-certs.sh        # dev TLS + mTLS client certs into the machine governance root (ADR-0007)
 docker compose config --quiet && docker compose up --build   # verify/run the service container
 go run ./cmd/agent-fitness-functions baseline --repo /path/to/repo --language csharp --output baseline-report.json
 ```
@@ -109,7 +109,7 @@ Hook (`hooks/pre-commit.sh` or `hooks/pre-tool-use.sh`) → `client validate` �
 - `internal/calm` — thin wrapper that shells out to `calm validate`.
 - `internal/report` / `internal/sarif` — architecture document generation and SARIF output.
 - `patterns/governance.json` — CALM pattern holding the calibrated thresholds, embedded via `patterns/embed.go`.
-- `configs/<repo>/config.json` — per-repo governance (enforcement-mode, enabled functions) mounted into the container; this is the source of truth. A repo-local `.calm/config.json` is a developer sandbox only and never affects container governance.
+- `configs/<repo>/config.json` — per-repo governance (enforcement-mode, enabled functions) mounted into the container; this is the source of truth. A repo-local `.calm/config.json` is a developer sandbox only and never affects container governance. For LOCAL development, `client onboard` copies the tracked repo-local config into the machine governance root (`${XDG_STATE_HOME:-~/.local/state}/agent-fitness-functions/governance/` — one dev CA, one configs dir, one caller-repos.json per machine, ADR-0007) so a single auto-started daemon on 127.0.0.1:7890 serves every governed repo on the machine.
 - `fixtures/green/` and `fixtures/violations/` — calibrated fixture files that must pass/fail specific fitness functions (enforced by `fixtures/fixtures_test.go`).
 - Root-level tests (`bin_helpers_test.go`, `bin_helper_mtls_test.go`, `docker_contract_test.go`) lock the helper-script and Docker image contracts.
 

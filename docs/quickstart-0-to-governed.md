@@ -37,6 +37,12 @@ agent-fitness-functions client onboard
 By default this onboards in `advisory` mode (violations are reported but do not block)
 and derives the governance repo name from the working-tree basename. Override either:
 
+All local governance state is machine-scoped (ADR-0007): one dev CA, one configs
+directory, and one `caller-repos.json` under
+`~/.local/state/agent-fitness-functions/governance/`, served by a single local daemon
+on `127.0.0.1:7890`. Onboarding a second repository registers it with the same daemon
+— no port conflicts, no per-repo certificates.
+
 ```bash
 agent-fitness-functions client onboard --enforcement block --repo my-service
 ```
@@ -58,13 +64,13 @@ Each step prints a `>` header and an indented result line:
 ```
 Onboarding "my-service" (enforcement=advisory, addr=https://127.0.0.1:7890)
 
-> Dev certificates: /path/to/your-repo/certs
+> Dev certificates: ~/.local/state/agent-fitness-functions/governance/certs
   client CN dev-hook-pool ready
 
 > Server-side config: /path/to/your-repo/configs/my-service/config.json
   scaffolded advisory config with all five fitness functions enabled
 
-> Caller authorization: /path/to/your-repo/caller-repos.json
+> Caller authorization: ~/.local/state/agent-fitness-functions/governance/caller-repos.json
   authorized CN dev-hook-pool for my-service
 
 > Installing hooks (git + agent Edit/Write validation)
@@ -77,8 +83,8 @@ Onboarding "my-service" (enforcement=advisory, addr=https://127.0.0.1:7890)
 ✔ binary: /path/to/agent-fitness-functions
 ✔ python3: /usr/bin/python3
 ✔ pyyaml: importable
-✔ client certificate: CN=dev-hook-pool valid until ... (/path/to/your-repo/certs/client.crt)
-✔ server CA bundle: /path/to/your-repo/certs/ca.crt
+✔ client certificate: CN=dev-hook-pool valid until ... (~/.local/state/agent-fitness-functions/governance/certs/.../client.crt)
+✔ server CA bundle: ~/.local/state/agent-fitness-functions/governance/certs/.../ca.crt
 ✔ server reachable: https://127.0.0.1:7890/health OK
 ✔ server authentication: authenticated as CN=dev-hook-pool
 ✔ repo configured server-side: my-service
@@ -114,7 +120,7 @@ older `install-hooks`.
 
 Common flags: `--repo <name>` (defaults to the working-tree basename), `--addr <url>`,
 and `--client-cert/--client-key/--client-ca` (which otherwise auto-discover from
-`AGENT_FITNESS_FUNCTIONS_CLIENT_*` or `<repo>/certs`).
+`AGENT_FITNESS_FUNCTIONS_CLIENT_*` or the machine governance root).
 
 ## How a coding agent's Edit gets validated
 

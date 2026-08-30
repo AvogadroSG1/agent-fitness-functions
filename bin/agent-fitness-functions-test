@@ -12,18 +12,21 @@ usage() {
   echo "" >&2
   echo "  Supported: go (.go), python (.py), csharp (.cs)" >&2
   echo "" >&2
-  echo "  The server requires mutual TLS. By default this helper discovers dev" >&2
-  echo "  credentials in <repo>/certs (client.crt/client.key/ca.crt) created by" >&2
-  echo "  scripts/generate-dev-certs.sh. Override per-file with the CLIENT_* vars below." >&2
+  echo "  The server requires mutual TLS. By default (ADR-0007) this helper passes no" >&2
+  echo "  TLS flags at all: 'client validate' resolves the machine-scoped governance" >&2
+  echo "  root itself (\${XDG_STATE_HOME:-\$HOME/.local/state}/agent-fitness-functions/" >&2
+  echo "  governance/certs). Set AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR to pin a different" >&2
+  echo "  managed root — the selector passes through to the client untouched — or set" >&2
+  echo "  the CLIENT_* vars below for explicit credentials instead." >&2
   echo "" >&2
   echo "  Environment:" >&2
   echo "    AGENT_FITNESS_FUNCTIONS_BIN          path to agent-fitness-functions binary (default: agent-fitness-functions on PATH)" >&2
   echo "    AGENT_FITNESS_FUNCTIONS_ADDR         server address (default: https://127.0.0.1:7890)" >&2
   echo "    AGENT_FITNESS_FUNCTIONS_REPO_NAME    logical repo name override (default: inferred from configs/<basename> or .calm/config.json; required when neither exists)" >&2
-  echo "    AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR directory holding client.crt/client.key/ca.crt (default: <repo>/certs)" >&2
-  echo "    AGENT_FITNESS_FUNCTIONS_CLIENT_CERT  mTLS client certificate path (overrides cert dir)" >&2
-  echo "    AGENT_FITNESS_FUNCTIONS_CLIENT_KEY   mTLS client private key path (overrides cert dir)" >&2
-  echo "    AGENT_FITNESS_FUNCTIONS_CLIENT_CA    server CA bundle path (overrides cert dir)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR selects a managed governance root for 'client validate' to resolve itself (default: unset, uses the machine governance root)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_CLIENT_CERT  explicit mTLS client certificate path (mutually exclusive with DEV_CERT_DIR)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_CLIENT_KEY   explicit mTLS client private key path (mutually exclusive with DEV_CERT_DIR)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_CLIENT_CA    explicit server CA bundle path (mutually exclusive with DEV_CERT_DIR)" >&2
   echo "" >&2
   echo "  Managed CALM/Python runtimes installed under XDG_STATE_HOME (ADR-0005)" >&2
   echo "  take PATH precedence over whatever is already on PATH when present." >&2
@@ -74,10 +77,10 @@ detect_repo_name() {
 
 # Resolve the mTLS client credentials the server requires.
 # Precedence (12-factor): explicit AGENT_FITNESS_FUNCTIONS_CLIENT_* env vars win;
-# otherwise auto-discover a dev cert directory and use client.crt/client.key/ca.crt.
-# Cert-dir discovery order: AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR, then the source
-# repo's certs/ (AGENT_FITNESS_FUNCTIONS_SRC or this script's repo root).
-script_repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+# otherwise managed mode passes NO client TLS flags at all — `client validate`
+# resolves the machine governance root itself (ADR-0007). The
+# AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR selector, if set, is left in the child's
+# environment untouched so the client can pin a different managed root.
 managed_selector=${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR:-}
 explicit_client_tls=0
 [[ -n "${AGENT_FITNESS_FUNCTIONS_CLIENT_CERT:-}${AGENT_FITNESS_FUNCTIONS_CLIENT_KEY:-}${AGENT_FITNESS_FUNCTIONS_CLIENT_CA:-}" ]] && explicit_client_tls=1
@@ -106,34 +109,27 @@ if [[ "$explicit_client_tls" -eq 1 ]]; then
   client_key=${AGENT_FITNESS_FUNCTIONS_CLIENT_KEY:-}
   client_ca=${AGENT_FITNESS_FUNCTIONS_CLIENT_CA:-}
   unset AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR
-else
-  cert_dir=${managed_selector:-${AGENT_FITNESS_FUNCTIONS_SRC:-$script_repo}/certs}
-  set +e
-  managed_version=$(AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="$cert_dir" "$bridge" client resolve-dev-cert-version)
-  resolver_rc=$?
-  set -e
-  [[ "$resolver_rc" -eq 0 ]] || exit 1
-  if [[ ! "$managed_version" =~ ^versions/v-[0-9a-f]{32}$ ]]; then
-    echo "agent-fitness-functions returned an invalid managed certificate version" >&2
-    exit 1
-  fi
-  client_cert=$cert_dir/$managed_version/client.crt
-  client_key=$cert_dir/$managed_version/client.key
-  client_ca=$cert_dir/$managed_version/ca.crt
-  unset AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR
-fi
 
-for pair in "client certificate:$client_cert" "client key:$client_key" "CA bundle:$client_ca"; do
-  label="${pair%%:*}"
-  path="${pair#*:}"
-  [[ -f "$path" ]] || {
-    echo "error: mTLS $label not found: $path" >&2
-    echo "  the server requires mutual TLS; generate local dev certs with:" >&2
-    echo "    scripts/generate-dev-certs.sh" >&2
-    echo "  or set AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA to existing credentials." >&2
-    exit 1
-  }
-done
+  for pair in "client certificate:$client_cert" "client key:$client_key" "CA bundle:$client_ca"; do
+    label="${pair%%:*}"
+    path="${pair#*:}"
+    [[ -f "$path" ]] || {
+      echo "error: mTLS $label not found: $path" >&2
+      echo "  the server requires mutual TLS; generate local dev certs with:" >&2
+      echo "    scripts/generate-dev-certs.sh" >&2
+      echo "  or set AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA to existing credentials." >&2
+      exit 1
+    }
+  done
+else
+  # Managed mode (ADR-0007): pass no TLS flags at all. `client validate` resolves
+  # the machine governance root itself; AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR, if
+  # set, is left in the environment untouched so the client can pin a different
+  # managed root.
+  client_cert=""
+  client_key=""
+  client_ca=""
+fi
 
 case "$file" in
   *.go) language="go" ;;
@@ -246,17 +242,25 @@ cfg = {
 print(json.dumps(cfg, indent=2))
 " > "$tmp_dir/.calm/config.json"
 
-  response=$(
-    "$bridge" client validate \
-      --addr "$addr" \
-      --repo "$repo_arg" \
-      --file "$relative_file" \
-      --content "$(cat "$file_abs")" \
-      --language "$language" \
-      --client-cert "$client_cert" \
-      --client-key "$client_key" \
-      --client-ca "$client_ca" 2>&1
-  ) || {
+  validate_args=(
+    client validate
+    --addr "$addr"
+    --repo "$repo_arg"
+    --file "$relative_file"
+    --content "$(cat "$file_abs")"
+    --language "$language"
+  )
+  # Pass mTLS client cert+key only as a pair (the client requires both together);
+  # omit entirely in managed mode so `client validate` resolves the machine
+  # governance root itself (ADR-0007).
+  if [[ -n "$client_cert" && -n "$client_key" ]]; then
+    validate_args+=(--client-cert "$client_cert" --client-key "$client_key")
+  fi
+  if [[ -n "$client_ca" ]]; then
+    validate_args+=(--client-ca "$client_ca")
+  fi
+
+  response=$("$bridge" "${validate_args[@]}" 2>&1) || {
     echo "agent-fitness-functions check failed for $relative_file" >&2
     printf '%s\n' "$response" >&2
     exit 1

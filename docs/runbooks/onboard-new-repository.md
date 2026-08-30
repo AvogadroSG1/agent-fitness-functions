@@ -144,16 +144,22 @@ agent-fitness-functions client onboard
 
 This runs the whole 0-to-governed sequence and gates on `doctor` at the end:
 
-1. **Dev certificates** — generated in-process into `<repo>/certs` (no `openssl`,
-   no `scripts/generate-dev-certs.sh` needed) with client CN `dev-hook-pool`.
+1. **Dev certificates** — generated in-process into the machine governance root
+   (`${XDG_STATE_HOME:-~/.local/state}/agent-fitness-functions/governance/certs`, ADR-0007; no
+   `openssl`, no `scripts/generate-dev-certs.sh` needed) with client CN
+   `dev-hook-pool`. One dev CA serves every governed repository on the machine.
    `AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR` overrides the location.
-2. **Server-side config scaffold** — `<configs-dir>/<repo>/config.json` from the
-   embedded template, with all five fitness functions enabled. The configs directory is
-   `AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR` if set, else `<repo>/configs`. An existing
-   config is left unchanged.
-3. **Caller authorization** — merges CN `dev-hook-pool → <repo>` into
-   `caller-repos.json` (a sibling of the `configs/` directory), preserving all other
-   callers and admins.
+2. **Server-side config scaffold** — the tracked `<repo>/configs/<repo>/config.json`
+   production handoff artifact from the embedded template, with all five fitness
+   functions enabled (an existing config is left unchanged), then copied verbatim
+   into the shared governance configs dir the local daemon serves
+   (`AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR` if set, else `<govRoot>/configs`).
+   Re-running onboard re-syncs a user-edited repo-local config; the repo-local file
+   is the source of truth.
+3. **Caller authorization** — merges CN `dev-hook-pool → <repo>` into the governance
+   root's `caller-repos.json` (a sibling of its `configs/` directory), accumulating
+   entries across every onboarded repository and preserving all other callers and
+   admins.
 4. **Hook installation** — `install-hooks` (see below).
 5. **Local daemon auto-start** — a TLS daemon on `https://127.0.0.1:7890` (generating
    dev certs and pointing at the resolved configs directory); a healthy daemon is a
@@ -208,6 +214,31 @@ Both `.claude/settings.json` entries are upserted idempotently. If the repo alre
 unrelated Git hooks the installer refuses to overwrite them; set
 `AGENT_FITNESS_FUNCTIONS_HOOK_APPEND=1` (sidecar) or
 `AGENT_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` (replace).
+
+The registered `.claude/settings.json` commands are machine-portable: each entry is
+`"$(git rev-parse --git-path hooks/<name>)"`, which every machine resolves to its own
+installed script, so committing `.claude/settings.json` never embeds one developer's
+absolute paths. `doctor` verifies the resolved script actually exists on disk, so a
+fresh clone that has the entries but not the scripts fails honestly instead of
+false-passing.
+
+### Portable vs per-machine artifacts
+
+Onboarding produces two kinds of artifacts. Committing the portable ones is safe and
+expected; the per-machine ones must be (re)created on every clone — which is exactly
+what re-running `client onboard` (or `client install-hooks`) does:
+
+| Artifact | Scope | Notes |
+|----------|-------|-------|
+| `<repo>/configs/<repo>/config.json` | **Portable (tracked)** | The production handoff source of truth; onboard syncs it into the machine governance root |
+| `.claude/settings.json` PreToolUse entries | **Portable (tracked)** | Self-locating `git rev-parse --git-path` commands, no absolute paths |
+| `.git/hooks/*` scripts (or `core.hooksPath` equivalents) | **Per-machine** | Inside `.git/`, never committed; installed by `install-hooks` |
+| `<govRoot>/certs` dev CA + client/server certs | **Per-machine** | One CA per machine under `~/.local/state/agent-fitness-functions/governance/` |
+| `<govRoot>/configs/` + `<govRoot>/caller-repos.json` | **Per-machine** | The local daemon's view; rebuilt by onboarding each repo once per machine |
+| `.claude/settings.local.json` entries (forge repos) | **Per-machine** | forge gitignores this file; see below |
+
+On a new computer: clone, then run `agent-fitness-functions client onboard` once per
+governed repo. Nothing committed by another machine needs editing.
 
 ### forge-generated repositories
 
@@ -339,8 +370,9 @@ export AGENT_FITNESS_FUNCTIONS_REPO_NAME=<repo-name>
 > `--repo` value the hooks send and MUST equal the `configs/<repo-name>` directory from
 > Step 1. Without it the hooks fall back to the working-tree basename, which may not
 > match the config directory name and will produce a `not_configured` error. When the
-> `AGENT_FITNESS_FUNCTIONS_CLIENT_*` variables are unset, the client and hooks
-> auto-discover credentials from `<repo>/certs`.
+> `AGENT_FITNESS_FUNCTIONS_CLIENT_*` variables are unset, `client validate` resolves
+> managed credentials from the machine governance root itself — the hooks pass no TLS
+> material (ADR-0007).
 
 ## Verification
 
@@ -432,9 +464,9 @@ violation)` block. A real block is a *successful* check whose status is `block` 
 
 | `error_kind` | Trigger | Meaning | Fix |
 |--------------|---------|---------|-----|
-| `server_unreachable` | dial refused / timeout / daemon auto-start failure | The governance server could not be reached at all | Run `agent-fitness-functions doctor`; the local daemon auto-starts on `client validate` when dev certs and a repo config exist. Its stdout/stderr are captured at `<repo>/certs/daemon.log` — check it when auto-start fails |
+| `server_unreachable` | dial refused / timeout / daemon auto-start failure | The governance server could not be reached at all | Run `agent-fitness-functions doctor`; the local daemon auto-starts on `client validate` when dev certs and a repo config exist. Its stdout/stderr are captured at `<govRoot>/certs/daemon.log` (the machine governance root) — check it when auto-start fails |
 | `tls_failure` | TLS handshake / certificate-material error | The client and server did not agree on TLS | Run `doctor`; regenerate dev certs with `scripts/generate-dev-certs.sh --force` |
-| `port_conflict` | TLS probe failure against a live listener on the shared default local port, in managed local mode | Another repository's local daemon — or a stale daemon from before certificate rotation — already owns the configured local port | Identify it with `lsof -i :7890` and stop it, or rerun with a distinct `--addr` |
+| `port_conflict` | TLS probe failure against a live listener on the shared default local port, in managed local mode | A stale daemon from before this machine migrated to the shared governance root (ADR-0007) — or from before a certificate rotation — still owns the configured local port | Identify it with `lsof -i :7890` and stop it, then re-run `client onboard`; or rerun with a distinct `--addr` |
 | `unauthenticated` | HTTP 401 | The server rejected the client certificate | Run `doctor`; regenerate dev certs, or set `AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA` to a trusted pair |
 | `unauthorized` | HTTP 403 | The certificate's CN is not authorized for this repo | Add the CN to `caller-repos.json` for the repo on the server, then redeploy |
 | `not_configured` | HTTP 404 | No `configs/<repo>/config.json` on the server, or `--repo`/`AGENT_FITNESS_FUNCTIONS_REPO_NAME` does not match the config directory | Run `client onboard`, or create `configs/<repo>/config.json` on the server |

@@ -89,16 +89,19 @@ The local `.calm` mode (described in the CLI tools section below) is a **sandbox
 | `AGENT_FITNESS_FUNCTIONS_CLIENT_CERT` | Optional (mTLS) | External PEM-encoded client certificate path |
 | `AGENT_FITNESS_FUNCTIONS_CLIENT_KEY` | Optional (mTLS) | External PEM-encoded client private key path |
 | `AGENT_FITNESS_FUNCTIONS_CLIENT_CA` | Optional (mTLS) | External PEM-encoded CA bundle for server verification |
-| `AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR` | Optional | Managed development certificate root (default `<repo>/certs`) |
+| `AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR` | Optional | Managed development certificate root (default: the machine governance root `${XDG_STATE_HOME:-~/.local/state}/agent-fitness-functions/governance/certs`, ADR-0007) |
 | `AGENT_FITNESS_FUNCTIONS_REPO_NAME` | Recommended | Logical repository name (overrides working-tree basename) |
 | `AGENT_FITNESS_FUNCTIONS_ON_ERROR` | Optional | `block` (default) or `advisory` — whether an infrastructure/setup failure blocks the commit or agent edit. Mirrors the server's `enforcement-on-error`; distinct from a real architecture violation. |
 
-With no explicit client TLS input, the client and hooks resolve one immutable managed
-version beneath `AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR` or `<repo>/certs`. Client TLS
+With no explicit client TLS input, the client resolves one immutable managed version
+beneath `AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR` or the machine governance root
+(`${XDG_STATE_HOME:-~/.local/state}/agent-fitness-functions/governance/certs`, ADR-0007) — the hooks pass
+no TLS material at all and leave that resolution to `client validate`. Client TLS
 flags or `AGENT_FITNESS_FUNCTIONS_CLIENT_*` variables select external mode and retain
 flag-over-environment precedence. The managed selector cannot be combined with an
 explicit client TLS input. `client onboard` generates managed dev certs (CN
-`dev-hook-pool`) into `<repo>/certs` automatically.
+`dev-hook-pool`) into the shared machine governance root automatically — one dev CA
+serves every governed repository on the machine.
 
 Full onboarding with external client TLS validates the certificate/key pair, CA chain,
 client-auth profile, and non-empty leaf CN before changing the repository. The external

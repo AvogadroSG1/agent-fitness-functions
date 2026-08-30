@@ -53,62 +53,84 @@ func newGitRepoWithFile(t *testing.T) (string, string) {
 	return repo, file
 }
 
-// TestStackFitnessFunctionsTestPassesMTLS verifies the helper authenticates:
-// it must default to an https addr and forward discovered mTLS client
-// credentials to `client validate`. Regression guard for calm-poc-qo7, where
-// the helper defaulted to plain HTTP with no certs and every check returned
-// HTTP 401.
-func TestStackFitnessFunctionsTestPassesMTLS(t *testing.T) {
+// TestStackFitnessFunctionsTestManagedModePassesSelectorNoTLSFlags is the
+// ADR-0007 recast of the former TestStackFitnessFunctionsTestPassesMTLS
+// (regression guard for calm-poc-qo7: the helper must be able to
+// authenticate, must default to https). Under the new contract the client
+// authenticates itself: managed mode passes NO --client-cert/key/ca flags and
+// never calls the resolver — `client validate` resolves the machine
+// governance root itself. The helper's only remaining job in managed mode is
+// to default to an https addr and leave AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR
+// untouched for the child to see.
+func TestStackFitnessFunctionsTestManagedModePassesSelectorNoTLSFlags(t *testing.T) {
 	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
 		t.Fatalf("abs helper path: %v", err)
 	}
 
-	_, file := newGitRepoWithFile(t)
+	run := func(t *testing.T, devCertDir string) string {
+		t.Helper()
+		_, file := newGitRepoWithFile(t)
+		recordPath := filepath.Join(t.TempDir(), "invocations.log")
+		bridge := stubBridge(t, t.TempDir(), recordPath)
 
-	// A cert directory the helper should auto-discover via AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR.
-	certDir := t.TempDir()
-	version := publishManagedCertFixture(t, certDir)
-
-	recordPath := filepath.Join(t.TempDir(), "invocations.log")
-	bridge := stubBridge(t, t.TempDir(), recordPath)
-
-	cmd := exec.Command(helper, file)
-	cmd.Env = append(os.Environ(),
-		"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
-		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
-		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("helper failed: %v\n%s", err, out)
-	}
-
-	recorded, err := os.ReadFile(recordPath)
-	if err != nil {
-		t.Fatalf("read invocations: %v", err)
-	}
-	invocations := string(recorded)
-	if invocations == "" {
-		t.Fatalf("stub bridge was never invoked; helper output:\n%s", out)
-	}
-	if calls := strings.Count(invocations, "client resolve-dev-cert-version"); calls != 1 {
-		t.Fatalf("resolver calls = %d, want 1:\n%s", calls, invocations)
-	}
-	if !strings.Contains(invocations, "selector=unset|") {
-		t.Fatalf("managed helper did not unset selector before validation:\n%s", invocations)
-	}
-
-	for _, want := range []string{
-		"--addr https://",
-		"--client-cert " + filepath.Join(certDir, filepath.FromSlash(version), "client.crt"),
-		"--client-key " + filepath.Join(certDir, filepath.FromSlash(version), "client.key"),
-		"--client-ca " + filepath.Join(certDir, filepath.FromSlash(version), "ca.crt"),
-	} {
-		if !strings.Contains(invocations, want) {
-			t.Errorf("expected helper to pass %q to client validate; got invocations:\n%s", want, invocations)
+		env := append(os.Environ(),
+			"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
+			"AGENT_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
+		)
+		// Leave AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR genuinely absent (not
+		// set-to-empty) so the stub bridge's "${VAR-unset}" probe can tell
+		// the difference — set-to-empty is a distinct state from unset.
+		if devCertDir != "" {
+			env = append(env, "AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+devCertDir)
 		}
+		cmd := exec.Command(helper, file)
+		cmd.Env = env
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("helper failed: %v\n%s", err, out)
+		}
+
+		recorded, err := os.ReadFile(recordPath)
+		if err != nil {
+			t.Fatalf("read invocations: %v", err)
+		}
+		invocations := string(recorded)
+		if invocations == "" {
+			t.Fatalf("stub bridge was never invoked; helper output:\n%s", out)
+		}
+		return invocations
 	}
+
+	t.Run("selector set", func(t *testing.T) {
+		certDir := t.TempDir()
+		invocations := run(t, certDir)
+		if strings.Contains(invocations, "client resolve-dev-cert-version") {
+			t.Fatalf("managed mode must not call the resolver — `client validate` resolves the machine governance root itself (ADR-0007):\n%s", invocations)
+		}
+		if strings.Contains(invocations, "--client-cert") {
+			t.Fatalf("managed mode must not pass --client-cert; the client resolves its own credentials:\n%s", invocations)
+		}
+		if !strings.Contains(invocations, "selector="+certDir+"|") {
+			t.Fatalf("the AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR selector must pass through to client validate untouched:\n%s", invocations)
+		}
+		if !strings.Contains(invocations, "--addr https://") {
+			t.Errorf("expected helper to default to an https addr; got invocations:\n%s", invocations)
+		}
+	})
+
+	t.Run("selector unset", func(t *testing.T) {
+		invocations := run(t, "")
+		if strings.Contains(invocations, "client resolve-dev-cert-version") {
+			t.Fatalf("managed mode must not call the resolver:\n%s", invocations)
+		}
+		if strings.Contains(invocations, "--client-cert") {
+			t.Fatalf("managed mode must not pass --client-cert:\n%s", invocations)
+		}
+		if !strings.Contains(invocations, "selector=unset|") {
+			t.Fatalf("expected selector to read as unset when AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR is not set:\n%s", invocations)
+		}
+	})
 }
 
 // TestStackFitnessFunctionsTestEnvOverridesCerts verifies explicit
@@ -199,8 +221,16 @@ func TestStackFitnessFunctionsTestErrorsWhenRepoNameUndetectable(t *testing.T) {
 	if !strings.Contains(string(out), "AGENT_FITNESS_FUNCTIONS_REPO_NAME") {
 		t.Fatalf("output = %s, want remediation naming AGENT_FITNESS_FUNCTIONS_REPO_NAME", out)
 	}
-	if recorded, readErr := os.ReadFile(recordPath); readErr != nil || strings.Contains(string(recorded), "client validate") {
-		t.Fatalf("client validate was invoked before repo-name detection; calls=%q error=%v", recorded, readErr)
+	// Under the ADR-0007 contract managed mode never calls the bridge before
+	// repo-name detection (no resolver call happens either), so the log file
+	// may legitimately not exist at all — that itself proves the bridge was
+	// never invoked.
+	recorded, readErr := os.ReadFile(recordPath)
+	if readErr != nil && !os.IsNotExist(readErr) {
+		t.Fatalf("read invocations: %v", readErr)
+	}
+	if strings.Contains(string(recorded), "client validate") {
+		t.Fatalf("client validate was invoked before repo-name detection; calls=%q", recorded)
 	}
 }
 
@@ -241,6 +271,8 @@ func TestStackFitnessFunctionsTestUsesExplicitRepoName(t *testing.T) {
 	}
 }
 
+// TestStackFitnessFunctionsTestFailsWhenClientValidateFails verifies the helper
+// surfaces a `client validate` failure instead of reporting a false PASS.
 func TestStackFitnessFunctionsTestFailsWhenClientValidateFails(t *testing.T) {
 	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
@@ -254,8 +286,10 @@ func TestStackFitnessFunctionsTestFailsWhenClientValidateFails(t *testing.T) {
 
 	bridgeDir := t.TempDir()
 	bridge := filepath.Join(bridgeDir, "agent-fitness-functions")
+	// The resolver branch is dead under the ADR-0007 contract — managed mode
+	// never calls `client resolve-dev-cert-version` from the helper — so the
+	// stub only needs to fail `client validate`.
 	script := "#!/usr/bin/env bash\n" +
-		"if [[ \"$*\" == \"client resolve-dev-cert-version\" ]]; then readlink \"$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current\"; exit 0; fi\n" +
 		"echo 'check failed with HTTP 403: caller \"dev-hook-pool\" is not authorized for repository \"wrong-repo\"' >&2\n" +
 		"exit 1\n"
 	if err := os.WriteFile(bridge, []byte(script), 0o755); err != nil {
@@ -280,6 +314,13 @@ func TestStackFitnessFunctionsTestFailsWhenClientValidateFails(t *testing.T) {
 	}
 }
 
+// TestStackFitnessFunctionsTestManagedFailureMatrix covers the failure modes
+// the helper itself is still responsible for detecting under the ADR-0007
+// contract. Only "ambiguity" (the managed-vs-explicit-TLS conflict guard)
+// remains: managed cert resolution and version validation now live entirely
+// inside `client validate`, so the "malformed resolver output" and "resolver
+// failure" cases from the old resolve-then-unset contract no longer apply
+// here — the helper never invokes the resolver at all.
 func TestStackFitnessFunctionsTestManagedFailureMatrix(t *testing.T) {
 	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
 	if err != nil {
@@ -295,8 +336,6 @@ func TestStackFitnessFunctionsTestManagedFailureMatrix(t *testing.T) {
 		want     string
 	}{
 		{name: "ambiguity", resolver: "exit 99", extraEnv: []string{"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT=/external/client.crt"}, want: "cannot be combined with explicit client TLS inputs"},
-		{name: "malformed", resolver: "printf 'versions/not-valid\\n'", want: "invalid managed certificate version"},
-		{name: "resolver failure", resolver: "echo 'helper resolver failed safely' >&2; exit 7", want: "helper resolver failed safely"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -326,55 +365,6 @@ func TestStackFitnessFunctionsTestManagedFailureMatrix(t *testing.T) {
 	}
 }
 
-func TestStackFitnessFunctionsTestKeepsResolvedPathsAfterRotation(t *testing.T) {
-	helper, err := filepath.Abs(filepath.Join("bin", "agent-fitness-functions-test"))
-	if err != nil {
-		t.Fatalf("Abs(helper): %v", err)
-	}
-	_, file := newGitRepoWithFile(t)
-	certDir := t.TempDir()
-	resolved := publishManagedCertFixture(t, certDir)
-	const rotated = "versions/v-dddddddddddddddddddddddddddddddd"
-	copyBinHelperVersion(t, filepath.Join(certDir, filepath.FromSlash(resolved)), filepath.Join(certDir, filepath.FromSlash(rotated)))
-	logPath := filepath.Join(t.TempDir(), "calls")
-	bridge := filepath.Join(t.TempDir(), "agent-fitness-functions")
-	script := `#!/usr/bin/env bash
-if [[ "$*" == "client resolve-dev-cert-version" ]]; then
-  target=$(readlink "$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current")
-  rm -f "$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current"
-  ln -s "` + rotated + `" "$AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR/current"
-  printf '%s\n' "$target"
-  exit 0
-fi
-printf 'selector=%s|%s\n' "${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR-unset}" "$*" >>` + shellQuote(logPath) + `
-printf '{"status":"pass"}\n'
-`
-	if err := os.WriteFile(bridge, []byte(script), 0o755); err != nil {
-		t.Fatalf("WriteFile(bridge): %v", err)
-	}
-	command := exec.Command(helper, file)
-	command.Env = append(os.Environ(),
-		"AGENT_FITNESS_FUNCTIONS_BIN="+bridge,
-		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=calm-poc",
-		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR="+certDir,
-		"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT=",
-		"AGENT_FITNESS_FUNCTIONS_CLIENT_KEY=",
-		"AGENT_FITNESS_FUNCTIONS_CLIENT_CA=",
-	)
-	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("helper failed: %v\n%s", err, output)
-	}
-	calls, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("ReadFile(calls): %v", err)
-	}
-	resolvedClient := filepath.Join(certDir, filepath.FromSlash(resolved), "client.crt")
-	rotatedClient := filepath.Join(certDir, filepath.FromSlash(rotated), "client.crt")
-	if !strings.Contains(string(calls), "selector=unset|") || !strings.Contains(string(calls), resolvedClient) || strings.Contains(string(calls), rotatedClient) {
-		t.Fatalf("helper calls did not preserve resolved paths with selector unset:\n%s", calls)
-	}
-}
-
 func writeBinHelperStub(t *testing.T, resolver string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "agent-fitness-functions")
@@ -383,28 +373,6 @@ func writeBinHelperStub(t *testing.T, resolver string) string {
 		t.Fatalf("WriteFile(stub): %v", err)
 	}
 	return path
-}
-
-func copyBinHelperVersion(t *testing.T, source, destination string) {
-	t.Helper()
-	if err := os.MkdirAll(destination, 0o755); err != nil {
-		t.Fatalf("MkdirAll(destination): %v", err)
-	}
-	for _, file := range []struct {
-		name string
-		mode os.FileMode
-	}{
-		{name: "ca.crt", mode: 0o644}, {name: "client.crt", mode: 0o644}, {name: "client.key", mode: 0o600},
-		{name: "server.crt", mode: 0o644}, {name: "server.key", mode: 0o600},
-	} {
-		content, err := os.ReadFile(filepath.Join(source, file.name))
-		if err != nil {
-			t.Fatalf("ReadFile(%s): %v", file.name, err)
-		}
-		if err := os.WriteFile(filepath.Join(destination, file.name), content, file.mode); err != nil {
-			t.Fatalf("WriteFile(%s): %v", file.name, err)
-		}
-	}
 }
 
 func publishManagedCertFixture(t *testing.T, root string) string {
