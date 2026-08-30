@@ -1,0 +1,33 @@
+internal/client/onboard.go
+  s_c89e35c8af4402::t_e0f015a3868e73 5,847-850,852-856
+  s_c89e35c8af4402::t_fff2a09d7c4ce6 574-583,600-614,620-621,623-631,633-652
+  s_c89e35c8af4402::t_93e54c11b11a9c 615-619,622,632
+  s_c89e35c8af4402::t_d6fb51f2e0a26f 653
+docs/ux-evaluation-0-to-governed.md
+  s_c89e35c8af4402::t_95e0e7d6072b43 3-9
+internal/client/daemon.go
+  s_c89e35c8af4402::t_e0f015a3868e73 290-292
+docs/runbooks/onboard-new-repository.md
+  s_c89e35c8af4402::t_08537b12a78d10 176
+  s_c89e35c8af4402::t_95e0e7d6072b43 128-132,172-175
+docs/adr/0007-machine-scoped-shared-governance-state.md
+  s_c89e35c8af4402::t_e0f015a3868e73 154-160
+  s_c89e35c8af4402::t_95e0e7d6072b43 142-152
+  s_c89e35c8af4402::t_0d7e4a63ee1bef 153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "f15408fcf3ee1f901eaebe088ff8c2d9f352200c",
+  "prompts": {},
+  "sessions": {
+    "s_c89e35c8af4402": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "138a4b36-9ef4-42e6-8090-d72746e40b52",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
