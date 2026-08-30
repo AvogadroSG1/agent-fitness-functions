@@ -514,7 +514,7 @@ func (installer hookInstaller) installGitGuard() error {
 		return err
 	}
 	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", guardPath)
-	return installer.applyClaudeHook(gitGuardSpec(guardPath))
+	return installer.applyClaudeHook(gitGuardSpec(gitGuardName))
 }
 
 // installAgentHook installs the Edit/Write content-validation hook — the flagship
@@ -536,7 +536,7 @@ func (installer hookInstaller) installAgentHook() error {
 		return err
 	}
 	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", scriptPath)
-	return installer.applyClaudeHook(agentHookSpec(scriptPath))
+	return installer.applyClaudeHook(agentHookSpec(agentHookName))
 }
 
 // applyClaudeHook idempotently upserts a single PreToolUse entry into
@@ -679,21 +679,39 @@ func upsertClaudeHook(settings map[string]any, spec claudeHookSpec) string {
 	return "added " + spec.name + " to PreToolUse hooks"
 }
 
-func gitGuardSpec(guardPath string) claudeHookSpec {
+// portableHookCommand returns the PreToolUse command to register in the
+// tracked .claude/settings.json for the installed hook script named name,
+// instead of that script's machine-local absolute path. Claude Code runs
+// PreToolUse commands with the project root as the working directory, so
+// `git rev-parse --git-path hooks/<name>` re-resolves the real hooks
+// directory at invocation time on whichever machine has this repo checked
+// out — including under a core.hooksPath redirect, since it delegates to
+// git's own resolution rather than re-deriving it. A literal absolute path
+// baked into the entry instead would be correct only on the machine that ran
+// install-hooks; onboarding the same repo on a second machine would then
+// upsert the entry to that machine's path and break the first machine on its
+// next pull, because .claude/settings.json is tracked and shared.
+func portableHookCommand(name string) string {
+	return `"$(git rev-parse --git-path hooks/` + name + `)"`
+}
+
+func gitGuardSpec(name string) claudeHookSpec {
+	command := portableHookCommand(name)
 	return claudeHookSpec{
-		entry:   claudeCommandEntry("Bash", guardPath),
+		entry:   claudeCommandEntry("Bash", command),
 		markers: gitGuardNameHistory,
-		name:    gitGuardName,
-		command: guardPath,
+		name:    name,
+		command: command,
 	}
 }
 
-func agentHookSpec(scriptPath string) claudeHookSpec {
+func agentHookSpec(name string) claudeHookSpec {
+	command := portableHookCommand(name)
 	return claudeHookSpec{
-		entry:   claudeCommandEntry("Edit|Write", scriptPath),
+		entry:   claudeCommandEntry("Edit|Write", command),
 		markers: agentHookNameHistory,
-		name:    agentHookName,
-		command: scriptPath,
+		name:    name,
+		command: command,
 	}
 }
 

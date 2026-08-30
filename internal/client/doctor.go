@@ -568,37 +568,101 @@ const forgeClobberExplanation = "forge upgrade rewrites .claude/settings.json â€
 
 // claudeHookEntryLocation checks .claude/settings.json, then .claude/settings.local.json,
 // for a PreToolUse entry matching markers (as installed by applyClaudeHook). It returns
-// the relative path of whichever file the entry was found in, for use in a check's detail
-// line.
-func claudeHookEntryLocation(repoRoot string, markers []string) (file string, found bool, err error) {
+// the relative path of whichever file the entry was found in (for use in a check's detail
+// line) and the entry's raw command string, so the caller can resolve and stat the script
+// the command actually points at instead of trusting the marker match alone â€” a marker
+// match only proves an entry with the right hook NAME is present, not that the script it
+// names exists on this machine (e.g. a fresh clone that pulled the tracked settings.json
+// but never ran install-hooks).
+func claudeHookEntryLocation(repoRoot string, markers []string) (file, command string, found bool, err error) {
 	for _, name := range []string{"settings.json", "settings.local.json"} {
 		relative := filepath.Join(".claude", name)
 		settings, loadErr := loadClaudeSettings(filepath.Join(repoRoot, relative))
 		if loadErr != nil {
-			return "", false, loadErr
+			return "", "", false, loadErr
 		}
 		entries := preToolUseEntries(ensureHooksSection(settings))
-		if _, _, ok := findClaudeHookEntry(entries, markers); ok {
-			return relative, true, nil
+		if _, matchedCommand, ok := findClaudeHookEntry(entries, markers); ok {
+			return relative, matchedCommand, true, nil
 		}
 	}
-	return "", false, nil
+	return "", "", false, nil
+}
+
+// gitPathArgFromCommand extracts the "hooks/<name>" argument from a portable command of
+// the form `"$(git rev-parse --git-path hooks/<name>)"`, as written by
+// portableHookCommand. ok is false for any other command shape (e.g. a literal path a
+// pre-fix install left behind), which the caller falls back to resolving as a literal
+// path instead.
+func gitPathArgFromCommand(command string) (arg string, ok bool) {
+	const marker = "--git-path "
+	index := strings.Index(command, marker)
+	if index == -1 {
+		return "", false
+	}
+	rest := command[index+len(marker):]
+	if end := strings.IndexAny(rest, ")\""); end != -1 {
+		rest = rest[:end]
+	}
+	return strings.TrimSpace(rest), true
+}
+
+// resolveHookCommandPath turns a PreToolUse command string into the filesystem path
+// doctor should stat: the portable `git rev-parse --git-path` form is resolved the same
+// way gitHookPath resolves an installed script's write target (including under a
+// core.hooksPath redirect), and any other shape is treated as a literal path left by a
+// pre-fix install, relative to repoRoot when it is not already absolute. This is what
+// makes a fresh clone that carries the tracked settings.json entry but never ran
+// install-hooks resolve to a path that does not exist yet, instead of doctor trusting the
+// marker substring alone.
+func resolveHookCommandPath(repoRoot, command string) (string, error) {
+	if gitPathArg, ok := gitPathArgFromCommand(command); ok {
+		resolved, err := gitOutput(repoRoot, "rev-parse", "--git-path", gitPathArg)
+		if err != nil {
+			return "", err
+		}
+		return joinRelativeToRepo(repoRoot, resolved), nil
+	}
+	return joinRelativeToRepo(repoRoot, strings.Trim(command, `"`)), nil
+}
+
+func joinRelativeToRepo(repoRoot, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(repoRoot, path)
+}
+
+// hookCommandScriptMissing reports whether the script a PreToolUse command resolves to
+// is absent from this machine. A resolution error (e.g. gitOutput failing) counts as
+// missing too, since doctor cannot confirm the script exists.
+func hookCommandScriptMissing(repoRoot, command string) bool {
+	path, err := resolveHookCommandPath(repoRoot, command)
+	if err != nil {
+		return true
+	}
+	_, statErr := os.Stat(path)
+	return statErr != nil
 }
 
 func gitGuardSettingsResult(repoRoot string) checkResult {
 	name := "agent git-guard hook"
-	file, found, err := claudeHookEntryLocation(repoRoot, gitGuardNameHistory)
+	file, command, found, err := claudeHookEntryLocation(repoRoot, gitGuardNameHistory)
 	if err != nil {
 		return checkResult{name: name, detail: err.Error(), remediation: "agent-fitness-functions client install-hooks"}
 	}
-	if !found {
+	if !found || hookCommandScriptMissing(repoRoot, command) {
 		remediation := "agent-fitness-functions client install-hooks"
 		if forgeManagedClaudeSettings(filepath.Join(repoRoot, ".claude", "settings.json")) {
 			remediation = forgeClobberExplanation
 		}
+		detail := "no Bash git-guard PreToolUse entry in .claude/settings.json or .claude/settings.local.json"
+		if found {
+			detail = "PreToolUse entry configured in " + file + " but its script is not installed on this machine"
+		}
 		return checkResult{
 			name:        name,
-			detail:      "no Bash git-guard PreToolUse entry in .claude/settings.json or .claude/settings.local.json",
+			detail:      detail,
 			remediation: remediation,
 		}
 	}
@@ -611,15 +675,18 @@ func gitGuardSettingsResult(repoRoot string) checkResult {
 // install-hooks.
 func editWriteHookResult(repoRoot string) checkResult {
 	name := "agent Edit/Write hook (optional)"
-	file, found, err := claudeHookEntryLocation(repoRoot, agentHookNameHistory)
+	file, command, found, err := claudeHookEntryLocation(repoRoot, agentHookNameHistory)
 	if err != nil {
 		return checkResult{name: name, detail: err.Error(), warning: true}
 	}
-	if found {
+	if found && !hookCommandScriptMissing(repoRoot, command) {
 		return checkResult{name: name, detail: "configured in " + file, passed: true}
 	}
 	detail := "no Edit|Write PreToolUse entry (pre-write architecture validation not wired)"
-	if forgeManagedClaudeSettings(filepath.Join(repoRoot, ".claude", "settings.json")) {
+	switch {
+	case found:
+		detail = "PreToolUse entry configured in " + file + " but its script is not installed on this machine"
+	case forgeManagedClaudeSettings(filepath.Join(repoRoot, ".claude", "settings.json")):
 		detail = forgeClobberExplanation
 	}
 	return checkResult{
