@@ -1,0 +1,23 @@
+internal/client/doctor_test.go
+  s_c89e35c8af4402::t_360aad110edf2b 339-350,353,358,360-372,377-379,383,392-394,398
+internal/client/doctor.go
+  s_c89e35c8af4402::t_81e109c79c947f 571-577,582,585-586,589-645,650,654,659-662,665,678,682,686-689
+internal/client/client.go
+  s_c89e35c8af4402::t_7df90cccc9c358 517,539,682-699,701,703-704,708-709,711,713-714
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "248869993815275990038631444ed3c5571ffe9f",
+  "prompts": {},
+  "sessions": {
+    "s_c89e35c8af4402": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "138a4b36-9ef4-42e6-8090-d72746e40b52",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
