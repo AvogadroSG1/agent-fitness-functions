@@ -403,7 +403,7 @@ func (o *onboarder) run() error {
 	} else {
 		steps = append(steps, o.registerRemote)
 	}
-	steps = append(steps, o.installHooks, o.startDaemon, o.runDoctor)
+	steps = append(steps, o.installHooks, o.startDaemon, o.awaitRegistration, o.runDoctor)
 	for _, step := range steps {
 		if err := step(); err != nil {
 			return err
@@ -747,6 +747,51 @@ func (o *onboarder) startDaemon() error {
 	}
 	o.detail("daemon healthy")
 	return nil
+}
+
+// awaitRegistration waits for the (possibly already-running) daemon to
+// acknowledge this repository's registration before the doctor gate probes
+// it. The shared governance configs dir is picked up via fsnotify with a
+// debounce, so the files onboard just wrote become visible to a live daemon
+// a moment later — polling /preflight absorbs that window instead of letting
+// doctor race it and fail a freshly onboarded repo. External mode registers
+// synchronously over HTTP, so there is nothing to wait for.
+func (o *onboarder) awaitRegistration() error {
+	if !o.tlsMode.managed {
+		return nil
+	}
+	httpClient, err := configureClientTLSMaterial(o.httpClient, o.tlsMaterial)
+	if err != nil {
+		return err
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		report, ok := o.preflightAcknowledged(httpClient)
+		if ok {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("daemon at %s did not acknowledge %q within 5s (configured=%v authorized=%v); check the governance configs dir it serves",
+				o.addr, o.repoName, report.RepoConfigured, report.CallerAuthorized)
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+}
+
+// preflightAcknowledged reports whether GET /preflight already shows this
+// repository configured and this caller authorized.
+func (o *onboarder) preflightAcknowledged(httpClient *http.Client) (preflightReport, bool) {
+	target := strings.TrimRight(o.addr, "/") + "/preflight?repo=" + o.repoName
+	response, err := httpClient.Get(target)
+	if err != nil {
+		return preflightReport{}, false
+	}
+	defer func() { _ = response.Body.Close() }()
+	var report preflightReport
+	if response.StatusCode != http.StatusOK || json.NewDecoder(response.Body).Decode(&report) != nil {
+		return preflightReport{}, false
+	}
+	return report, report.RepoConfigured && report.CallerAuthorized
 }
 
 func (o *onboarder) runDoctor() error {
