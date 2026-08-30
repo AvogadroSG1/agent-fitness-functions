@@ -50,7 +50,8 @@ type onboarder struct {
 	repoRoot             string
 	enforcement          string
 	addr                 string
-	configsDir           string
+	configsDir           string // machine governance root the daemon serves (ADR-0007)
+	repoConfigsDir       string // tracked <repoRoot>/configs, the production handoff artifact
 	certDir              string
 	stdout               io.Writer
 	stderr               io.Writer
@@ -111,7 +112,8 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 		repoRoot:             repoRoot,
 		enforcement:          mode,
 		addr:                 parsedFlags.addr,
-		configsDir:           onboardConfigsDir(repoRoot),
+		configsDir:           onboardConfigsDir(),
+		repoConfigsDir:       filepath.Join(repoRoot, "configs"),
 		certDir:              tlsResolution.certDir,
 		stdout:               stdout,
 		stderr:               stderr,
@@ -384,14 +386,13 @@ func resolveOnboardRepoName(repoFlag, repoRoot string) (string, error) {
 	return "", usageError{err: fmt.Errorf("working-tree basename %q is not a valid repository name (must match %s); pass --repo <name>", name, repoNameRule)}
 }
 
-// onboardConfigsDir resolves the configs directory the same way the daemon does,
-// but returns the <repo>/configs default even when it does not yet exist so the
-// scaffold step can create it. AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR still wins.
-func onboardConfigsDir(repoRoot string) string {
-	if dir := os.Getenv(envConfigsDir); dir != "" {
-		return dir
-	}
-	return filepath.Join(repoRoot, "configs")
+// onboardConfigsDir resolves the DAEMON-facing configs directory onboard
+// registers this repository under: AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR wins,
+// otherwise the machine governance root (ADR-0007) — the same resolution the
+// auto-started daemon uses. This is distinct from repoConfigsDir, the tracked
+// <repoRoot>/configs production handoff artifact.
+func onboardConfigsDir() string {
+	return resolveConfigsDir()
 }
 
 func (o *onboarder) run() error {
@@ -431,13 +432,23 @@ func (o *onboarder) ensureCerts() error {
 	return nil
 }
 
+// scaffoldConfig scaffolds the tracked repo-local production artifact (if
+// absent) and then always re-syncs it, verbatim, into the shared machine
+// governance root the daemon actually serves (ADR-0007). The repo-local file
+// is the source of truth: a re-run never rewrites it, only the shared copy.
 func (o onboarder) scaffoldConfig() error {
-	configPath := filepath.Join(o.configsDir, o.repoName, "config.json")
+	configPath := filepath.Join(o.repoConfigsDir, o.repoName, "config.json")
 	o.step("Server-side config: %s", configPath)
 	if fileExists(configPath) {
 		o.detail("already present — leaving unchanged")
-		return nil
+	} else if err := o.writeScaffoldConfig(configPath); err != nil {
+		return err
 	}
+	return o.syncSharedConfig(configPath)
+}
+
+// writeScaffoldConfig renders and writes the fresh repo-local config template.
+func (o onboarder) writeScaffoldConfig(configPath string) error {
 	content, err := renderScaffoldConfig(o.enforcement, o.selectedFunctions)
 	if err != nil {
 		return err
@@ -449,6 +460,26 @@ func (o onboarder) scaffoldConfig() error {
 		return fmt.Errorf("writing %s: %w", configPath, err)
 	}
 	o.detail("scaffolded %s config with %s", o.enforcement, scaffoldedFunctionsDetail(o.selectedFunctions))
+	return nil
+}
+
+// syncSharedConfig copies the tracked repo-local config byte-for-byte into
+// the shared machine governance configs dir, overwriting any prior copy so a
+// re-onboard re-syncs a user-edited repo-local config. It creates the shared
+// dir itself rather than relying on ensureCerts having run first.
+func (o onboarder) syncSharedConfig(repoLocalConfigPath string) error {
+	content, err := os.ReadFile(repoLocalConfigPath)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", repoLocalConfigPath, err)
+	}
+	sharedPath := filepath.Join(o.configsDir, o.repoName, "config.json")
+	if err := os.MkdirAll(filepath.Dir(sharedPath), 0o755); err != nil {
+		return fmt.Errorf("creating shared config directory: %w", err)
+	}
+	if err := os.WriteFile(sharedPath, content, 0o644); err != nil {
+		return fmt.Errorf("writing %s: %w", sharedPath, err)
+	}
+	o.detail("registered with local governance daemon (%s)", filepath.Dir(sharedPath))
 	return nil
 }
 
@@ -749,16 +780,19 @@ func (o *onboarder) runDoctor() error {
 
 // printManualRemainder prints whatever step still requires operator action.
 // In managed/local mode that is the same manual production hand-off it has
-// always been: the config and caller-binding files onboard wrote are local
-// only, so a shared container deployment still needs them copied over. In
-// external mode registerRemote already registered the repo against the
-// server named by --addr, so there is nothing left to copy.
+// always been: onboard registers the repo with this machine's shared local
+// governance daemon (repoConfigsDir synced into the shared configsDir, plus a
+// caller-repos.json entry in the governance root), but a production container
+// deployment is a separate target that still needs the tracked repo-local
+// config and the caller-binding entry copied over. In external mode
+// registerRemote already registered the repo against the server named by
+// --addr, so there is nothing left to copy.
 func (o onboarder) printManualRemainder() {
 	if !o.tlsMode.managed {
 		_, _ = fmt.Fprintf(o.stdout, "\n%s is registered with %s. No manual config hand-off is needed.\n", o.repoName, o.addr)
 		return
 	}
-	configPath := filepath.Join(o.configsDir, o.repoName, "config.json")
+	configPath := filepath.Join(o.repoConfigsDir, o.repoName, "config.json")
 	bindingsPath := onboardCallerBindingsPath(o.configsDir)
 	_, _ = fmt.Fprintf(o.stdout, "\n%s is governed locally.\n", o.repoName)
 	_, _ = fmt.Fprintln(o.stdout, "Remaining manual step for PRODUCTION governance:")

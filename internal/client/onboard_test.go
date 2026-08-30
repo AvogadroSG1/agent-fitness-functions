@@ -447,13 +447,14 @@ func TestRenderScaffoldConfigFillsAllFiveFunctions(t *testing.T) {
 
 func TestScaffoldConfigFreshAndAlreadyExists(t *testing.T) {
 	configsDir := t.TempDir()
+	repoConfigsDir := t.TempDir()
 	var stdout bytes.Buffer
-	o := onboarder{repoName: "sample", enforcement: "advisory", configsDir: configsDir, stdout: &stdout, stderr: &bytes.Buffer{}}
+	o := onboarder{repoName: "sample", enforcement: "advisory", configsDir: configsDir, repoConfigsDir: repoConfigsDir, stdout: &stdout, stderr: &bytes.Buffer{}}
 
 	if err := o.scaffoldConfig(); err != nil {
 		t.Fatalf("fresh scaffoldConfig: %v", err)
 	}
-	configPath := filepath.Join(configsDir, "sample", "config.json")
+	configPath := filepath.Join(repoConfigsDir, "sample", "config.json")
 	first, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("read scaffolded config: %v", err)
