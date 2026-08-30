@@ -1,0 +1,10 @@
+dependencies:
+  apm:
+    - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  mcp: []
+targets:
+  - codex
+  - opencode
+  - claude
+name: agent-fitness-functions
+version: 0.1.0

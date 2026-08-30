@@ -1,0 +1,165 @@
+lockfile_version: '1'
+generated_at: '2026-08-30T14:45:23.961982+00:00'
+apm_version: 0.28.0
+dependencies:
+- repo_url: _local/git-pushing
+  name: git-pushing
+  version: 0.0.0
+  package_type: claude_skill
+  deployed_files:
+  - .agents/skills/git-pushing
+  - .agents/skills/git-pushing/.DS_Store
+  - .agents/skills/git-pushing/.opencode/commands/telemetry-inspect.md
+  - .agents/skills/git-pushing/.opencode/commands/telemetry-report.md
+  - .agents/skills/git-pushing/SKILL.md
+  - .agents/skills/git-pushing/scripts/smart_commit.sh
+  - .agents/skills/git-pushing/skillrun.yaml
+  - .claude/skills/git-pushing
+  - .claude/skills/git-pushing/.DS_Store
+  - .claude/skills/git-pushing/.opencode/commands/telemetry-inspect.md
+  - .claude/skills/git-pushing/.opencode/commands/telemetry-report.md
+  - .claude/skills/git-pushing/SKILL.md
+  - .claude/skills/git-pushing/scripts/smart_commit.sh
+  - .claude/skills/git-pushing/skillrun.yaml
+  deployed_file_hashes:
+    .agents/skills/git-pushing/.DS_Store: sha256:c7409bf0e892215a110263a10393f79e8bf552829a1b9d4f62bf627ed1593780
+    .agents/skills/git-pushing/.opencode/commands/telemetry-inspect.md: sha256:bf451c37be6f6ca9d0c329f27ec5763881ad0f2c5126ac9a7dab6683446520e3
+    .agents/skills/git-pushing/.opencode/commands/telemetry-report.md: sha256:73455707008886b8e16d6138841b8edbe5e32e5d02a1e451609343f762b936cd
+    .agents/skills/git-pushing/SKILL.md: sha256:bcbc15bbd772b276b185b6a4dbd727bfd588d5bcebe62f4603f9262a2d15564e
+    .agents/skills/git-pushing/scripts/smart_commit.sh: sha256:4e62a45a4839de3cedf3f8a0dcc3205140bc73f7147e68d218c63eb1e48c2308
+    .agents/skills/git-pushing/skillrun.yaml: sha256:77a84c08391e689358f811025e393b980a92979d3774a57064caee6e9b2d7bd5
+    .claude/skills/git-pushing/.DS_Store: sha256:c7409bf0e892215a110263a10393f79e8bf552829a1b9d4f62bf627ed1593780
+    .claude/skills/git-pushing/.opencode/commands/telemetry-inspect.md: sha256:bf451c37be6f6ca9d0c329f27ec5763881ad0f2c5126ac9a7dab6683446520e3
+    .claude/skills/git-pushing/.opencode/commands/telemetry-report.md: sha256:73455707008886b8e16d6138841b8edbe5e32e5d02a1e451609343f762b936cd
+    .claude/skills/git-pushing/SKILL.md: sha256:bcbc15bbd772b276b185b6a4dbd727bfd588d5bcebe62f4603f9262a2d15564e
+    .claude/skills/git-pushing/scripts/smart_commit.sh: sha256:4e62a45a4839de3cedf3f8a0dcc3205140bc73f7147e68d218c63eb1e48c2308
+    .claude/skills/git-pushing/skillrun.yaml: sha256:77a84c08391e689358f811025e393b980a92979d3774a57064caee6e9b2d7bd5
+  source: local
+  local_path: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+deployments:
+- kind: project-relative
+  target: claude
+  value: .claude/skills/git-pushing
+  runtime: null
+  scope: project
+  owners:
+  - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  active_owner: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/git-pushing/.DS_Store
+  runtime: null
+  scope: project
+  owners:
+  - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  active_owner: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  content_hash: sha256:c7409bf0e892215a110263a10393f79e8bf552829a1b9d4f62bf627ed1593780
+- kind: project-relative
+  target: claude
+  value: .claude/skills/git-pushing/.opencode/commands/telemetry-inspect.md
+  runtime: null
+  scope: project
+  owners:
+  - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  active_owner: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  content_hash: sha256:bf451c37be6f6ca9d0c329f27ec5763881ad0f2c5126ac9a7dab6683446520e3
+- kind: project-relative
+  target: claude
+  value: .claude/skills/git-pushing/.opencode/commands/telemetry-report.md
+  runtime: null
+  scope: project
+  owners:
+  - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  active_owner: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  content_hash: sha256:73455707008886b8e16d6138841b8edbe5e32e5d02a1e451609343f762b936cd
+- kind: project-relative
+  target: claude
+  value: .claude/skills/git-pushing/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  active_owner: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  content_hash: sha256:bcbc15bbd772b276b185b6a4dbd727bfd588d5bcebe62f4603f9262a2d15564e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/git-pushing/scripts/smart_commit.sh
+  runtime: null
+  scope: project
+  owners:
+  - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  active_owner: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  content_hash: sha256:4e62a45a4839de3cedf3f8a0dcc3205140bc73f7147e68d218c63eb1e48c2308
+- kind: project-relative
+  target: claude
+  value: .claude/skills/git-pushing/skillrun.yaml
+  runtime: null
+  scope: project
+  owners:
+  - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  active_owner: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  content_hash: sha256:77a84c08391e689358f811025e393b980a92979d3774a57064caee6e9b2d7bd5
+- kind: project-relative
+  target: codex
+  value: .agents/skills/git-pushing
+  runtime: null
+  scope: project
+  owners:
+  - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  active_owner: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/git-pushing/.DS_Store
+  runtime: null
+  scope: project
+  owners:
+  - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  active_owner: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  content_hash: sha256:c7409bf0e892215a110263a10393f79e8bf552829a1b9d4f62bf627ed1593780
+- kind: project-relative
+  target: codex
+  value: .agents/skills/git-pushing/.opencode/commands/telemetry-inspect.md
+  runtime: null
+  scope: project
+  owners:
+  - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  active_owner: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  content_hash: sha256:bf451c37be6f6ca9d0c329f27ec5763881ad0f2c5126ac9a7dab6683446520e3
+- kind: project-relative
+  target: codex
+  value: .agents/skills/git-pushing/.opencode/commands/telemetry-report.md
+  runtime: null
+  scope: project
+  owners:
+  - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  active_owner: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  content_hash: sha256:73455707008886b8e16d6138841b8edbe5e32e5d02a1e451609343f762b936cd
+- kind: project-relative
+  target: codex
+  value: .agents/skills/git-pushing/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  active_owner: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  content_hash: sha256:bcbc15bbd772b276b185b6a4dbd727bfd588d5bcebe62f4603f9262a2d15564e
+- kind: project-relative
+  target: codex
+  value: .agents/skills/git-pushing/scripts/smart_commit.sh
+  runtime: null
+  scope: project
+  owners:
+  - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  active_owner: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  content_hash: sha256:4e62a45a4839de3cedf3f8a0dcc3205140bc73f7147e68d218c63eb1e48c2308
+- kind: project-relative
+  target: codex
+  value: .agents/skills/git-pushing/skillrun.yaml
+  runtime: null
+  scope: project
+  owners:
+  - /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  active_owner: /Users/avogadro/peter_code/ai_support/skills/DevOps/git/git-pushing
+  content_hash: sha256:77a84c08391e689358f811025e393b980a92979d3774a57064caee6e9b2d7bd5
