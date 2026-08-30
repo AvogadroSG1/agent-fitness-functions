@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -155,10 +156,13 @@ func runDoctorChecks(cfg doctorConfig) []checkResult {
 		checkPyYAML(),
 		checkClientCertificate(cfg),
 		checkServerCABundle(cfg),
+		checkGovernanceRoot(cfg),
 		checkServerReachable(cfg),
 	}
 	results = append(results, checkPreflight(cfg)...)
 	results = append(results, checkHooksInstalled(cfg)...)
+	results = append(results, checkLegacyRepoLocalCerts(cfg)...)
+	results = append(results, checkConfigSync(cfg)...)
 	return results
 }
 
@@ -323,6 +327,51 @@ func checkServerCABundle(cfg doctorConfig) checkResult {
 		}
 	}
 	return checkResult{name: "server CA bundle", detail: cfg.clientCA, passed: true}
+}
+
+// checkGovernanceRoot reports whether ADR-0007's machine-scoped governance
+// root has a resolvable managed certificate generation. It respects the
+// AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR selector: when pinned, the selector's
+// directory is the "root" being checked and named in the detail, so a
+// deliberately pinned selector is never reported as a broken machine
+// default. A never-onboarded machine (no managed certs published anywhere)
+// is a hard failure — there is nothing for the client to talk to the server
+// with — remediated by `client onboard`, which publishes the shared root.
+func checkGovernanceRoot(cfg doctorConfig) checkResult {
+	const name = "governance root"
+	root := governanceRoot()
+	if selector := os.Getenv(envDevCertDir); selector != "" {
+		root = selector
+	}
+	switch {
+	case cfg.managed:
+		// This session already resolved a managed generation once (onboard
+		// startup or resolveDoctorConfig's own TLS load, see
+		// TestOnboardReusesOneManagedGenerationForStartupAndDoctor) - reuse
+		// that result rather than touching the filesystem a second time.
+		if cfg.tlsError != nil {
+			return checkResult{name: name, detail: cfg.tlsError.Error(), remediation: "agent-fitness-functions client onboard"}
+		}
+		return checkResult{name: name, detail: fmt.Sprintf("%s (configs: %s)", root, governanceConfigsDir()), passed: true}
+	case cfg.clientCert != "" || cfg.clientKey != "" || cfg.clientCA != "":
+		// External client TLS material was explicitly supplied for this
+		// session (flags or AGENT_FITNESS_FUNCTIONS_CLIENT_*): the machine
+		// governance root is not in play, so its local absence is not this
+		// session's problem.
+		return checkResult{name: name, detail: "external client TLS material configured; machine governance root not used for this session", passed: true}
+	default:
+		// No TLS resolution has happened yet against this cfg (for example a
+		// doctorConfig built without going through resolveDoctorConfig):
+		// probe the managed root directly.
+		if _, err := resolveManagedVersion(resolveDevCertDir()); err != nil {
+			return checkResult{
+				name:        name,
+				detail:      fmt.Sprintf("no managed certificates published under %s (%v)", root, err),
+				remediation: "agent-fitness-functions client onboard",
+			}
+		}
+		return checkResult{name: name, detail: fmt.Sprintf("%s (configs: %s)", root, governanceConfigsDir()), passed: true}
+	}
 }
 
 func checkServerReachable(cfg doctorConfig) checkResult {
@@ -578,4 +627,63 @@ func editWriteHookResult(repoRoot string) checkResult {
 		detail:  detail,
 		warning: true,
 	}
+}
+
+// checkLegacyRepoLocalCerts flags the pre-ADR-0007 <repo>/certs/current
+// managed-cert symlink. It is advisory-only dead weight now that every repo
+// shares one machine governance root: a repo that still has this layout was
+// onboarded before the shared root existed (or never re-onboarded since),
+// not one that is broken. Repos onboarded under ADR-0007 never create this
+// path, so its absence produces no result at all.
+func checkLegacyRepoLocalCerts(cfg doctorConfig) []checkResult {
+	if cfg.repoRoot == "" {
+		return nil
+	}
+	legacyCurrent := filepath.Join(cfg.repoRoot, "certs", "current")
+	if _, err := os.Lstat(legacyCurrent); err != nil {
+		return nil
+	}
+	return []checkResult{{
+		name:        "legacy repo-local certs",
+		detail:      legacyCurrent + " still exists from a pre-ADR-0007 layout",
+		remediation: "re-run `agent-fitness-functions client onboard`, then delete this directory - it is safe to remove once the shared governance root is healthy",
+		warning:     true,
+	}}
+}
+
+// checkConfigSync compares the tracked repo-local
+// configs/<repo>/config.json (the production handoff source of truth) against
+// its shared-root copy under governanceConfigsDir(). A repo with no
+// repo-local config has nothing to sync and produces no result - un-onboarded
+// repos should not be spammed with a check they cannot yet satisfy.
+func checkConfigSync(cfg doctorConfig) []checkResult {
+	if cfg.repoRoot == "" || cfg.repo == "" {
+		return nil
+	}
+	localPath := filepath.Join(cfg.repoRoot, "configs", cfg.repo, "config.json")
+	local, err := os.ReadFile(localPath)
+	if err != nil {
+		return nil
+	}
+	sharedPath := filepath.Join(governanceConfigsDir(), cfg.repo, "config.json")
+	shared, err := os.ReadFile(sharedPath)
+	name := "config sync"
+	remediation := "re-run `agent-fitness-functions client onboard` to sync the repo-local config into the shared governance root"
+	if err != nil {
+		return []checkResult{{
+			name:        name,
+			detail:      fmt.Sprintf("%s is not registered under the shared governance root (%s)", localPath, sharedPath),
+			remediation: remediation,
+			warning:     true,
+		}}
+	}
+	if !bytes.Equal(local, shared) {
+		return []checkResult{{
+			name:        name,
+			detail:      fmt.Sprintf("%s differs from the shared copy %s", localPath, sharedPath),
+			remediation: remediation,
+			warning:     true,
+		}}
+	}
+	return []checkResult{{name: name, detail: sharedPath, passed: true}}
 }
