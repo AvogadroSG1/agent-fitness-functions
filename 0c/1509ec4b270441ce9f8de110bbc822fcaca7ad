@@ -1,0 +1,19 @@
+internal/client/portable_settings_test.go
+  s_c89e35c8af4402::t_33a581abe564d6 1-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "0c1509ec4b270441ce9f8de110bbc822fcaca7ad",
+  "prompts": {},
+  "sessions": {
+    "s_c89e35c8af4402": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "138a4b36-9ef4-42e6-8090-d72746e40b52",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
