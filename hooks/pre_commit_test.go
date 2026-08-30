@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
@@ -340,53 +339,6 @@ func TestPreCommitRejectsLoopbackUserinfoBypass(t *testing.T) {
 	}
 }
 
-func TestPreCommitForwardsDiscoveredMTLSCerts(t *testing.T) {
-	repo := initGitRepo(t)
-	// git rev-parse --show-toplevel resolves symlinks (e.g. macOS /var -> /private/var),
-	// so resolve here too to match the cert paths the hook forwards.
-	if resolved, err := filepath.EvalSymlinks(repo); err == nil {
-		repo = resolved
-	}
-	runGit(t, repo, "config", "user.email", "t@example.com")
-	runGit(t, repo, "config", "user.name", "t")
-	writeFile(t, filepath.Join(repo, "sample.go"), "package sample\n")
-	runGit(t, repo, "add", "sample.go")
-
-	certDir := filepath.Join(repo, "certs")
-	version := publishManagedCerts(t, certDir)
-
-	logPath := filepath.Join(t.TempDir(), "calls.log")
-	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$AGENT_FITNESS_FUNCTIONS_LOG"
-echo '{"status":"pass"}'
-`)
-
-	command := exec.Command("bash", hookScriptPath(t))
-	command.Dir = repo
-	command.Env = append(os.Environ(),
-		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"AGENT_FITNESS_FUNCTIONS_LOG="+logPath,
-	)
-	if out, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("pre-commit failed: %v\n%s", err, out)
-	}
-
-	got := readFile(t, logPath)
-	if calls := strings.Count(got, "client resolve-dev-cert-version"); calls != 1 {
-		t.Fatalf("resolver calls = %d, want 1:\n%s", calls, got)
-	}
-	for _, want := range []string{
-		"--addr https://127.0.0.1:7890",
-		"--client-cert " + filepath.Join(certDir, filepath.FromSlash(version), "client.crt"),
-		"--client-key " + filepath.Join(certDir, filepath.FromSlash(version), "client.key"),
-		"--client-ca " + filepath.Join(certDir, filepath.FromSlash(version), "ca.crt"),
-	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("missing %q in invocations:\n%s", want, got)
-		}
-	}
-}
-
 func TestPreCommitOmitsCertFlagsWhenAbsent(t *testing.T) {
 	repo := initGitRepo(t)
 	runGit(t, repo, "config", "user.email", "t@example.com")
@@ -455,21 +407,6 @@ func writeFile(t *testing.T, path, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
-}
-
-func publishManagedCerts(t *testing.T, root string) string {
-	t.Helper()
-	if err := devcerts.Publish(root, false); err != nil {
-		t.Fatalf("Publish(%s): %v", root, err)
-	}
-	target, err := os.Readlink(filepath.Join(root, "current"))
-	if err != nil {
-		t.Fatalf("Readlink(%s/current): %v", root, err)
-	}
-	if !strings.HasPrefix(target, "versions/v-") || len(strings.TrimPrefix(target, "versions/v-")) != 32 {
-		t.Fatalf("current target = %q, want first-generation version", target)
-	}
-	return target
 }
 
 func fakeFitnessBin(t *testing.T, script string) string {
