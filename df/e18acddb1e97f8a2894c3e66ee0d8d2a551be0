@@ -1,0 +1,19 @@
+docs/adr/0007-machine-scoped-shared-governance-state.md
+  s_c89e35c8af4402::t_6366df4b20be00 1-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "dfe18acddb1e97f8a2894c3e66ee0d8d2a551be0",
+  "prompts": {},
+  "sessions": {
+    "s_c89e35c8af4402": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "138a4b36-9ef4-42e6-8090-d72746e40b52",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
