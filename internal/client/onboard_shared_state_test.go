@@ -9,6 +9,7 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -149,5 +150,48 @@ func TestDaemonConflictErrorRemediationNamesOnboardForLegacyDaemons(t *testing.T
 	message := err.Error()
 	if !strings.Contains(message, "client onboard") {
 		t.Fatalf("conflict message = %q, want remediation naming `client onboard` (a legacy pre-shared-root daemon is the expected cause once repos share one governance root)", message)
+	}
+}
+
+// The governance root's caller-repos.json is shared by every repository on
+// the machine, so two `client onboard` runs may mutate it concurrently
+// (ADR-0007 promises concurrent onboarding works). ensureCallerBinding must
+// serialize its read-modify-write cycle: without a lock, a lost update
+// silently drops another repo's just-added authorization.
+func TestEnsureCallerBindingSerializesConcurrentWriters(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "caller-repos.json")
+	const writers = 32
+	start := make(chan struct{})
+	errs := make(chan error, writers)
+	for i := 0; i < writers; i++ {
+		go func(n int) {
+			<-start
+			_, err := ensureCallerBinding(path, devClientCommonName, fmt.Sprintf("repo-%02d", n))
+			errs <- err
+		}(i)
+	}
+	close(start)
+	for i := 0; i < writers; i++ {
+		if err := <-errs; err != nil {
+			t.Fatalf("ensureCallerBinding: %v", err)
+		}
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Callers map[string][]string `json:"callers"`
+	}
+	if err := json.Unmarshal(content, &document); err != nil {
+		t.Fatalf("parse %s: %v\n%s", path, err, content)
+	}
+	repos := document.Callers[devClientCommonName]
+	for i := 0; i < writers; i++ {
+		want := fmt.Sprintf("repo-%02d", i)
+		if !containsString(repos, want) {
+			t.Fatalf("lost update: %s missing from %v (%d of %d survived)", want, repos, len(repos), writers)
+		}
 	}
 }
