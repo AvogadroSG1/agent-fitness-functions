@@ -40,6 +40,8 @@ func TestViolationAndGreenFixturesAreCalibrated(t *testing.T) {
 		{name: "python ddc green", path: "green/python/dependency_discipline.py", language: "python", rule: "dependency-discipline"},
 		{name: "python temporal red", path: "violations/python/temporal_purity.py", language: "python", rule: "temporal-purity", red: true},
 		{name: "python temporal green", path: "green/python/temporal_purity.py", language: "python", rule: "temporal-purity"},
+		{name: "python sql red", path: "violations/python/sql_composition_safety.py", language: "python", rule: "sql-composition-safety", red: true},
+		{name: "python sql green", path: "green/python/sql_composition_safety.py", language: "python", rule: "sql-composition-safety"},
 		{name: "csharp cyclomatic red", path: "violations/csharp/CyclomaticComplexity.cs", language: "csharp", rule: "cyclomatic-complexity", red: true},
 		{name: "csharp cyclomatic green", path: "green/csharp/CyclomaticComplexity.cs", language: "csharp", rule: "cyclomatic-complexity"},
 		{name: "csharp interface red", path: "violations/csharp/InterfaceWidth.cs", language: "csharp", rule: "interface-width", red: true},
