@@ -47,6 +47,8 @@ func scoreContentFunctions(
 	pattern calm.Pattern,
 ) []fitness.Violation {
 	violations := make([]fitness.Violation, 0)
+	// No analyzer populates RuleCounts today; copying rather than writing in
+	// place is deliberate, so a future analyzer-owned map is never mutated.
 	counts := make(map[string]int, len(result.RuleCounts)+len(contentScorers))
 	for name, count := range result.RuleCounts {
 		counts[name] = count
@@ -69,11 +71,13 @@ func scoreContentFunctions(
 	return violations
 }
 
-// windowFunctionOrderBy matches the ORDER BY clause of a SQL window function,
-// with or without a PARTITION BY, capturing the ordering expression.
-var windowFunctionOrderBy = regexp.MustCompile(
-	`(?is)OVER\s*\(\s*(?:PARTITION\s+BY\s+[^)]+?)?\s*ORDER\s+BY\s+([^)]+)\)`,
-)
+// windowFunctionOpen matches the start of a SQL window function's OVER clause.
+// Go's regexp is RE2 and cannot balance parentheses, so the window body is
+// delimited by walking characters from the opening paren instead.
+var windowFunctionOpen = regexp.MustCompile(`(?i)OVER\s*\(`)
+
+// orderByKeyword matches the ORDER BY keyword and its trailing whitespace.
+var orderByKeyword = regexp.MustCompile(`(?is)ORDER\s+BY\s+`)
 
 // maxReportedOrderByClause bounds how much of an offending ORDER BY clause is
 // echoed back in a violation message.
@@ -85,9 +89,8 @@ const maxReportedOrderByClause = 80
 func deterministicOrderingViolations(input contentScoringInput) (int, []fitness.Violation) {
 	tokens := input.config.tieBreakerTokens()
 	offenders := make([]string, 0)
-	for _, match := range windowFunctionOrderBy.FindAllStringSubmatch(input.request.ProposedContent, -1) {
-		clause := strings.Join(strings.Fields(match[1]), " ")
-		if containsAnyToken(strings.ToLower(clause), tokens) {
+	for _, clause := range windowOrderByClauses(input.request.ProposedContent) {
+		if containsTieBreaker(clause, tokens) {
 			continue
 		}
 		offenders = append(offenders, truncateClause(clause))
@@ -112,21 +115,111 @@ func deterministicOrderingViolations(input contentScoringInput) (int, []fitness.
 	}}
 }
 
-// containsAnyToken reports whether clause contains any of the tokens as a
-// substring. clause is expected to already be lowercased.
-func containsAnyToken(clause string, tokens []string) bool {
-	for _, token := range tokens {
-		if strings.Contains(clause, strings.ToLower(token)) {
-			return true
+// windowOrderByClauses returns the ordering expression of every SQL window
+// function in content, whitespace-normalized. A window's ORDER BY runs to the
+// window's own closing paren, so a nested call such as COALESCE(a, b) does not
+// truncate the clause and hide a tie-breaker that follows it.
+func windowOrderByClauses(content string) []string {
+	clauses := make([]string, 0)
+	for _, match := range windowFunctionOpen.FindAllStringIndex(content, -1) {
+		body, ok := balancedParenBody(content, match[1]-1)
+		if !ok {
+			continue
+		}
+		clause, ok := trailingOrderByClause(body)
+		if !ok {
+			continue
+		}
+		clauses = append(clauses, strings.Join(strings.Fields(clause), " "))
+	}
+	return clauses
+}
+
+// balancedParenBody returns the text between the paren at open and its
+// matching close paren. It reports false when the parens are unbalanced.
+func balancedParenBody(content string, open int) (string, bool) {
+	depth := 0
+	for i := open; i < len(content); i++ {
+		switch content[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return content[open+1 : i], true
+			}
+		}
+	}
+	return "", false
+}
+
+// trailingOrderByClause returns everything after the last ORDER BY that occurs
+// at paren depth zero in body, which is the window's own ordering expression
+// rather than one belonging to a nested subexpression.
+func trailingOrderByClause(body string) (string, bool) {
+	clause := ""
+	found := false
+	for _, match := range orderByKeyword.FindAllStringIndex(body, -1) {
+		if parenDepthAt(body, match[0]) != 0 {
+			continue
+		}
+		clause = body[match[1]:]
+		found = true
+	}
+	return clause, found
+}
+
+// parenDepthAt returns the paren nesting depth of text immediately before index.
+func parenDepthAt(text string, index int) int {
+	depth := 0
+	for i := 0; i < index; i++ {
+		switch text[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		}
+	}
+	return depth
+}
+
+// identifierRun matches one lowercased SQL identifier.
+var identifierRun = regexp.MustCompile(`[a-z0-9_]+`)
+
+// containsTieBreaker reports whether any identifier in clause satisfies one of
+// the configured tie-breaker tokens. Matching is per identifier, never a bare
+// substring of the clause, so "paid_amount" is not a tie-breaker for "id".
+func containsTieBreaker(clause string, tokens []string) bool {
+	for _, identifier := range identifierRun.FindAllString(strings.ToLower(clause), -1) {
+		for _, token := range tokens {
+			if identifierMatchesToken(identifier, strings.ToLower(token)) {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-// truncateClause shortens an ORDER BY clause for display in a message.
+// identifierMatchesToken reports whether one identifier satisfies one token:
+// an exact match, or a suffix match on a "_" boundary. "employee_id" satisfies
+// both "id" and "_id"; "paid" and "grid_position" satisfy neither.
+func identifierMatchesToken(identifier, token string) bool {
+	switch {
+	case token == "" || !strings.HasSuffix(identifier, token):
+		return false
+	case identifier == token || strings.HasPrefix(token, "_"):
+		return true
+	default:
+		return identifier[len(identifier)-len(token)-1] == '_'
+	}
+}
+
+// truncateClause shortens an ORDER BY clause for display in a message,
+// counting runes so multi-byte characters are never split.
 func truncateClause(clause string) string {
-	if len(clause) <= maxReportedOrderByClause {
+	runes := []rune(clause)
+	if len(runes) <= maxReportedOrderByClause {
 		return clause
 	}
-	return clause[:maxReportedOrderByClause] + "..."
+	return string(runes[:maxReportedOrderByClause]) + "..."
 }

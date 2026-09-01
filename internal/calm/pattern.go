@@ -89,6 +89,9 @@ func parsePattern(label string, content []byte) (Pattern, error) {
 func fitnessFunctions(properties map[string]fitnessProperty) map[string]FitnessRule {
 	functions := make(map[string]FitnessRule, len(properties))
 	for name, property := range properties {
+		// Precedence is deliberate: a property that sets several bounds is
+		// scored against its maximum first, then its minimum, then its
+		// exclusiveMaximum.
 		switch {
 		case property.Maximum != nil:
 			functions[name] = FitnessRule{
