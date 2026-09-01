@@ -14,6 +14,24 @@ type AnalysisResult struct {
 	// by the server checker, keyed by kebab-case function name (e.g.
 	// "layer-sovereignty"). Absent keys mean zero.
 	RuleCounts map[string]int `json:"rule_counts,omitempty"`
+	// Findings holds the individual source locations a language analyzer
+	// detected for the generalized fitness functions scored from the syntax
+	// tree (e.g. naive timestamp construction). The server checker counts them
+	// into violations; an analyzer that detects nothing, or a language with no
+	// detections implemented, leaves this empty.
+	Findings []Finding `json:"findings,omitempty"`
+}
+
+// Finding is one detected source location attributed to a generalized fitness
+// function. Rule is the kebab-case fitness function the finding counts against
+// (e.g. "temporal-purity"); Kind is the specific detection within that rule
+// (e.g. "py-datetime-now-naive"); Line is the 1-based source line; Detail is an
+// optional human-readable excerpt naming what was detected.
+type Finding struct {
+	Rule   string `json:"rule"`
+	Kind   string `json:"kind"`
+	Line   int    `json:"line"`
+	Detail string `json:"detail,omitempty"`
 }
 
 // FunctionMetric describes function-level complexity and size metrics.

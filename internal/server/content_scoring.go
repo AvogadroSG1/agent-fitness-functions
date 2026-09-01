@@ -12,18 +12,22 @@ import (
 
 // contentScoringInput carries everything a content scorer needs: the proposed
 // file, the repository's governance configuration, the pattern rule being
-// enforced, and the CALM node the analyzed file belongs to.
+// enforced, the CALM node the analyzed file belongs to, and the analyzer's
+// findings for that file. A scorer reads the content or the findings depending
+// on whether its detection is textual or syntax-tree based.
 type contentScoringInput struct {
 	request  fitness.ValidationRequest
 	config   Config
 	rule     calm.FitnessRule
 	calmNode string
+	findings []analyzer.Finding
 }
 
-// contentScorer scores one generalized fitness function directly against the
-// proposed file content rather than against analyzer metrics. score returns the
-// per-file violation count (recorded on AnalysisResult.RuleCounts so the
-// generated CALM document carries it) and the violations to report.
+// contentScorer scores one generalized fitness function from the proposed file
+// content or from the analyzer's findings for it, rather than from analyzer
+// metrics. score returns the per-file violation count (recorded on
+// AnalysisResult.RuleCounts so the generated CALM document carries it) and the
+// violations to report.
 type contentScorer struct {
 	name     string
 	operator string
@@ -36,6 +40,7 @@ type contentScorer struct {
 var contentScorers = []contentScorer{
 	{name: "deterministic-ordering", operator: "lte", score: deterministicOrderingViolations},
 	{name: "layer-sovereignty", operator: "lte", score: layerSovereigntyViolations},
+	{name: "temporal-purity", operator: "lte", score: temporalPurityViolations},
 }
 
 // scoreContentFunctions runs every applicable content scorer, records each
@@ -64,6 +69,7 @@ func scoreContentFunctions(
 			config:   config,
 			rule:     rule,
 			calmNode: result.CALMNode,
+			findings: result.Findings,
 		})
 		counts[scorer.name] = count
 		violations = append(violations, scored...)
@@ -154,6 +160,63 @@ func layerSovereigntyViolations(input contentScoringInput) (int, []fitness.Viola
 			strings.Join(matches, "; "),
 		),
 	}}
+}
+
+// maxReportedFindings bounds how many finding locations a violation message
+// names before it summarizes the rest.
+const maxReportedFindings = 3
+
+// temporalPurityViolations counts the temporal-purity findings the language
+// analyzer detected in the file's syntax tree — timestamps constructed without
+// an explicit time zone — and reports them as a single per-file violation. A
+// language whose analyzer implements no temporal detections contributes no
+// findings and therefore no violation.
+func temporalPurityViolations(input contentScoringInput) (int, []fitness.Violation) {
+	found := findingsForRule(input.findings, "temporal-purity")
+	if len(found) == 0 {
+		return 0, nil
+	}
+	return len(found), []fitness.Violation{{
+		FitnessFunction: "temporal_purity",
+		CALMNode:        input.calmNode,
+		File:            input.request.File,
+		Value:           float64(len(found)),
+		Limit:           input.rule.Threshold,
+		Message: fmt.Sprintf(
+			"File %q constructs %d naive timestamp(s) (limit %.0f): [%s]. "+
+				"Construct timestamps with an explicit time zone, such as datetime.now(timezone.utc), "+
+				"so the recorded instant is unambiguous.",
+			input.request.File,
+			len(found),
+			input.rule.Threshold,
+			strings.Join(describeFindings(found), "; "),
+		),
+	}}
+}
+
+// findingsForRule returns the analyzer findings attributed to one kebab-case
+// fitness function.
+func findingsForRule(findings []analyzer.Finding, rule string) []analyzer.Finding {
+	matched := make([]analyzer.Finding, 0, len(findings))
+	for _, finding := range findings {
+		if finding.Rule == rule {
+			matched = append(matched, finding)
+		}
+	}
+	return matched
+}
+
+// describeFindings names the first maxReportedFindings locations as
+// "<kind> at line <n>", summarizing any remainder as a count.
+func describeFindings(findings []analyzer.Finding) []string {
+	described := make([]string, 0, maxReportedFindings+1)
+	for _, finding := range findings {
+		if len(described) == maxReportedFindings {
+			return append(described, fmt.Sprintf("and %d more", len(findings)-maxReportedFindings))
+		}
+		described = append(described, fmt.Sprintf("%s at line %d", finding.Kind, finding.Line))
+	}
+	return described
 }
 
 // windowOrderByClauses returns the ordering expression of every SQL window

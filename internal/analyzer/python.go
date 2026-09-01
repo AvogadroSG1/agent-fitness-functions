@@ -71,22 +71,11 @@ func AnalyzePythonFile(ctx context.Context, file, radonPath string) (AnalysisRes
 	if err := ctx.Err(); err != nil {
 		return AnalysisResult{}, err
 	}
-	source, err := os.ReadFile(file)
+	findings, err := pythonFileFindings(ctx, file, radonPath)
 	if err != nil {
 		return AnalysisResult{}, err
 	}
-	fileMetric.LDR = ratio(fileMetric.LogicLOC, fileMetric.TotalLOC)
-	fileMetric.PublicMethods = publicFunctionCount(functions)
-
-	return AnalysisResult{
-		CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
-		Language:     "python",
-		File:         file,
-		Functions:    functions,
-		ModuleMetric: BuildModuleMetric(fileMetric, functions),
-		FileMetric:   fileMetric,
-		Imports:      pythonImportMetric(string(source)),
-	}, nil
+	return pythonAnalysisResult(file, functions, fileMetric, findings)
 }
 
 // managedRadonPath returns the shipped managed Python runtime's pinned
@@ -110,9 +99,14 @@ func managedRadonPath(getenv func(string) string) string {
 type radonAPIOutput struct {
 	CC  map[string]json.RawMessage `json:"cc"`
 	Raw map[string]radonRawItem    `json:"raw"`
+	// Findings carries the ast findings scan that shares this subprocess, so
+	// the fast path costs one interpreter launch for metrics and findings
+	// together. A radon python stand-in that omits the section contributes no
+	// findings.
+	Findings map[string]pythonFindingsItem `json:"findings"`
 }
 
-const radonAPIScript = `
+const radonAPIScript = pythonFindingsLibrary + `
 import json
 import pathlib
 import sys
@@ -122,7 +116,7 @@ from radon.raw import analyze
 
 path = sys.argv[1]
 source = pathlib.Path(path).read_text()
-payload = {"cc": {}, "raw": {}}
+payload = {"cc": {}, "raw": {}, "findings": {}}
 try:
     payload["cc"][path] = [
         {
@@ -141,6 +135,10 @@ try:
     payload["raw"][path] = {"loc": raw.loc, "lloc": raw.lloc}
 except Exception as exc:
     payload["raw"][path] = {"error": str(exc)}
+try:
+    payload["findings"][path] = {"findings": scan_findings(source)}
+except Exception as exc:
+    payload["findings"][path] = {"error": str(exc)}
 json.dump(payload, sys.stdout)
 `
 
@@ -182,22 +180,11 @@ func analyzePythonFileWithRadonAPI(ctx context.Context, file, radonPath string) 
 	if err := ctx.Err(); err != nil {
 		return AnalysisResult{}, err
 	}
-	source, err := os.ReadFile(file)
+	findings, err := pythonFindingsFor(payload.Findings, file)
 	if err != nil {
 		return AnalysisResult{}, err
 	}
-	fileMetric.LDR = ratio(fileMetric.LogicLOC, fileMetric.TotalLOC)
-	fileMetric.PublicMethods = publicFunctionCount(functions)
-
-	return AnalysisResult{
-		CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
-		Language:     "python",
-		File:         file,
-		Functions:    functions,
-		ModuleMetric: BuildModuleMetric(fileMetric, functions),
-		FileMetric:   fileMetric,
-		Imports:      pythonImportMetric(string(source)),
-	}, nil
+	return pythonAnalysisResult(file, functions, fileMetric, findings)
 }
 
 func radonPythonCommand(radonPath string) (string, []string, bool) {
@@ -226,6 +213,158 @@ func radonPythonCommand(radonPath string) (string, []string, bool) {
 		return fields[1], fields[2:], true
 	}
 	return fields[0], fields[1:], true
+}
+
+// pythonFindingsLibrary is the shared, I/O-free half of the embedded Python
+// findings scanner, prepended both to the standalone findings script and to
+// the radon API fast-path script so one detection implementation serves both.
+// Every scan returns a list of {"rule", "kind", "line", "detail"} objects, so
+// a new generalized fitness function is added by appending its scan to _SCANS
+// without reshaping the output.
+const pythonFindingsLibrary = `
+import ast
+
+
+def _dotted(node):
+    parts = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, ast.Name):
+        parts.append(node.id)
+    return ".".join(reversed(parts))
+
+
+def _finding(rule, kind, node):
+    return {
+        "rule": rule,
+        "kind": kind,
+        "line": node.lineno,
+        "detail": _dotted(node.func) + "()",
+    }
+
+
+def _temporal_purity(tree):
+    found = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr == "utcnow":
+            found.append(_finding("temporal-purity", "py-datetime-utcnow", node))
+        elif node.func.attr == "now" and not node.args and not node.keywords:
+            found.append(_finding("temporal-purity", "py-datetime-now-naive", node))
+    return found
+
+
+_SCANS = (_temporal_purity,)
+
+
+def scan_findings(source):
+    tree = ast.parse(source)
+    found = []
+    for scan in _SCANS:
+        found.extend(scan(tree))
+    found.sort(key=lambda item: (item["line"], item["kind"]))
+    return found
+`
+
+// pythonFindingsScript scans every path passed on the command line and prints
+// one JSON entry per analyzed path, mirroring radon's payload shape:
+// {"<path>": {"findings": [...]}} for a scanned file, {"<path>": {"error":
+// "..."}} for one that could not be read or parsed.
+const pythonFindingsScript = pythonFindingsLibrary + `
+import json
+import pathlib
+import sys
+
+payload = {}
+for path in sys.argv[1:]:
+    try:
+        payload[path] = {"findings": scan_findings(pathlib.Path(path).read_text())}
+    except Exception as exc:
+        payload[path] = {"error": str(exc)}
+json.dump(payload, sys.stdout)
+`
+
+// pythonFindingsItem is one analyzed path's findings-scan outcome.
+type pythonFindingsItem struct {
+	Error    string    `json:"error"`
+	Findings []Finding `json:"findings"`
+}
+
+// pythonFileFindings runs the findings scan for a single file.
+func pythonFileFindings(ctx context.Context, file, radonPath string) ([]Finding, error) {
+	payload, err := pythonFindingsPayload(ctx, radonPath, file)
+	if err != nil {
+		return nil, err
+	}
+	return pythonFindingsFor(payload, file)
+}
+
+// pythonFindingsPayload runs the embedded ast findings scan over files in one
+// interpreter launch. Scan failures are never swallowed: an unresolvable or
+// failing interpreter, and unparsable scanner output, surface as analyzer
+// errors the caller routes through enforcement-on-error.
+func pythonFindingsPayload(ctx context.Context, radonPath string, files ...string) (map[string]pythonFindingsItem, error) {
+	python, args, ok := findingsPythonCommand(radonPath)
+	if !ok {
+		return nil, fmt.Errorf("resolving python interpreter for findings scan: %w", exec.ErrNotFound)
+	}
+	args = append(args, "-c", pythonFindingsScript)
+	args = append(args, files...)
+	output, err := runTool(ctx, python, args...)
+	if err != nil {
+		return nil, fmt.Errorf("running python findings scan: %w", err)
+	}
+	var payload map[string]pythonFindingsItem
+	if err := json.Unmarshal(output, &payload); err != nil {
+		return nil, fmt.Errorf("parsing python findings scan: %w: %s", err, trimOutput(output))
+	}
+	return payload, nil
+}
+
+// pythonFindingsFor returns one file's findings from a scan payload keyed by
+// analyzed path. An entry carrying an error means that file could not be read
+// or parsed, which is an analysis error rather than an empty result — the same
+// way a radon analysis error surfaces. A payload with no entry for the file
+// contributes no findings.
+func pythonFindingsFor(payload map[string]pythonFindingsItem, file string) ([]Finding, error) {
+	item, ok := payload[file]
+	if !ok && len(payload) == 1 {
+		for _, value := range payload {
+			item = value
+		}
+	}
+	if item.Error != "" {
+		return nil, fmt.Errorf("python findings error for %s: %s", file, item.Error)
+	}
+	return item.Findings, nil
+}
+
+// findingsPythonCommand resolves the interpreter that runs the findings scan.
+// radon's own launcher shebang is preferred so findings and metrics come from
+// the same Python, but only when that shebang names a Python: a shell-script
+// radon wrapper cannot run the scan. A PATH python3/python is the fallback.
+func findingsPythonCommand(radonPath string) (string, []string, bool) {
+	if radonPath == "" {
+		radonPath = "radon"
+	}
+	if python, args, ok := radonPythonCommand(radonPath); ok && isPythonInterpreter(python) {
+		return python, args, true
+	}
+	for _, candidate := range []string{"python3", "python"} {
+		if path, err := exec.LookPath(candidate); err == nil {
+			return path, nil, true
+		}
+	}
+	return "", nil, false
+}
+
+// isPythonInterpreter reports whether a shebang interpreter path names a
+// Python runtime (e.g. "python3", "/opt/homebrew/bin/python3.12", "pypy3").
+func isPythonInterpreter(path string) bool {
+	name := strings.ToLower(filepath.Base(path))
+	return strings.Contains(name, "python") || strings.HasPrefix(name, "pypy")
 }
 
 func parseRadonCC(file string, output []byte) ([]FunctionMetric, error) {
@@ -338,31 +477,63 @@ func AnalyzePythonRepository(ctx context.Context, root, radonPath string) ([]Ana
 		files = append(files, file)
 	}
 	sort.Strings(files)
+	findingsPayload, err := pythonFindingsPayload(ctx, radonPath, files...)
+	if err != nil {
+		return nil, err
+	}
 	results := make([]AnalysisResult, 0, len(files))
 	for _, file := range files {
-		rawItem := rawPayload[file]
-		if rawItem.Error != "" {
-			return nil, fmt.Errorf("radon raw error for %s: %s", file, rawItem.Error)
-		}
-		source, err := os.ReadFile(file)
+		result, err := pythonRepositoryResult(file, ccPayload[file], rawPayload[file], findingsPayload)
 		if err != nil {
 			return nil, err
 		}
-		fileMetric := FileMetric{TotalLOC: rawItem.LOC, LogicLOC: rawItem.LLOC}
-		fileMetric.LDR = ratio(fileMetric.LogicLOC, fileMetric.TotalLOC)
-		functions := pythonFunctions(ccPayload[file])
-		fileMetric.PublicMethods = publicFunctionCount(functions)
-		results = append(results, AnalysisResult{
-			CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
-			Language:     "python",
-			File:         file,
-			Functions:    functions,
-			ModuleMetric: BuildModuleMetric(fileMetric, functions),
-			FileMetric:   fileMetric,
-			Imports:      pythonImportMetric(string(source)),
-		})
+		results = append(results, result)
 	}
 	return AggregateModuleMetrics(results), nil
+}
+
+// pythonRepositoryResult builds one file's result from a repository-wide radon
+// batch. A radon raw analysis error for the file is reported before anything
+// else, so a file radon could not parse fails with radon's own message.
+func pythonRepositoryResult(
+	file string,
+	items []radonCCItem,
+	rawItem radonRawItem,
+	findingsPayload map[string]pythonFindingsItem,
+) (AnalysisResult, error) {
+	if rawItem.Error != "" {
+		return AnalysisResult{}, fmt.Errorf("radon raw error for %s: %s", file, rawItem.Error)
+	}
+	findings, err := pythonFindingsFor(findingsPayload, file)
+	if err != nil {
+		return AnalysisResult{}, err
+	}
+	fileMetric := FileMetric{TotalLOC: rawItem.LOC, LogicLOC: rawItem.LLOC}
+	return pythonAnalysisResult(file, pythonFunctions(items), fileMetric, findings)
+}
+
+// pythonAnalysisResult assembles one analyzed Python file's result: it derives
+// the ratios the radon metrics do not carry, reads the source for import
+// metrics, and attaches the findings the caller scanned. Every Python analysis
+// path — radon CLI, radon API fast path, and repository batch — ends here, so
+// they cannot drift apart.
+func pythonAnalysisResult(file string, functions []FunctionMetric, fileMetric FileMetric, findings []Finding) (AnalysisResult, error) {
+	source, err := os.ReadFile(file)
+	if err != nil {
+		return AnalysisResult{}, err
+	}
+	fileMetric.LDR = ratio(fileMetric.LogicLOC, fileMetric.TotalLOC)
+	fileMetric.PublicMethods = publicFunctionCount(functions)
+	return AnalysisResult{
+		CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
+		Language:     "python",
+		File:         file,
+		Functions:    functions,
+		ModuleMetric: BuildModuleMetric(fileMetric, functions),
+		FileMetric:   fileMetric,
+		Imports:      pythonImportMetric(string(source)),
+		Findings:     findings,
+	}, nil
 }
 
 func pythonImportMetric(source string) ImportMetric {
