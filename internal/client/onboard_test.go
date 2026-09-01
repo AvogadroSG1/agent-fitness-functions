@@ -431,8 +431,8 @@ func TestRenderScaffoldConfigFillsAllFiveFunctions(t *testing.T) {
 		if doc.EnforcementOnError != "block" {
 			t.Fatalf("enforcement-on-error = %q, want block", doc.EnforcementOnError)
 		}
-		if len(doc.FitnessFunctions) != len(fitnessFunctionKeys) {
-			t.Fatalf("fitness-functions = %v, want %d keys", doc.FitnessFunctions, len(fitnessFunctionKeys))
+		if len(doc.FitnessFunctions) != len(fitnessFunctionKeys)+len(generalizedFitnessFunctionKeys) {
+			t.Fatalf("fitness-functions = %v, want %d keys", doc.FitnessFunctions, len(fitnessFunctionKeys)+len(generalizedFitnessFunctionKeys))
 		}
 		for _, key := range fitnessFunctionKeys {
 			if !doc.FitnessFunctions[key] {
