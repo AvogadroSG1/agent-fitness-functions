@@ -12,7 +12,11 @@
           "interface-width": 1,
           "implementation-depth": 1,
           "logic-density": 1,
-          "dependency-discipline": 1
+          "dependency-discipline": 1,
+          "layer-sovereignty": 0,
+          "temporal-purity": 0,
+          "sql-composition-safety": 0,
+          "deterministic-ordering": 0
         }
       }
     },
@@ -27,7 +31,11 @@
           "interface-width": 20,
           "implementation-depth": 0.722,
           "logic-density": 0.255,
-          "dependency-discipline": 1
+          "dependency-discipline": 1,
+          "layer-sovereignty": 0,
+          "temporal-purity": 0,
+          "sql-composition-safety": 0,
+          "deterministic-ordering": 0
         }
       }
     }

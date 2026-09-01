@@ -10,6 +10,10 @@ type AnalysisResult struct {
 	ModuleMetric ModuleMetric     `json:"module_metrics"`
 	FileMetric   FileMetric       `json:"file_metrics"`
 	Imports      ImportMetric     `json:"import_metrics"`
+	// RuleCounts holds counts of generalized fitness-function violations scored
+	// by the server checker, keyed by kebab-case function name (e.g.
+	// "layer-sovereignty"). Absent keys mean zero.
+	RuleCounts map[string]int `json:"rule_counts,omitempty"`
 }
 
 // FunctionMetric describes function-level complexity and size metrics.
