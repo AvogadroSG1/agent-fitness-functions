@@ -1,0 +1,23 @@
+hooks/format-violations.py
+  s_79132ec0b01a6e::t_39292b05aa124e 32-33,185-254,272-276,290-291,300-302,318,320-323,329-331,333,338-373,375-395,397-405,407,418
+  s_79132ec0b01a6e::t_531bd7cd86d95f 111-166
+internal/client/hookassets/format-violations.py
+  s_79132ec0b01a6e::t_531bd7cd86d95f 111-166
+  s_79132ec0b01a6e::t_2ed15657389f6e 32-33,185-254,272-276,290-291,300-302,318,320-323,329-331,333,338-373,375-395,397-405,407,418
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "b91454cd22ff6c59ccd22b67fb6d7208a9e3c3a4",
+  "prompts": {},
+  "sessions": {
+    "s_79132ec0b01a6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6377ab6-0026-4172-9d1c-4770de1f21e2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
