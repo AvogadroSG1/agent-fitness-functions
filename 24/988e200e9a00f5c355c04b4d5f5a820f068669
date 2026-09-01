@@ -1,0 +1,31 @@
+internal/client/functions.go
+  s_79132ec0b01a6e::t_204ba23769042d 5
+  s_79132ec0b01a6e::t_a5181767661a32 168-178,180-182,185-187,189,200,203,209
+  s_79132ec0b01a6e::t_76b46b3753d989 156-165,167,183-184,197-198,213-215,218-224
+  s_79132ec0b01a6e::t_4c83f345827566 199
+internal/analyzer/onboarding.go
+  s_79132ec0b01a6e::t_582ae2d2b9d152 83,90-130
+internal/client/onboard.go
+  s_79132ec0b01a6e::t_81810ccb2e0516 546-555,557-559
+  s_79132ec0b01a6e::t_90664e41ece1e6 519-520,587-596
+  s_79132ec0b01a6e::t_05b725f35c7681 47-62
+  s_79132ec0b01a6e::t_4a7b8cb3553945 510,516
+  s_79132ec0b01a6e::t_976f454f8380ed 576-586,597
+  s_79132ec0b01a6e::t_c77bec0d87e7d7 517-518,598
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "24988e200e9a00f5c355c04b4d5f5a820f068669",
+  "prompts": {},
+  "sessions": {
+    "s_79132ec0b01a6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6377ab6-0026-4172-9d1c-4770de1f21e2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
