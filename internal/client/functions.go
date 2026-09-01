@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -152,15 +153,40 @@ func renderFunctionsTable(w io.Writer, entries []functionCatalogEntry) {
 	}
 }
 
+// scaffoldableGeneralizedFunctionKeys are the generalized fitness functions
+// --functions may select. layer-sovereignty is deliberately excluded: it
+// requires layer definitions under fitness-function-settings that onboard has
+// no way to infer non-interactively, so selecting it is a usage error instead.
+var scaffoldableGeneralizedFunctionKeys = []string{
+	"temporal-purity",
+	"sql-composition-safety",
+	"deterministic-ordering",
+}
+
 // parseFunctionsFlag validates a comma-separated --functions selection against the
-// canonical hyphenated fitnessFunctionKeys and expands it to a full five-key map
-// (selected keys true, the rest explicitly false) so the scaffolded config schema
-// stays uniform. Underscore spellings, unknown names, and an empty selection are all
-// rejected as usage errors naming the valid set.
+// canonical hyphenated fitnessFunctionKeys plus the scaffoldable generalized
+// functions. The five classic keys are always present in the returned map
+// (selected ones true, the rest explicitly false) so the scaffolded config
+// schema stays uniform. A scaffoldable generalized key is only added to the
+// returned map when the caller actually selected it — an unselected
+// generalized function is omitted rather than pinned false here, so a
+// purely-classic selection returns exactly the historical five-key map;
+// renderScaffoldConfig widens it to all nine keys only once a generalized
+// function is present. Underscore spellings, unknown names, and an empty
+// selection are all rejected as usage errors naming the valid set; selecting
+// layer-sovereignty is rejected with a pointer at fitness-function-settings
+// layer configuration.
 func parseFunctionsFlag(raw string) (map[string]bool, error) {
-	valid := make(map[string]bool, len(fitnessFunctionKeys))
+	acceptable := make(map[string]bool, len(fitnessFunctionKeys)+len(scaffoldableGeneralizedFunctionKeys))
 	for _, key := range fitnessFunctionKeys {
-		valid[key] = false
+		acceptable[key] = false // classic: always present
+	}
+	for _, key := range scaffoldableGeneralizedFunctionKeys {
+		acceptable[key] = true // generalized: present only when selected
+	}
+	selected := make(map[string]bool, len(fitnessFunctionKeys))
+	for _, key := range fitnessFunctionKeys {
+		selected[key] = false
 	}
 	selectedAny := false
 	for _, rawName := range strings.Split(raw, ",") {
@@ -168,20 +194,32 @@ func parseFunctionsFlag(raw string) (map[string]bool, error) {
 		if name == "" {
 			continue
 		}
-		if _, ok := valid[name]; !ok {
+		if name == "layer-sovereignty" {
+			return nil, layerSovereigntyFlagUsageError()
+		}
+		if _, ok := acceptable[name]; !ok {
 			return nil, functionsFlagUsageError(name)
 		}
-		valid[name] = true
+		selected[name] = true
 		selectedAny = true
 	}
 	if !selectedAny {
 		return nil, functionsFlagUsageError(raw)
 	}
-	return valid, nil
+	return selected, nil
 }
 
 func functionsFlagUsageError(bad string) error {
+	allowed := make([]string, 0, len(fitnessFunctionKeys)+len(scaffoldableGeneralizedFunctionKeys))
+	allowed = append(allowed, fitnessFunctionKeys...)
+	allowed = append(allowed, scaffoldableGeneralizedFunctionKeys...)
 	return usageError{err: fmt.Errorf(
 		"invalid --functions selection %q: choose one or more of %s (comma-separated, hyphenated names)",
-		bad, strings.Join(fitnessFunctionKeys, ", "))}
+		bad, strings.Join(allowed, ", "))}
+}
+
+func layerSovereigntyFlagUsageError() error {
+	return usageError{err: errors.New(
+		"layer-sovereignty cannot be scaffolded via --functions: it requires layer definitions; " +
+			"enable it and define fitness-function-settings.layer-sovereignty.layers directly in the config file")}
 }
