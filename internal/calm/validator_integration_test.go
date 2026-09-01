@@ -43,6 +43,11 @@ func TestValidatorWithRealCalmCLI(t *testing.T) {
 			fixture: "current-architecture-fail-deterministic-ordering.json",
 			want:    "must be < 1",
 		},
+		{
+			name:    "layer sovereignty",
+			fixture: "current-architecture-fail-layer-sovereignty.json",
+			want:    "must be < 1",
+		},
 	}
 	for _, tt := range failures {
 		t.Run(tt.name, func(t *testing.T) {

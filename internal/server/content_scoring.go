@@ -35,6 +35,7 @@ type contentScorer struct {
 // expected operator and the repository has the function enabled.
 var contentScorers = []contentScorer{
 	{name: "deterministic-ordering", operator: "lte", score: deterministicOrderingViolations},
+	{name: "layer-sovereignty", operator: "lte", score: layerSovereigntyViolations},
 }
 
 // scoreContentFunctions runs every applicable content scorer, records each
@@ -111,6 +112,46 @@ func deterministicOrderingViolations(input contentScoringInput) (int, []fitness.
 			len(offenders),
 			input.rule.Threshold,
 			strings.Join(offenders, "; "),
+		),
+	}}
+}
+
+// layerSovereigntyViolations counts forbidden-pattern references in the
+// proposed content across every configured layer whose path globs match the
+// request's file, and reports them as a single per-file violation. A file
+// that matches no layer, or matches layers with no forbidden hits,
+// contributes nothing.
+func layerSovereigntyViolations(input contentScoringInput) (int, []fitness.Violation) {
+	layerNames := make([]string, 0)
+	matches := make([]string, 0)
+	for _, layer := range input.config.layerRules() {
+		if !layer.matchesPath(input.request.File) {
+			continue
+		}
+		found := layer.forbiddenMatches(input.request.ProposedContent)
+		if len(found) == 0 {
+			continue
+		}
+		layerNames = append(layerNames, layer.Name)
+		matches = append(matches, found...)
+	}
+	if len(matches) == 0 {
+		return 0, nil
+	}
+	return len(matches), []fitness.Violation{{
+		FitnessFunction: "layer_sovereignty",
+		CALMNode:        input.calmNode,
+		File:            input.request.File,
+		Value:           float64(len(matches)),
+		Limit:           input.rule.Threshold,
+		Message: fmt.Sprintf(
+			"File %q belongs to layer(s) %s, which must not reference %d forbidden pattern(s) (limit %.0f): [%s]. "+
+				"Route access through the layer's sanctioned interface instead of referencing these patterns directly.",
+			input.request.File,
+			strings.Join(layerNames, ", "),
+			len(matches),
+			input.rule.Threshold,
+			strings.Join(matches, "; "),
 		),
 	}}
 }
