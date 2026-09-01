@@ -152,13 +152,17 @@ func violatesRule(result analyzer.AnalysisResult, rule string) bool {
 	case "dependency-discipline":
 		return result.Imports.Total > 0 && result.Imports.DDC < 0.8
 	case "temporal-purity", "sql-composition-safety":
-		for _, finding := range result.Findings {
-			if finding.Rule == rule {
-				return true
-			}
-		}
-		return false
+		return hasFinding(result, rule)
 	default:
 		return false
 	}
+}
+
+func hasFinding(result analyzer.AnalysisResult, rule string) bool {
+	for _, finding := range result.Findings {
+		if finding.Rule == rule {
+			return true
+		}
+	}
+	return false
 }

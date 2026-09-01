@@ -55,6 +55,41 @@ func TestHandlerCheckBlocksLayerSovereigntyViolation(t *testing.T) {
 	}
 }
 
+// A file matching two overlapping layers accumulates matches from both, and
+// the violation message names both layers (S4 review follow-up).
+func TestHandlerCheckSumsMatchesAcrossOverlappingLayers(t *testing.T) {
+	repo := "repo-layers-overlap"
+	server := newContentScoringServer(t, repo, `{
+		"enforcement-mode": "block",
+		"fitness-functions": {`+contentScoredOnlyFunctions+`,
+			"layer-sovereignty": true
+		},
+		"fitness-function-settings": {
+			"layer-sovereignty": {
+				"layers": [
+					{"name": "bronze", "paths": ["src/bronze/**"], "forbidden-patterns": ["\\bsilver\\."]},
+					{"name": "pipeline", "paths": ["src/**"], "forbidden-patterns": ["\\bgold\\."]}
+				]
+			}
+		}
+	}`)
+
+	source := "package bronze\n\nconst q = `SELECT * FROM silver.orders JOIN gold.dim_person USING (person_key)`\n"
+	body := postCheck(t, server.URL, repo, "src/bronze/orders.go", source)
+	if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
+		t.Fatalf("status = %q violations = %+v, want one aggregated violation", body.Status, body.Violations)
+	}
+	violation := body.Violations[0]
+	if violation.Value != 2 {
+		t.Fatalf("value = %v, want matches summed across both layers", violation.Value)
+	}
+	for _, fragment := range []string{"bronze", "pipeline"} {
+		if !strings.Contains(violation.Message, fragment) {
+			t.Fatalf("message = %q, want both layer names, missing %q", violation.Message, fragment)
+		}
+	}
+}
+
 func TestHandlerCheckPassesFileOutsideConfiguredLayers(t *testing.T) {
 	repo := "repo-layers-outside"
 	server := newContentScoringServer(t, repo, bronzeLayerConfig)
