@@ -74,16 +74,7 @@ func TestFunctionsEndpointExposesEmbeddedCatalogToAnyAuthenticatedCaller(t *test
 		t.Fatalf("catalog has %d functions %v, want %d", len(response.Functions), functionNames(response), len(wantFunctions))
 	}
 	for name, wantEnabled := range wantFunctions {
-		entry, ok := response.Functions[name]
-		if !ok {
-			t.Fatalf("catalog missing function %q; got %v", name, functionNames(response))
-		}
-		if entry.Description == "" || entry.Operator == "" || entry.Unit == "" {
-			t.Fatalf("function %q entry incomplete: %+v", name, entry)
-		}
-		if entry.DefaultEnabled != wantEnabled {
-			t.Fatalf("function %q default_enabled = %v, want %v", name, entry.DefaultEnabled, wantEnabled)
-		}
+		assertCatalogEntry(t, response, name, wantEnabled)
 	}
 	complexity := response.Functions["cyclomatic-complexity"]
 	if complexity.Operator != "lte" || complexity.Threshold != 9 {
@@ -91,6 +82,20 @@ func TestFunctionsEndpointExposesEmbeddedCatalogToAnyAuthenticatedCaller(t *test
 	}
 	if complexity.Unit != "function" {
 		t.Fatalf("cyclomatic-complexity unit = %q, want function", complexity.Unit)
+	}
+}
+
+func assertCatalogEntry(t *testing.T, response functionsCatalogWire, name string, wantEnabled bool) {
+	t.Helper()
+	entry, ok := response.Functions[name]
+	if !ok {
+		t.Fatalf("catalog missing function %q; got %v", name, functionNames(response))
+	}
+	if entry.Description == "" || entry.Operator == "" || entry.Unit == "" {
+		t.Fatalf("function %q entry incomplete: %+v", name, entry)
+	}
+	if entry.DefaultEnabled != wantEnabled {
+		t.Fatalf("function %q default_enabled = %v, want %v", name, entry.DefaultEnabled, wantEnabled)
 	}
 }
 
