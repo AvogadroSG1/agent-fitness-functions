@@ -37,21 +37,9 @@ func TestBuildOnboardingRecommendationCountsGeneralizedFindings(t *testing.T) {
 
 	recommendation := BuildOnboardingRecommendation("sample", results, rules)
 
-	deltas := map[string]ThresholdDelta{}
-	for _, delta := range recommendation.Deltas {
-		deltas[delta.FitnessFunction] = delta
-	}
-	temporal, ok := deltas["temporal-purity"]
-	if !ok {
-		t.Fatalf("deltas = %+v, want temporal-purity row", recommendation.Deltas)
-	}
-	if temporal.ViolatingCount != 2 || temporal.Operator != "lte" || temporal.GlobalThreshold != 0 || temporal.ViolationUnit != "findings" {
-		t.Fatalf("temporal-purity delta = %+v, want 2 findings against lte 0", temporal)
-	}
-	sql, ok := deltas["sql-composition-safety"]
-	if !ok || sql.ViolatingCount != 1 {
-		t.Fatalf("sql-composition-safety delta = %+v, ok %v, want 1 finding", sql, ok)
-	}
+	deltas := deltasByFunction(recommendation)
+	assertFindingsDelta(t, deltas, "temporal-purity", 2)
+	assertFindingsDelta(t, deltas, "sql-composition-safety", 1)
 	for _, absent := range []string{"layer-sovereignty", "deterministic-ordering"} {
 		if _, ok := deltas[absent]; ok {
 			t.Fatalf("deltas contain %q, want offline-incomputable functions omitted", absent)
@@ -59,6 +47,27 @@ func TestBuildOnboardingRecommendationCountsGeneralizedFindings(t *testing.T) {
 	}
 	if recommendation.EnforcementMode != "advisory" {
 		t.Fatalf("enforcement mode = %q, want advisory when findings exist", recommendation.EnforcementMode)
+	}
+}
+
+func deltasByFunction(recommendation OnboardingRecommendation) map[string]ThresholdDelta {
+	deltas := map[string]ThresholdDelta{}
+	for _, delta := range recommendation.Deltas {
+		deltas[delta.FitnessFunction] = delta
+	}
+	return deltas
+}
+
+// assertFindingsDelta checks one findings-counted delta row: lte-0 rule with
+// the expected number of findings in the "findings" unit.
+func assertFindingsDelta(t *testing.T, deltas map[string]ThresholdDelta, name string, want int) {
+	t.Helper()
+	delta, ok := deltas[name]
+	if !ok {
+		t.Fatalf("deltas = %v, want %s row", deltas, name)
+	}
+	if delta.ViolatingCount != want || delta.Operator != "lte" || delta.GlobalThreshold != 0 || delta.ViolationUnit != "findings" {
+		t.Fatalf("%s delta = %+v, want %d findings against lte 0", name, delta, want)
 	}
 }
 
