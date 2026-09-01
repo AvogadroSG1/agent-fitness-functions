@@ -38,7 +38,7 @@ func functionsRequest(t *testing.T, method, caller string) *http.Request {
 // not just an admin CN — can ask a running server which fitness functions
 // exist and what thresholds /check enforces, so onboarding can offer a picker
 // of existing functions without the repo being pre-registered anywhere. The
-// catalog must surface the five hyphenated function names from the embedded
+// catalog must surface the nine hyphenated function names from the embedded
 // governance pattern (the same source /check validates against), each with its
 // description, threshold, operator, unit, and default-enabled state, plus a
 // content-derived version so clients can cache.
@@ -59,17 +59,21 @@ func TestFunctionsEndpointExposesEmbeddedCatalogToAnyAuthenticatedCaller(t *test
 	if !strings.HasPrefix(response.Version, "sha256:") {
 		t.Fatalf("version = %q, want sha256: prefix", response.Version)
 	}
-	wantFunctions := []string{
-		"cyclomatic-complexity",
-		"interface-width",
-		"implementation-depth",
-		"logic-density",
-		"dependency-discipline",
+	wantFunctions := map[string]bool{
+		"cyclomatic-complexity":  true,
+		"interface-width":        true,
+		"implementation-depth":   true,
+		"logic-density":          true,
+		"dependency-discipline":  true,
+		"layer-sovereignty":      false,
+		"temporal-purity":        false,
+		"sql-composition-safety": false,
+		"deterministic-ordering": false,
 	}
 	if len(response.Functions) != len(wantFunctions) {
 		t.Fatalf("catalog has %d functions %v, want %d", len(response.Functions), functionNames(response), len(wantFunctions))
 	}
-	for _, name := range wantFunctions {
+	for name, wantEnabled := range wantFunctions {
 		entry, ok := response.Functions[name]
 		if !ok {
 			t.Fatalf("catalog missing function %q; got %v", name, functionNames(response))
@@ -77,8 +81,8 @@ func TestFunctionsEndpointExposesEmbeddedCatalogToAnyAuthenticatedCaller(t *test
 		if entry.Description == "" || entry.Operator == "" || entry.Unit == "" {
 			t.Fatalf("function %q entry incomplete: %+v", name, entry)
 		}
-		if !entry.DefaultEnabled {
-			t.Fatalf("function %q default_enabled = false, want true", name)
+		if entry.DefaultEnabled != wantEnabled {
+			t.Fatalf("function %q default_enabled = %v, want %v", name, entry.DefaultEnabled, wantEnabled)
 		}
 	}
 	complexity := response.Functions["cyclomatic-complexity"]

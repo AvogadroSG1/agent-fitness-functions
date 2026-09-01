@@ -89,6 +89,9 @@ func TestLayerRuleGlobMatching(t *testing.T) {
 	if bronze.matchesPath("src/silver/orders.py") {
 		t.Error("bronze glob matched src/silver path, want no match")
 	}
+	if bronze.matchesPath("src/bronzeX/file.py") {
+		t.Error("bronze glob matched src/bronzeX prefix collision, want no match")
+	}
 	if !consumer.matchesPath("consumers/App.cs") {
 		t.Error("consumer * glob did not match direct child, want match")
 	}
