@@ -1,0 +1,39 @@
+fixtures/calm/current-architecture-fail-implementation-depth.json
+  s_79132ec0b01a6e::t_0f7a67fc7fff59 15-19,34-38
+internal/analyzer/analyzer.go
+  s_79132ec0b01a6e::t_938af75b260915 13-16
+internal/report/architecture.go
+  s_79132ec0b01a6e::t_c14a444331a8ce 37-41,113-117
+  s_79132ec0b01a6e::t_f2e4dd4f6c948c 42-45,99-104,118-121,150-153
+  s_79132ec0b01a6e::t_39e1321ba897ab 154-155
+fixtures/calm/current-architecture-pass.json
+  s_79132ec0b01a6e::t_0f7a67fc7fff59 15-19,34-38
+internal/analyzer/onboarding_test.go
+  s_79132ec0b01a6e::t_a710dbcb8d33aa 160-161
+fixtures/calm/current-architecture-fail-dependency-discipline.json
+  s_79132ec0b01a6e::t_0f7a67fc7fff59 15-19,34-38
+fixtures/calm/current-architecture-fail-interface-width.json
+  s_79132ec0b01a6e::t_0f7a67fc7fff59 15-19,34-38
+patterns/governance.json
+  s_79132ec0b01a6e::t_2d5fdd600494b1 44-63,71-75
+fixtures/calm/current-architecture-fail-logic-density.json
+  s_79132ec0b01a6e::t_0f7a67fc7fff59 15-19,34-38
+fixtures/calm/current-architecture-fail-cyclomatic-complexity.json
+  s_79132ec0b01a6e::t_0f7a67fc7fff59 15-19,34-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "302d8b603ab2e8e14a7e2aa4390c3d4eed543b83",
+  "prompts": {},
+  "sessions": {
+    "s_79132ec0b01a6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6377ab6-0026-4172-9d1c-4770de1f21e2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
