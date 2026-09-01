@@ -1,0 +1,58 @@
+internal/server/checker_ordering_test.go
+  s_79132ec0b01a6e::t_f11e09670743c9 102-104
+internal/server/content_scoring.go
+  s_79132ec0b01a6e::t_49dd2f4ee29573 1-132
+internal/server/checker.go
+  s_79132ec0b01a6e::t_257396d1b54686 299-302,307
+  s_79132ec0b01a6e::t_1dda2e2304a06e 328,330,332
+  s_79132ec0b01a6e::t_e5685cad56d052 222
+fixtures/calm/current-architecture-fail-implementation-depth.json
+  s_79132ec0b01a6e::t_7ffcbe16cd835c 15,30
+fixtures/calm/current-architecture-fail-logic-density.json
+  s_79132ec0b01a6e::t_7ffcbe16cd835c 15,30
+fixtures/calm/current-architecture-pass.json
+  s_79132ec0b01a6e::t_7ffcbe16cd835c 15,30
+internal/calm/pattern.go
+  s_79132ec0b01a6e::t_442f759e665ffc 107-113
+  s_79132ec0b01a6e::t_ff2c155790f761 52-55
+internal/report/generalized_functions_test.go
+  s_79132ec0b01a6e::t_ef4b78daa57f0d 62-67
+  s_79132ec0b01a6e::t_6b80a40d494195 12-17
+  s_79132ec0b01a6e::t_c6a4fb777a71aa 68-69
+internal/report/architecture.go
+  s_79132ec0b01a6e::t_cc58bc133e5736 41-48
+  s_79132ec0b01a6e::t_edf7a8fca5641d 102-103
+  s_79132ec0b01a6e::t_2f6d5bc0072595 37-40
+  s_79132ec0b01a6e::t_6fba38939fba9f 104
+fixtures/calm/current-architecture-fail-deterministic-ordering.json
+  s_79132ec0b01a6e::t_8b15b71046169c 1-14,16-50
+  s_79132ec0b01a6e::t_7ffcbe16cd835c 15
+fixtures/calm/current-architecture-fail-dependency-discipline.json
+  s_79132ec0b01a6e::t_7ffcbe16cd835c 15,30
+fixtures/calm/current-architecture-fail-cyclomatic-complexity.json
+  s_79132ec0b01a6e::t_7ffcbe16cd835c 15,30
+internal/calm/validator_integration_test.go
+  s_79132ec0b01a6e::t_8ebec0364dcaca 41-43,45
+  s_79132ec0b01a6e::t_e793aeb2e1066e 44
+patterns/governance.json
+  s_79132ec0b01a6e::t_4cdaae9770b7a0 48,53,58,63
+  s_79132ec0b01a6e::t_7ffcbe16cd835c 71
+fixtures/calm/current-architecture-fail-interface-width.json
+  s_79132ec0b01a6e::t_7ffcbe16cd835c 15,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "a09928e9f80f4368cf750083204611cc38b244e8",
+  "prompts": {},
+  "sessions": {
+    "s_79132ec0b01a6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6377ab6-0026-4172-9d1c-4770de1f21e2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
