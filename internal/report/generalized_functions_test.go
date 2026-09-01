@@ -30,22 +30,8 @@ func TestBuildArchitectureEmitsGeneralizedCountFunctions(t *testing.T) {
 		t.Fatalf("nodes = %d, want actor and analyzed node", len(document.Nodes))
 	}
 
-	actor := document.Nodes[0].Metadata.Fitness
-	if actor.LayerSovereignty != 0 || actor.TemporalPurity != 0 ||
-		actor.SQLCompositionSafety != 0 || actor.DeterministicOrdering != 0 {
-		t.Fatalf("actor fitness = %+v, want zero for all generalized count functions", actor)
-	}
-
-	node := document.Nodes[1].Metadata.Fitness
-	if node.LayerSovereignty != 2 {
-		t.Fatalf("layer sovereignty = %v, want RuleCounts value 2", node.LayerSovereignty)
-	}
-	if node.DeterministicOrdering != 1 {
-		t.Fatalf("deterministic ordering = %v, want RuleCounts value 1", node.DeterministicOrdering)
-	}
-	if node.TemporalPurity != 0 || node.SQLCompositionSafety != 0 {
-		t.Fatalf("fitness = %+v, want zero for counts absent from RuleCounts", node)
-	}
+	assertCountValues(t, "actor", document.Nodes[0].Metadata.Fitness, 0, 0)
+	assertCountValues(t, "service", document.Nodes[1].Metadata.Fitness, 2, 1)
 
 	content, err := json.Marshal(document)
 	if err != nil {
@@ -54,6 +40,22 @@ func TestBuildArchitectureEmitsGeneralizedCountFunctions(t *testing.T) {
 	assertDocumentFields(t, string(content),
 		[]string{`"layer-sovereignty":2`, `"deterministic-ordering":1`},
 		[]string{`"temporal-purity"`, `"sql-composition-safety"`})
+}
+
+// assertCountValues checks a node's generalized count values: the scored
+// layer-sovereignty and deterministic-ordering counts plus always-zero values
+// for the counts absent from RuleCounts.
+func assertCountValues(t *testing.T, node string, fitness Fitness, wantLayer, wantOrdering float64) {
+	t.Helper()
+	if fitness.LayerSovereignty != wantLayer {
+		t.Fatalf("%s layer sovereignty = %v, want %v", node, fitness.LayerSovereignty, wantLayer)
+	}
+	if fitness.DeterministicOrdering != wantOrdering {
+		t.Fatalf("%s deterministic ordering = %v, want %v", node, fitness.DeterministicOrdering, wantOrdering)
+	}
+	if fitness.TemporalPurity != 0 || fitness.SQLCompositionSafety != 0 {
+		t.Fatalf("%s fitness = %+v, want zero for counts absent from RuleCounts", node, fitness)
+	}
 }
 
 // assertDocumentFields checks that the marshaled architecture document carries
