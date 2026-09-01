@@ -1,0 +1,20 @@
+internal/analyzer/onboarding_generalized_test.go
+  s_79132ec0b01a6e::t_322d9f71158521 40-42,53-72
+  s_79132ec0b01a6e::t_5807c57f7c6013 73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "1d420bb44c4060e37296339c3d4ff60472564e63",
+  "prompts": {},
+  "sessions": {
+    "s_79132ec0b01a6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6377ab6-0026-4172-9d1c-4770de1f21e2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
