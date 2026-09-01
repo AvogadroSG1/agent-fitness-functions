@@ -1,0 +1,46 @@
+docs/threshold-exceptions.md
+  s_79132ec0b01a6e::t_e309f12dcf936e 24-108
+CONTEXT.md
+  s_79132ec0b01a6e::t_ace4af691fb228 147-150
+  s_79132ec0b01a6e::t_5bde797b61e176 29
+  s_79132ec0b01a6e::t_3a800804fd1e02 77
+  s_79132ec0b01a6e::t_b634f2ceabd307 138
+docs/runbooks/onboard-new-repository.md
+  s_79132ec0b01a6e::t_3e598ebc756b1e 291-295,297-304
+  s_79132ec0b01a6e::t_091a52e583021b 314,316,318-323,342-357,359-410
+  s_79132ec0b01a6e::t_e777a7d9a1a5b3 358
+  s_79132ec0b01a6e::t_520e9a49d711e4 167-169
+  s_79132ec0b01a6e::t_49c49bb04ed9f5 196
+  s_79132ec0b01a6e::t_82b82d446a70b5 30-35,37-42
+  s_79132ec0b01a6e::t_cc5911b216564f 411
+CLAUDE.md
+  s_79132ec0b01a6e::t_f96731bb317cc3 101
+docs/threshold-calibration.md
+  s_79132ec0b01a6e::t_49df9434196dee 35-54,56-67
+  s_79132ec0b01a6e::t_979682020b0d27 55
+  s_79132ec0b01a6e::t_c385ccccd58b1c 98-101
+docs/spec/engineering-spec.md
+  s_79132ec0b01a6e::t_84773743c7db76 474-476
+  s_79132ec0b01a6e::t_a99696a485a7e6 518-519
+  s_79132ec0b01a6e::t_07daff1c905b80 399-402
+  s_79132ec0b01a6e::t_71a9ab311ce73d 378-383
+  s_79132ec0b01a6e::t_cb7ef63cf92c3b 440-441
+  s_79132ec0b01a6e::t_a5e496e6ec5e16 376-377,384-398,403-417,419-439,442-473,477-517,520-555
+  s_79132ec0b01a6e::t_371d78945edf24 418
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "cecb73fb82a88f118ed791a511f99165efcc70de",
+  "prompts": {},
+  "sessions": {
+    "s_79132ec0b01a6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6377ab6-0026-4172-9d1c-4770de1f21e2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
