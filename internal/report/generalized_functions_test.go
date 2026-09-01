@@ -51,20 +51,23 @@ func TestBuildArchitectureEmitsGeneralizedCountFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal architecture document: %v", err)
 	}
-	for _, field := range []string{
-		`"layer-sovereignty":2`,
-		`"deterministic-ordering":1`,
-	} {
-		if !strings.Contains(string(content), field) {
+	assertDocumentFields(t, string(content),
+		[]string{`"layer-sovereignty":2`, `"deterministic-ordering":1`},
+		[]string{`"temporal-purity"`, `"sql-composition-safety"`})
+}
+
+// assertDocumentFields checks that the marshaled architecture document carries
+// every nonzero count and omits every zero-valued generalized function key.
+func assertDocumentFields(t *testing.T, content string, present, absent []string) {
+	t.Helper()
+	for _, field := range present {
+		if !strings.Contains(content, field) {
 			t.Errorf("architecture document missing %s: %s", field, content)
 		}
 	}
-	for _, absent := range []string{
-		`"temporal-purity"`,
-		`"sql-composition-safety"`,
-	} {
-		if strings.Contains(string(content), absent) {
-			t.Errorf("architecture document emits zero-valued %s, want omitted: %s", absent, content)
+	for _, field := range absent {
+		if strings.Contains(content, field) {
+			t.Errorf("architecture document emits zero-valued %s, want omitted: %s", field, content)
 		}
 	}
 }
