@@ -373,6 +373,186 @@ $$DDC = \frac{\text{used\_imports}}{\text{total\_imports}}$$
 
 ---
 
+### 5.4 Generalized Fitness Functions
+
+Four additional fitness functions generalize the PoC from a fixed five-metric set to a
+config-driven catalog. They were derived from the architecture fitness function
+catalog of Observatory, a governed data-pipeline repository whose
+`docs/arch-fitness-functions.md` specifies ten repo-specific functions (AFF-01
+layer sovereignty, AFF-02 temporal purity, AFF-03 SQL composition, AFF-06
+deterministic ordering are the four that generalize). Unlike 5.1–5.3, each of these four counts occurrences of a specific pattern
+per file and enforces an **lte-0 rule**: zero occurrences pass, one or more violate.
+All four are opt-in (`false` by default in `fitness-functions`) — a repository enables
+them explicitly, typically after an advisory-only rollout period (see
+[docs/threshold-exceptions.md](../threshold-exceptions.md) for the detection-scope
+caveats that motivate advisory-first).
+
+**Scoring location.** The five functions in 5.1–5.3 are metric-scored: a language
+analyzer computes a number (complexity, method count, LOC ratio) and the checker
+compares it against a threshold. The four functions here are scored differently, split
+across two mechanisms:
+
+- **Checker content-scored** (`internal/server/content_scoring.go`, the
+  `contentScorers` registry) — the scorer reads the proposed file content or the
+  analyzer's structured findings directly, rather than a single numeric metric.
+  `layer-sovereignty` and `deterministic-ordering` fall here; both are pattern/text
+  based — the matcher never parses language syntax. A request MUST still declare a
+  supported `language` (`go`, `python`, `csharp`) to reach the checker at all, and
+  the shipped hooks only submit `.go`/`.py`/`.cs` files, so today these two
+  functions run against exactly the same file set as the other seven.
+- **Analyzer findings-scored** — the language analyzer emits `analyzer.Finding`
+  records (`Rule`, `Kind`, `Line`) during its normal AST walk, and the checker counts
+  findings tagged with the function's rule name. `temporal-purity` and
+  `sql-composition-safety` fall here; both are implemented today only in the Python
+  AST scan (`internal/analyzer/python.go`). A language whose analyzer emits no
+  findings for a rule contributes zero findings and therefore no violation — Go and
+  C# files silently pass both today.
+
+**Wire name vs. config key.** Every fitness function has two names: the config key
+(kebab-case, e.g. `layer-sovereignty`) used in `fitness-functions` and
+`fitness-function-settings`, and the wire name (snake_case, e.g. `layer_sovereignty`)
+on `Violation.FitnessFunction` in the `internal/fitness` contract and in generated
+architecture documents. This mirrors the existing five functions' convention.
+
+**exclusiveMaximum encoding.** `patterns/governance.json` encodes each lte-0 rule as
+`"type": "number", "exclusiveMaximum": 1` rather than `"maximum": 0`. The FINOS
+`calm` CLI's `pattern-has-no-empty-properties` rule rejects a pattern property whose
+value is the zero value for its type, so a literal `0` maximum is not expressible.
+`exclusiveMaximum: 1` is equivalent to `lte 0` for integer-valued counts (the only
+values these four functions ever produce) without tripping that rule. A file with zero
+violations has the count omitted entirely from its generated architecture document
+(`omitempty` on the CALM node's fitness metadata) and is absent from the pattern's
+`required` list for these four keys — the document simply doesn't assert a value for a
+function that found nothing to report, and CALM validation passes.
+
+#### Layer Sovereignty (`layer-sovereignty` / `layer_sovereignty`)
+
+**What it measures:** References to forbidden content patterns from within a file that
+belongs to a configured architectural layer — e.g. a bronze-layer data file directly
+referencing `silver.` or `gold.` objects instead of going through the layer's
+sanctioned interface.
+
+**Unit of analysis:** Per-file. A file is evaluated against every configured layer
+whose `paths` glob matches it; matches across layers are combined into one violation
+count for the file.
+
+**Scoring:** Checker content-scored (`layerSovereigntyViolations` in
+`content_scoring.go`). The scan is syntax-blind text matching, but requests are
+gated on a supported `language`, so it runs only for `.go`/`.py`/`.cs` files today.
+
+**Config:** `fitness-function-settings.layer-sovereignty.layers`, a list of
+`{name, paths, forbidden-patterns}` objects. `paths` are glob patterns compiled at
+config-parse time (`**` crosses `/`, `*` does not, `?` matches one non-`/` character,
+every other character is literal); `forbidden-patterns` are Go `regexp` source strings
+compiled at the same time. Compilation is fail-closed: an invalid glob or regex fails
+config parsing, and the whole config is rejected rather than partially applied.
+**Enabling `layer-sovereignty` with an empty or absent `layers` list is itself a hard
+config error** — there is no meaningful "on" state with nothing to enforce. See
+[docs/runbooks/onboard-new-repository.md](../runbooks/onboard-new-repository.md) for a
+complete config example.
+
+**Onboarding:** `client onboard --functions` explicitly **rejects** `layer-sovereignty`
+— layers must be hand-authored in `fitness-function-settings`, which onboarding has no
+way to infer from a bare repository. `baseline`'s offline threshold-delta report also
+skips this function; it requires content-scoring against a live repository checkout,
+not just AST metrics.
+
+**Violation message (representative):**
+> `File "X" belongs to layer(s) bronze, which must not reference N forbidden pattern(s) (limit 0): [...]. Route access through the layer's sanctioned interface instead of referencing these patterns directly.`
+
+#### Deterministic Ordering (`deterministic-ordering` / `deterministic_ordering`)
+
+**What it measures:** SQL window functions (`OVER (... ORDER BY ...)`) whose `ORDER
+BY` clause carries no tie-breaker column, so row order is not fully deterministic when
+the primary ordering expression has ties.
+
+**Unit of analysis:** Per-file. Every window function's `OVER (...)` body is
+extracted by walking characters from the opening paren to its balanced closing paren
+(Go's `regexp` is RE2 and cannot balance parentheses itself), and the clause after the
+last paren-depth-zero `ORDER BY` inside that body is checked for a tie-breaker token.
+
+**Scoring:** Checker content-scored (`deterministicOrderingViolations`). Textual —
+it scans SQL embedded in string literals without parsing the host language, though
+the request pipeline still only accepts `.go`/`.py`/`.cs` files today.
+
+**Config:** `fitness-function-settings.deterministic-ordering.tie-breaker-tokens`,
+a list of identifier tokens (default `["_id", "_key", "_pk", "_sk", "id"]`). A token
+matches a whole SQL identifier in the `ORDER BY` clause, or an identifier's `_`-boundary
+suffix (`employee_id` satisfies `id` and `_id`) — never a bare substring, so
+`paid_amount` does not satisfy `id`.
+
+**Onboarding:** `client onboard --functions` accepts `deterministic-ordering` (no
+settings required to enable it; the default tie-breaker tokens apply). `baseline`'s
+offline report skips it for the same reason as `layer-sovereignty` — SQL text scanning
+against a live checkout isn't part of AST-based analyzer metrics.
+
+**Violation message (representative):**
+> `File "X" has N window function ORDER BY clause(s) without a unique tie-breaker (limit 0): [...]. Append a unique column such as the primary key to each ORDER BY so the row order is deterministic.`
+
+#### Temporal Purity (`temporal-purity` / `temporal_purity`)
+
+**What it measures:** Timestamps constructed without an explicit time zone —
+`datetime.utcnow()` and argument-less `.now()` calls in Python.
+
+**Unit of analysis:** Per-file, counting analyzer findings tagged `temporal-purity`.
+
+**Scoring:** Analyzer findings-scored (`temporalPurityViolations` reads
+`analyzer.Finding` records tagged `temporal-purity`). Implemented today in the Python
+embedded AST scan (`internal/analyzer/python.go`, `_temporal_purity`).
+
+**Detection scope — read before enabling in block mode:** the Python scan is
+**attribute-based with no import resolution.** It flags any `X.utcnow()` call and any
+argument-less `X.now()` call regardless of what `X` actually is — `datetime.utcnow()`
+and `time.time()`-adjacent `.now()` calls are flagged the same as `arrow.now()` or a
+project's own custom `.now()` method. This is inherited Observatory semantics, not a
+bug: it trades false positives for not having to resolve imports. See
+[docs/threshold-exceptions.md](../threshold-exceptions.md) for the full write-up and
+the advisory-first recommendation this implies.
+
+**Config:** `fitness-function-settings.temporal-purity.csharp-policy` (`naive-only`
+default, or `require-offset`) is **reserved for a future C# temporal-purity milestone**
+— the setting parses and validates today, but no C# analyzer detection exists yet, so
+it currently has no runtime effect.
+
+**Onboarding:** `client onboard --functions` accepts `temporal-purity`. `baseline`
+produces a findings-count delta row for it (see
+[docs/threshold-calibration.md](../threshold-calibration.md)) —
+computable offline because it's a pure AST-finding count, unlike the two content-scored
+functions above.
+
+**Violation message (representative):**
+> `File "X" constructs N naive timestamp(s) (limit 0): [...]. Construct timestamps with an explicit time zone, such as datetime.now(timezone.utc), so the recorded instant is unambiguous.`
+
+#### SQL Composition Safety (`sql-composition-safety` / `sql_composition_safety`)
+
+**What it measures:** SQL statements composed via f-string interpolation,
+`%`-formatting, or `.format()` and passed as the first argument to `.execute()` or
+`.executemany()`.
+
+**Unit of analysis:** Per-file, counting analyzer findings tagged
+`sql-composition-safety`.
+
+**Scoring:** Analyzer findings-scored (`sqlCompositionSafetyViolations`). Implemented
+today in the Python embedded AST scan (`_sql_composition`).
+
+**Detection scope — read before enabling in block mode:** matching is
+**receiver-agnostic** — any object's `.execute()`/`.executemany()` call is inspected,
+not just recognized DB-API clients, so a false positive is possible on an unrelated
+`.execute()` method. Two gaps carried over deliberately for parity with Observatory's
+original detector: **variable indirection** (`query = f"..."; cursor.execute(query)`)
+and **plain string concatenation** (`cursor.execute("SELECT " + col)`) are **not**
+detected — only the three composition forms named above, applied directly as the call
+argument, are caught. See
+[docs/threshold-exceptions.md](../threshold-exceptions.md) for the full write-up.
+
+**Onboarding:** `client onboard --functions` accepts `sql-composition-safety`.
+`baseline` produces a findings-count delta row for it, same as `temporal-purity`.
+
+**Violation message (representative):**
+> `File "X" composes N SQL statement(s) via string interpolation (limit 0): [...]. Use parameterized queries or a SQL composition API instead of building statements with f-strings, %-formatting, or .format().`
+
+---
+
 ## 6. Data Schemas
 
 ### 6.1 governance.json

@@ -39,54 +39,63 @@ type radonErrorItem struct {
 // AnalyzePythonFile analyzes one Python source file using radon.
 func AnalyzePythonFile(ctx context.Context, file, radonPath string) (AnalysisResult, error) {
 	if radonPath == "" {
-		if managed := managedRadonPath(os.Getenv); managed != "" {
-			radonPath = managed
-		} else {
-			radonPath = "radon"
+		var managed bool
+		radonPath, managed = resolvePythonRadonPath(os.Getenv)
+		if !managed {
 			if result, err := analyzePythonFileWithRadonAPI(ctx, file, radonPath); err == nil {
 				return result, nil
 			}
 		}
 	}
+	functions, fileMetric, err := pythonRadonCLIMetrics(ctx, file, radonPath)
+	if err != nil {
+		return AnalysisResult{}, err
+	}
+	findings, err := pythonFileFindings(ctx, file, radonPath)
+	if err != nil {
+		return AnalysisResult{}, err
+	}
+	return pythonAnalysisResult(file, functions, fileMetric, findings)
+}
+
+// resolvePythonRadonPath picks the radon binary for a caller that named none.
+// The shipped managed runtime's pinned radon wins when one is installed;
+// otherwise a bare PATH lookup does. The bool reports whether the managed
+// binary won, which is what suppresses the host-python radon API fast path.
+func resolvePythonRadonPath(getenv func(string) string) (string, bool) {
+	if managed := managedRadonPath(getenv); managed != "" {
+		return managed, true
+	}
+	return "radon", false
+}
+
+// pythonRadonCLIMetrics runs radon's cc and raw passes over one file and parses
+// both. Cancellation is checked between the subprocess work and the parsing, so
+// a cancelled analysis never reports a partial verdict.
+func pythonRadonCLIMetrics(ctx context.Context, file, radonPath string) ([]FunctionMetric, FileMetric, error) {
 	ccOutput, err := runTool(ctx, radonPath, "cc", "-j", file)
 	if err != nil {
-		return AnalysisResult{}, fmt.Errorf("running radon cc: %w", err)
+		return nil, FileMetric{}, fmt.Errorf("running radon cc: %w", err)
 	}
 	rawOutput, err := runTool(ctx, radonPath, "raw", "-j", file)
 	if err != nil {
-		return AnalysisResult{}, fmt.Errorf("running radon raw: %w", err)
+		return nil, FileMetric{}, fmt.Errorf("running radon raw: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
-		return AnalysisResult{}, err
+		return nil, FileMetric{}, err
 	}
-
 	functions, err := parseRadonCC(file, ccOutput)
 	if err != nil {
-		return AnalysisResult{}, err
+		return nil, FileMetric{}, err
 	}
 	fileMetric, err := parseRadonRaw(file, rawOutput)
 	if err != nil {
-		return AnalysisResult{}, err
+		return nil, FileMetric{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return AnalysisResult{}, err
+		return nil, FileMetric{}, err
 	}
-	source, err := os.ReadFile(file)
-	if err != nil {
-		return AnalysisResult{}, err
-	}
-	fileMetric.LDR = ratio(fileMetric.LogicLOC, fileMetric.TotalLOC)
-	fileMetric.PublicMethods = publicFunctionCount(functions)
-
-	return AnalysisResult{
-		CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
-		Language:     "python",
-		File:         file,
-		Functions:    functions,
-		ModuleMetric: BuildModuleMetric(fileMetric, functions),
-		FileMetric:   fileMetric,
-		Imports:      pythonImportMetric(string(source)),
-	}, nil
+	return functions, fileMetric, nil
 }
 
 // managedRadonPath returns the shipped managed Python runtime's pinned
@@ -110,9 +119,14 @@ func managedRadonPath(getenv func(string) string) string {
 type radonAPIOutput struct {
 	CC  map[string]json.RawMessage `json:"cc"`
 	Raw map[string]radonRawItem    `json:"raw"`
+	// Findings carries the ast findings scan that shares this subprocess, so
+	// the fast path costs one interpreter launch for metrics and findings
+	// together. A radon python stand-in that omits the section contributes no
+	// findings.
+	Findings map[string]pythonFindingsItem `json:"findings"`
 }
 
-const radonAPIScript = `
+const radonAPIScript = pythonFindingsLibrary + `
 import json
 import pathlib
 import sys
@@ -122,7 +136,7 @@ from radon.raw import analyze
 
 path = sys.argv[1]
 source = pathlib.Path(path).read_text()
-payload = {"cc": {}, "raw": {}}
+payload = {"cc": {}, "raw": {}, "findings": {}}
 try:
     payload["cc"][path] = [
         {
@@ -141,36 +155,24 @@ try:
     payload["raw"][path] = {"loc": raw.loc, "lloc": raw.lloc}
 except Exception as exc:
     payload["raw"][path] = {"error": str(exc)}
+try:
+    payload["findings"][path] = {"findings": scan_findings(source)}
+except Exception as exc:
+    payload["findings"][path] = {"error": str(exc)}
 json.dump(payload, sys.stdout)
 `
 
+// analyzePythonFileWithRadonAPI is the fast path: one interpreter launch that
+// returns radon's cc and raw metrics together with the ast findings scan.
 func analyzePythonFileWithRadonAPI(ctx context.Context, file, radonPath string) (AnalysisResult, error) {
-	python, args, ok := radonPythonCommand(radonPath)
-	if !ok {
-		return AnalysisResult{}, fmt.Errorf("radon python interpreter unavailable")
-	}
-	args = append(args, "-c", radonAPIScript, file)
-	output, err := runTool(ctx, python, args...)
+	payload, err := runRadonAPI(ctx, file, radonPath)
 	if err != nil {
-		return AnalysisResult{}, fmt.Errorf("running radon python api: %w", err)
+		return AnalysisResult{}, err
 	}
-	var payload radonAPIOutput
-	if err := json.Unmarshal(output, &payload); err != nil {
-		return AnalysisResult{}, fmt.Errorf("parsing radon python api: %w: %s", err, trimOutput(output))
+	ccPayload, err := decodeRadonCCPayload(payload.CC)
+	if err != nil {
+		return AnalysisResult{}, err
 	}
-	ccPayload := make(map[string][]radonCCItem, len(payload.CC))
-	for path, message := range payload.CC {
-		var errorItem radonErrorItem
-		if err := json.Unmarshal(message, &errorItem); err == nil && errorItem.Error != "" {
-			return AnalysisResult{}, fmt.Errorf("radon cc error for %s: %s", path, errorItem.Error)
-		}
-		var items []radonCCItem
-		if err := json.Unmarshal(message, &items); err != nil {
-			return AnalysisResult{}, fmt.Errorf("parsing radon cc for %s: %w", path, err)
-		}
-		ccPayload[path] = items
-	}
-	functions := pythonFunctions(ccPayload[file])
 	rawOutput, err := json.Marshal(payload.Raw)
 	if err != nil {
 		return AnalysisResult{}, fmt.Errorf("encoding radon raw payload: %w", err)
@@ -182,22 +184,31 @@ func analyzePythonFileWithRadonAPI(ctx context.Context, file, radonPath string) 
 	if err := ctx.Err(); err != nil {
 		return AnalysisResult{}, err
 	}
-	source, err := os.ReadFile(file)
+	findings, err := pythonFindingsFor(payload.Findings, file)
 	if err != nil {
 		return AnalysisResult{}, err
 	}
-	fileMetric.LDR = ratio(fileMetric.LogicLOC, fileMetric.TotalLOC)
-	fileMetric.PublicMethods = publicFunctionCount(functions)
+	return pythonAnalysisResult(file, pythonFunctions(ccPayload[file]), fileMetric, findings)
+}
 
-	return AnalysisResult{
-		CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
-		Language:     "python",
-		File:         file,
-		Functions:    functions,
-		ModuleMetric: BuildModuleMetric(fileMetric, functions),
-		FileMetric:   fileMetric,
-		Imports:      pythonImportMetric(string(source)),
-	}, nil
+// runRadonAPI launches the embedded radon API script and decodes its payload.
+// An unresolvable interpreter, a failing launch, and unparsable output are all
+// errors, which is what makes AnalyzePythonFile fall back to the radon CLI.
+func runRadonAPI(ctx context.Context, file, radonPath string) (radonAPIOutput, error) {
+	python, args, ok := radonPythonCommand(radonPath)
+	if !ok {
+		return radonAPIOutput{}, fmt.Errorf("radon python interpreter unavailable")
+	}
+	args = append(args, "-c", radonAPIScript, file)
+	output, err := runTool(ctx, python, args...)
+	if err != nil {
+		return radonAPIOutput{}, fmt.Errorf("running radon python api: %w", err)
+	}
+	var payload radonAPIOutput
+	if err := json.Unmarshal(output, &payload); err != nil {
+		return radonAPIOutput{}, fmt.Errorf("parsing radon python api: %w: %s", err, trimOutput(output))
+	}
+	return payload, nil
 }
 
 func radonPythonCommand(radonPath string) (string, []string, bool) {
@@ -228,6 +239,186 @@ func radonPythonCommand(radonPath string) (string, []string, bool) {
 	return fields[0], fields[1:], true
 }
 
+// pythonFindingsLibrary is the shared, I/O-free half of the embedded Python
+// findings scanner, prepended both to the standalone findings script and to
+// the radon API fast-path script so one detection implementation serves both.
+// Every scan returns a list of {"rule", "kind", "line", "detail"} objects, so
+// a new generalized fitness function is added by appending its scan to _SCANS
+// without reshaping the output.
+const pythonFindingsLibrary = `
+import ast
+
+
+def _dotted(node):
+    parts = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, ast.Name):
+        parts.append(node.id)
+    return ".".join(reversed(parts))
+
+
+def _finding(rule, kind, node):
+    return {
+        "rule": rule,
+        "kind": kind,
+        "line": node.lineno,
+        "detail": _dotted(node.func) + "()",
+    }
+
+
+def _temporal_purity(tree):
+    found = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr == "utcnow":
+            found.append(_finding("temporal-purity", "py-datetime-utcnow", node))
+        elif node.func.attr == "now" and not node.args and not node.keywords:
+            found.append(_finding("temporal-purity", "py-datetime-now-naive", node))
+    return found
+
+
+def _sql_composition_kind(call):
+    first = call.args[0] if call.args else None
+    if isinstance(first, ast.JoinedStr):
+        return "py-fstring-execute"
+    if isinstance(first, ast.BinOp) and isinstance(first.op, ast.Mod):
+        return "py-percent-format-execute"
+    if (
+        isinstance(first, ast.Call)
+        and isinstance(first.func, ast.Attribute)
+        and first.func.attr == "format"
+    ):
+        return "py-str-format-execute"
+    return None
+
+
+def _sql_composition(tree):
+    found = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr not in ("execute", "executemany"):
+            continue
+        kind = _sql_composition_kind(node)
+        if kind is not None:
+            found.append(_finding("sql-composition-safety", kind, node))
+    return found
+
+
+_SCANS = (_temporal_purity, _sql_composition)
+
+
+def scan_findings(source):
+    tree = ast.parse(source)
+    found = []
+    for scan in _SCANS:
+        found.extend(scan(tree))
+    found.sort(key=lambda item: (item["line"], item["kind"]))
+    return found
+`
+
+// pythonFindingsScript scans every path passed on the command line and prints
+// one JSON entry per analyzed path, mirroring radon's payload shape:
+// {"<path>": {"findings": [...]}} for a scanned file, {"<path>": {"error":
+// "..."}} for one that could not be read or parsed.
+const pythonFindingsScript = pythonFindingsLibrary + `
+import json
+import pathlib
+import sys
+
+payload = {}
+for path in sys.argv[1:]:
+    try:
+        payload[path] = {"findings": scan_findings(pathlib.Path(path).read_text())}
+    except Exception as exc:
+        payload[path] = {"error": str(exc)}
+json.dump(payload, sys.stdout)
+`
+
+// pythonFindingsItem is one analyzed path's findings-scan outcome.
+type pythonFindingsItem struct {
+	Error    string    `json:"error"`
+	Findings []Finding `json:"findings"`
+}
+
+// pythonFileFindings runs the findings scan for a single file.
+func pythonFileFindings(ctx context.Context, file, radonPath string) ([]Finding, error) {
+	payload, err := pythonFindingsPayload(ctx, radonPath, file)
+	if err != nil {
+		return nil, err
+	}
+	return pythonFindingsFor(payload, file)
+}
+
+// pythonFindingsPayload runs the embedded ast findings scan over files in one
+// interpreter launch. Scan failures are never swallowed: an unresolvable or
+// failing interpreter, and unparsable scanner output, surface as analyzer
+// errors the caller routes through enforcement-on-error.
+func pythonFindingsPayload(ctx context.Context, radonPath string, files ...string) (map[string]pythonFindingsItem, error) {
+	python, args, ok := findingsPythonCommand(radonPath)
+	if !ok {
+		return nil, fmt.Errorf("resolving python interpreter for findings scan: %w", exec.ErrNotFound)
+	}
+	args = append(args, "-c", pythonFindingsScript)
+	args = append(args, files...)
+	output, err := runTool(ctx, python, args...)
+	if err != nil {
+		return nil, fmt.Errorf("running python findings scan: %w", err)
+	}
+	var payload map[string]pythonFindingsItem
+	if err := json.Unmarshal(output, &payload); err != nil {
+		return nil, fmt.Errorf("parsing python findings scan: %w: %s", err, trimOutput(output))
+	}
+	return payload, nil
+}
+
+// pythonFindingsFor returns one file's findings from a scan payload keyed by
+// analyzed path. An entry carrying an error means that file could not be read
+// or parsed, which is an analysis error rather than an empty result — the same
+// way a radon analysis error surfaces. A payload with no entry for the file
+// contributes no findings.
+func pythonFindingsFor(payload map[string]pythonFindingsItem, file string) ([]Finding, error) {
+	item, ok := payload[file]
+	if !ok && len(payload) == 1 {
+		for _, value := range payload {
+			item = value
+		}
+	}
+	if item.Error != "" {
+		return nil, fmt.Errorf("python findings error for %s: %s", file, item.Error)
+	}
+	return item.Findings, nil
+}
+
+// findingsPythonCommand resolves the interpreter that runs the findings scan.
+// radon's own launcher shebang is preferred so findings and metrics come from
+// the same Python, but only when that shebang names a Python: a shell-script
+// radon wrapper cannot run the scan. A PATH python3/python is the fallback.
+func findingsPythonCommand(radonPath string) (string, []string, bool) {
+	if radonPath == "" {
+		radonPath = "radon"
+	}
+	if python, args, ok := radonPythonCommand(radonPath); ok && isPythonInterpreter(python) {
+		return python, args, true
+	}
+	for _, candidate := range []string{"python3", "python"} {
+		if path, err := exec.LookPath(candidate); err == nil {
+			return path, nil, true
+		}
+	}
+	return "", nil, false
+}
+
+// isPythonInterpreter reports whether a shebang interpreter path names a
+// Python runtime (e.g. "python3", "/opt/homebrew/bin/python3.12", "pypy3").
+func isPythonInterpreter(path string) bool {
+	name := strings.ToLower(filepath.Base(path))
+	return strings.Contains(name, "python") || strings.HasPrefix(name, "pypy")
+}
+
 func parseRadonCC(file string, output []byte) ([]FunctionMetric, error) {
 	payload, err := parseRadonCCPayload(output)
 	if err != nil {
@@ -242,24 +433,43 @@ func parseRadonCC(file string, output []byte) ([]FunctionMetric, error) {
 	return pythonFunctions(items), nil
 }
 
+// parseRadonCCPayload decodes radon's "cc -j" output into typed items per path.
 func parseRadonCCPayload(output []byte) (map[string][]radonCCItem, error) {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(output, &raw); err != nil {
 		return nil, fmt.Errorf("parsing radon cc: %w: %s", err, trimOutput(output))
 	}
+	return decodeRadonCCPayload(raw)
+}
+
+// decodeRadonCCPayload turns radon's per-path cc messages into typed items. The
+// CLI and the radon API fast path share this decoding, so the two cannot report
+// a radon analysis error differently.
+func decodeRadonCCPayload(raw map[string]json.RawMessage) (map[string][]radonCCItem, error) {
 	payload := make(map[string][]radonCCItem, len(raw))
 	for file, message := range raw {
-		var errorItem radonErrorItem
-		if err := json.Unmarshal(message, &errorItem); err == nil && errorItem.Error != "" {
-			return nil, fmt.Errorf("radon cc error for %s: %s", file, errorItem.Error)
-		}
-		var items []radonCCItem
-		if err := json.Unmarshal(message, &items); err != nil {
-			return nil, fmt.Errorf("parsing radon cc for %s: %w", file, err)
+		items, err := decodeRadonCCItems(file, message)
+		if err != nil {
+			return nil, err
 		}
 		payload[file] = items
 	}
 	return payload, nil
+}
+
+// decodeRadonCCItems decodes one path's cc message. radon reports a file it
+// could not parse as an object carrying an error, which is an analysis failure
+// rather than an empty function list.
+func decodeRadonCCItems(file string, message json.RawMessage) ([]radonCCItem, error) {
+	var errorItem radonErrorItem
+	if err := json.Unmarshal(message, &errorItem); err == nil && errorItem.Error != "" {
+		return nil, fmt.Errorf("radon cc error for %s: %s", file, errorItem.Error)
+	}
+	var items []radonCCItem
+	if err := json.Unmarshal(message, &items); err != nil {
+		return nil, fmt.Errorf("parsing radon cc for %s: %w", file, err)
+	}
+	return items, nil
 }
 
 func pythonFunctions(items []radonCCItem) []FunctionMetric {
@@ -315,54 +525,121 @@ func AnalyzePythonRepository(ctx context.Context, root, radonPath string) ([]Ana
 	if len(files) == 0 {
 		return nil, fmt.Errorf("no Python files found under %s", root)
 	}
-	ccArgs := append([]string{"cc", "-j"}, files...)
-	ccOutput, err := runTool(ctx, radonPath, ccArgs...)
-	if err != nil {
-		return nil, fmt.Errorf("running radon cc: %w", err)
-	}
-	rawArgs := append([]string{"raw", "-j"}, files...)
-	rawOutput, err := runTool(ctx, radonPath, rawArgs...)
-	if err != nil {
-		return nil, fmt.Errorf("running radon raw: %w", err)
-	}
-	ccPayload, err := parseRadonCCPayload(ccOutput)
+	ccPayload, rawPayload, err := pythonRepositoryPayloads(ctx, radonPath, files)
 	if err != nil {
 		return nil, err
 	}
+	analyzed := sortedRadonRawFiles(rawPayload)
+	findingsPayload, err := pythonFindingsPayload(ctx, radonPath, analyzed...)
+	if err != nil {
+		return nil, err
+	}
+	results, err := pythonRepositoryResults(analyzed, ccPayload, rawPayload, findingsPayload)
+	if err != nil {
+		return nil, err
+	}
+	return AggregateModuleMetrics(results), nil
+}
+
+// pythonRepositoryPayloads runs radon's cc and raw batches over every
+// discovered file — one subprocess per metric for the whole repository — and
+// returns both decoded payloads keyed by the paths radon reported.
+func pythonRepositoryPayloads(
+	ctx context.Context,
+	radonPath string,
+	files []string,
+) (map[string][]radonCCItem, map[string]radonRawItem, error) {
+	ccOutput, err := runTool(ctx, radonPath, append([]string{"cc", "-j"}, files...)...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("running radon cc: %w", err)
+	}
+	rawOutput, err := runTool(ctx, radonPath, append([]string{"raw", "-j"}, files...)...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("running radon raw: %w", err)
+	}
+	ccPayload, err := parseRadonCCPayload(ccOutput)
+	if err != nil {
+		return nil, nil, err
+	}
 	var rawPayload map[string]radonRawItem
 	if err := json.Unmarshal(rawOutput, &rawPayload); err != nil {
-		return nil, fmt.Errorf("parsing radon raw: %w: %s", err, trimOutput(rawOutput))
+		return nil, nil, fmt.Errorf("parsing radon raw: %w: %s", err, trimOutput(rawOutput))
 	}
-	files = make([]string, 0, len(rawPayload))
+	return ccPayload, rawPayload, nil
+}
+
+// sortedRadonRawFiles returns the paths radon actually analyzed, sorted so a
+// repository scan's results are deterministic rather than map-ordered.
+func sortedRadonRawFiles(rawPayload map[string]radonRawItem) []string {
+	files := make([]string, 0, len(rawPayload))
 	for file := range rawPayload {
 		files = append(files, file)
 	}
 	sort.Strings(files)
+	return files
+}
+
+// pythonRepositoryResults assembles one result per analyzed path, failing the
+// whole scan on the first file radon or the findings scan could not handle.
+func pythonRepositoryResults(
+	files []string,
+	ccPayload map[string][]radonCCItem,
+	rawPayload map[string]radonRawItem,
+	findingsPayload map[string]pythonFindingsItem,
+) ([]AnalysisResult, error) {
 	results := make([]AnalysisResult, 0, len(files))
 	for _, file := range files {
-		rawItem := rawPayload[file]
-		if rawItem.Error != "" {
-			return nil, fmt.Errorf("radon raw error for %s: %s", file, rawItem.Error)
-		}
-		source, err := os.ReadFile(file)
+		result, err := pythonRepositoryResult(file, ccPayload[file], rawPayload[file], findingsPayload)
 		if err != nil {
 			return nil, err
 		}
-		fileMetric := FileMetric{TotalLOC: rawItem.LOC, LogicLOC: rawItem.LLOC}
-		fileMetric.LDR = ratio(fileMetric.LogicLOC, fileMetric.TotalLOC)
-		functions := pythonFunctions(ccPayload[file])
-		fileMetric.PublicMethods = publicFunctionCount(functions)
-		results = append(results, AnalysisResult{
-			CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
-			Language:     "python",
-			File:         file,
-			Functions:    functions,
-			ModuleMetric: BuildModuleMetric(fileMetric, functions),
-			FileMetric:   fileMetric,
-			Imports:      pythonImportMetric(string(source)),
-		})
+		results = append(results, result)
 	}
-	return AggregateModuleMetrics(results), nil
+	return results, nil
+}
+
+// pythonRepositoryResult builds one file's result from a repository-wide radon
+// batch. A radon raw analysis error for the file is reported before anything
+// else, so a file radon could not parse fails with radon's own message.
+func pythonRepositoryResult(
+	file string,
+	items []radonCCItem,
+	rawItem radonRawItem,
+	findingsPayload map[string]pythonFindingsItem,
+) (AnalysisResult, error) {
+	if rawItem.Error != "" {
+		return AnalysisResult{}, fmt.Errorf("radon raw error for %s: %s", file, rawItem.Error)
+	}
+	findings, err := pythonFindingsFor(findingsPayload, file)
+	if err != nil {
+		return AnalysisResult{}, err
+	}
+	fileMetric := FileMetric{TotalLOC: rawItem.LOC, LogicLOC: rawItem.LLOC}
+	return pythonAnalysisResult(file, pythonFunctions(items), fileMetric, findings)
+}
+
+// pythonAnalysisResult assembles one analyzed Python file's result: it derives
+// the ratios the radon metrics do not carry, reads the source for import
+// metrics, and attaches the findings the caller scanned. Every Python analysis
+// path — radon CLI, radon API fast path, and repository batch — ends here, so
+// they cannot drift apart.
+func pythonAnalysisResult(file string, functions []FunctionMetric, fileMetric FileMetric, findings []Finding) (AnalysisResult, error) {
+	source, err := os.ReadFile(file)
+	if err != nil {
+		return AnalysisResult{}, err
+	}
+	fileMetric.LDR = ratio(fileMetric.LogicLOC, fileMetric.TotalLOC)
+	fileMetric.PublicMethods = publicFunctionCount(functions)
+	return AnalysisResult{
+		CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
+		Language:     "python",
+		File:         file,
+		Functions:    functions,
+		ModuleMetric: BuildModuleMetric(fileMetric, functions),
+		FileMetric:   fileMetric,
+		Imports:      pythonImportMetric(string(source)),
+		Findings:     findings,
+	}, nil
 }
 
 func pythonImportMetric(source string) ImportMetric {
@@ -380,42 +657,74 @@ func pythonImportMetric(source string) ImportMetric {
 	return ImportMetric{Total: len(names), Used: used, Unused: unused, DDC: ratio(used, len(names))}
 }
 
+// pythonUsedIdentifiers returns every identifier the module body reads. Locally
+// bound names — assignments, parameters, loop variables, aliases — are excluded
+// scope by scope, so only names that could be import uses remain.
 func pythonUsedIdentifiers(source string) map[string]struct{} {
 	body := stripPythonStringsAndComments(pythonImportBody(source))
 	used := make(map[string]struct{})
 	scopes := []pythonScope{{indent: -1, bound: make(map[string]struct{})}}
 	for _, line := range pythonTokenLines(body) {
-		for len(scopes) > 1 && line.indent <= scopes[len(scopes)-1].indent {
-			scopes = scopes[:len(scopes)-1]
-		}
+		scopes = popPythonScopes(scopes, line.indent)
 		bindings := pythonLineBindings(line.tokens)
-		shadowed := pythonVisibleBindings(scopes, bindings.lineBound)
-		for name := range bindings.outerBound {
-			shadowed[name] = struct{}{}
-		}
-		tokens := line.tokens
-		for index, token := range tokens {
-			if !isPythonIdentifierToken(token) ||
-				pythonKeywords[token] ||
-				bindings.positions[index] {
-				continue
-			}
-			if _, ok := shadowed[token]; ok {
-				continue
-			}
-			used[token] = struct{}{}
-		}
-		for name := range bindings.outerBound {
-			scopes[len(scopes)-1].bound[name] = struct{}{}
-		}
-		for name := range bindings.lineBound {
-			scopes[len(scopes)-1].bound[name] = struct{}{}
-		}
-		if bindings.startsScope {
-			scopes = append(scopes, pythonScope{indent: line.indent, bound: bindings.nextScopeBound})
-		}
+		collectPythonUses(used, line.tokens, bindings, pythonShadowedNames(scopes, bindings))
+		scopes = applyPythonBindings(scopes, line, bindings)
 	}
 	return used
+}
+
+// popPythonScopes drops every scope a line's indentation has closed.
+func popPythonScopes(scopes []pythonScope, indent int) []pythonScope {
+	for len(scopes) > 1 && indent <= scopes[len(scopes)-1].indent {
+		scopes = scopes[:len(scopes)-1]
+	}
+	return scopes
+}
+
+// pythonShadowedNames is the set of names a line's identifier uses must ignore:
+// everything bound by an enclosing scope plus everything this line binds.
+func pythonShadowedNames(scopes []pythonScope, bindings pythonBindings) map[string]struct{} {
+	shadowed := pythonVisibleBindings(scopes, bindings.lineBound)
+	for name := range bindings.outerBound {
+		shadowed[name] = struct{}{}
+	}
+	return shadowed
+}
+
+// collectPythonUses records the identifiers a line reads rather than binds.
+func collectPythonUses(
+	used map[string]struct{},
+	tokens []string,
+	bindings pythonBindings,
+	shadowed map[string]struct{},
+) {
+	for index, token := range tokens {
+		if !isPythonIdentifierToken(token) ||
+			pythonKeywords[token] ||
+			bindings.positions[index] {
+			continue
+		}
+		if _, ok := shadowed[token]; ok {
+			continue
+		}
+		used[token] = struct{}{}
+	}
+}
+
+// applyPythonBindings records a line's bindings in the innermost scope and
+// opens the scope a def or class line starts.
+func applyPythonBindings(scopes []pythonScope, line pythonTokenLine, bindings pythonBindings) []pythonScope {
+	bound := scopes[len(scopes)-1].bound
+	for name := range bindings.outerBound {
+		bound[name] = struct{}{}
+	}
+	for name := range bindings.lineBound {
+		bound[name] = struct{}{}
+	}
+	if bindings.startsScope {
+		scopes = append(scopes, pythonScope{indent: line.indent, bound: bindings.nextScopeBound})
+	}
+	return scopes
 }
 
 type pythonScope struct {
@@ -458,71 +767,118 @@ func pythonImportBody(source string) string {
 	return strings.Join(bodyLines, "\n")
 }
 
+// pythonStripper blanks out Python string literals and comments so the
+// identifier scan never mistakes their contents for code. Every replacement is
+// as long as what it replaces and newlines are preserved, so byte offsets and
+// line numbering survive the pass unchanged.
+type pythonStripper struct {
+	source   string
+	builder  strings.Builder
+	quote    byte
+	inString bool
+	triple   bool
+}
+
 func stripPythonStringsAndComments(source string) string {
-	var builder strings.Builder
-	var quote byte
-	inString := false
-	triple := false
+	stripper := pythonStripper{source: source}
 	for index := 0; index < len(source); index++ {
-		value := source[index]
-		if inString {
-			if value == '\n' {
-				builder.WriteByte('\n')
-				if !triple {
-					inString = false
-				}
-				continue
-			}
-			if value == '\\' && !triple && index+1 < len(source) {
-				builder.WriteByte(' ')
-				index++
-				if source[index] == '\n' {
-					builder.WriteByte('\n')
-				} else {
-					builder.WriteByte(' ')
-				}
-				continue
-			}
-			if value == quote {
-				if triple {
-					if index+2 < len(source) && source[index+1] == quote && source[index+2] == quote {
-						builder.WriteString("   ")
-						index += 2
-						inString = false
-						continue
-					}
-				} else {
-					inString = false
-				}
-			}
-			builder.WriteByte(' ')
-			continue
-		}
-		if value == '#' {
-			for index < len(source) && source[index] != '\n' {
-				builder.WriteByte(' ')
-				index++
-			}
-			if index < len(source) {
-				builder.WriteByte('\n')
-			}
-			continue
-		}
-		if value == '\'' || value == '"' {
-			quote = value
-			triple = index+2 < len(source) && source[index+1] == quote && source[index+2] == quote
-			inString = true
-			if triple {
-				builder.WriteString("   ")
-				index += 2
-			} else {
-				builder.WriteByte(' ')
-			}
-			continue
-		}
-		builder.WriteByte(value)
+		index = stripper.step(index)
 	}
-	return builder.String()
+	return stripper.builder.String()
+}
+
+// step consumes the run of source starting at index and returns the last index
+// it consumed; the caller's loop advances past it.
+func (s *pythonStripper) step(index int) int {
+	if s.inString {
+		return s.stepInString(index)
+	}
+	switch s.source[index] {
+	case '#':
+		return s.stepComment(index)
+	case '\'', '"':
+		return s.stepStringStart(index)
+	}
+	s.builder.WriteByte(s.source[index])
+	return index
+}
+
+// stepInString blanks one byte of an open literal. A single-quoted literal also
+// ends at a newline, which is how an unterminated quote fails to swallow the
+// rest of the file.
+func (s *pythonStripper) stepInString(index int) int {
+	value := s.source[index]
+	if value == '\n' {
+		s.builder.WriteByte('\n')
+		if !s.triple {
+			s.inString = false
+		}
+		return index
+	}
+	if value == '\\' && !s.triple && index+1 < len(s.source) {
+		return s.stepEscape(index)
+	}
+	if value == s.quote {
+		return s.stepQuote(index)
+	}
+	s.builder.WriteByte(' ')
+	return index
+}
+
+// stepEscape blanks a backslash escape inside a single-quoted literal, keeping
+// a line continuation's newline so line numbering survives.
+func (s *pythonStripper) stepEscape(index int) int {
+	s.builder.WriteByte(' ')
+	index++
+	if s.source[index] == '\n' {
+		s.builder.WriteByte('\n')
+	} else {
+		s.builder.WriteByte(' ')
+	}
+	return index
+}
+
+// stepQuote handles a quote byte inside an open literal: a triple-quoted
+// literal closes only on its full closing triple, a single-quoted one here.
+func (s *pythonStripper) stepQuote(index int) int {
+	if !s.triple {
+		s.inString = false
+		s.builder.WriteByte(' ')
+		return index
+	}
+	if index+2 < len(s.source) && s.source[index+1] == s.quote && s.source[index+2] == s.quote {
+		s.builder.WriteString("   ")
+		s.inString = false
+		return index + 2
+	}
+	s.builder.WriteByte(' ')
+	return index
+}
+
+// stepComment blanks a comment through the end of its line, preserving the
+// newline that terminates it.
+func (s *pythonStripper) stepComment(index int) int {
+	for index < len(s.source) && s.source[index] != '\n' {
+		s.builder.WriteByte(' ')
+		index++
+	}
+	if index < len(s.source) {
+		s.builder.WriteByte('\n')
+	}
+	return index
+}
+
+// stepStringStart opens a literal, blanking its opening quote or triple quote.
+func (s *pythonStripper) stepStringStart(index int) int {
+	s.quote = s.source[index]
+	s.triple = index+2 < len(s.source) && s.source[index+1] == s.quote && s.source[index+2] == s.quote
+	s.inString = true
+	if !s.triple {
+		s.builder.WriteByte(' ')
+		return index
+	}
+	s.builder.WriteString("   ")
+	return index + 2
 }
 
 func pythonTokensByLine(source string) map[int][]string {
@@ -756,6 +1112,8 @@ func publicFunctionCount(functions []FunctionMetric) int {
 	return count
 }
 
+// pythonImportNames returns the local name every import statement in source
+// binds, following a parenthesized "from ... import (" list across lines.
 func pythonImportNames(source string) []string {
 	names := make([]string, 0)
 	collectingFrom := false
@@ -764,64 +1122,102 @@ func pythonImportNames(source string) []string {
 		if trimmed == "" {
 			continue
 		}
+		var lineNames []string
 		if collectingFrom {
-			if strings.HasPrefix(trimmed, ")") {
-				collectingFrom = false
-				continue
-			}
-			if strings.Contains(trimmed, ")") {
-				collectingFrom = false
-				trimmed = strings.TrimSpace(strings.TrimSuffix(strings.Split(trimmed, ")")[0], ","))
-			}
-			names = append(names, parsePythonImportList("from", trimmed)...)
-			continue
+			lineNames, collectingFrom = pythonImportBlockNames(trimmed)
+		} else {
+			lineNames, collectingFrom = pythonImportStatementNames(trimmed)
 		}
-		if strings.HasPrefix(trimmed, "import ") {
-			names = append(names, parsePythonImportList("import", strings.TrimSpace(strings.TrimPrefix(trimmed, "import ")))...)
-			continue
-		}
-		if strings.HasPrefix(trimmed, "from ") {
-			importIndex := strings.Index(trimmed, " import ")
-			if importIndex < 0 {
-				continue
-			}
-			rest := strings.TrimSpace(trimmed[importIndex+len(" import "):])
-			if rest == "(" {
-				collectingFrom = true
-				continue
-			}
-			if strings.HasPrefix(rest, "(") {
-				rest = strings.TrimPrefix(rest, "(")
-				if strings.Contains(rest, ")") {
-					rest = strings.Split(rest, ")")[0]
-				} else {
-					collectingFrom = true
-				}
-			}
-			names = append(names, parsePythonImportList("from", rest)...)
+		names = append(names, lineNames...)
+	}
+	return names
+}
+
+// pythonImportStatementNames reads one "import ..." or "from ... import ..."
+// statement, reporting whether a parenthesized list stays open on the lines
+// that follow. A line that is neither statement binds nothing.
+func pythonImportStatementNames(trimmed string) ([]string, bool) {
+	if strings.HasPrefix(trimmed, "import ") {
+		rest := strings.TrimSpace(strings.TrimPrefix(trimmed, "import "))
+		return parsePythonImportList("import", rest), false
+	}
+	if strings.HasPrefix(trimmed, "from ") {
+		return pythonFromImportNames(trimmed)
+	}
+	return nil, false
+}
+
+// pythonFromImportNames reads a "from ... import ..." line. A list opened with
+// "(" and not closed on the same line leaves the block open for the lines that
+// follow; a line with no " import " at all binds nothing.
+func pythonFromImportNames(trimmed string) ([]string, bool) {
+	importIndex := strings.Index(trimmed, " import ")
+	if importIndex < 0 {
+		return nil, false
+	}
+	rest := strings.TrimSpace(trimmed[importIndex+len(" import "):])
+	if rest == "(" {
+		return nil, true
+	}
+	if !strings.HasPrefix(rest, "(") {
+		return parsePythonImportList("from", rest), false
+	}
+	rest = strings.TrimPrefix(rest, "(")
+	if !strings.Contains(rest, ")") {
+		return parsePythonImportList("from", rest), true
+	}
+	return parsePythonImportList("from", strings.Split(rest, ")")[0]), false
+}
+
+// pythonImportBlockNames reads one continuation line of an open parenthesized
+// import list, reporting whether the block is still open afterwards.
+func pythonImportBlockNames(trimmed string) ([]string, bool) {
+	if strings.HasPrefix(trimmed, ")") {
+		return nil, false
+	}
+	if !strings.Contains(trimmed, ")") {
+		return parsePythonImportList("from", trimmed), true
+	}
+	closed := strings.TrimSpace(strings.TrimSuffix(strings.Split(trimmed, ")")[0], ","))
+	return parsePythonImportList("from", closed), false
+}
+
+// parsePythonImportList splits a comma-separated import clause list into the
+// names it binds. kind is "import" or "from" and decides whether a dotted
+// module path contributes its root package name.
+func parsePythonImportList(kind, list string) []string {
+	list = strings.TrimSpace(strings.Trim(list, "()"))
+	names := make([]string, 0)
+	for _, part := range strings.Split(list, ",") {
+		if name, ok := pythonImportName(kind, part); ok {
+			names = append(names, name)
 		}
 	}
 	return names
 }
 
-func parsePythonImportList(kind, list string) []string {
-	list = strings.TrimSpace(strings.Trim(list, "()"))
-	names := make([]string, 0)
-	for _, part := range strings.Split(list, ",") {
-		part = stripPythonComment(strings.TrimSpace(part))
-		if part == "" || part == "*" || part == "(" || part == ")" {
-			continue
-		}
-		fields := strings.Fields(part)
-		name := fields[0]
-		if len(fields) >= 3 && fields[len(fields)-2] == "as" {
-			name = fields[len(fields)-1]
-		} else if dot := strings.Index(name, "."); dot >= 0 && kind == "import" {
-			name = name[:dot]
-		}
-		names = append(names, name)
+// pythonImportName resolves the name one clause binds: its alias when it has
+// one, and for a plain "import a.b.c" the root package that lands in scope.
+func pythonImportName(kind, part string) (string, bool) {
+	part = stripPythonComment(strings.TrimSpace(part))
+	if pythonBindsNoName(part) {
+		return "", false
 	}
-	return names
+	fields := strings.Fields(part)
+	name := fields[0]
+	if len(fields) >= 3 && fields[len(fields)-2] == "as" {
+		return fields[len(fields)-1], true
+	}
+	if dot := strings.Index(name, "."); dot >= 0 && kind == "import" {
+		name = name[:dot]
+	}
+	return name, true
+}
+
+// pythonBindsNoName reports whether an import clause binds nothing: an empty
+// clause, a star import, or a stray parenthesis left by the list split.
+func pythonBindsNoName(part string) bool {
+	return part == "" || part == "*" || part == "(" || part == ")"
 }
 
 func stripPythonComment(value string) string {

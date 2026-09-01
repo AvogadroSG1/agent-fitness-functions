@@ -49,6 +49,10 @@ type fitnessProperty struct {
 	Description string   `json:"description"`
 	Maximum     *float64 `json:"maximum"`
 	Minimum     *float64 `json:"minimum"`
+	// ExclusiveMaximum encodes integer count rules: the CALM CLI's
+	// pattern-has-no-empty-properties rule rejects a zero-valued "maximum", so
+	// count thresholds use exclusiveMaximum n, equivalent to lte n-1.
+	ExclusiveMaximum *float64 `json:"exclusiveMaximum"`
 }
 
 // LoadPattern reads and validates a CALM governance pattern file.
@@ -85,6 +89,9 @@ func parsePattern(label string, content []byte) (Pattern, error) {
 func fitnessFunctions(properties map[string]fitnessProperty) map[string]FitnessRule {
 	functions := make(map[string]FitnessRule, len(properties))
 	for name, property := range properties {
+		// Precedence is deliberate: a property that sets several bounds is
+		// scored against its maximum first, then its minimum, then its
+		// exclusiveMaximum.
 		switch {
 		case property.Maximum != nil:
 			functions[name] = FitnessRule{
@@ -98,6 +105,13 @@ func fitnessFunctions(properties map[string]fitnessProperty) map[string]FitnessR
 				Description: property.Description,
 				Threshold:   *property.Minimum,
 				Operator:    "gte",
+				Unit:        unitForFitnessFunction(name),
+			}
+		case property.ExclusiveMaximum != nil:
+			functions[name] = FitnessRule{
+				Description: property.Description,
+				Threshold:   *property.ExclusiveMaximum - 1,
+				Operator:    "lte",
 				Unit:        unitForFitnessFunction(name),
 			}
 		}

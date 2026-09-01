@@ -39,6 +39,13 @@ type Fitness struct {
 	ImplementationDepth  float64 `json:"implementation-depth"`
 	LogicDensity         float64 `json:"logic-density"`
 	DependencyDiscipline float64 `json:"dependency-discipline"`
+	// The generalized count functions omit zero values: the CALM CLI's
+	// pattern-has-no-empty-properties rule rejects zero-valued properties, so
+	// a clean count must be absent from the document rather than emitted as 0.
+	LayerSovereignty      float64 `json:"layer-sovereignty,omitempty"`
+	TemporalPurity        float64 `json:"temporal-purity,omitempty"`
+	SQLCompositionSafety  float64 `json:"sql-composition-safety,omitempty"`
+	DeterministicOrdering float64 `json:"deterministic-ordering,omitempty"`
 }
 
 // FileMetrics contains file-level values used by AI Slop rules.
@@ -92,6 +99,9 @@ func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
 					ImplementationDepth:  1,
 					LogicDensity:         1,
 					DependencyDiscipline: 1,
+					// The generalized count metrics stay at their zero values and
+					// are omitted from the document, so the synthetic actor always
+					// satisfies the pattern's count constraints.
 				}},
 			},
 			{
@@ -100,11 +110,15 @@ func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
 				Name:        result.CALMNode,
 				Description: "Architecture fitness metrics for " + result.File + ".",
 				Metadata: Metadata{Fitness: Fitness{
-					CyclomaticComplexity: float64(maxCyclomaticComplexity(result.Functions)),
-					InterfaceWidth:       float64(result.ModuleMetric.PublicMethods),
-					ImplementationDepth:  result.ModuleMetric.AverageLOCPerPublicMethod,
-					LogicDensity:         result.FileMetric.LDR,
-					DependencyDiscipline: result.Imports.DDC,
+					CyclomaticComplexity:  float64(maxCyclomaticComplexity(result.Functions)),
+					InterfaceWidth:        float64(result.ModuleMetric.PublicMethods),
+					ImplementationDepth:   result.ModuleMetric.AverageLOCPerPublicMethod,
+					LogicDensity:          result.FileMetric.LDR,
+					DependencyDiscipline:  result.Imports.DDC,
+					LayerSovereignty:      float64(ruleCount(result.RuleCounts, "layer-sovereignty")),
+					TemporalPurity:        float64(ruleCount(result.RuleCounts, "temporal-purity")),
+					SQLCompositionSafety:  float64(ruleCount(result.RuleCounts, "sql-composition-safety")),
+					DeterministicOrdering: float64(ruleCount(result.RuleCounts, "deterministic-ordering")),
 				},
 					ModuleMetrics: &result.ModuleMetric,
 					FileMetrics: &FileMetrics{
@@ -131,6 +145,12 @@ func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
 			},
 		},
 	}
+}
+
+// ruleCount reads a generalized fitness-function violation count from the
+// analyzer's RuleCounts map; a missing key means zero.
+func ruleCount(counts map[string]int, name string) int {
+	return counts[name]
 }
 
 func maxCyclomaticComplexity(functions []analyzer.FunctionMetric) int {

@@ -41,6 +41,26 @@
                     "description": "Minimum used-import ratio per file",
                     "type": "number",
                     "minimum": 0.8
+                  },
+                  "layer-sovereignty": {
+                    "description": "Maximum layer-sovereignty violations per file",
+                    "type": "number",
+                    "exclusiveMaximum": 1
+                  },
+                  "temporal-purity": {
+                    "description": "Maximum temporal-purity violations per file",
+                    "type": "number",
+                    "exclusiveMaximum": 1
+                  },
+                  "sql-composition-safety": {
+                    "description": "Maximum sql-composition-safety violations per file",
+                    "type": "number",
+                    "exclusiveMaximum": 1
+                  },
+                  "deterministic-ordering": {
+                    "description": "Maximum deterministic-ordering violations per file",
+                    "type": "number",
+                    "exclusiveMaximum": 1
                   }
                 },
                 "required": [

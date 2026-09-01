@@ -80,13 +80,54 @@ func BuildOnboardingRecommendation(repository string, results []AnalysisResult, 
 }
 
 func thresholdDeltas(results []AnalysisResult, summary BaselineSummary, rules map[string]calm.FitnessRule) []ThresholdDelta {
-	return []ThresholdDelta{
+	deltas := []ThresholdDelta{
 		cyclomaticDelta(results, summary, rules),
 		interfaceDelta(results, summary, rules),
 		depthDelta(results, summary, rules),
 		densityDelta(results, summary, rules),
 		disciplineDelta(results, summary, rules),
 	}
+	deltas = append(deltas, findingsDeltas(results, rules)...)
+	return deltas
+}
+
+// findingsDeltas adds threshold-delta rows for the generalized fitness
+// functions computable offline purely by counting findings the language
+// analyzers already emit (temporal-purity, sql-composition-safety). The other
+// two generalized functions (layer-sovereignty, deterministic-ordering) are
+// content-scored against a live repository checkout and cannot be computed
+// from AnalysisResult alone, so they contribute no row here; a row only
+// appears when the rule is present in the embedded pattern's rules map.
+func findingsDeltas(results []AnalysisResult, rules map[string]calm.FitnessRule) []ThresholdDelta {
+	var deltas []ThresholdDelta
+	for _, name := range []string{"temporal-purity", "sql-composition-safety"} {
+		rule, ok := rules[name]
+		if !ok {
+			continue
+		}
+		deltas = append(deltas, findingsDelta(results, name, rule))
+	}
+	return deltas
+}
+
+// findingsDelta builds one ThresholdDelta row by counting findings whose Rule
+// matches name across all results. RepositoryValue mirrors the count (there
+// is no percentile to summarize for a findings-based rule).
+func findingsDelta(results []AnalysisResult, name string, rule calm.FitnessRule) ThresholdDelta {
+	count := countFindings(results, name)
+	return newDelta(name, "count", "findings", float64(count), count, rule)
+}
+
+func countFindings(results []AnalysisResult, rule string) int {
+	count := 0
+	for _, result := range results {
+		for _, finding := range result.Findings {
+			if finding.Rule == rule {
+				count++
+			}
+		}
+	}
+	return count
 }
 
 func cyclomaticDelta(results []AnalysisResult, summary BaselineSummary, rules map[string]calm.FitnessRule) ThresholdDelta {

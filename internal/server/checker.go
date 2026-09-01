@@ -219,7 +219,7 @@ func (c *Checker) checkSynchronousLocked(ctx context.Context, request fitness.Va
 	result = analyzer.EnsureModuleMetric(result)
 	result.File = request.File
 	result.CALMNode = calmNodeForRequest(request, result.CALMNode)
-	return c.runValidationAndScore(ctx, result, repo, request.File, patternPath, config, state)
+	return c.runValidationAndScore(ctx, result, repo, request, patternPath, config, state)
 }
 
 // routeAnalysisError applies enforcement-on-error policy for non-input failures.
@@ -296,12 +296,15 @@ func classifyAnalysisError(err error, language string) error {
 	return inputError(fmt.Sprintf("analyzing %s file", language), err)
 }
 
-// runValidationAndScore runs CALM validation and fitness scoring on an analyzed result.
-func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.AnalysisResult, repo, file, patternPath string, config Config, state *State) (resp fitness.ValidationResult, err error) {
+// runValidationAndScore runs CALM validation and fitness scoring on an analyzed
+// result. Content-scored fitness functions are scored first so their counts
+// reach the generated architecture document.
+func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.AnalysisResult, repo string, request fitness.ValidationRequest, patternPath string, config Config, state *State) (resp fitness.ValidationResult, err error) {
 	pattern, err := calm.LoadPattern(patternPath)
 	if err != nil {
 		return fitness.ValidationResult{}, infrastructureError("loading governance pattern", err)
 	}
+	contentViolations := scoreContentFunctions(&result, request, config, pattern)
 	architecturePath, cleanupArchitecture, err := c.writeArchitecture(report.BuildArchitecture(result))
 	if err != nil {
 		return fitness.ValidationResult{}, err
@@ -322,11 +325,11 @@ func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.Ana
 	if err != nil && !isValidationFailure(validation) {
 		return fitness.ValidationResult{}, infrastructureError("running CALM validation", err)
 	}
-	violations := filterViolations(fitnessViolations(result, pattern), config)
+	violations := filterViolations(append(fitnessViolations(result, pattern), contentViolations...), config)
 	if len(violations) == 0 {
-		return c.scoreClean(repo, file, config, state)
+		return c.scoreClean(repo, request.File, config, state)
 	}
-	return c.scoreDirty(repo, file, violations, config, state)
+	return c.scoreDirty(repo, request.File, violations, config, state)
 }
 
 func (c *Checker) scoreClean(repo, file string, config Config, state *State) (fitness.ValidationResult, error) {

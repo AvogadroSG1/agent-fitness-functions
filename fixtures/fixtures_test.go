@@ -38,6 +38,10 @@ func TestViolationAndGreenFixturesAreCalibrated(t *testing.T) {
 		{name: "python ldr green", path: "green/python/logic_density.py", language: "python", rule: "logic-density"},
 		{name: "python ddc red", path: "violations/python/dependency_discipline.py", language: "python", rule: "dependency-discipline", red: true},
 		{name: "python ddc green", path: "green/python/dependency_discipline.py", language: "python", rule: "dependency-discipline"},
+		{name: "python temporal red", path: "violations/python/temporal_purity.py", language: "python", rule: "temporal-purity", red: true},
+		{name: "python temporal green", path: "green/python/temporal_purity.py", language: "python", rule: "temporal-purity"},
+		{name: "python sql red", path: "violations/python/sql_composition_safety.py", language: "python", rule: "sql-composition-safety", red: true},
+		{name: "python sql green", path: "green/python/sql_composition_safety.py", language: "python", rule: "sql-composition-safety"},
 		{name: "csharp cyclomatic red", path: "violations/csharp/CyclomaticComplexity.cs", language: "csharp", rule: "cyclomatic-complexity", red: true},
 		{name: "csharp cyclomatic green", path: "green/csharp/CyclomaticComplexity.cs", language: "csharp", rule: "cyclomatic-complexity"},
 		{name: "csharp interface red", path: "violations/csharp/InterfaceWidth.cs", language: "csharp", rule: "interface-width", red: true},
@@ -131,25 +135,46 @@ func ensureRoslynAnalyzer(t *testing.T) string {
 	return path
 }
 
+// ruleCheckers mirrors the server's calibrated thresholds per fitness
+// function (a deliberate duplicate — see docs/threshold-calibration.md).
+var ruleCheckers = map[string]func(analyzer.AnalysisResult) bool{
+	"cyclomatic-complexity":  anyFunctionTooComplex,
+	"interface-width":        func(r analyzer.AnalysisResult) bool { return moduleMetric(r).PublicMethods > 20 },
+	"implementation-depth":   implementationTooShallow,
+	"logic-density":          func(r analyzer.AnalysisResult) bool { return r.FileMetric.TotalLOC > 0 && r.FileMetric.LDR < 0.255 },
+	"dependency-discipline":  func(r analyzer.AnalysisResult) bool { return r.Imports.Total > 0 && r.Imports.DDC < 0.8 },
+	"temporal-purity":        func(r analyzer.AnalysisResult) bool { return hasFinding(r, "temporal-purity") },
+	"sql-composition-safety": func(r analyzer.AnalysisResult) bool { return hasFinding(r, "sql-composition-safety") },
+}
+
 func violatesRule(result analyzer.AnalysisResult, rule string) bool {
-	switch rule {
-	case "cyclomatic-complexity":
-		for _, function := range result.Functions {
-			if function.CyclomaticComplexity > 9 {
-				return true
-			}
+	checker, ok := ruleCheckers[rule]
+	return ok && checker(result)
+}
+
+func moduleMetric(result analyzer.AnalysisResult) analyzer.ModuleMetric {
+	return analyzer.EnsureModuleMetric(result).ModuleMetric
+}
+
+func anyFunctionTooComplex(result analyzer.AnalysisResult) bool {
+	for _, function := range result.Functions {
+		if function.CyclomaticComplexity > 9 {
+			return true
 		}
-		return false
-	case "interface-width":
-		return analyzer.EnsureModuleMetric(result).ModuleMetric.PublicMethods > 20
-	case "implementation-depth":
-		module := analyzer.EnsureModuleMetric(result).ModuleMetric
-		return module.PublicMethods > 0 && module.AverageLOCPerPublicMethod < 0.722
-	case "logic-density":
-		return result.FileMetric.TotalLOC > 0 && result.FileMetric.LDR < 0.255
-	case "dependency-discipline":
-		return result.Imports.Total > 0 && result.Imports.DDC < 0.8
-	default:
-		return false
 	}
+	return false
+}
+
+func implementationTooShallow(result analyzer.AnalysisResult) bool {
+	module := moduleMetric(result)
+	return module.PublicMethods > 0 && module.AverageLOCPerPublicMethod < 0.722
+}
+
+func hasFinding(result analyzer.AnalysisResult, rule string) bool {
+	for _, finding := range result.Findings {
+		if finding.Rule == rule {
+			return true
+		}
+	}
+	return false
 }

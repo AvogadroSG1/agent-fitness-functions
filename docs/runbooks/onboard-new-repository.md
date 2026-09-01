@@ -27,10 +27,19 @@ from that empty state end to end:
 
 - `client functions` (offline, reads the embedded governance pattern) or `GET
   /functions` (remote, unprivileged — any authenticated caller, no repo needs to exist
-  yet) lists the five-function catalog: description, threshold, operator, unit.
+  yet) lists the nine-function catalog: description, threshold, operator, unit,
+  default-enabled. The five original metric functions default to enabled; the four
+  generalized functions (`layer-sovereignty`, `temporal-purity`,
+  `sql-composition-safety`, `deterministic-ordering` — see
+  [Enabling the generalized fitness functions](#enabling-the-generalized-fitness-functions)
+  below) default to disabled.
 - `--functions cyclomatic-complexity,logic-density` selects a subset instead of the
-  all-five default; an interactive TTY without `--functions` gets a picker checklist
-  over the same catalog instead of the silent default.
+  all-five-metric default; an interactive TTY without `--functions` gets a picker
+  checklist over the same catalog instead of the silent default.
+  `--functions temporal-purity,sql-composition-safety,deterministic-ordering` may
+  include three of the four generalized functions; `layer-sovereignty` is rejected by
+  `--functions` because it needs hand-authored layer definitions onboard cannot infer
+  (see below).
 - **In external/remote TLS mode** (`AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA` set,
   `--addr` pointing at a server that is not a managed local dev daemon), `onboard`
   self-service registers the repo with `POST /register` instead of writing local
@@ -155,8 +164,9 @@ This runs the whole 0-to-governed sequence and gates on `doctor` at the end:
    `dev-hook-pool`. One dev CA serves every governed repository on the machine.
    `AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR` overrides the location.
 2. **Server-side config scaffold** — the tracked `<repo>/configs/<repo>/config.json`
-   production handoff artifact from the embedded template, with all five fitness
-   functions enabled (an existing config is left unchanged), then copied verbatim
+   production handoff artifact from the embedded template, with all five metric
+   fitness functions enabled and all four generalized functions explicitly present
+   but disabled (an existing config is left unchanged), then copied verbatim
    into the shared governance configs dir the local daemon serves
    (`AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR` if set, else `<govRoot>/configs`).
    Re-running onboard re-syncs a user-edited repo-local config; the repo-local file
@@ -183,7 +193,7 @@ Flags:
 | `--repo <name>` | working-tree basename | Governance repo name (validated against the grammar) |
 | `--enforcement <advisory\|block>` | `advisory` | Enforcement mode written into the scaffolded config |
 | `--addr <url>` | `https://127.0.0.1:7890` | Governance daemon base URL |
-| `--functions <a,b,...>` | all five | Comma-separated subset of fitness functions to enable |
+| `--functions <a,b,...>` | all five metric functions | Comma-separated subset of fitness functions to enable; accepts three of the four generalized functions (`temporal-purity`, `sql-composition-safety`, `deterministic-ordering`) but rejects `layer-sovereignty` |
 | `[path]` | `.` | Repository path |
 
 `onboard` is idempotent. In managed/local mode, when it finishes it prints the one
@@ -278,13 +288,20 @@ agent-fitness-functions baseline \
   --emit-config configs/<repo>/config.json --name <repo>
 ```
 
-`--emit-config` writes a ready-to-use `configs/<repo>/config.json` (all five functions
-enabled) and prints an enforcement-mode recommendation — `block` when zero files
+`--emit-config` writes a ready-to-use `configs/<repo>/config.json` (all five metric
+functions enabled; the four generalized functions are omitted and therefore fall back
+to their disabled-by-default baseline when the server parses the config — enable them
+by hand per [Enabling the generalized fitness functions](#enabling-the-generalized-fitness-functions)
+above) and prints an enforcement-mode recommendation — `block` when zero files
 violate the current global thresholds, otherwise `advisory` — plus a threshold-delta
-report. Thresholds remain **global** and compiled into `patterns/governance.json`; a
-per-repo config toggles functions and enforcement mode but cannot change a threshold.
-See [threshold-calibration.md](../threshold-calibration.md) for the full behavior and
-the recalibration procedure.
+report. The report includes findings-count delta rows for `temporal-purity` and
+`sql-composition-safety` (pure AST-finding counts, computable offline); it has no row
+for `layer-sovereignty` or `deterministic-ordering`, which need content-scoring
+against a live checkout the offline baseline can't do. Thresholds remain **global**
+and compiled into `patterns/governance.json`; a per-repo config toggles functions and
+enforcement mode but cannot change a threshold. See
+[threshold-calibration.md](../threshold-calibration.md) for the full behavior and the
+recalibration procedure.
 
 #### Config schema
 
@@ -294,11 +311,16 @@ Defined by `Config` in `internal/server/config.go`:
 |-------|----------|--------|---------|
 | `enforcement-mode` | Yes | `block`, `advisory`, `off` | How active violations are routed. `block` rejects; `advisory` reports but allows; `off` disables checks. |
 | `enforcement-on-error` | No (defaults to `block`) | `block`, `advisory`, `pass` | How analyzer failures are routed. `block` fails closed; `advisory` reports without blocking; `pass` suppresses failures. |
-| `fitness-functions` | Yes | object of `string → bool` | Enables/disables individual checks. A missing key defaults to **enabled**. |
+| `fitness-functions` | Yes | object of `string → bool` | Enables/disables individual checks. A missing key falls back to that function's own baseline default — **enabled** for the five metric functions, **disabled** for the four generalized functions below. |
 | `exclude-patterns` | No | array of glob strings | File paths to skip, e.g. `"*_test.go"`, `"fixtures/**"`. |
+| `fitness-function-settings` | No | object, see below | Structured configuration for the functions that need more than an enabled/disabled flag. |
 
-Fitness function keys: `cyclomatic-complexity`, `interface-width`,
-`implementation-depth`, `logic-density`, `dependency-discipline`.
+Fitness function keys — five metric functions (enabled by default): `cyclomatic-complexity`,
+`interface-width`, `implementation-depth`, `logic-density`, `dependency-discipline`.
+Four generalized functions (disabled by default): `layer-sovereignty`,
+`temporal-purity`, `sql-composition-safety`, `deterministic-ordering`. An unrecognized
+key in `fitness-functions` fails config parsing (fail closed) rather than being
+silently ignored.
 
 Example with exclude patterns:
 
@@ -316,6 +338,76 @@ Example with exclude patterns:
   "exclude-patterns": ["*_test.go", "test_*.py", "fixtures/**"]
 }
 ```
+
+#### Enabling the generalized fitness functions
+
+**Recommendation: enable in `advisory` mode first.** `temporal-purity` and
+`sql-composition-safety` have documented detection-scope gaps (no import resolution,
+receiver-agnostic matching, no variable-indirection or concatenation detection); their
+matchers are wide enough to flag things a reviewer would not, but never narrow enough
+to miss a real issue that isn't disguised through indirection. Run a repository in
+`advisory` with these enabled, review the findings against the codebase for a cycle,
+and only move to `block` once the false-positive rate is understood. See
+[docs/threshold-exceptions.md](../threshold-exceptions.md) for the full scope
+write-up.
+
+**Rollout sequencing.** A per-repo config that enables a key the running server
+version doesn't recognize fails config parsing outright — `parseConfigContent`
+rejects unknown `fitness-functions` and `fitness-function-settings` keys, and the
+`ConfigStore` marks that repo's entry invalid (fail closed) rather than partially
+applying it. **The server MUST be redeployed to a version that ships the four
+generalized functions before any per-repo config enabling them is mounted** — deploy
+the server first, confirm `GET /functions` lists all nine, then roll out configs that
+turn the new ones on.
+
+**`layer-sovereignty` requires layer definitions before it can be enabled at all** —
+`validateFitnessFunctionSettings` rejects `"layer-sovereignty": true` with an empty or
+absent `fitness-function-settings.layer-sovereignty.layers`. There is no offline way
+to infer layers from a repository, so `client onboard --functions` refuses
+`layer-sovereignty` outright; author the layers by hand. A complete example (mirroring
+`internal/server/config_settings_test.go`'s `settingsConfig` fixture):
+
+```json
+{
+  "enforcement-mode": "advisory",
+  "fitness-functions": {
+    "layer-sovereignty": true,
+    "deterministic-ordering": true,
+    "temporal-purity": true
+  },
+  "fitness-function-settings": {
+    "layer-sovereignty": {
+      "layers": [
+        {
+          "name": "bronze",
+          "paths": ["src/bronze/**"],
+          "forbidden-patterns": ["\\bsilver\\.", "\\bgold\\."]
+        },
+        {
+          "name": "consumer",
+          "paths": ["consumers/*.cs"],
+          "forbidden-patterns": ["\\braw_[a-z_]+\\b"]
+        }
+      ]
+    },
+    "deterministic-ordering": {
+      "tie-breaker-tokens": ["_id", "_pk"]
+    },
+    "temporal-purity": {
+      "csharp-policy": "require-offset"
+    }
+  }
+}
+```
+
+`layers[].paths` are globs (`**` crosses `/`, `*` does not, `?` matches one
+non-`/` character); `layers[].forbidden-patterns` are Go `regexp` source strings.
+Both are compiled fail-closed at config-parse time — an invalid glob or regex rejects
+the whole config. `deterministic-ordering.tie-breaker-tokens` defaults to
+`["_id", "_key", "_pk", "_sk", "id"]` when omitted. `temporal-purity.csharp-policy`
+(`naive-only` default, or `require-offset`) is reserved for a future C# milestone and
+has no runtime effect today — Python is the only language with a temporal-purity
+detector.
 
 ### Step 2 — Authorize the caller
 

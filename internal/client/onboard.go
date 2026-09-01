@@ -44,6 +44,22 @@ var fitnessFunctionKeys = []string{
 	"dependency-discipline",
 }
 
+// generalizedFitnessFunctionKeys are the four newer governance functions
+// (mirroring the keys declared in internal/server/config.go's defaultConfig).
+// Unlike fitnessFunctionKeys, these are opt-in: the scaffolded config always
+// lists them explicitly but leaves them false unless a caller selects one via
+// --functions. layer-sovereignty additionally cannot be scaffolded
+// non-interactively at all (parseFunctionsFlag rejects it) because it
+// requires layer definitions under fitness-function-settings that onboard has
+// no way to infer. Duplicated here, deliberately, so this package never
+// depends on internal/server.
+var generalizedFitnessFunctionKeys = []string{
+	"layer-sovereignty",
+	"temporal-purity",
+	"sql-composition-safety",
+	"deterministic-ordering",
+}
+
 // onboarder holds the resolved inputs for a single onboard run. Dependencies are
 // injected (like doctor.go) so the individual steps stay unit-testable.
 type onboarder struct {
@@ -491,8 +507,13 @@ func scaffoldedFunctionsDetail(selected map[string]bool) string {
 	if selected == nil {
 		return "all five fitness functions enabled"
 	}
-	enabled := make([]string, 0, len(fitnessFunctionKeys))
+	enabled := make([]string, 0, len(fitnessFunctionKeys)+len(generalizedFitnessFunctionKeys))
 	for _, key := range fitnessFunctionKeys {
+		if selected[key] {
+			enabled = append(enabled, key)
+		}
+	}
+	for _, key := range generalizedFitnessFunctionKeys {
 		if selected[key] {
 			enabled = append(enabled, key)
 		}
@@ -521,9 +542,27 @@ func renderScaffoldConfig(enforcement string, selected map[string]bool) ([]byte,
 		return nil, fmt.Errorf("parsing embedded config template: %w", err)
 	}
 	if selected != nil {
-		config.FitnessFunctions = selected
+		// Copy the selection so the overlay below never mutates a
+		// caller-owned map.
+		functions := make(map[string]bool, len(selected))
+		for name, enabled := range selected {
+			functions[name] = enabled
+		}
+		config.FitnessFunctions = functions
+		// A selection that already names at least one generalized function
+		// (via parseFunctionsFlag) widens the scaffold to all nine keys, the
+		// missing generalized ones landing false. A purely-classic selection
+		// (whether built by parseFunctionsFlag or handed in directly) keeps
+		// the historical five-key envelope untouched — pre-generalized
+		// callers of renderScaffoldConfig with a plain five-key map must see
+		// exactly five keys back.
+		if containsAnyKey(selected, generalizedFitnessFunctionKeys) {
+			overlayGeneralizedFunctions(config.FitnessFunctions)
+		}
 	} else {
-		config.FitnessFunctions = enabledFitnessFunctions()
+		functions := enabledFitnessFunctions()
+		overlayGeneralizedFunctions(functions)
+		config.FitnessFunctions = functions
 	}
 	encoded, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
@@ -538,6 +577,29 @@ func enabledFitnessFunctions() map[string]bool {
 		functions[key] = true
 	}
 	return functions
+}
+
+// containsAnyKey reports whether functions has an entry (present, regardless
+// of value) for any of keys.
+func containsAnyKey(functions map[string]bool, keys []string) bool {
+	for _, key := range keys {
+		if _, ok := functions[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// overlayGeneralizedFunctions ensures every generalized fitness function key
+// is present in the scaffolded config, defaulting to false (opt-in) unless a
+// selection already set it true. This keeps every scaffold listing all nine
+// functions explicitly regardless of enforcement mode or --functions selection.
+func overlayGeneralizedFunctions(functions map[string]bool) {
+	for _, key := range generalizedFitnessFunctionKeys {
+		if _, ok := functions[key]; !ok {
+			functions[key] = false
+		}
+	}
 }
 
 func (o onboarder) authorizeCaller() error {

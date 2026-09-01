@@ -33,10 +33,11 @@ type ErrorEnforcementMode string
 
 // Config is the mounted governance config shape loaded by the server.
 type Config struct {
-	EnforcementMode    EnforcementMode      `json:"enforcement-mode"`
-	EnforcementOnError ErrorEnforcementMode `json:"enforcement-on-error,omitempty"`
-	FitnessFunctions   map[string]bool      `json:"fitness-functions"`
-	ExcludePatterns    []string             `json:"exclude-patterns,omitempty"`
+	EnforcementMode         EnforcementMode          `json:"enforcement-mode"`
+	EnforcementOnError      ErrorEnforcementMode     `json:"enforcement-on-error,omitempty"`
+	FitnessFunctions        map[string]bool          `json:"fitness-functions"`
+	ExcludePatterns         []string                 `json:"exclude-patterns,omitempty"`
+	FitnessFunctionSettings *FitnessFunctionSettings `json:"fitness-function-settings,omitempty"`
 }
 
 var (
@@ -109,6 +110,12 @@ func parseConfigContent(content []byte) (Config, error) {
 		return Config{}, err
 	}
 	config.FitnessFunctions = fitnessFunctions
+	if err := rejectUnknownFitnessFunctionSettingsKeys(content); err != nil {
+		return Config{}, err
+	}
+	if err := validateFitnessFunctionSettings(&config); err != nil {
+		return Config{}, err
+	}
 	return config, nil
 }
 
@@ -117,11 +124,15 @@ func defaultConfig() Config {
 		EnforcementMode:    EnforcementBlock,
 		EnforcementOnError: EnforcementOnErrorBlock,
 		FitnessFunctions: map[string]bool{
-			"cyclomatic-complexity": true,
-			"interface-width":       true,
-			"implementation-depth":  true,
-			"logic-density":         true,
-			"dependency-discipline": true,
+			"cyclomatic-complexity":  true,
+			"interface-width":        true,
+			"implementation-depth":   true,
+			"logic-density":          true,
+			"dependency-discipline":  true,
+			"layer-sovereignty":      false,
+			"temporal-purity":        false,
+			"sql-composition-safety": false,
+			"deterministic-ordering": false,
 		},
 	}
 }

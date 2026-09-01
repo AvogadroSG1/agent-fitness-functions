@@ -26,7 +26,7 @@ The FINOS Common Architecture Language Model — the external **standard** this 
 _Avoid_: using CALM to name our product or binary.
 
 **Fitness Function**:
-A single architectural metric detectable at the file boundary (cyclomatic complexity, interface width, implementation depth, logic density ratio, dependency discipline).
+A single architectural check detectable at the file boundary. Five are continuous metrics (cyclomatic complexity, interface width, implementation depth, logic density ratio, dependency discipline); four are generalized, config-driven pattern counts (layer sovereignty, temporal purity, SQL composition safety, deterministic ordering) that enforce zero occurrences per file rather than a calibrated threshold.
 
 **Validation Request / Validation Result**:
 The wire contract spoken by both client and server — the request a client sends and the verdict the server returns. Lives in `internal/fitness`, owned by neither side.
@@ -74,7 +74,7 @@ sequenceDiagram
 
 The **server** is the authority. The hook is the enforcement point. The governed repository cannot change thresholds — only which functions are active and what enforcement mode to use.
 
-The server boots with **zero configs** — an empty `configs/` directory is a valid steady state ("awaiting registration"), not a deployment error. Two unprivileged/self-service endpoints exist for that state: `GET /functions` is an unprivileged, repo-agnostic catalog of the five fitness functions (description, threshold, operator, unit) that any authenticated caller can read before any repo is registered; `POST /register` lets an authenticated caller self-service-create `configs/<repo>/config.json` and bind their own certificate CN in `caller-repos.json` in one call — idempotent for a matching replay (`created: false`), 409 (admin CN required) when the repo already exists with a different configuration, and disabled entirely by the kill switch `AGENT_FITNESS_FUNCTIONS_DISABLE_REGISTRATION=1`.
+The server boots with **zero configs** — an empty `configs/` directory is a valid steady state ("awaiting registration"), not a deployment error. Two unprivileged/self-service endpoints exist for that state: `GET /functions` is an unprivileged, repo-agnostic catalog of all nine fitness functions (description, threshold, operator, unit, default-enabled) that any authenticated caller can read before any repo is registered; `POST /register` lets an authenticated caller self-service-create `configs/<repo>/config.json` and bind their own certificate CN in `caller-repos.json` in one call — idempotent for a matching replay (`created: false`), 409 (admin CN required) when the repo already exists with a different configuration, and disabled entirely by the kill switch `AGENT_FITNESS_FUNCTIONS_DISABLE_REGISTRATION=1`.
 
 ---
 
@@ -135,7 +135,7 @@ graph TD
 
 ## Does CALM need to clone the repository to validate a file?
 
-No. All five fitness functions are intra-file metrics. The server receives raw file content, parses the AST in memory, and returns scores. It never touches the repository on disk.
+No. All nine fitness functions are intra-file: the server receives raw file content, resolves scores from that content or its parsed AST alone, and never touches the repository on disk. The five metric functions are scored by a language analyzer computing a number against a calibrated threshold; the four generalized functions (layer sovereignty, temporal purity, SQL composition safety, deterministic ordering) are scored instead from the file's content text or the analyzer's structured findings against a fixed zero-occurrences rule — still one file, still no repository checkout, just a different scoring mechanism. Two of the four (layer sovereignty, deterministic ordering) are syntax-blind pattern/text scans, but a request must still declare a supported language, so today every function — these two included — runs only against `.go`/`.py`/`.cs` files.
 
 | Fitness Function | What it measures | Needs cross-file context? |
 |---|---|---|
@@ -144,6 +144,10 @@ No. All five fitness functions are intra-file metrics. The server receives raw f
 | Implementation Depth | Average lines of logic per public method | No |
 | Logic Density Ratio | Logic lines as a fraction of total lines | No |
 | Dependency Discipline | Declared imports actually referenced in this file | No |
+| Layer Sovereignty | Forbidden cross-layer references in this file's content (any language) | No |
+| Temporal Purity | Naive (no-timezone) timestamp construction (Python today) | No |
+| SQL Composition Safety | SQL built via string interpolation passed to `.execute()` (Python today) | No |
+| Deterministic Ordering | Window-function `ORDER BY` clauses missing a tie-breaker (any language) | No |
 
 The fitness functions were chosen because each is detectable at the file boundary. A function with cyclomatic complexity 15 is too complex regardless of what it calls. An interface with 30 methods is too wide regardless of its implementors.
 

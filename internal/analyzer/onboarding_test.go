@@ -157,8 +157,8 @@ func TestGlobalThresholdsMatchesEmbeddedPattern(t *testing.T) {
 	if !ok || cc.Operator != "lte" || cc.Threshold != 9 {
 		t.Fatalf("cyclomatic-complexity rule = %+v, want lte 9", cc)
 	}
-	if len(rules) != 5 {
-		t.Fatalf("rules = %d, want 5 fitness functions", len(rules))
+	if len(rules) != 9 {
+		t.Fatalf("rules = %d, want 9 fitness functions", len(rules))
 	}
 }
 

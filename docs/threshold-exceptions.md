@@ -21,6 +21,91 @@ Generated from baseline reports on 2026-05-18. These existing results exceed or 
 | SlackStatus | csharp | 2 | 1 | 6 | 6 | 45 |
 | StackOverflow.Api.V3 | csharp | 23 | 31 | 7 | 31 | 205 |
 
+## Generalized Fitness Functions — Detection Scope and Known Gaps
+
+The four generalized functions (`layer-sovereignty`, `temporal-purity`,
+`sql-composition-safety`, `deterministic-ordering`) postdate the 2026-05-18 baseline
+run above and have no per-repository exception appendix of their own — they are
+disabled by default and none of the four repositories baselined here has enabled
+them. This section instead documents their detection scope: where the matcher is
+wider or narrower than "the real thing," known deliberately unimplemented gaps, and
+why **advisory-first rollout** is the standing recommendation before switching any of
+them to `block`.
+
+### Temporal Purity — matcher over-breadth
+
+`temporal-purity`'s Python detector (`internal/analyzer/python.go`, `_temporal_purity`)
+is **attribute-based with no import resolution.** It flags `X.utcnow()` for any `X`,
+and argument-less `X.now()` for any `X`. This means:
+
+- `datetime.utcnow()` and naive `datetime.now()` — the intended targets — are caught.
+- `time.time()`-adjacent `.now()` calls, `arrow.now()`, `pendulum.now()`, or a
+  project's own hand-rolled `.now()` method are **also** flagged, even though they may
+  already carry an explicit time zone or not represent a timestamp construction at
+  all.
+- Nothing about the call's actual return type, the imported module, or the presence of
+  a `tzinfo=`/offset argument elsewhere in the call chain is inspected.
+
+This is **inherited Observatory semantics**, not a bug introduced here — the original
+detector this was generalized from makes the same tradeoff: catch every plausible
+naive-timestamp shape at the cost of some false positives on non-`datetime` `.now()`
+calls, rather than under-detect by requiring import resolution. Recommendation:
+enable in `advisory` mode, triage the findings once against the target repository's
+actual `.now()`/`.utcnow()` usage, and only move to `block` once the false-positive
+rate from non-`datetime` callers is known and acceptable.
+
+### SQL Composition Safety — receiver-agnostic matching and the concatenation gap
+
+`sql-composition-safety`'s Python detector (`_sql_composition`) is
+**receiver-agnostic**: it matches any object's `.execute()`/`.executemany()` call, not
+only recognized DB-API/ORM clients, so an unrelated method that happens to be named
+`execute` can also be flagged if its first argument is an f-string, `%`-format
+expression, or `.format()` call.
+
+Two gaps are carried over **deliberately, for parity with Observatory's original
+detector scope**, and are not implemented:
+
+- **Variable indirection** — `query = f"SELECT * FROM {table}"` followed by
+  `cursor.execute(query)` is not detected. Only the three composition forms
+  (f-string, `%`-format, `.format()`) applied **directly** as the call argument are
+  caught; once the string is built and assigned to a variable first, the detector no
+  longer sees the composition.
+- **String concatenation** — `cursor.execute("SELECT " + col)` is not detected. Only
+  the three composition syntaxes named above are recognized; `+`-concatenation is not
+  one of them.
+
+Both gaps mean the detector under-reports relative to a hypothetical complete SQL
+taint analysis. Recommendation: enable in `advisory` mode first — the receiver-agnostic
+matching can produce noise on non-DB `.execute()` calls, and the detector's silence on
+variable-indirected or concatenated SQL should not be read as "this file has no SQL
+composition issues."
+
+### Deterministic Ordering — SQL-in-comments false positives
+
+`deterministic-ordering`'s window-function scan (`content_scoring.go`,
+`windowOrderByClauses`) is a **textual** scan over the raw file content — it locates
+`OVER (` and walks parens to find the window body, with no awareness of whether that
+text sits inside a real SQL statement, a string literal, or a comment. A code comment
+or docstring that happens to contain example SQL with a window function and an
+`ORDER BY` lacking a tie-breaker will be flagged exactly as if it were live SQL. This
+is the same class of false positive any regex/text-based SQL scan carries; a proper
+fix would require knowing the file's embedded-SQL boundaries, which this detector does
+not attempt. Recommendation: advisory-first, same as the other three — review flagged
+clauses before assuming each one is a real query.
+
+### Why advisory-first, generally
+
+All three regex/AST-pattern detectors above trade recall for simplicity: none of them
+resolves imports, tracks data flow, or distinguishes code from comments/strings. That
+tradeoff is appropriate for a fast, dependency-free pre-commit check, but it means the
+count these three functions produce is not guaranteed free of false positives the way
+the five metric functions in [threshold-calibration.md](threshold-calibration.md) are.
+`layer-sovereignty`'s content matcher (forbidden-pattern regexes against file text) has
+the same textual-scan character as `deterministic-ordering` and inherits the same
+comment/string caveat. Treat a first pass through any of these four as: enable in
+`advisory`, read the findings, decide per repository whether the false-positive rate
+is acceptable before flipping to `block`.
+
 ## graft (go)
 
 ### Cyclomatic Complexity
