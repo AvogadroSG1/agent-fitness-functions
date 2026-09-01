@@ -82,6 +82,64 @@ func TestHandlerCheckPassesWindowFunctionWithTieBreaker(t *testing.T) {
 	}
 }
 
+// The ORDER BY clause extends to the window's closing paren, not the first
+// closing paren of a nested call: a real tie-breaker after COALESCE(...) must
+// be seen, or legitimate SQL gets blocked (S3 review finding).
+func TestHandlerCheckPassesTieBreakerAfterNestedCall(t *testing.T) {
+	repo := "repo-ordering-nested"
+	server := newContentScoringServer(t, repo, `{
+		"enforcement-mode": "block",
+		"fitness-functions": {`+contentScoredOnlyFunctions+`,
+			"deterministic-ordering": true
+		}
+	}`)
+
+	source := "package store\n\nconst q = `SELECT ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY COALESCE(created_at, updated_at), event_id) FROM events`\n"
+	body := postCheck(t, server.URL, repo, "internal/store/query.go", source)
+	if body.Status != fitness.StatusPass {
+		t.Fatalf("status = %q (violations %+v), want pass for tie-breaker after nested call", body.Status, body.Violations)
+	}
+}
+
+// Tie-breaker tokens match whole identifiers or _-boundary suffixes, never
+// bare substrings: ORDER BY paid_amount has no tie-breaker even though
+// "paid" contains the default token "id" (S3 review finding).
+func TestHandlerCheckRejectsSubstringOnlyTokenMatch(t *testing.T) {
+	repo := "repo-ordering-substring"
+	server := newContentScoringServer(t, repo, `{
+		"enforcement-mode": "block",
+		"fitness-functions": {`+contentScoredOnlyFunctions+`,
+			"deterministic-ordering": true
+		}
+	}`)
+
+	body := postCheck(t, server.URL, repo, "internal/store/query.go",
+		"package store\n\nconst q = `SELECT ROW_NUMBER() OVER (ORDER BY paid_amount) FROM payments`\n")
+	if body.Status != fitness.StatusBlock {
+		t.Fatalf("status = %q, want block: paid_amount is not a tie-breaker despite containing \"id\"", body.Status)
+	}
+}
+
+// Every offending window function in a file counts toward the violation value.
+func TestHandlerCheckCountsEachWindowFunctionWithoutTieBreaker(t *testing.T) {
+	repo := "repo-ordering-multi"
+	server := newContentScoringServer(t, repo, `{
+		"enforcement-mode": "block",
+		"fitness-functions": {`+contentScoredOnlyFunctions+`,
+			"deterministic-ordering": true
+		}
+	}`)
+
+	source := "package store\n\nconst a = `SELECT RANK() OVER (ORDER BY created_at) FROM x`\n\nconst b = `SELECT LAG(v) OVER (PARTITION BY k ORDER BY updated_at) FROM y`\n"
+	body := postCheck(t, server.URL, repo, "internal/store/query.go", source)
+	if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
+		t.Fatalf("status = %q violations = %+v, want one aggregated violation", body.Status, body.Violations)
+	}
+	if body.Violations[0].Value != 2 {
+		t.Fatalf("value = %v, want 2 offending window functions counted", body.Violations[0].Value)
+	}
+}
+
 func TestHandlerCheckHonorsCustomTieBreakerTokens(t *testing.T) {
 	repo := "repo-ordering-custom"
 	server := newContentScoringServer(t, repo, `{
