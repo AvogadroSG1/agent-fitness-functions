@@ -1,0 +1,19 @@
+.beads/issues.jsonl
+  s_79132ec0b01a6e::t_f06c74ecb50926 1-21,23-42,45,52,60,62,65,67-77,79-81,84-90,98,106-117,162,172,194-206,209,214,216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2510c2aa010cafdcf9e3fe1e3eb84140a6928bbc",
+  "prompts": {},
+  "sessions": {
+    "s_79132ec0b01a6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6377ab6-0026-4172-9d1c-4770de1f21e2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
