@@ -1,0 +1,23 @@
+internal/report/generalized_functions_test.go
+  s_79132ec0b01a6e::t_933ffdbfc1ef03 1-63
+internal/calm/generalized_functions_test.go
+  s_79132ec0b01a6e::t_933ffdbfc1ef03 1-17
+internal/server/config_settings_test.go
+  s_79132ec0b01a6e::t_e7bd71291df1b2 1-304
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "6f4cea546b8ad67595fb8423ecf38b81735f79d3",
+  "prompts": {},
+  "sessions": {
+    "s_79132ec0b01a6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6377ab6-0026-4172-9d1c-4770de1f21e2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
