@@ -28,11 +28,10 @@ _MODE_LABELS: dict[str, str] = {
 def _load_guidance() -> dict[str, dict[str, Any]]:
     """Return per-fitness-function guidance.
 
-    POC: data is inline. To externalize, replace this body with:
-        read the AGENT_FITNESS_FUNCTIONS_GUIDANCE_FILE environment variable
-        (falling back to a default path) and yaml.safe_load that file.
-        return yaml.safe_load(open(path))
-    Call sites never change.
+    POC: data is inline. To externalize, replace this body with one that reads
+    the path named by the AGENT_FITNESS_FUNCTIONS_GUIDANCE_FILE environment
+    variable (falling back to a default path) and returns yaml.safe_load of
+    that file. Call sites never change.
     """
     return {
         "cyclomatic-complexity": {
