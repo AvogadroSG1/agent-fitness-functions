@@ -34,15 +34,18 @@ type Metadata struct {
 
 // Fitness contains concrete values for the governance fitness functions.
 type Fitness struct {
-	CyclomaticComplexity  float64 `json:"cyclomatic-complexity"`
-	InterfaceWidth        float64 `json:"interface-width"`
-	ImplementationDepth   float64 `json:"implementation-depth"`
-	LogicDensity          float64 `json:"logic-density"`
-	DependencyDiscipline  float64 `json:"dependency-discipline"`
-	LayerSovereignty      float64 `json:"layer-sovereignty"`
-	TemporalPurity        float64 `json:"temporal-purity"`
-	SQLCompositionSafety  float64 `json:"sql-composition-safety"`
-	DeterministicOrdering float64 `json:"deterministic-ordering"`
+	CyclomaticComplexity float64 `json:"cyclomatic-complexity"`
+	InterfaceWidth       float64 `json:"interface-width"`
+	ImplementationDepth  float64 `json:"implementation-depth"`
+	LogicDensity         float64 `json:"logic-density"`
+	DependencyDiscipline float64 `json:"dependency-discipline"`
+	// The generalized count functions omit zero values: the CALM CLI's
+	// pattern-has-no-empty-properties rule rejects zero-valued properties, so
+	// a clean count must be absent from the document rather than emitted as 0.
+	LayerSovereignty      float64 `json:"layer-sovereignty,omitempty"`
+	TemporalPurity        float64 `json:"temporal-purity,omitempty"`
+	SQLCompositionSafety  float64 `json:"sql-composition-safety,omitempty"`
+	DeterministicOrdering float64 `json:"deterministic-ordering,omitempty"`
 }
 
 // FileMetrics contains file-level values used by AI Slop rules.
@@ -96,12 +99,9 @@ func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
 					ImplementationDepth:  1,
 					LogicDensity:         1,
 					DependencyDiscipline: 1,
-					// Count metrics must be 0 to satisfy the pattern's maximum:0
-					// constraint; the synthetic actor must always pass.
-					LayerSovereignty:      0,
-					TemporalPurity:        0,
-					SQLCompositionSafety:  0,
-					DeterministicOrdering: 0,
+					// The generalized count metrics stay at their zero values and
+					// are omitted from the document, so the synthetic actor always
+					// satisfies the pattern's count constraints.
 				}},
 			},
 			{

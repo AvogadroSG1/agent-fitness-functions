@@ -27,7 +27,8 @@
           "interface-width": 20,
           "implementation-depth": 0.722,
           "logic-density": 0.255,
-          "dependency-discipline": 0
+          "dependency-discipline": 1,
+          "deterministic-ordering": 1
         }
       }
     }

@@ -9,11 +9,12 @@ import (
 )
 
 // Red test for calm-poc-6w6 (S1): BuildArchitecture must emit the four
-// generalized count functions on both nodes. The analyzed node reports the
-// counts scored by the checker (carried on AnalysisResult.RuleCounts, absent
-// keys meaning zero); the synthetic actor node MUST emit 0 for all four,
-// because the governance pattern declares them with maximum 0 and the actor
-// must always pass.
+// generalized count functions on the analyzed node when their checker-scored
+// counts (AnalysisResult.RuleCounts) are nonzero, and OMIT zero counts from
+// the marshaled document entirely — the CALM CLI's
+// pattern-has-no-empty-properties rule rejects zero-valued properties, so a
+// clean count must be absent rather than 0. The synthetic actor node carries
+// zero for all four and therefore emits none of them.
 func TestBuildArchitectureEmitsGeneralizedCountFunctions(t *testing.T) {
 	document := BuildArchitecture(analyzer.AnalysisResult{
 		CALMNode: "pipeline",
@@ -52,12 +53,18 @@ func TestBuildArchitectureEmitsGeneralizedCountFunctions(t *testing.T) {
 	}
 	for _, field := range []string{
 		`"layer-sovereignty":2`,
-		`"temporal-purity":0`,
-		`"sql-composition-safety":0`,
 		`"deterministic-ordering":1`,
 	} {
 		if !strings.Contains(string(content), field) {
 			t.Errorf("architecture document missing %s: %s", field, content)
+		}
+	}
+	for _, absent := range []string{
+		`"temporal-purity"`,
+		`"sql-composition-safety"`,
+	} {
+		if strings.Contains(string(content), absent) {
+			t.Errorf("architecture document emits zero-valued %s, want omitted: %s", absent, content)
 		}
 	}
 }

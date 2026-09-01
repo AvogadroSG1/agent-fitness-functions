@@ -99,7 +99,9 @@ func TestHandlerCheckHonorsCustomTieBreakerTokens(t *testing.T) {
 	if blocked.Status != fitness.StatusBlock {
 		t.Fatalf("status = %q, want block when ORDER BY lacks configured token", blocked.Status)
 	}
-	passed := postCheck(t, server.URL, repo, "internal/store/query2.go",
+	// Re-validating the same file with the configured token clears its
+	// outstanding violation (block-state semantics track per file).
+	passed := postCheck(t, server.URL, repo, "internal/store/query.go",
 		"package store\n\nconst q = `SELECT RANK() OVER (ORDER BY created_at, event_no) FROM events`\n")
 	if passed.Status != fitness.StatusPass {
 		t.Fatalf("status = %q (violations %+v), want pass for configured token", passed.Status, passed.Violations)
