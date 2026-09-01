@@ -38,6 +38,8 @@ func TestViolationAndGreenFixturesAreCalibrated(t *testing.T) {
 		{name: "python ldr green", path: "green/python/logic_density.py", language: "python", rule: "logic-density"},
 		{name: "python ddc red", path: "violations/python/dependency_discipline.py", language: "python", rule: "dependency-discipline", red: true},
 		{name: "python ddc green", path: "green/python/dependency_discipline.py", language: "python", rule: "dependency-discipline"},
+		{name: "python temporal red", path: "violations/python/temporal_purity.py", language: "python", rule: "temporal-purity", red: true},
+		{name: "python temporal green", path: "green/python/temporal_purity.py", language: "python", rule: "temporal-purity"},
 		{name: "csharp cyclomatic red", path: "violations/csharp/CyclomaticComplexity.cs", language: "csharp", rule: "cyclomatic-complexity", red: true},
 		{name: "csharp cyclomatic green", path: "green/csharp/CyclomaticComplexity.cs", language: "csharp", rule: "cyclomatic-complexity"},
 		{name: "csharp interface red", path: "violations/csharp/InterfaceWidth.cs", language: "csharp", rule: "interface-width", red: true},
@@ -149,6 +151,13 @@ func violatesRule(result analyzer.AnalysisResult, rule string) bool {
 		return result.FileMetric.TotalLOC > 0 && result.FileMetric.LDR < 0.255
 	case "dependency-discipline":
 		return result.Imports.Total > 0 && result.Imports.DDC < 0.8
+	case "temporal-purity", "sql-composition-safety":
+		for _, finding := range result.Findings {
+			if finding.Rule == rule {
+				return true
+			}
+		}
+		return false
 	default:
 		return false
 	}
