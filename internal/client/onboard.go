@@ -45,7 +45,7 @@ var fitnessFunctionKeys = []string{
 }
 
 // generalizedFitnessFunctionKeys are the four newer governance functions
-// (server registry order: internal/server/config.go's normalizeFitnessFunctions).
+// (mirroring the keys declared in internal/server/config.go's defaultConfig).
 // Unlike fitnessFunctionKeys, these are opt-in: the scaffolded config always
 // lists them explicitly but leaves them false unless a caller selects one via
 // --functions. layer-sovereignty additionally cannot be scaffolded
@@ -542,7 +542,13 @@ func renderScaffoldConfig(enforcement string, selected map[string]bool) ([]byte,
 		return nil, fmt.Errorf("parsing embedded config template: %w", err)
 	}
 	if selected != nil {
-		config.FitnessFunctions = selected
+		// Copy the selection so the overlay below never mutates a
+		// caller-owned map.
+		functions := make(map[string]bool, len(selected))
+		for name, enabled := range selected {
+			functions[name] = enabled
+		}
+		config.FitnessFunctions = functions
 		// A selection that already names at least one generalized function
 		// (via parseFunctionsFlag) widens the scaffold to all nine keys, the
 		// missing generalized ones landing false. A purely-classic selection

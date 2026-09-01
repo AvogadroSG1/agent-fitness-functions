@@ -37,7 +37,7 @@ type remoteFunctionsEntry struct {
 	DefaultEnabled bool    `json:"default_enabled"`
 }
 
-// RunFunctions renders the catalog of the five fitness functions: their description,
+// RunFunctions renders the catalog of governed fitness functions: their description,
 // threshold, operator, and unit. Offline (the default) reads the embedded governance
 // pattern via analyzer.GlobalThresholds(), so the catalog is available without a
 // running server. --remote fetches the same catalog from a live daemon's
