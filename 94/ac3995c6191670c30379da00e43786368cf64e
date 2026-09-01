@@ -1,0 +1,25 @@
+internal/server/content_scoring.go
+  s_79132ec0b01a6e::t_19ba505868fab0 119-124,126-134,136-150,152-158
+  s_79132ec0b01a6e::t_e9c5b7c01230df 125,135,151
+  s_79132ec0b01a6e::t_a0080184cf8981 38
+internal/calm/validator_integration_test.go
+  s_79132ec0b01a6e::t_260b5c43b6319b 46-50
+fixtures/calm/current-architecture-fail-layer-sovereignty.json
+  s_79132ec0b01a6e::t_669f267292b839 1-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "94ac3995c6191670c30379da00e43786368cf64e",
+  "prompts": {},
+  "sessions": {
+    "s_79132ec0b01a6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6377ab6-0026-4172-9d1c-4770de1f21e2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
