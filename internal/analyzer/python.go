@@ -280,7 +280,35 @@ def _temporal_purity(tree):
     return found
 
 
-_SCANS = (_temporal_purity,)
+def _sql_composition_kind(call):
+    first = call.args[0] if call.args else None
+    if isinstance(first, ast.JoinedStr):
+        return "py-fstring-execute"
+    if isinstance(first, ast.BinOp) and isinstance(first.op, ast.Mod):
+        return "py-percent-format-execute"
+    if (
+        isinstance(first, ast.Call)
+        and isinstance(first.func, ast.Attribute)
+        and first.func.attr == "format"
+    ):
+        return "py-str-format-execute"
+    return None
+
+
+def _sql_composition(tree):
+    found = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr not in ("execute", "executemany"):
+            continue
+        kind = _sql_composition_kind(node)
+        if kind is not None:
+            found.append(_finding("sql-composition-safety", kind, node))
+    return found
+
+
+_SCANS = (_temporal_purity, _sql_composition)
 
 
 def scan_findings(source):

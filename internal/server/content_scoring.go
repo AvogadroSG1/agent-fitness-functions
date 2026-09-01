@@ -41,6 +41,7 @@ var contentScorers = []contentScorer{
 	{name: "deterministic-ordering", operator: "lte", score: deterministicOrderingViolations},
 	{name: "layer-sovereignty", operator: "lte", score: layerSovereigntyViolations},
 	{name: "temporal-purity", operator: "lte", score: temporalPurityViolations},
+	{name: "sql-composition-safety", operator: "lte", score: sqlCompositionSafetyViolations},
 }
 
 // scoreContentFunctions runs every applicable content scorer, records each
@@ -186,6 +187,35 @@ func temporalPurityViolations(input contentScoringInput) (int, []fitness.Violati
 			"File %q constructs %d naive timestamp(s) (limit %.0f): [%s]. "+
 				"Construct timestamps with an explicit time zone, such as datetime.now(timezone.utc), "+
 				"so the recorded instant is unambiguous.",
+			input.request.File,
+			len(found),
+			input.rule.Threshold,
+			strings.Join(describeFindings(found), "; "),
+		),
+	}}
+}
+
+// sqlCompositionSafetyViolations counts the sql-composition-safety findings
+// the language analyzer detected in the file's syntax tree — SQL statements
+// composed via f-string interpolation, %-formatting, or .format() and passed
+// to execute()/executemany() — and reports them as a single per-file
+// violation. A language whose analyzer implements no SQL-composition
+// detections contributes no findings and therefore no violation.
+func sqlCompositionSafetyViolations(input contentScoringInput) (int, []fitness.Violation) {
+	found := findingsForRule(input.findings, "sql-composition-safety")
+	if len(found) == 0 {
+		return 0, nil
+	}
+	return len(found), []fitness.Violation{{
+		FitnessFunction: "sql_composition_safety",
+		CALMNode:        input.calmNode,
+		File:            input.request.File,
+		Value:           float64(len(found)),
+		Limit:           input.rule.Threshold,
+		Message: fmt.Sprintf(
+			"File %q composes %d SQL statement(s) via string interpolation (limit %.0f): [%s]. "+
+				"Use parameterized queries or a SQL composition API instead of building statements with "+
+				"f-strings, %%-formatting, or .format().",
 			input.request.File,
 			len(found),
 			input.rule.Threshold,
