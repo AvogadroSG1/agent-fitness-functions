@@ -32,6 +32,39 @@ This deliberately refines the Step 0 shorthand of setting thresholds at the 90th
 | Logic Density | `gte` | 0.255 | Minimum repository P10 from StackOverflow.Api.V3 |
 | Dependency Discipline | `gte` | 0.8 | Step 5.3 PoC threshold |
 
+## Generalized Fitness Functions Are Not Calibrated
+
+`layer-sovereignty`, `temporal-purity`, `sql-composition-safety`, and
+`deterministic-ordering` sit outside the calibration process above. The five
+functions in the table are threshold-calibrated from a baseline percentile because
+they measure a continuous quantity (a complexity number, a method count, a ratio)
+where "how strict" is a real question with a real answer derived from evidence. The
+four generalized functions instead count occurrences of a specific, unambiguous
+pattern per file — a naive timestamp construction, an f-string passed to
+`.execute()`, a forbidden cross-layer reference, a window `ORDER BY` with no
+tie-breaker — where the only defensible threshold is **zero**. There is no
+percentile to derive: any nonzero baseline count is something to fix, not a
+tolerance to calibrate around. Their governance threshold is therefore **fixed at 0
+and is not a target for recalibration** the way 5.1–5.3's thresholds are; a repository
+with real findings should use `--enforcement advisory` or `exclude-patterns` while it
+clears them, not ask for the threshold to move.
+
+### Why `patterns/governance.json` encodes lte-0 as `exclusiveMaximum: 1`
+
+The four functions' pattern properties in `patterns/governance.json` read
+`"type": "number", "exclusiveMaximum": 1` rather than the more obvious
+`"maximum": 0`. This is a workaround, not a stylistic choice: the FINOS `calm` CLI's
+`pattern-has-no-empty-properties` validation rule rejects any pattern property whose
+declared value is the zero value for its JSON type — a literal `0` is treated as
+"this property was never really set," so `"maximum": 0` fails CLI-side pattern
+validation before a single file is ever checked. For an integer-valued count (the only
+kind of value these four functions ever produce), `exclusiveMaximum: 1` is exactly
+equivalent to `lte 0` — 0 passes, 1 or more fails — without triggering the empty-value
+rejection. A file with zero violations omits the count from its generated
+architecture document entirely (`omitempty`) rather than asserting `0`, which is also
+why these four keys are absent from the pattern's `required` fitness properties list:
+the document simply says nothing about a function that found nothing.
+
 ## Known Exceptions
 
 The exhaustive exception appendix is [threshold-exceptions.md](threshold-exceptions.md). These existing files/functions SHOULD be treated as baseline exceptions unless a future change worsens them.
@@ -62,7 +95,10 @@ agent-fitness-functions baseline \
 ```
 
 Alongside the usual baseline report this writes a ready-to-use
-`configs/<repo>/config.json` (all five fitness functions enabled) and prints:
+`configs/<repo>/config.json` (all five metric fitness functions enabled; the four
+generalized functions — see [docs/runbooks/onboard-new-repository.md](runbooks/onboard-new-repository.md#enabling-the-generalized-fitness-functions)
+— are left at their disabled-by-default baseline and must be enabled by hand) and
+prints:
 
 - an **enforcement-mode recommendation** — `block` when zero files/functions violate the
   current global thresholds, otherwise `advisory` — with the violation count so the
