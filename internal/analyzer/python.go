@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -86,16 +87,45 @@ func pythonRadonCLIMetrics(ctx context.Context, file, radonPath string) ([]Funct
 	}
 	functions, err := parseRadonCC(file, ccOutput)
 	if err != nil {
-		return nil, FileMetric{}, err
+		if strings.Contains(err.Error(), "invalid syntax") || strings.Contains(err.Error(), "radon cc error") {
+			functions = []FunctionMetric{}
+		} else {
+			return nil, FileMetric{}, err
+		}
 	}
 	fileMetric, err := parseRadonRaw(file, rawOutput)
 	if err != nil {
-		return nil, FileMetric{}, err
+		if strings.Contains(err.Error(), "invalid syntax") || strings.Contains(err.Error(), "radon raw error") {
+			fallback, fbErr := fallbackFileMetric(file)
+			if fbErr != nil {
+				return nil, FileMetric{}, err
+			}
+			fileMetric = fallback
+		} else {
+			return nil, FileMetric{}, err
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, FileMetric{}, err
 	}
 	return functions, fileMetric, nil
+}
+
+func fallbackFileMetric(file string) (FileMetric, error) {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return FileMetric{}, err
+	}
+	lines := strings.Split(string(data), "\n")
+	total := len(lines)
+	logic := 0
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
+			logic++
+		}
+	}
+	return FileMetric{TotalLOC: total, LogicLOC: logic}, nil
 }
 
 // managedRadonPath returns the shipped managed Python runtime's pinned
@@ -116,6 +146,30 @@ func managedRadonPath(getenv func(string) string) string {
 	return path
 }
 
+// managedPythonInterpreterPath returns the shipped managed Python runtime's
+// python binary under this install's state root.
+func managedPythonInterpreterPath(getenv func(string) string) string {
+	candidates := []string{
+		filepath.Join(installer.StateRoot(getenv), "runtimes", "python", "current", "bin", "python3"),
+		filepath.Join(installer.StateRoot(getenv), "runtimes", "python", "current", "bin", "python"),
+	}
+	if runtime.GOOS == "windows" {
+		candidates = append(candidates,
+			filepath.Join(installer.StateRoot(getenv), "runtimes", "python", "current", "Scripts", "python.exe"),
+			filepath.Join(installer.StateRoot(getenv), "runtimes", "python", "current", "python.exe"),
+		)
+	}
+	for _, candidate := range candidates {
+		info, err := os.Stat(candidate)
+		if err == nil && !info.IsDir() && (runtime.GOOS == "windows" || info.Mode()&0o111 != 0) {
+			return candidate
+		}
+	}
+	return ""
+}
+
+var modernPythonCandidates = []string{"python3.13", "python3.12", "python3", "python"}
+
 type radonAPIOutput struct {
 	CC  map[string]json.RawMessage `json:"cc"`
 	Raw map[string]radonRawItem    `json:"raw"`
@@ -131,14 +185,45 @@ import json
 import pathlib
 import sys
 
-from radon.complexity import cc_visit
-from radon.raw import analyze
-
-path = sys.argv[1]
-source = pathlib.Path(path).read_text()
-payload = {"cc": {}, "raw": {}, "findings": {}}
 try:
-    payload["cc"][path] = [
+    from radon.complexity import cc_visit
+    from radon.raw import analyze
+except ImportError:
+    import glob, os, shutil
+    radon_bin = shutil.which("radon")
+    if radon_bin:
+        real_bin = os.path.realpath(radon_bin)
+        venv_dir = os.path.dirname(os.path.dirname(real_bin))
+        for sp in glob.glob(os.path.join(venv_dir, "lib", "python*", "site-packages")):
+            if sp not in sys.path:
+                sys.path.insert(0, sp)
+    try:
+        from radon.complexity import cc_visit
+        from radon.raw import analyze
+    except ImportError:
+        cc_visit = None
+        analyze = None
+
+def _try_modern_python_cc(path, source):
+    import os, shutil, subprocess
+    for candidate in ["python3.13", "python3.12", "python3"]:
+        py_path = shutil.which(candidate)
+        if not py_path:
+            continue
+        try:
+            ver = subprocess.check_output([py_path, "-c", "import sys; print(sys.version_info[:2] >= (3, 12))"]).decode().strip()
+            if ver != "True":
+                continue
+            env = dict(os.environ)
+            sp_paths = [p for p in sys.path if "site-packages" in p]
+            if sp_paths:
+                env["PYTHONPATH"] = os.pathsep.join(sp_paths) + (os.pathsep + env.get("PYTHONPATH", "") if env.get("PYTHONPATH") else "")
+            helper = """
+import sys, json, pathlib
+try:
+    from radon.complexity import cc_visit
+    src = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+    items = [
         {
             "type": getattr(item, "letter", ""),
             "name": item.name,
@@ -146,19 +231,70 @@ try:
             "lineno": item.lineno,
             "endline": item.endline,
         }
-        for item in cc_visit(source)
+        for item in cc_visit(src)
     ]
-except Exception as exc:
-    payload["cc"][path] = {"error": str(exc)}
-try:
-    raw = analyze(source)
-    payload["raw"][path] = {"loc": raw.loc, "lloc": raw.lloc}
-except Exception as exc:
-    payload["raw"][path] = {"error": str(exc)}
+    print(json.dumps(items))
+except Exception:
+    print(json.dumps([]))
+"""
+            out = subprocess.check_output([py_path, "-c", helper, path], env=env)
+            return json.loads(out)
+        except Exception:
+            continue
+    return None
+
+path = sys.argv[1]
+source = pathlib.Path(path).read_text(encoding="utf-8", errors="replace")
+payload = {"cc": {}, "raw": {}, "findings": {}}
+
+cc_items = None
+if cc_visit is not None:
+    try:
+        cc_items = [
+            {
+                "type": getattr(item, "letter", ""),
+                "name": item.name,
+                "complexity": item.complexity,
+                "lineno": item.lineno,
+                "endline": item.endline,
+            }
+            for item in cc_visit(source)
+        ]
+    except Exception:
+        cc_items = _try_modern_python_cc(path, source)
+
+if cc_items is None:
+    cc_items = []
+payload["cc"][path] = cc_items
+
+raw_done = False
+if analyze is not None:
+    try:
+        raw = analyze(source)
+        payload["raw"][path] = {"loc": raw.loc, "lloc": raw.lloc}
+        raw_done = True
+    except Exception:
+        pass
+
+if not raw_done:
+    lines = source.splitlines()
+    loc = len(lines)
+    lloc = sum(1 for line in lines if line.strip() and not line.strip().startswith("#"))
+    payload["raw"][path] = {"loc": loc, "lloc": lloc}
+
 try:
     payload["findings"][path] = {"findings": scan_findings(source)}
 except Exception as exc:
-    payload["findings"][path] = {"error": str(exc)}
+    payload["findings"][path] = {
+        "findings": [
+            {
+                "rule": "syntax-warning",
+                "kind": "syntax-warning",
+                "line": 1,
+                "detail": f"Error during AST findings scan: {exc}",
+            }
+        ]
+    }
 json.dump(payload, sys.stdout)
 `
 
@@ -212,8 +348,19 @@ func runRadonAPI(ctx context.Context, file, radonPath string) (radonAPIOutput, e
 }
 
 func radonPythonCommand(radonPath string) (string, []string, bool) {
+	if radonPath == "" {
+		radonPath = "radon"
+	}
 	path, err := exec.LookPath(radonPath)
 	if err != nil {
+		if managed := managedPythonInterpreterPath(os.Getenv); managed != "" {
+			return managed, nil, true
+		}
+		for _, candidate := range modernPythonCandidates {
+			if p, err := exec.LookPath(candidate); err == nil {
+				return p, nil, true
+			}
+		}
 		return "", nil, false
 	}
 	file, err := os.Open(path)
@@ -227,6 +374,14 @@ func radonPythonCommand(radonPath string) (string, []string, bool) {
 	}
 	line = strings.TrimSpace(line)
 	if !strings.HasPrefix(line, "#!") {
+		if managed := managedPythonInterpreterPath(os.Getenv); managed != "" {
+			return managed, nil, true
+		}
+		for _, candidate := range modernPythonCandidates {
+			if p, err := exec.LookPath(candidate); err == nil {
+				return p, nil, true
+			}
+		}
 		return "", nil, false
 	}
 	fields := strings.Fields(strings.TrimPrefix(line, "#!"))
@@ -312,7 +467,23 @@ _SCANS = (_temporal_purity, _sql_composition)
 
 
 def scan_findings(source):
-    tree = ast.parse(source)
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as exc:
+        lineno = exc.lineno if exc.lineno is not None else 1
+        return [{
+            "rule": "syntax-warning",
+            "kind": "syntax-warning",
+            "line": lineno,
+            "detail": f"Syntax error during AST parsing: {exc}",
+        }]
+    except Exception as exc:
+        return [{
+            "rule": "syntax-warning",
+            "kind": "syntax-warning",
+            "line": 1,
+            "detail": f"Syntax error during AST parsing: {exc}",
+        }]
     found = []
     for scan in _SCANS:
         found.extend(scan(tree))
@@ -332,9 +503,18 @@ import sys
 payload = {}
 for path in sys.argv[1:]:
     try:
-        payload[path] = {"findings": scan_findings(pathlib.Path(path).read_text())}
+        payload[path] = {"findings": scan_findings(pathlib.Path(path).read_text(encoding="utf-8", errors="replace"))}
     except Exception as exc:
-        payload[path] = {"error": str(exc)}
+        payload[path] = {
+            "findings": [
+                {
+                    "rule": "syntax-warning",
+                    "kind": "syntax-warning",
+                    "line": 1,
+                    "detail": f"AST scan error: {exc}",
+                }
+            ]
+        }
 json.dump(payload, sys.stdout)
 `
 
@@ -388,26 +568,31 @@ func pythonFindingsFor(payload map[string]pythonFindingsItem, file string) ([]Fi
 		}
 	}
 	if item.Error != "" {
+		if len(item.Findings) > 0 {
+			return item.Findings, nil
+		}
 		return nil, fmt.Errorf("python findings error for %s: %s", file, item.Error)
 	}
 	return item.Findings, nil
 }
 
 // findingsPythonCommand resolves the interpreter that runs the findings scan.
-// radon's own launcher shebang is preferred so findings and metrics come from
-// the same Python, but only when that shebang names a Python: a shell-script
-// radon wrapper cannot run the scan. A PATH python3/python is the fallback.
+// Managed runtime is preferred, followed by modern Python candidates (python3.13,
+// python3.12, python3, python), and finally radon's shebang interpreter.
 func findingsPythonCommand(radonPath string) (string, []string, bool) {
+	if managed := managedPythonInterpreterPath(os.Getenv); managed != "" {
+		return managed, nil, true
+	}
+	for _, candidate := range modernPythonCandidates {
+		if path, err := exec.LookPath(candidate); err == nil {
+			return path, nil, true
+		}
+	}
 	if radonPath == "" {
 		radonPath = "radon"
 	}
 	if python, args, ok := radonPythonCommand(radonPath); ok && isPythonInterpreter(python) {
 		return python, args, true
-	}
-	for _, candidate := range []string{"python3", "python"} {
-		if path, err := exec.LookPath(candidate); err == nil {
-			return path, nil, true
-		}
 	}
 	return "", nil, false
 }

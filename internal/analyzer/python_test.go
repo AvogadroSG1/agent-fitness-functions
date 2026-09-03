@@ -12,6 +12,41 @@ import (
 	"testing"
 )
 
+func TestAnalyzePythonFile_Python312TypeAliasSyntax(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	sourceFile := filepath.Join(dir, "google_source.py")
+	sourceContent := `"""Google source module."""
+
+from typing import Any
+import os
+
+type FlowCredentials = dict[str, Any]
+type GoogleCredentials = FlowCredentials | None
+
+class GoogleConnector:
+    def __init__(self, credentials: GoogleCredentials) -> None:
+        self.credentials = credentials
+
+    def connect(self) -> bool:
+        return self.credentials is not None
+`
+	if err := os.WriteFile(sourceFile, []byte(sourceContent), 0o644); err != nil {
+		t.Fatalf("failed to write test source: %v", err)
+	}
+
+	result, err := AnalyzePythonFile(ctx, sourceFile, "")
+	if err != nil {
+		t.Fatalf("AnalyzePythonFile failed on Python 3.12 syntax: %v", err)
+	}
+	if result.FileMetric.TotalLOC == 0 {
+		t.Errorf("expected non-zero TotalLOC, got %d", result.FileMetric.TotalLOC)
+	}
+	if len(result.Functions) == 0 {
+		t.Errorf("expected at least 1 function, got %d", len(result.Functions))
+	}
+}
+
 func TestAnalyzePythonFileParsesRadonAndImports(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "example.py")
@@ -404,6 +439,39 @@ func TestAnalyzePythonFileWithRealRadonAPIFastPathWhenAvailable(t *testing.T) {
 	}
 	if result.FileMetric.TotalLOC != 6 || result.FileMetric.LogicLOC != 6 {
 		t.Fatalf("file metrics = %+v, want LOC 6 and LLOC 6", result.FileMetric)
+	}
+}
+
+func TestAnalyzePythonFileWithRadonAPI_IncompatibleSyntaxGracefulFallback(t *testing.T) {
+	if _, err := exec.LookPath("radon"); err != nil {
+		t.Skip("radon not installed")
+	}
+	file := filepath.Join(t.TempDir(), "incompatible_syntax.py")
+	source := `def broken_syntax(
+    return "unclosed paren"
+`
+	if err := os.WriteFile(file, []byte(source), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	result, err := analyzePythonFileWithRadonAPI(context.Background(), file, "radon")
+	if err != nil {
+		t.Fatalf("analyzePythonFileWithRadonAPI returned error: %v", err)
+	}
+	if result.FileMetric.TotalLOC == 0 {
+		t.Errorf("expected non-zero TotalLOC, got %d", result.FileMetric.TotalLOC)
+	}
+	if len(result.Findings) == 0 {
+		t.Errorf("expected at least 1 diagnostic finding for AST parse error, got 0")
+	}
+	hasSyntaxWarning := false
+	for _, finding := range result.Findings {
+		if finding.Kind == "syntax-warning" || finding.Rule == "syntax-warning" {
+			hasSyntaxWarning = true
+			break
+		}
+	}
+	if !hasSyntaxWarning {
+		t.Errorf("expected syntax-warning finding, got findings: %+v", result.Findings)
 	}
 }
 
