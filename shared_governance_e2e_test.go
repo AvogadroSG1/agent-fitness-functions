@@ -25,6 +25,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
 )
 
 // buildProductBinary compiles the real binary once into dir and returns its path.
@@ -148,6 +150,11 @@ func TestSharedGovernanceTwoReposOneDaemonSurvivesDaemonDeath(t *testing.T) {
 		"AGENT_FITNESS_FUNCTIONS_ADDR="+addr,
 		"AGENT_FITNESS_FUNCTIONS_BIN="+binary,
 	)
+	if roslynPath := analyzer.DefaultRoslynCLI(); roslynPath != "" && roslynPath != "calm-roslyn-analyzer" {
+		if abs, err := filepath.Abs(roslynPath); err == nil {
+			env = append(env, "AGENT_FITNESS_FUNCTIONS_ROSLYN_PATH="+abs)
+		}
+	}
 	// The governance selectors must not leak in from the developer machine.
 	for _, name := range []string{"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR", "AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR",
 		"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT", "AGENT_FITNESS_FUNCTIONS_CLIENT_KEY", "AGENT_FITNESS_FUNCTIONS_CLIENT_CA"} {
