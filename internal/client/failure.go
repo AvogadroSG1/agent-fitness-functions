@@ -141,31 +141,31 @@ func httpStatusInfraError(statusErr httpStatusError, repo string) infraError {
 		return infraError{
 			kind:        errorKindUnauthenticated,
 			message:     "governance server rejected the client certificate (HTTP 401)" + detail,
-			remediation: "run `agent-fitness-functions doctor`; regenerate dev certs with scripts/generate-dev-certs.sh --force",
+			remediation: "run `agent-fitness-functions doctor`; regenerate dev certs with scripts/generate-dev-certs.sh --force, or set AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory to unblock",
 		}
 	case http.StatusForbidden:
 		return infraError{
 			kind:        errorKindUnauthorized,
 			message:     "client certificate is not authorized for this repository (HTTP 403)" + detail,
-			remediation: "add this client certificate's CN to caller-repos.json on the server, then redeploy the container",
+			remediation: "add this client certificate's CN to caller-repos.json on the server, then redeploy the container; or set AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory to unblock",
 		}
 	case http.StatusNotFound:
 		return infraError{
 			kind:        errorKindNotConfigured,
 			message:     fmt.Sprintf("repository %q is not configured on the governance server (HTTP 404)", repo) + detail,
-			remediation: fmt.Sprintf("run `agent-fitness-functions client onboard`, or create configs/%s/config.json on the server (see docs/runbooks/onboard-new-repository.md)", repo),
+			remediation: fmt.Sprintf("run `agent-fitness-functions client onboard`, or create configs/%s/config.json on the server (see docs/runbooks/onboard-new-repository.md); or set AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory to unblock", repo),
 		}
 	case http.StatusBadRequest:
 		return infraError{
 			kind:        errorKindInvalidRequest,
 			message:     "governance server rejected the request as invalid (HTTP 400)" + detail,
-			remediation: "check --repo and --language; run `agent-fitness-functions doctor` to validate the setup",
+			remediation: "check --repo and --language; run `agent-fitness-functions doctor --repair`, or set AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory in your repository config to proceed",
 		}
 	default:
 		return infraError{
 			kind:        errorKindServerError,
 			message:     fmt.Sprintf("governance server could not produce a verdict (HTTP %d)", statusErr.status) + detail,
-			remediation: "check the server logs; retry, or run `agent-fitness-functions doctor`",
+			remediation: "check the server logs; retry, run `agent-fitness-functions doctor --repair`, or set AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory in your repository config to proceed",
 		}
 	}
 }
@@ -182,13 +182,13 @@ func connectionInfraError(err error) infraError {
 		return infraError{
 			kind:        errorKindTLSFailure,
 			message:     "TLS/certificate failure talking to the governance server: " + err.Error(),
-			remediation: "run `agent-fitness-functions doctor`; regenerate dev certs with scripts/generate-dev-certs.sh --force",
+			remediation: "run `agent-fitness-functions doctor`; regenerate dev certs with scripts/generate-dev-certs.sh --force, or set AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory to unblock",
 		}
 	}
 	return infraError{
 		kind:        errorKindServerUnreachable,
 		message:     "cannot reach the governance server: " + err.Error(),
-		remediation: "run `agent-fitness-functions doctor`; the local daemon auto-starts on `client validate` when dev certs and a repo config exist",
+		remediation: "run `agent-fitness-functions doctor`; the local daemon auto-starts on `client validate` when dev certs and a repo config exist, or set AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory to unblock",
 	}
 }
 

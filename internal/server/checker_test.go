@@ -2712,3 +2712,84 @@ func TestClassifyAnalysisError_DistinguishesInputFromInfrastructure(t *testing.T
 	}
 }
 
+func TestChecker_WarmupFailureDoesNotPermanentlyBlock(t *testing.T) {
+	state := NewState()
+	state.RecordWarmupFailure("csharp", errors.New("temporary warmup failure"))
+
+	checker := &Checker{
+		State: state,
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": AnalyzerFunc(func(ctx context.Context, req AnalysisRequest) (analyzer.AnalysisResult, error) {
+				return analyzer.AnalysisResult{CALMNode: "test", File: req.File}, nil
+			}),
+		},
+	}
+
+	req := fitness.ValidationRequest{Language: "csharp", File: "Test.cs", ProposedContent: "public class Test {}"}
+	_, err := checker.analyzeSource(context.Background(), req, "test-repo", "temp.cs")
+	if err != nil {
+		t.Fatalf("expected analysis to succeed on healthy analyzer, got: %v", err)
+	}
+}
+
+func TestHandlerCheckCSharpWarmupFailureAllowsSubsequentRetry(t *testing.T) {
+	repo := "repo-one"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"cyclomatic-complexity": true})
+	state := NewState()
+	state.RecordWarmupFailure("csharp", errors.New("temporary startup warmup failure"))
+
+	var analyzerCalls atomic.Int32
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
+		PatternPath: writeTestPattern(t),
+		State:       state,
+		Analyzers: map[string]SourceAnalyzer{
+			"csharp": AnalyzerFunc(func(ctx context.Context, req AnalysisRequest) (analyzer.AnalysisResult, error) {
+				analyzerCalls.Add(1)
+				return analyzer.AnalysisResult{
+					CALMNode: "Retry",
+					File:     req.File,
+					Language: "csharp",
+				}, nil
+			}),
+		},
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true, Output: `{"hasErrors":false}`}, nil
+		}),
+	}, nil))
+	defer server.Close()
+
+	// First call surfaces the startup warm-up failure
+	resp1, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
+		"repo": `+jsonString(repo)+`,
+		"file": "src/Retry.cs",
+		"language": "csharp",
+		"proposed_content": "public class Retry {}"
+	}`))
+	if err != nil {
+		t.Fatalf("first POST /check: %v", err)
+	}
+	defer func() { _ = resp1.Body.Close() }()
+	body1, _ := io.ReadAll(resp1.Body)
+	if resp1.StatusCode != http.StatusServiceUnavailable || !strings.Contains(string(body1), "csharp warm-up failed") {
+		t.Fatalf("resp1 status = %d, body = %q; want 503 warm-up failure", resp1.StatusCode, body1)
+	}
+
+	// Second call must NOT be permanently blocked by the warmup failure; it should attempt analysis and succeed (or warm)
+	resp2, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
+		"repo": `+jsonString(repo)+`,
+		"file": "src/Retry.cs",
+		"language": "csharp",
+		"proposed_content": "public class Retry {}"
+	}`))
+	if err != nil {
+		t.Fatalf("second POST /check: %v", err)
+	}
+	defer func() { _ = resp2.Body.Close() }()
+	body2, _ := io.ReadAll(resp2.Body)
+	if resp2.StatusCode != http.StatusOK {
+		t.Fatalf("resp2 status = %d, body = %q; want 200 OK after warmup failure cleared", resp2.StatusCode, body2)
+	}
+}
+

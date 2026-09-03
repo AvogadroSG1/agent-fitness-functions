@@ -197,6 +197,14 @@ func (s *State) FailWarmup(language, message string) {
 	s.warmupFailures[language] = message
 }
 
+// RecordWarmupFailure records a background warm-up failure for a language.
+func (s *State) RecordWarmupFailure(language string, err error) {
+	if s == nil || err == nil {
+		return
+	}
+	s.FailWarmup(language, err.Error())
+}
+
 // TakeWarmupFailure returns and clears a background warm-up failure.
 func (s *State) TakeWarmupFailure(language string) (string, bool) {
 	if s == nil {

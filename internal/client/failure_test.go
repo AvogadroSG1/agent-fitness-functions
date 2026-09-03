@@ -243,6 +243,37 @@ func TestRunCheckReportsTLSFailure(t *testing.T) {
 	}
 }
 
+func TestInfraErrorRemediationContainsDoctorAndAdvisoryMode(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{name: "400 Bad Request", status: http.StatusBadRequest, body: "invalid request"},
+		{name: "401 Unauthorized", status: http.StatusUnauthorized, body: "cert rejected"},
+		{name: "404 Not Found", status: http.StatusNotFound, body: "repo not found"},
+		{name: "500 Internal Server Error", status: http.StatusInternalServerError, body: "internal error"},
+		{name: "503 Service Unavailable", status: http.StatusServiceUnavailable, body: "running roslyn analyzer"},
+		{name: "504 Gateway Timeout", status: http.StatusGatewayTimeout, body: "analyzer timeout"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ierr, ok := classifyValidationError(httpStatusError{status: tt.status, body: tt.body}, "test-repo")
+			if !ok {
+				t.Fatalf("expected infra error for HTTP %d", tt.status)
+			}
+			if !bytes.Contains([]byte(ierr.remediation), []byte("agent-fitness-functions doctor")) &&
+				!bytes.Contains([]byte(ierr.remediation), []byte("agent-fitness-functions client onboard")) {
+				t.Errorf("expected remediation to contain doctor or onboard command, got: %q", ierr.remediation)
+			}
+			if !bytes.Contains([]byte(ierr.remediation), []byte("AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory")) {
+				t.Errorf("expected remediation to contain 'AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory', got: %q", ierr.remediation)
+			}
+		})
+	}
+}
+
 func writeSelfSignedCAFile(t *testing.T) string {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
