@@ -2664,3 +2664,51 @@ func TestCheckWithCSharpWarmGuardPassesWhileWarming(t *testing.T) {
 		t.Error("Warming = false, want true on first csharp check")
 	}
 }
+
+func TestClassifyAnalysisError_DistinguishesInputFromInfrastructure(t *testing.T) {
+	tests := []struct {
+		name         string
+		err          error
+		language     string
+		expectedKind ErrorKind
+	}{
+		{
+			name:         "os path error is infrastructure",
+			err:          &os.PathError{Op: "open", Path: "/nonexistent", Err: os.ErrNotExist},
+			language:     "python",
+			expectedKind: ErrorKindInfrastructure,
+		},
+		{
+			name:         "radon parser error is infrastructure",
+			err:          errors.New("radon cc error for test.py: invalid syntax (<unknown>, line 39)"),
+			language:     "python",
+			expectedKind: ErrorKindInfrastructure,
+		},
+		{
+			name:         "python findings error is infrastructure",
+			err:          errors.New("python findings error for test.py: invalid syntax (<unknown>, line 10)"),
+			language:     "python",
+			expectedKind: ErrorKindInfrastructure,
+		},
+		{
+			name:         "roslyn execution failure is infrastructure",
+			err:          errors.New("running Roslyn analyzer: exit status 1"),
+			language:     "csharp",
+			expectedKind: ErrorKindInfrastructure,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			classified := classifyAnalysisError(tc.err, tc.language)
+			var checkErr *CheckError
+			if !errors.As(classified, &checkErr) {
+				t.Fatalf("expected *CheckError, got %T (%v)", classified, classified)
+			}
+			if checkErr.Kind != tc.expectedKind {
+				t.Errorf("expected kind %q, got %q (message: %s)", tc.expectedKind, checkErr.Kind, checkErr.Message)
+			}
+		})
+	}
+}
+

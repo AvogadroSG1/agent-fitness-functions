@@ -402,7 +402,15 @@ func isAnalyzerInfrastructureError(err error) bool {
 		return true
 	}
 	message := err.Error()
-	return strings.Contains(message, "running Roslyn analyzer") || strings.Contains(message, "parsing Roslyn analyzer output")
+	return strings.Contains(message, "running Roslyn analyzer") ||
+		strings.Contains(message, "parsing Roslyn analyzer output") ||
+		strings.Contains(message, "radon cc error") ||
+		strings.Contains(message, "radon raw error") ||
+		strings.Contains(message, "running radon") ||
+		strings.Contains(message, "parsing radon") ||
+		strings.Contains(message, "python findings error") ||
+		strings.Contains(message, "running findings scan") ||
+		strings.Contains(message, "radon python interpreter unavailable")
 }
 
 // resolvePatternPath returns the path to the governance pattern. When PatternPath is not set it
