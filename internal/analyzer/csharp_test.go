@@ -401,3 +401,23 @@ public class Consumer
 		t.Fatalf("imports.ddc = %.3f, want 1.0", result.Imports.DDC)
 	}
 }
+
+func TestDefaultRoslynCLI_RespectsEnvOverride(t *testing.T) {
+	fakeBinary := filepath.Join(t.TempDir(), "fake-roslyn-analyzer")
+	if err := os.WriteFile(fakeBinary, []byte("#!/bin/sh\necho '{}'"), 0o755); err != nil {
+		t.Fatalf("failed to create fake binary: %v", err)
+	}
+
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_ROSLYN_PATH", fakeBinary)
+	resolved := defaultRoslynCLI()
+	if resolved != fakeBinary {
+		t.Errorf("expected %q, got %q", fakeBinary, resolved)
+	}
+
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_ROSLYN_PATH", "")
+	t.Setenv("CALM_ROSLYN_ANALYZER_PATH", fakeBinary)
+	resolvedCalm := defaultRoslynCLI()
+	if resolvedCalm != fakeBinary {
+		t.Errorf("expected %q, got %q", fakeBinary, resolvedCalm)
+	}
+}

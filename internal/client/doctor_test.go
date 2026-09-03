@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -423,5 +424,60 @@ func TestRunDoctorRejectsUnknownFlag(t *testing.T) {
 	}
 	if !IsUsageError(err) {
 		t.Fatalf("error %v is not a usage error", err)
+	}
+}
+
+func TestCheckRoslynAnalyzer(t *testing.T) {
+	tempState := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempState)
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_ROSLYN_PATH", "")
+	t.Setenv("CALM_ROSLYN_ANALYZER_PATH", "")
+
+	// Managed analyzer present
+	managedDir := filepath.Join(tempState, "agent-fitness-functions", "current", "share", "roslyn-analyzer")
+	if err := os.MkdirAll(managedDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	fakeExe := filepath.Join(managedDir, "CalmRoslynAnalyzer")
+	if err := os.WriteFile(fakeExe, []byte("#!/bin/sh\necho '{}'"), 0o755); err != nil {
+		t.Fatalf("write fake exe: %v", err)
+	}
+
+	passedResult := checkRoslynAnalyzer(doctorConfig{})
+	if !passedResult.passed {
+		t.Fatalf("present Roslyn analyzer passed = false, want true: %+v", passedResult)
+	}
+	if !strings.Contains(passedResult.detail, fakeExe) {
+		t.Fatalf("expected detail to contain %s, got %s", fakeExe, passedResult.detail)
+	}
+}
+
+func TestDoctorRepairRoslynAnalyzer(t *testing.T) {
+	if _, err := exec.LookPath("dotnet"); err != nil {
+		t.Skip("dotnet not installed")
+	}
+	tempState := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempState)
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_ROSLYN_PATH", "")
+	t.Setenv("CALM_ROSLYN_ANALYZER_PATH", "")
+
+	cfg := doctorConfig{repair: true}
+	var stdout strings.Builder
+	_ = runDoctorWithConfig(cfg, &stdout)
+
+	if !strings.Contains(stdout.String(), "roslyn analyzer") {
+		t.Fatalf("expected stdout to include roslyn analyzer check: %s", stdout.String())
+	}
+
+	// Verify the binary exists in managed state dir
+	managedExe := filepath.Join(tempState, "agent-fitness-functions", "current", "share", "roslyn-analyzer", "CalmRoslynAnalyzer")
+	if _, err := os.Stat(managedExe); err != nil {
+		t.Fatalf("expected Roslyn analyzer to be compiled at %s: %v", managedExe, err)
+	}
+
+	// Re-checking should report roslyn analyzer as healthy
+	check := checkRoslynAnalyzer(doctorConfig{})
+	if !check.passed {
+		t.Fatalf("expected Roslyn analyzer check to pass after repair: %+v", check)
 	}
 }

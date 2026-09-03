@@ -17,6 +17,9 @@ import (
 	"runtime/debug"
 	"strings"
 	"time"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/installer"
 )
 
 // doctorConfig holds the resolved inputs for a doctor run. Everything is injectable so
@@ -34,6 +37,7 @@ type doctorConfig struct {
 	tlsLoaded  bool
 	tlsError   error
 	httpClient *http.Client
+	repair     bool
 }
 
 // checkResult is one ordered ✔/✘ line. A warning is an advisory result that prints
@@ -69,6 +73,10 @@ func RunDoctor(args []string, stdout, stderr io.Writer, httpClient *http.Client)
 }
 
 func runDoctorWithConfig(cfg doctorConfig, stdout io.Writer) error {
+	if cfg.repair {
+		root := installer.StateRoot(os.Getenv)
+		_ = installer.RepairRoslynAnalyzer(root, "")
+	}
 	results := runDoctorChecks(cfg)
 	failures := 0
 	for _, result := range results {
@@ -92,6 +100,7 @@ func resolveDoctorConfig(args []string, httpClient *http.Client) (doctorConfig, 
 	clientCert := flags.String("client-cert", "", "mTLS client certificate path")
 	clientKey := flags.String("client-key", "", "mTLS client private key path")
 	clientCA := flags.String("client-ca", "", "server CA bundle path")
+	repair := flags.Bool("repair", false, "repair missing or corrupt components (e.g. compile Roslyn analyzer if dotnet is available)")
 	if err := flags.Parse(args); err != nil {
 		return doctorConfig{}, usageError{err: err}
 	}
@@ -132,6 +141,7 @@ func resolveDoctorConfig(args []string, httpClient *http.Client) (doctorConfig, 
 		tlsLoaded:  tlsErr == nil,
 		tlsError:   tlsErr,
 		httpClient: httpClient,
+		repair:     *repair,
 	}, nil
 }
 
@@ -157,6 +167,7 @@ func runDoctorChecks(cfg doctorConfig) []checkResult {
 		checkClientCertificate(cfg),
 		checkServerCABundle(cfg),
 		checkGovernanceRoot(cfg),
+		checkRoslynAnalyzer(cfg),
 		checkServerReachable(cfg),
 	}
 	results = append(results, checkPreflight(cfg)...)
@@ -374,6 +385,31 @@ func checkGovernanceRoot(cfg doctorConfig) checkResult {
 	}
 }
 
+func checkRoslynAnalyzer(cfg doctorConfig) checkResult {
+	name := "roslyn analyzer"
+	roslynPath := analyzer.DefaultRoslynCLI()
+	if roslynPath != "" && roslynPath != "calm-roslyn-analyzer" {
+		if info, err := os.Stat(roslynPath); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+			return checkResult{name: name, detail: roslynPath, passed: true}
+		}
+	}
+	if path, err := exec.LookPath(roslynPath); err == nil {
+		return checkResult{name: name, detail: path, passed: true}
+	}
+	if path, err := exec.LookPath("calm-roslyn-analyzer"); err == nil {
+		return checkResult{name: name, detail: path, passed: true}
+	}
+	if path, err := exec.LookPath("CalmRoslynAnalyzer"); err == nil {
+		return checkResult{name: name, detail: path, passed: true}
+	}
+	return checkResult{
+		name:        name,
+		detail:      "not found or not executable",
+		remediation: "run `agent-fitness-functions doctor --repair` (requires dotnet SDK) or set AGENT_FITNESS_FUNCTIONS_ROSLYN_PATH",
+		passed:      false,
+	}
+}
+
 func checkServerReachable(cfg doctorConfig) checkResult {
 	configured, err := doctorHTTPClient(cfg)
 	if err != nil {
@@ -510,10 +546,14 @@ func doctorHTTPClient(cfg doctorConfig) (*http.Client, error) {
 	if cfg.tlsError != nil {
 		return nil, cfg.tlsError
 	}
-	if cfg.tlsLoaded {
-		return cfg.httpClient, nil
+	client := cfg.httpClient
+	if client == nil {
+		client = &http.Client{Timeout: 3 * time.Second}
 	}
-	return configureTLS(cfg.httpClient, cfg.clientCert, cfg.clientKey, cfg.clientCA)
+	if cfg.tlsLoaded {
+		return client, nil
+	}
+	return configureTLS(client, cfg.clientCert, cfg.clientKey, cfg.clientCA)
 }
 
 // checkHooksInstalled reports the managed git hooks and the .claude/settings.json

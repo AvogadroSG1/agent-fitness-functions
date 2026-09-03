@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -93,9 +94,41 @@ func managedRoslynAnalyzerPath(getenv func(string) string) string {
 	return ""
 }
 
+// DefaultRoslynCLI returns the resolved path to the Roslyn analyzer CLI.
+func DefaultRoslynCLI() string {
+	return defaultRoslynCLI()
+}
+
 func defaultRoslynCLI() string {
+	for _, envVar := range []string{"AGENT_FITNESS_FUNCTIONS_ROSLYN_PATH", "CALM_ROSLYN_ANALYZER_PATH"} {
+		if val := os.Getenv(envVar); val != "" {
+			if info, err := os.Stat(val); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+				return val
+			}
+		}
+	}
 	if managed := managedRoslynAnalyzerPath(os.Getenv); managed != "" {
 		return managed
+	}
+	home := os.Getenv("HOME")
+	if home == "" {
+		if userHome, err := os.UserHomeDir(); err == nil {
+			home = userHome
+		}
+	}
+	if home != "" {
+		localCandidates := []string{
+			filepath.Join(home, ".local", "share", "agent-fitness-functions", "roslyn-analyzer", "CalmRoslynAnalyzer"),
+			filepath.Join(home, ".local", "share", "agent-fitness-functions", "roslyn-analyzer", "CalmRoslynAnalyzer.exe"),
+			filepath.Join(home, ".dotnet", "tools", "CalmRoslynAnalyzer"),
+			filepath.Join(home, ".dotnet", "tools", "CalmRoslynAnalyzer.exe"),
+			filepath.Join(home, ".dotnet", "tools", "calm-roslyn-analyzer"),
+		}
+		for _, candidate := range localCandidates {
+			if info, err := os.Stat(candidate); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+				return candidate
+			}
+		}
 	}
 	candidates := []string{
 		filepath.Join("tools", "roslyn-analyzer", "bin", "Release", "net8.0", "CalmRoslynAnalyzer"),
@@ -114,6 +147,11 @@ func defaultRoslynCLI() string {
 	for _, candidate := range candidates {
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
 			return candidate
+		}
+	}
+	for _, name := range []string{"calm-roslyn-analyzer", "CalmRoslynAnalyzer"} {
+		if path, err := exec.LookPath(name); err == nil {
+			return path
 		}
 	}
 	return "calm-roslyn-analyzer"

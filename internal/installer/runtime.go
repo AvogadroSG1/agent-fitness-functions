@@ -218,6 +218,13 @@ func RunRuntimeDoctor(args []string, stdout, stderr io.Writer, getenv func(strin
 			if result.healthy || !result.repairable {
 				continue
 			}
+			if result.tool == "roslyn-analyzer" {
+				if err := RepairRoslynAnalyzer(root, assetDir); err != nil {
+					return fmt.Errorf("repair roslyn-analyzer: %w", err)
+				}
+				results[i] = checkRoslynAnalyzerHealth(root)
+				continue
+			}
 			if err := provisionRuntimeTool(root, result.tool, assetDir, true); err != nil {
 				return fmt.Errorf("repair %s runtime: %w", result.tool, err)
 			}
@@ -257,35 +264,36 @@ func checkRuntimeToolHealth(root, tool string) runtimeHealth {
 	return runtimeHealth{tool: tool, healthy: true, repairable: true}
 }
 
-// checkRoslynAnalyzerHealth verifies the shipped self-contained Roslyn
-// analyzer is present and executable in the currently published binary
-// version. It is not repairable by `doctor --repair`: the analyzer is
-// shipped as part of a release, not independently provisioned, so a missing
-// or corrupt analyzer requires a fresh install/upgrade rather than a repair.
+// checkRoslynAnalyzerHealth verifies the Roslyn analyzer executable
+// is present and executable in the managed share directory under root.
+// It is repairable by `doctor --repair` when dotnet SDK is available.
 func checkRoslynAnalyzerHealth(root string) runtimeHealth {
 	const tool = "roslyn-analyzer"
-	version, err := readCurrentVersion(root)
-	if err != nil {
-		return runtimeHealth{tool: tool, healthy: false, detail: fmt.Sprintf("no current binary version installed: %v", err)}
+	var analyzerDirs []string
+	if version, err := readCurrentVersion(root); err == nil && version != "" {
+		analyzerDirs = append(analyzerDirs, filepath.Join(root, "versions", version, "share", "roslyn-analyzer"))
 	}
-	analyzerDir := filepath.Join(root, "versions", version, "share", "roslyn-analyzer")
-	entries, err := os.ReadDir(analyzerDir)
-	if err != nil {
-		return runtimeHealth{tool: tool, healthy: false, detail: fmt.Sprintf("roslyn analyzer directory missing: %v", err)}
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
+	analyzerDirs = append(analyzerDirs, filepath.Join(root, "current", "share", "roslyn-analyzer"))
+
+	for _, analyzerDir := range analyzerDirs {
+		entries, err := os.ReadDir(analyzerDir)
+		if err != nil {
 			continue
 		}
-		if !strings.Contains(entry.Name(), "RoslynAnalyzer") {
-			continue
-		}
-		info, err := entry.Info()
-		if err == nil && info.Mode()&0o111 != 0 {
-			return runtimeHealth{tool: tool, healthy: true}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			if !strings.Contains(entry.Name(), "RoslynAnalyzer") {
+				continue
+			}
+			info, err := entry.Info()
+			if err == nil && info.Mode()&0o111 != 0 {
+				return runtimeHealth{tool: tool, healthy: true, repairable: true}
+			}
 		}
 	}
-	return runtimeHealth{tool: tool, healthy: false, detail: "no executable Roslyn analyzer found in " + analyzerDir}
+	return runtimeHealth{tool: tool, healthy: false, detail: "no executable Roslyn analyzer found in managed share directory", repairable: true}
 }
 
 // reportRuntimeHealth prints one line per checked component and returns an
