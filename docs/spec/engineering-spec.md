@@ -20,7 +20,7 @@ date modified: Sunday, May 18th 2026
 
 ## 1. Overview
 
-This document specifies the engineering design for a PoC system that enforces architectural fitness functions at two interception points: before an AI agent writes a file (Claude Code pre-tool-use hook) and before a developer commits code (git pre-commit hook).
+This document specifies the engineering design for a PoC system that enforces architectural fitness functions at two interception points: before an AI agent writes a file (Claude Code, OpenAI Codex, and OpenCode tool-use hooks/plugins) and before a developer commits code (git pre-commit hook).
 
 The central component — `agent-fitness-functions` — runs as a Go HTTP daemon. It analyzes proposed source code changes against three fitness functions, translates results into a CALM-compliant architecture document, calls the FINOS `calm` CLI validator, and returns a pass, a block with explanation, or an advisory message. Enforcement behavior is configured per repository.
 
@@ -36,11 +36,11 @@ The system runs entirely locally. No cloud dependencies are required.
 graph TD
     subgraph Actors
         DEV[Developer]
-        AGENT[AI Agent]
+        AGENT[AI Agent\nClaude / Codex / OpenCode]
     end
 
     subgraph "Hook Layer"
-        PTU[Claude Code\nPre-Tool-Use Hook]
+        PTU[Agent Pre-Tool-Use\nHooks & Plugins]
         PCH[Git Pre-Commit Hook]
     end
 
@@ -214,29 +214,19 @@ The CALM CLI returns exit code 0 on pass; non-zero with violation JSON on stdout
 
 > **Note:** The exact `governance.json` schema will be confirmed against FINOS documentation during Step 1. The schemas shown in Section 6 are representative; adjustments SHOULD be expected after Step 1 validation.
 
-### 3.4 Claude Code Pre-Tool-Use Hook
+### 3.4 Multi-Agent Pre-Tool-Use Hooks & Plugins
 
-Configured in `.claude/settings.json` within each test repository:
+Architecture governance integrates with AI agent harnesses via pre-tool-use hooks and plugins:
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "agent-fitness-functions client validate --file '$FILE' --repo '$REPO'"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+- **Claude Code (`.claude/settings.json`):** Configured with `PreToolUse` entries for `Bash` (routing to `agent-fitness-functions-git-guard`) and `Edit|Write` (routing to `agent-fitness-functions-pre-tool-use`).
+- **OpenAI Codex (`.codex/hooks.json`):** Configured with `PreToolUse` entries mirroring Claude Code using portable `$(git rev-parse --git-path hooks/<name>)` resolution while preserving non-product sections like `PreCompact`.
+- **OpenCode (`.opencode/plugins/agent-fitness-functions.js`):** Native ESM plugin registering `"tool.execute.before"` to intercept `bash`, `edit`, `write`, and `new_file` executions synchronously, throwing an `Error` on non-zero hook status to halt agent execution.
 
-The hook receives tool input as JSON on stdin. It extracts `file_path`, skips unsupported files before content validation, and passes full proposed file content to `agent-fitness-functions client validate`. For `Write`, the proposed content is `content`. For `Edit`, the hook MUST reconstruct the full proposed file by applying `old_string` → `new_string` to the current on-disk file content; it MUST NOT send the `new_string` fragment as a whole source file. Claude Code `PreToolUse` hooks MUST exit `2` to block the tool call; stderr is surfaced to the agent as the reason.
+Hook scripts (`pre-tool-use.sh` and `git-guard.sh`) normalize multi-harness payload schemas:
+- Supports wrappers `tool_input`, `args`, and top-level dictionaries.
+- Supports target path keys `file_path`, `filePath`, and `path`.
+- For `Write`/`new_file`, the proposed content is `content`. For `Edit`, the hook reconstructs the full proposed file by applying `old_string`/`oldString` → `new_string`/`newString` (respecting `replace_all`/`replaceAll`) to the current on-disk file content; it MUST NOT send the diff fragment as a whole source file.
+- `PreToolUse` hooks MUST exit `2` to block tool calls; stderr is surfaced to the agent as the reason.
 
 ### 3.5 Git Pre-Commit Hook
 
