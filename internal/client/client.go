@@ -549,7 +549,10 @@ func (installer hookInstaller) installGitGuard() error {
 		return err
 	}
 	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", guardPath)
-	return installer.applyClaudeHook(gitGuardSpec(gitGuardName))
+	if err := installer.applyClaudeHook(gitGuardSpec(gitGuardName)); err != nil {
+		return err
+	}
+	return installer.applyCodexHook(gitGuardSpec(gitGuardName))
 }
 
 // installAgentHook installs the Edit/Write content-validation hook — the flagship
@@ -571,7 +574,30 @@ func (installer hookInstaller) installAgentHook() error {
 		return err
 	}
 	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", scriptPath)
-	return installer.applyClaudeHook(agentHookSpec(agentHookName))
+	if err := installer.applyClaudeHook(agentHookSpec(agentHookName)); err != nil {
+		return err
+	}
+	return installer.applyCodexHook(agentHookSpec(agentHookName))
+}
+
+// applyCodexHook idempotently upserts a single PreToolUse entry into
+// .codex/hooks.json, creating the file and directory when absent and surfacing
+// a clean error on malformed JSON (via loadClaudeSettings).
+func (installer hookInstaller) applyCodexHook(spec claudeHookSpec) error {
+	hooksJSONPath := filepath.Join(installer.repoRoot, ".codex", "hooks.json")
+	if err := os.MkdirAll(filepath.Dir(hooksJSONPath), 0o755); err != nil {
+		return fmt.Errorf("creating .codex directory: %w", err)
+	}
+	settings, err := loadClaudeSettings(hooksJSONPath)
+	if err != nil {
+		return fmt.Errorf("reading .codex/hooks.json: %w", err)
+	}
+	message := upsertClaudeHook(settings, spec)
+	if err := writeClaudeSettings(hooksJSONPath, settings); err != nil {
+		return fmt.Errorf("writing .codex/hooks.json: %w", err)
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "%s in %s\n", message, hooksJSONPath)
+	return nil
 }
 
 // applyClaudeHook idempotently upserts a single PreToolUse entry into
