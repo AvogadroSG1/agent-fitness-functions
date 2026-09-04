@@ -266,7 +266,10 @@ func RunInstallHooks(args []string, stdout, stderr io.Writer) error {
 	if err := installer.installGitGuard(); err != nil {
 		return err
 	}
-	return installer.installAgentHook()
+	if err := installer.installAgentHook(); err != nil {
+		return err
+	}
+	return installer.installOpenCodePlugin()
 }
 
 type hookInstaller struct {
@@ -597,6 +600,19 @@ func (installer hookInstaller) applyCodexHook(spec claudeHookSpec) error {
 		return fmt.Errorf("writing .codex/hooks.json: %w", err)
 	}
 	_, _ = fmt.Fprintf(installer.stdout, "%s in %s\n", message, hooksJSONPath)
+	return nil
+}
+
+func (installer hookInstaller) installOpenCodePlugin() error {
+	pluginDir := filepath.Join(installer.repoRoot, ".opencode", "plugins")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		return fmt.Errorf("creating .opencode/plugins directory: %w", err)
+	}
+	pluginPath := filepath.Join(pluginDir, "agent-fitness-functions.js")
+	if err := installer.writeEmbeddedExecutable("hookassets/opencode-plugin.js", pluginPath); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", pluginPath)
 	return nil
 }
 
