@@ -649,6 +649,8 @@ func checkHooksInstalled(cfg doctorConfig) []checkResult {
 		gitHookResult(cfg.repoRoot, "pre-push"),
 		gitGuardSettingsResult(cfg.repoRoot),
 		editWriteHookResult(cfg.repoRoot),
+		codexHookResult(cfg.repoRoot),
+		openCodePluginResult(cfg.repoRoot),
 	}
 }
 
@@ -809,6 +811,62 @@ func editWriteHookResult(repoRoot string) checkResult {
 		name:    name,
 		detail:  detail,
 		warning: true,
+	}
+}
+
+func codexHookResult(repoRoot string) checkResult {
+	name := "codex PreToolUse hooks (optional)"
+	codexHooksPath := filepath.Join(repoRoot, ".codex", "hooks.json")
+	settings, err := loadClaudeSettings(codexHooksPath)
+	if err != nil {
+		return checkResult{name: name, detail: err.Error(), warning: true}
+	}
+	entries := preToolUseEntries(ensureHooksSection(settings))
+	_, command, found := findClaudeHookEntry(entries, gitGuardNameHistory)
+	if !found {
+		_, command, found = findClaudeHookEntry(entries, agentHookNameHistory)
+	}
+	if found && !hookCommandScriptMissing(repoRoot, command) {
+		return checkResult{name: name, detail: "configured in .codex/hooks.json", passed: true}
+	}
+	if found {
+		return checkResult{
+			name:        name,
+			detail:      "PreToolUse configured in .codex/hooks.json but script is not installed on this machine",
+			remediation: "agent-fitness-functions client install-hooks",
+			warning:     true,
+		}
+	}
+	return checkResult{
+		name:    name,
+		detail:  "no PreToolUse entries in .codex/hooks.json",
+		warning: true,
+	}
+}
+
+func openCodePluginResult(repoRoot string) checkResult {
+	name := "opencode plugin (optional)"
+	pluginPath := filepath.Join(repoRoot, ".opencode", "plugins", "agent-fitness-functions.js")
+	content, err := os.ReadFile(pluginPath)
+	if err != nil {
+		return checkResult{
+			name:    name,
+			detail:  "plugin not installed at .opencode/plugins/agent-fitness-functions.js",
+			warning: true,
+		}
+	}
+	if !strings.Contains(string(content), "tool.execute.before") {
+		return checkResult{
+			name:        name,
+			detail:      "plugin file present but missing tool.execute.before",
+			remediation: "agent-fitness-functions client install-hooks",
+			warning:     true,
+		}
+	}
+	return checkResult{
+		name:   name,
+		detail: "installed at .opencode/plugins/agent-fitness-functions.js",
+		passed: true,
 	}
 }
 
