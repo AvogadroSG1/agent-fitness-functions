@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/installer"
 )
 
@@ -171,6 +172,7 @@ func runDoctorChecks(cfg doctorConfig) []checkResult {
 		checkServerReachable(cfg),
 	}
 	results = append(results, checkPreflight(cfg)...)
+	results = append(results, checkValidationPipeline(cfg))
 	results = append(results, checkHooksInstalled(cfg)...)
 	results = append(results, checkLegacyRepoLocalCerts(cfg)...)
 	results = append(results, checkConfigSync(cfg)...)
@@ -540,6 +542,80 @@ func fetchPreflight(cfg doctorConfig) (preflightReport, int, error) {
 		return preflightReport{}, response.StatusCode, fmt.Errorf("decoding preflight response: %w", err)
 	}
 	return report, response.StatusCode, nil
+}
+
+// checkValidationPipeline executes a synthetic POST /check request to verify that the
+// end-to-end governance validation pipeline (AST parsing, CALM validator, fitness
+// scoring) is responsive and functioning, measuring the check latency.
+func checkValidationPipeline(cfg doctorConfig) checkResult {
+	const name = "validation pipeline"
+	if cfg.repo == "" {
+		return checkResult{
+			name:        name,
+			detail:      "could not determine repository name",
+			remediation: "run doctor from within a governed repository or pass --repo",
+		}
+	}
+	configured, err := doctorHTTPClient(cfg)
+	if err != nil {
+		return checkResult{
+			name:        name,
+			detail:      err.Error(),
+			remediation: "fix the client TLS material, then re-run doctor",
+		}
+	}
+	start := time.Now()
+	req := fitness.ValidationRequest{
+		Repo:            cfg.repo,
+		File:            "internal/doctor/synthetic_check.go",
+		ProposedContent: "package doctor\n",
+		Language:        "go",
+	}
+	body, err := postCheck(context.Background(), configured, cfg.addr, req, 10*time.Second)
+	latency := time.Since(start)
+	if err != nil {
+		var statusErr httpStatusError
+		if errors.As(err, &statusErr) {
+			detail := fmt.Sprintf("POST /check returned HTTP %d", statusErr.status)
+			if statusErr.body != "" {
+				detail += ": " + statusErr.body
+			}
+			return checkResult{
+				name:        name,
+				detail:      detail,
+				remediation: "check server logs; verify CALM CLI, analyzers, and repository configs are functional",
+			}
+		}
+		if isTimeoutError(err) {
+			return checkResult{
+				name:        name,
+				detail:      fmt.Sprintf("POST /check timed out after %v", latency.Round(time.Millisecond)),
+				remediation: "increase client timeout with AGENT_FITNESS_FUNCTIONS_CLIENT_TIMEOUT or tune analyzer performance",
+			}
+		}
+		return checkResult{
+			name:        name,
+			detail:      fmt.Sprintf("POST /check failed (%v): %v", latency.Round(time.Millisecond), err),
+			remediation: "check server logs; ensure daemon is running and reachable",
+		}
+	}
+	var res fitness.ValidationResult
+	if err := json.Unmarshal(body, &res); err != nil {
+		return checkResult{
+			name:        name,
+			detail:      fmt.Sprintf("POST /check returned invalid JSON (%v): %v", latency.Round(time.Millisecond), err),
+			remediation: "check server logs",
+		}
+	}
+	detail := fmt.Sprintf("POST /check OK (%v)", latency.Round(time.Millisecond))
+	if res.Status != "" {
+		detail = fmt.Sprintf("POST /check OK (%v, status: %s)", latency.Round(time.Millisecond), res.Status)
+	}
+	return checkResult{
+		name:   name,
+		detail: detail,
+		passed: true,
+	}
 }
 
 func doctorHTTPClient(cfg doctorConfig) (*http.Client, error) {

@@ -1,12 +1,14 @@
 package client
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 )
@@ -24,6 +26,7 @@ const (
 	errorKindInvalidRequest    = "invalid_request"
 	errorKindServerError       = "server_error"
 	errorKindPortConflict      = "port_conflict"
+	errorKindTimeout           = "check_timeout"
 )
 
 // InfraErrorExitCode is the `client validate` process exit code reserved for an
@@ -161,6 +164,12 @@ func httpStatusInfraError(statusErr httpStatusError, repo string) infraError {
 			message:     "governance server rejected the request as invalid (HTTP 400)" + detail,
 			remediation: "check --repo and --language; run `agent-fitness-functions doctor --repair`, or set AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory in your repository config to proceed",
 		}
+	case http.StatusGatewayTimeout, http.StatusRequestTimeout:
+		return infraError{
+			kind:        errorKindTimeout,
+			message:     fmt.Sprintf("governance check timed out on the server (HTTP %d)", statusErr.status) + detail,
+			remediation: "increase the client timeout with --timeout or AGENT_FITNESS_FUNCTIONS_CLIENT_TIMEOUT (e.g. 15s or 30s), check server load, run `agent-fitness-functions doctor`, or set AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory to unblock",
+		}
 	default:
 		return infraError{
 			kind:        errorKindServerError,
@@ -178,6 +187,13 @@ func connectionInfraError(err error) infraError {
 	if errors.As(err, &conflict) {
 		return portConflictInfraError(conflict)
 	}
+	if isTimeoutError(err) {
+		return infraError{
+			kind:        errorKindTimeout,
+			message:     "governance check timed out before server response: " + err.Error(),
+			remediation: "increase client timeout with --timeout or AGENT_FITNESS_FUNCTIONS_CLIENT_TIMEOUT (e.g. 15s or 30s), check server load, run `agent-fitness-functions doctor`, or set AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory to unblock",
+		}
+	}
 	if isTLSError(err) {
 		return infraError{
 			kind:        errorKindTLSFailure,
@@ -190,6 +206,26 @@ func connectionInfraError(err error) infraError {
 		message:     "cannot reach the governance server: " + err.Error(),
 		remediation: "run `agent-fitness-functions doctor`; the local daemon auto-starts on `client validate` when dev certs and a repo config exist, or set AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory to unblock",
 	}
+}
+
+// isTimeoutError reports whether err is a context deadline exceeded, client timeout,
+// or net.Error timeout.
+func isTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "deadline exceeded") ||
+		strings.Contains(msg, "Client.Timeout exceeded") ||
+		strings.Contains(msg, "request canceled") ||
+		strings.Contains(msg, "timeout")
 }
 
 // portConflictInfraError maps a daemonConflictError to its infra-error kind: the

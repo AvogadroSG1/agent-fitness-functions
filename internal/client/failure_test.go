@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -37,6 +38,7 @@ func TestClassifyValidationErrorHTTPStatuses(t *testing.T) {
 		{name: "404", status: http.StatusNotFound, body: `repository "sample" is not configured`, wantKind: errorKindNotConfigured, wantText: "client onboard"},
 		{name: "500", status: http.StatusInternalServerError, body: "check failed", wantKind: errorKindServerError, wantText: "server logs"},
 		{name: "503", status: http.StatusServiceUnavailable, body: "running python analyzer", wantKind: errorKindServerError, wantText: "server logs"},
+		{name: "504", status: http.StatusGatewayTimeout, body: "analyzer timeout", wantKind: errorKindTimeout, wantText: "timeout"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -71,9 +73,22 @@ func TestClassifyValidationErrorConnectionRefused(t *testing.T) {
 }
 
 func TestClassifyValidationErrorTimeout(t *testing.T) {
-	ierr, ok := classifyValidationError(transportError{err: context.DeadlineExceeded}, "sample")
-	if !ok || ierr.kind != errorKindServerUnreachable {
-		t.Fatalf("kind = %q, ok = %v; want server_unreachable, true", ierr.kind, ok)
+	for name, err := range map[string]error{
+		"context deadline exceeded": context.DeadlineExceeded,
+		"wrapped deadline":          fmt.Errorf("Post https://127.0.0.1:7890/check: %w", context.DeadlineExceeded),
+		"custom timeout text":       errors.New("Post \"https://127.0.0.1:7890/check\": context deadline exceeded"),
+		"client timeout text":       errors.New("net/http: request canceled (Client.Timeout exceeded while awaiting headers)"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			ierr, ok := classifyValidationError(transportError{err: err}, "sample")
+			if !ok || ierr.kind != errorKindTimeout {
+				t.Fatalf("kind = %q, ok = %v; want %s, true", ierr.kind, ok, errorKindTimeout)
+			}
+			if !bytes.Contains([]byte(ierr.remediation), []byte("AGENT_FITNESS_FUNCTIONS_CLIENT_TIMEOUT")) &&
+				!bytes.Contains([]byte(ierr.remediation), []byte("--timeout")) {
+				t.Fatalf("remediation = %q, want mention of timeout configuration", ierr.remediation)
+			}
+		})
 	}
 }
 
@@ -209,6 +224,42 @@ func TestRunCheckReportsServerUnreachable(t *testing.T) {
 	}
 	if report.ErrorKind != errorKindServerUnreachable {
 		t.Fatalf("kind = %q, want server_unreachable", report.ErrorKind)
+	}
+}
+
+// TestRunCheckReportsTimeout proves a slow check call exceeding the configured timeout
+// surfaces as check_timeout with actionable remediation rather than server_unreachable.
+func TestRunCheckReportsTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		// Simulate a slow validation that exceeds the short client timeout
+		time.Sleep(100 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"verdict":{"status":"pass"}}`))
+	}))
+	defer server.Close()
+
+	var stdout bytes.Buffer
+	err := RunCheck(
+		[]string{"--addr", server.URL, "--file", "x.go", "--repo", "sample", "--content", "package main\n", "--language", "go", "--timeout", "20ms"},
+		&stdout, &http.Client{Timeout: 10 * time.Second}, noopStarter,
+	)
+	if !IsInfraError(err) {
+		t.Fatalf("RunCheck error = %v, want infra error", err)
+	}
+	var report infraErrorReport
+	if jsonErr := json.Unmarshal(stdout.Bytes(), &report); jsonErr != nil {
+		t.Fatalf("stdout not JSON: %v\n%s", jsonErr, stdout.String())
+	}
+	if report.ErrorKind != errorKindTimeout {
+		t.Fatalf("kind = %q, want %s", report.ErrorKind, errorKindTimeout)
+	}
+	if !bytes.Contains([]byte(report.Remediation), []byte("AGENT_FITNESS_FUNCTIONS_CLIENT_TIMEOUT")) &&
+		!bytes.Contains([]byte(report.Remediation), []byte("--timeout")) {
+		t.Fatalf("remediation = %q, want timeout configuration hints", report.Remediation)
 	}
 }
 

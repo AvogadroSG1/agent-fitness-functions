@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
 func TestRunOnboardInvalidExternalTLSMakesZeroMutations(t *testing.T) {
@@ -178,6 +179,10 @@ func TestRunOnboardValidExternalTLSRegistersActualCNWithoutAutostart(t *testing.
 			_ = json.NewEncoder(w).Encode(preflightReport{
 				AuthenticatedCN: wantCN, RepoConfigured: true, RepoConfigValid: true,
 				CallerAuthorized: true, EnforcementMode: "advisory",
+			})
+		case "/check":
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{
+				Status: fitness.StatusPass,
 			})
 		default:
 			http.NotFound(w, request)
@@ -725,6 +730,10 @@ func TestOnboardExternalModeRegistersRepoAgainstRemoteServerInsteadOfWritingLoca
 			_ = json.NewEncoder(w).Encode(preflightReport{
 				AuthenticatedCN: wantCN, RepoConfigured: true, RepoConfigValid: true,
 				CallerAuthorized: true, EnforcementMode: "advisory",
+			})
+		case "/check":
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{
+				Status: fitness.StatusPass,
 			})
 		default:
 			http.NotFound(w, request)

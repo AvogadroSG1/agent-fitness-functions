@@ -507,6 +507,68 @@ func projectRoot(t *testing.T) string {
 	}
 }
 
+func TestRunCheckTimeoutFlagAndEnv(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/check":
+			time.Sleep(50 * time.Millisecond)
+			_ = json.NewEncoder(w).Encode(fitness.ValidationResult{Status: fitness.StatusPass})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	t.Run("succeeds when timeout flag is longer than latency", func(t *testing.T) {
+		var stdout bytes.Buffer
+		err := RunCheck(
+			[]string{"--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go", "--timeout", "500ms"},
+			&stdout, &http.Client{Timeout: 5 * time.Second}, func(DaemonStartConfig) error { return nil },
+		)
+		if err != nil {
+			t.Fatalf("RunCheck returned error: %v", err)
+		}
+		if !strings.Contains(stdout.String(), `"status":"pass"`) {
+			t.Fatalf("stdout = %q, want pass JSON", stdout.String())
+		}
+	})
+
+	t.Run("succeeds when timeout env var is longer than latency", func(t *testing.T) {
+		t.Setenv("AGENT_FITNESS_FUNCTIONS_CLIENT_TIMEOUT", "500ms")
+		var stdout bytes.Buffer
+		err := RunCheck(
+			[]string{"--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go"},
+			&stdout, &http.Client{Timeout: 5 * time.Second}, func(DaemonStartConfig) error { return nil },
+		)
+		if err != nil {
+			t.Fatalf("RunCheck returned error: %v", err)
+		}
+		if !strings.Contains(stdout.String(), `"status":"pass"`) {
+			t.Fatalf("stdout = %q, want pass JSON", stdout.String())
+		}
+	})
+
+	t.Run("fails with check_timeout when timeout flag is shorter than latency", func(t *testing.T) {
+		var stdout bytes.Buffer
+		err := RunCheck(
+			[]string{"--addr", server.URL, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go", "--timeout", "10ms"},
+			&stdout, &http.Client{Timeout: 5 * time.Second}, func(DaemonStartConfig) error { return nil },
+		)
+		if !IsInfraError(err) {
+			t.Fatalf("RunCheck error = %v, want infra error", err)
+		}
+		var report infraErrorReport
+		if jsonErr := json.Unmarshal(stdout.Bytes(), &report); jsonErr != nil {
+			t.Fatalf("stdout not JSON: %v\n%s", jsonErr, stdout.String())
+		}
+		if report.ErrorKind != errorKindTimeout {
+			t.Fatalf("kind = %q, want %s", report.ErrorKind, errorKindTimeout)
+		}
+	})
+}
+
 func findClientFunction(t *testing.T, result analyzer.AnalysisResult, want string) analyzer.FunctionMetric {
 	t.Helper()
 	for _, function := range result.Functions {

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
 type clientRoundTripFunc func(*http.Request) (*http.Response, error)
@@ -479,5 +480,70 @@ func TestDoctorRepairRoslynAnalyzer(t *testing.T) {
 	check := checkRoslynAnalyzer(doctorConfig{})
 	if !check.passed {
 		t.Fatalf("expected Roslyn analyzer check to pass after repair: %+v", check)
+	}
+}
+
+func TestCheckValidationPipelineSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/check" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req fitness.ValidationRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if req.Repo != "calm-poc" {
+			http.Error(w, "unexpected repo", http.StatusBadRequest)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(fitness.ValidationResult{
+			Status: fitness.StatusPass,
+		})
+	}))
+	defer server.Close()
+
+	result := checkValidationPipeline(doctorConfig{
+		addr:       server.URL,
+		repo:       "calm-poc",
+		httpClient: server.Client(),
+		tlsLoaded:  true,
+	})
+	if !result.passed {
+		t.Fatalf("checkValidationPipeline failed unexpectedly: %+v", result)
+	}
+	if result.name != "validation pipeline" {
+		t.Fatalf("result name = %q, want 'validation pipeline'", result.name)
+	}
+	if !strings.Contains(result.detail, "POST /check") {
+		t.Fatalf("result detail = %q, want mention of POST /check", result.detail)
+	}
+}
+
+func TestCheckValidationPipelineFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal analyzer crash", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	result := checkValidationPipeline(doctorConfig{
+		addr:       server.URL,
+		repo:       "calm-poc",
+		httpClient: server.Client(),
+		tlsLoaded:  true,
+	})
+	if result.passed {
+		t.Fatalf("checkValidationPipeline passed = true, want false on HTTP 500")
+	}
+	if !strings.Contains(result.detail, "500") && !strings.Contains(result.detail, "failed") {
+		t.Fatalf("result detail = %q, want error detail", result.detail)
+	}
+	if result.remediation == "" {
+		t.Fatalf("result remediation is empty, want actionable guidance")
 	}
 }

@@ -31,7 +31,7 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
-	return runWithDependencies(args, stdout, stderr, &http.Client{Timeout: 2 * time.Second}, client.StartDaemon)
+	return runWithDependencies(args, stdout, stderr, &http.Client{Timeout: 30 * time.Second}, client.StartDaemon)
 }
 
 func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {

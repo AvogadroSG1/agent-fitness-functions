@@ -156,6 +156,36 @@ func knownOwnerChainSignature(hooksDir, hookName string, content []byte) bool {
 	return false
 }
 
+// defaultCheckTimeout is the default duration to wait for a validation check response.
+const defaultCheckTimeout = 10 * time.Second
+
+// resolveClientTimeout determines the effective validation check timeout from
+// the --timeout flag, AGENT_FITNESS_FUNCTIONS_CLIENT_TIMEOUT environment variable,
+// or the default of 10s.
+func resolveClientTimeout(flagTimeout string) (time.Duration, error) {
+	if flagTimeout != "" {
+		d, err := time.ParseDuration(flagTimeout)
+		if err != nil {
+			return 0, fmt.Errorf("invalid timeout %q: %w", flagTimeout, err)
+		}
+		if d <= 0 {
+			return 0, fmt.Errorf("timeout must be positive, got %s", flagTimeout)
+		}
+		return d, nil
+	}
+	if envVal := os.Getenv(envClientTimeout); envVal != "" {
+		d, err := time.ParseDuration(envVal)
+		if err != nil {
+			return 0, fmt.Errorf("invalid %s %q: %w", envClientTimeout, envVal, err)
+		}
+		if d <= 0 {
+			return 0, fmt.Errorf("%s must be positive, got %s", envClientTimeout, envVal)
+		}
+		return d, nil
+	}
+	return defaultCheckTimeout, nil
+}
+
 // RunCheck validates one file by posting a validation request to the daemon.
 func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter func(DaemonStartConfig) error) error {
 	flags := flag.NewFlagSet("client validate", flag.ContinueOnError)
@@ -168,10 +198,15 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 	language := flags.String("language", "", "source language")
 	staged := flags.Bool("staged", false, "read content from git staged state")
 	format := flags.String("format", "json", "output format: json or sarif")
+	timeout := flags.String("timeout", "", "timeout for check validation (default: 10s, env: AGENT_FITNESS_FUNCTIONS_CLIENT_TIMEOUT)")
 	clientCert := flags.String("client-cert", "", "mTLS client certificate path")
 	clientKey := flags.String("client-key", "", "mTLS client private key path")
 	clientCA := flags.String("client-ca", "", "server CA bundle path")
 	if err := flags.Parse(args); err != nil {
+		return usageError{err: err}
+	}
+	checkTimeout, err := resolveClientTimeout(*timeout)
+	if err != nil {
 		return usageError{err: err}
 	}
 	if _, err := resolveClientTLSMode(*clientCert, *clientKey, *clientCA, ""); err != nil {
@@ -197,7 +232,7 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 		File:            *file,
 		ProposedContent: proposedContent,
 		Language:        *language,
-	})
+	}, checkTimeout)
 	if err != nil {
 		return handleValidateFailure(stdout, err, *repo)
 	}
@@ -931,12 +966,15 @@ func orNone(value string) string {
 	return value
 }
 
-func postCheck(ctx context.Context, httpClient *http.Client, addr string, request fitness.ValidationRequest) ([]byte, error) {
+func postCheck(ctx context.Context, httpClient *http.Client, addr string, request fitness.ValidationRequest, timeout time.Duration) ([]byte, error) {
+	if timeout <= 0 {
+		timeout = defaultCheckTimeout
+	}
 	body, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("encoding check request: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(addr, "/")+"/check", bytes.NewReader(body))
 	if err != nil {
@@ -1015,7 +1053,7 @@ func cloneTLSConfig(existing *tls.Config) *tls.Config {
 
 func cloneHTTPClient(base *http.Client) *http.Client {
 	if base == nil {
-		return &http.Client{Timeout: 2 * time.Second}
+		return &http.Client{Timeout: 30 * time.Second}
 	}
 	clone := *base
 	return &clone
