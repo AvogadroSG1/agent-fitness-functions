@@ -1068,7 +1068,9 @@ func resolveContentFromGit(repo, file string) (string, error) {
 func resolveContentFromDisk(repo, file string) (string, error) {
 	path := file
 	if !filepath.IsAbs(path) {
-		path = filepath.Join(repo, file)
+		if _, err := os.Stat(path); err != nil {
+			path = filepath.Join(repo, file)
+		}
 	}
 	output, err := os.ReadFile(path)
 	if err != nil {
