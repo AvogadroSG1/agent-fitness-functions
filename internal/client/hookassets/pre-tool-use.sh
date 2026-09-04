@@ -135,8 +135,13 @@ import sys
 try:
     with open(sys.argv[1], encoding="utf-8") as handle:
         payload = json.load(handle)
-    tool_input = payload.get("tool_input", payload)
-    file_path = tool_input.get("file_path", "")
+    if not isinstance(payload, dict):
+        tool_input = {}
+    else:
+        tool_input = payload.get("tool_input") or payload.get("args") or payload
+        if not isinstance(tool_input, dict):
+            tool_input = {}
+    file_path = tool_input.get("file_path") or tool_input.get("filePath") or tool_input.get("path", "")
     if not file_path:
         print(json.dumps({"error": "missing file_path"}))
     else:
@@ -194,12 +199,17 @@ import sys
 try:
     with open(sys.argv[1], encoding="utf-8") as handle:
         payload = json.load(handle)
-    tool_input = payload.get("tool_input", payload)
+    if not isinstance(payload, dict):
+        tool_input = {}
+    else:
+        tool_input = payload.get("tool_input") or payload.get("args") or payload
+        if not isinstance(tool_input, dict):
+            tool_input = {}
     if "content" in tool_input:
         content = tool_input["content"]
-    elif "new_string" in tool_input:
-        old_string = tool_input.get("old_string")
-        new_string = tool_input["new_string"]
+    elif "new_string" in tool_input or "newString" in tool_input:
+        old_string = tool_input.get("old_string") if "old_string" in tool_input else tool_input.get("oldString")
+        new_string = tool_input.get("new_string") if "new_string" in tool_input else tool_input.get("newString")
         if old_string is None:
             print(json.dumps({"error": "missing old_string for Edit"}))
             sys.exit(0)
@@ -207,7 +217,7 @@ try:
         with open(absolute_file, encoding="utf-8", newline="") as source_file:
             current_content = source_file.read()
         occurrences = current_content.count(old_string)
-        replace_all = bool(tool_input.get("replace_all", False))
+        replace_all = bool(tool_input.get("replace_all", tool_input.get("replaceAll", False)))
         if occurrences == 0:
             print(json.dumps({"error": "old_string not found in current file"}))
             sys.exit(0)

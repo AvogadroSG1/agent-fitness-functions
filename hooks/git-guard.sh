@@ -96,8 +96,15 @@ import sys
 payload = sys.argv[1]
 try:
     parsed = json.loads(payload)
-    tool_input = parsed.get("tool_input", parsed)
-    command = tool_input.get("command", "")
+    if not isinstance(parsed, dict):
+        tool_input = {}
+    else:
+        tool_input = parsed.get("tool_input") or parsed.get("args") or parsed
+        if not isinstance(tool_input, dict):
+            tool_input = {}
+    command = tool_input.get("command") or tool_input.get("cmd", "")
+    if not isinstance(command, str):
+        command = ""
 except Exception:
     command = ""
 
