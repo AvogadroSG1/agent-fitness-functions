@@ -1,0 +1,33 @@
+cmd/agent-fitness-functions/listen_mode_test.go
+  s_3d6c2c9a391830::t_5a681b062f4305 1-72
+internal/server/localmode_test.go
+  s_3d6c2c9a391830::t_3042f58cc731cb 4
+  s_3d6c2c9a391830::t_b651b34d18628f 100
+  s_3d6c2c9a391830::t_cb3d708499c5eb 82-99,101-119
+  s_3d6c2c9a391830::t_0e71587d81915f 146-153
+  s_caa0108b85f69c::t_080e755a7b7409 145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a15a3754a70d2f47734e76b736010f4bbd751973",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    },
+    "s_caa0108b85f69c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7ed25a5-fb1d-462a-a720-3278792a9cd7",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
