@@ -1,0 +1,25 @@
+internal/client/onboard.go
+  s_3d6c2c9a391830::t_67a03a1ed099ed 103-109
+  s_3d6c2c9a391830::t_d1a4ed710330c4 211-213
+internal/client/wizard_update_test.go
+  s_3d6c2c9a391830::t_52ee4b7940fbfd 1-174,176-192
+  s_3d6c2c9a391830::t_e4d48f1f0d174c 175
+internal/client/wizard.go
+  s_3d6c2c9a391830::t_a6fbe4621d7a37 52-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "8d93880bb87b3c99a301a00ba7e35a065fe23d4a",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
