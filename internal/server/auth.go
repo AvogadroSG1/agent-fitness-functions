@@ -300,7 +300,7 @@ func callerIsAdmin(options HandlerOptions, store *ConfigStore, caller string) bo
 	if options.LocalHTTP {
 		return true
 	}
-	return store.CallerIsAdmin(caller)
+	return store != nil && store.CallerIsAdmin(caller)
 }
 
 func writeUnauthorized(w http.ResponseWriter) {
