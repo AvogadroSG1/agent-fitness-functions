@@ -1,0 +1,23 @@
+internal/client/picker.go
+  s_3d6c2c9a391830::t_07b97e86459009 23-25
+internal/client/functions.go
+  s_3d6c2c9a391830::t_f68f3022beb83f 24-26
+internal/client/nine_catalog_test.go
+  s_3d6c2c9a391830::t_631ebf0aade598 1-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "2b3248c878048ae2ee0cd8b69c904524a3ae80c0",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
