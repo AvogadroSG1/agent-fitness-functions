@@ -79,6 +79,12 @@ func cacheRoot(getenv func(string) string) string {
 // and MUST NOT touch anything outside the state root — no governed
 // repository's .git/hooks or .claude/settings.json.
 func RunUninstall(args []string, stdout, stderr io.Writer, getenv func(string) string) error {
+	return RunUninstallBeforeRemoval(args, stdout, stderr, getenv, nil)
+}
+
+// RunUninstallBeforeRemoval validates confirmation and the state root before stopping
+// an external service. A failed callback MUST preserve every installation artifact.
+func RunUninstallBeforeRemoval(args []string, stdout, stderr io.Writer, getenv func(string) string, beforeRemoval func() error) error {
 	flags := flag.NewFlagSet("uninstall", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	yes := flags.Bool("yes", false, "confirm removal of all product-owned installer state")
@@ -93,15 +99,44 @@ func RunUninstall(args []string, stdout, stderr io.Writer, getenv func(string) s
 	}
 
 	root := StateRoot(getenv)
-	if filepath.Base(root) != productDirName {
+	if !filepath.IsAbs(root) || filepath.Base(root) != productDirName {
 		return fmt.Errorf("refusing to uninstall: resolved state root %q does not look like a product-owned directory", root)
 	}
 
+	if err := validateUninstallRoot(root); err != nil {
+		return err
+	}
+	if beforeRemoval != nil {
+		if err := beforeRemoval(); err != nil {
+			return fmt.Errorf("uninstall incomplete: history writer stop unconfirmed: %w", err)
+		}
+	}
+	return removeInstallation(root, stdout)
+}
+
+func validateUninstallRoot(root string) error {
+	info, err := os.Lstat(root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return errors.New("refusing to uninstall: state root is not a real directory")
+	}
+	return nil
+}
+
+func removeInstallation(root string, stdout io.Writer) error {
 	var removed []string
 	for _, name := range []string{"versions", "current", "runtimes"} {
 		target := filepath.Join(root, name)
 		if _, err := os.Lstat(target); err != nil {
-			continue
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return fmt.Errorf("inspect installation artifact: %w", err)
 		}
 		if err := os.RemoveAll(target); err != nil {
 			return fmt.Errorf("remove %s: %w", target, err)
@@ -129,52 +164,76 @@ func RunUninstall(args []string, stdout, stderr io.Writer, getenv func(string) s
 // last, atomic current-pointer rename), retaining exactly one predecessor
 // version directory. Re-running with an already-current archive is a no-op.
 func RunUpgrade(args []string, stdout, stderr io.Writer, getenv func(string) string) error {
+	archivePath, version, err := resolveUpgradeInput(args, stderr)
+	if err != nil {
+		return err
+	}
+	root := StateRoot(getenv)
+	versionsDir := filepath.Join(root, "versions")
+	if err := prepareUpgradeDirectory(versionsDir); err != nil {
+		return err
+	}
+	// A missing current installation has no predecessor to retain.
+	previousVersion, _ := readCurrentVersion(root)
+	if err := installUpgrade(root, archivePath, version, cacheRoot(getenv)); err != nil {
+		return err
+	}
+	keepPrevious := version
+	if previousVersion != "" {
+		keepPrevious = previousVersion
+	}
+	if err := pruneOldVersions(versionsDir, version, keepPrevious); err != nil {
+		return err
+	}
+	if previousVersion != "" && previousVersion != version {
+		_, err = fmt.Fprintf(stdout, "upgraded to %s (predecessor retained: %s)\n", version, previousVersion)
+	} else {
+		_, err = fmt.Fprintf(stdout, "upgraded to %s\n", version)
+	}
+	return err
+}
+
+func resolveUpgradeInput(args []string, stderr io.Writer) (string, string, error) {
 	flags := flag.NewFlagSet("upgrade", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	archivePath := flags.String("archive", "", "release archive path (offline upgrade)")
 	checksumsPath := flags.String("checksums", "", "SHA256SUMS manifest path covering the archive")
 	if err := flags.Parse(args); err != nil {
-		return usageError{err: err}
+		return "", "", usageError{err: err}
 	}
 	if flags.NArg() > 0 {
-		return usageError{err: errors.New("upgrade accepts no positional arguments")}
+		return "", "", usageError{err: errors.New("upgrade accepts no positional arguments")}
 	}
 	if *archivePath == "" || *checksumsPath == "" {
-		return usageError{err: errors.New("upgrade requires --archive and --checksums")}
+		return "", "", usageError{err: errors.New("upgrade requires --archive and --checksums")}
 	}
 	if _, err := os.Stat(*archivePath); err != nil {
-		return fmt.Errorf("archive not found: %w", err)
+		return "", "", fmt.Errorf("archive not found: %w", err)
 	}
 	if _, err := os.Stat(*checksumsPath); err != nil {
-		return fmt.Errorf("checksums manifest not found: %w", err)
+		return "", "", fmt.Errorf("checksums manifest not found: %w", err)
 	}
 
 	// Verify BEFORE any state-root mutation: a tampered archive must abort
 	// without touching current or any existing version directory.
 	if err := verifyArchiveChecksum(*archivePath, *checksumsPath); err != nil {
-		return err
+		return "", "", err
 	}
 	version, err := parseArchiveVersion(*archivePath)
-	if err != nil {
-		return err
-	}
+	return *archivePath, version, err
+}
 
-	root := StateRoot(getenv)
-	versionsDir := filepath.Join(root, "versions")
+func prepareUpgradeDirectory(versionsDir string) error {
 	if err := os.MkdirAll(versionsDir, 0o755); err != nil {
 		return fmt.Errorf("create versions directory: %w", err)
 	}
-	if err := cleanupUnverifiedPartials(versionsDir); err != nil {
-		return err
-	}
+	return cleanupUnverifiedPartials(versionsDir)
+}
 
-	// Capture the predecessor before publishing so it can be retained (exactly
-	// one, mirroring ADR-0004's rule) once the new version is live.
-	previousVersion, _ := readCurrentVersion(root)
-
-	targetDir := filepath.Join(versionsDir, version)
+func installUpgrade(root, archivePath, version, cacheDir string) error {
+	targetDir := filepath.Join(root, "versions", version)
 	if !verifiedSentinelExists(targetDir) {
-		if err := publishVersionDirectory(*archivePath, targetDir, cacheRoot(getenv)); err != nil {
+		if err := publishVersionDirectory(archivePath, targetDir, cacheDir); err != nil {
 			return err
 		}
 	}
@@ -186,20 +245,7 @@ func RunUpgrade(args []string, stdout, stderr io.Writer, getenv func(string) str
 		}
 	}
 
-	keepPrevious := version
-	if previousVersion != "" {
-		keepPrevious = previousVersion
-	}
-	if err := pruneOldVersions(versionsDir, version, keepPrevious); err != nil {
-		return err
-	}
-
-	if previousVersion != "" && previousVersion != version {
-		_, err = fmt.Fprintf(stdout, "upgraded to %s (predecessor retained: %s)\n", version, previousVersion)
-	} else {
-		_, err = fmt.Fprintf(stdout, "upgraded to %s\n", version)
-	}
-	return err
+	return nil
 }
 
 // RunRollback repoints current at the retained predecessor version via the
@@ -222,9 +268,26 @@ func RunRollback(args []string, stdout, stderr io.Writer, getenv func(string) st
 	}
 
 	versionsDir := filepath.Join(root, "versions")
+	predecessor, err := rollbackPredecessor(versionsDir, currentVersion)
+	if err != nil {
+		return err
+	}
+	predecessorDir := filepath.Join(versionsDir, predecessor)
+	if err := publishCurrent(root, predecessorDir); err != nil {
+		return fmt.Errorf("repoint current pointer: %w", err)
+	}
+	// Runtime pointers MUST match the restored version's pinned manifest.
+	if err := reconcileRuntimePointers(root, predecessorDir); err != nil {
+		return fmt.Errorf("reconcile managed runtime pointers: %w", err)
+	}
+	_, err = fmt.Fprintf(stdout, "rolled back to %s\n", predecessor)
+	return err
+}
+
+func rollbackPredecessor(versionsDir, currentVersion string) (string, error) {
 	entries, err := os.ReadDir(versionsDir)
 	if err != nil {
-		return fmt.Errorf("read versions directory: %w", err)
+		return "", fmt.Errorf("read versions directory: %w", err)
 	}
 	var candidates []string
 	for _, entry := range entries {
@@ -237,28 +300,14 @@ func RunRollback(args []string, stdout, stderr io.Writer, getenv func(string) st
 	}
 	switch len(candidates) {
 	case 0:
-		return errors.New("rollback failed: no predecessor version is retained")
+		return "", errors.New("rollback failed: no predecessor version is retained")
 	case 1:
 		// proceed
 	default:
-		return fmt.Errorf("rollback failed: multiple predecessor versions present %v; refusing to guess", candidates)
+		return "", fmt.Errorf("rollback failed: multiple predecessor versions present %v; refusing to guess", candidates)
 	}
 
-	predecessor := candidates[0]
-	predecessorDir := filepath.Join(versionsDir, predecessor)
-	if err := publishCurrent(root, predecessorDir); err != nil {
-		return fmt.Errorf("repoint current pointer: %w", err)
-	}
-	// ADR-0005: rollback reconciles every runtimes/<tool>/current pointer to
-	// the restored version's own pinned manifest, not merely the binary — a
-	// rolled-back binary paired with a mismatched CALM/radon version could
-	// otherwise silently produce a different verdict than the version being
-	// restored.
-	if err := reconcileRuntimePointers(root, predecessorDir); err != nil {
-		return fmt.Errorf("reconcile managed runtime pointers: %w", err)
-	}
-	_, err = fmt.Fprintf(stdout, "rolled back to %s\n", predecessor)
-	return err
+	return candidates[0], nil
 }
 
 // RunPublishCurrent is the internal, hidden subcommand `install.sh` delegates
@@ -509,36 +558,43 @@ func extractArchive(archivePath, destDir string) error {
 		if err != nil {
 			return fmt.Errorf("read archive entry: %w", err)
 		}
-		cleanName := filepath.Clean(header.Name)
-		if cleanName == "." || cleanName == ".." || strings.HasPrefix(cleanName, "../") || filepath.IsAbs(cleanName) {
-			return fmt.Errorf("refusing unsafe archive entry %q", header.Name)
-		}
-		target := filepath.Join(destDir, cleanName)
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0o755); err != nil {
-				return err
-			}
-		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-				return err
-			}
-			out, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, header.FileInfo().Mode().Perm())
-			if err != nil {
-				return err
-			}
-			if _, err := io.Copy(out, tr); err != nil { //nolint:gosec // archive is checksum-verified before extraction
-				_ = out.Close()
-				return err
-			}
-			if err := out.Close(); err != nil {
-				return err
-			}
-		default:
-			// v1 archives contain only regular files under bin/; skip anything else.
-			continue
+		if err := extractArchiveEntry(tr, header, destDir); err != nil {
+			return err
 		}
 	}
+}
+
+func extractArchiveEntry(reader io.Reader, header *tar.Header, destDir string) error {
+	cleanName := filepath.Clean(header.Name)
+	if unsafeArchiveName(cleanName) {
+		return fmt.Errorf("refusing unsafe archive entry %q", header.Name)
+	}
+	target := filepath.Join(destDir, cleanName)
+	switch header.Typeflag {
+	case tar.TypeDir:
+		return os.MkdirAll(target, 0o755)
+	case tar.TypeReg:
+		return extractArchiveFile(reader, target, header.FileInfo().Mode().Perm())
+	default:
+		// v1 archives contain only regular files under bin/; skip anything else.
+		return nil
+	}
+}
+
+func unsafeArchiveName(name string) bool {
+	return name == "." || name == ".." || strings.HasPrefix(name, "../") || filepath.IsAbs(name)
+}
+
+func extractArchiveFile(reader io.Reader, target string, mode os.FileMode) error {
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return err
+	}
+	out, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(out, reader) //nolint:gosec // archive is checksum-verified before extraction
+	return errors.Join(copyErr, out.Close())
 }
 
 // moveDir moves src to dst, falling back to a recursive copy when they are on
