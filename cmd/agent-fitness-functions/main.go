@@ -268,6 +268,7 @@ func runServe(args []string, stderr io.Writer) int {
 	flags := flag.NewFlagSet("server start", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	addr := flags.String("addr", "localhost:7890", "daemon listen address")
+	listenMode := flags.String("listen-mode", "", "daemon listen mode: mtls (default) or local-http (overrides AGENT_FITNESS_FUNCTIONS_LISTEN_MODE)")
 	tlsCert := flags.String("tls-cert", "", "server TLS certificate path (overrides AGENT_FITNESS_FUNCTIONS_TLS_CERT)")
 	tlsKey := flags.String("tls-key", "", "server TLS private key path (overrides AGENT_FITNESS_FUNCTIONS_TLS_KEY)")
 	tlsCA := flags.String("tls-ca", "", "client CA bundle path (overrides AGENT_FITNESS_FUNCTIONS_TLS_CA)")
@@ -278,7 +279,7 @@ func runServe(args []string, stderr io.Writer) int {
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
-	tlsMode, err := resolveServerStartTLSMode(*tlsCert, *tlsKey, *tlsCA, os.Getwd)
+	startMode, err := resolveServerStartMode(*listenMode, *tlsCert, *tlsKey, *tlsCA, os.Getwd)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
 		if isUsageError(err) {
@@ -301,10 +302,11 @@ func runServe(args []string, stderr io.Writer) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := server.ServeWithOptions(ctx, server.ServeOptions{
-		Addr:      *addr,
-		ConfigDir: resolveServerConfigDir(*configsDir),
-		Ready:     os.Stdout,
-		NewStore:  server.NewConfigStore,
+		Addr:       *addr,
+		ListenMode: startMode.ListenMode,
+		ConfigDir:  resolveServerConfigDir(*configsDir),
+		Ready:      os.Stdout,
+		NewStore:   server.NewConfigStore,
 		HandlerOptions: server.HandlerOptions{
 			TrustedProxyHeaders:   *trustedProxyHeaders,
 			TrustedProxyClientCNs: splitCommaSeparatedValues(*trustedProxyClientCNs),
@@ -313,8 +315,8 @@ func runServe(args []string, stderr io.Writer) int {
 		},
 		BlockOnWarmup:   *blockOnWarmup,
 		AnalyzerTimeout: analyzerTimeout,
-		TLS:             tlsMode.TLS,
-		ManagedRoot:     tlsMode.ManagedRoot,
+		TLS:             startMode.TLS,
+		ManagedRoot:     startMode.ManagedRoot,
 		RuntimeDir:      os.Getenv("AGENT_FITNESS_FUNCTIONS_RUNTIME_DIR"),
 	}); err != nil && !errors.Is(err, context.Canceled) {
 		_, _ = fmt.Fprintln(stderr, err)
@@ -326,6 +328,51 @@ func runServe(args []string, stderr io.Writer) int {
 type serverStartTLSMode struct {
 	TLS         server.ServerTLSConfig
 	ManagedRoot string
+}
+
+// serverStartMode is how `server start` will listen: the listen mode plus the
+// TLS material that mode needs (none, for the loopback local mode).
+type serverStartMode struct {
+	ListenMode  string
+	TLS         server.ServerTLSConfig
+	ManagedRoot string
+}
+
+// resolveServerStartMode resolves the listen mode first, because it decides
+// whether certificates are consulted at all: the local mode serves plain HTTP
+// on loopback and must not fall back to managed development certificates.
+func resolveServerStartMode(listenModeFlag, certFlag, keyFlag, caFlag string, getWorkingDirectory func() (string, error)) (serverStartMode, error) {
+	listenMode, err := resolveServerListenMode(listenModeFlag)
+	if err != nil {
+		return serverStartMode{}, err
+	}
+	if listenMode == server.ListenModeLocalHTTP {
+		return serverStartMode{ListenMode: listenMode}, nil
+	}
+	tlsMode, err := resolveServerStartTLSMode(certFlag, keyFlag, caFlag, getWorkingDirectory)
+	if err != nil {
+		return serverStartMode{}, err
+	}
+	return serverStartMode{ListenMode: listenMode, TLS: tlsMode.TLS, ManagedRoot: tlsMode.ManagedRoot}, nil
+}
+
+// resolveServerListenMode prefers the --listen-mode flag, falling back to
+// AGENT_FITNESS_FUNCTIONS_LISTEN_MODE and then to mTLS, matching how
+// resolveServerConfigDir treats its flag and environment variable.
+func resolveServerListenMode(flagValue string) (string, error) {
+	mode := flagValue
+	if mode == "" {
+		mode = os.Getenv("AGENT_FITNESS_FUNCTIONS_LISTEN_MODE")
+	}
+	switch mode {
+	case "":
+		return server.ListenModeMTLS, nil
+	case server.ListenModeMTLS, server.ListenModeLocalHTTP:
+		return mode, nil
+	default:
+		return "", usageError{err: fmt.Errorf("unsupported --listen-mode %q (want %q or %q)",
+			mode, server.ListenModeMTLS, server.ListenModeLocalHTTP)}
+	}
 }
 
 func resolveServerStartTLSMode(certFlag, keyFlag, caFlag string, getWorkingDirectory func() (string, error)) (serverStartTLSMode, error) {

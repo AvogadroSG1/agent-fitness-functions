@@ -33,7 +33,7 @@ func TestAuthorizeRepoAccessAcceptsRepositoryPathForms(t *testing.T) {
 		"/private/tmp/matrix-run.ABC123/matrix-go",
 		"/Users/someone/code/matrix-go/",
 	} {
-		name, err := authorizeRepoAccess(store, "dev-hook-pool", repo)
+		name, err := authorizeRepoAccess(HandlerOptions{}, store, "dev-hook-pool", repo)
 		if err != nil {
 			t.Errorf("authorizeRepoAccess(%q) = %v, want authorized as matrix-go", repo, err)
 			continue
@@ -43,7 +43,7 @@ func TestAuthorizeRepoAccessAcceptsRepositoryPathForms(t *testing.T) {
 		}
 	}
 
-	if _, err := authorizeRepoAccess(store, "dev-hook-pool", "/private/tmp/other-repo"); err == nil {
+	if _, err := authorizeRepoAccess(HandlerOptions{}, store, "dev-hook-pool", "/private/tmp/other-repo"); err == nil {
 		t.Error("authorizeRepoAccess authorized a path whose canonical name is not in the caller policy")
 	}
 }

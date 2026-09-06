@@ -165,7 +165,7 @@ func checkHandler(checker Checker, options HandlerOptions) http.HandlerFunc {
 			return
 		}
 		if options.RequireAuthentication {
-			authorizedRepo, err := authorizeRepoAccess(checker.ConfigStore, caller, request.Repo)
+			authorizedRepo, err := authorizeRepoAccess(options, checker.ConfigStore, caller, request.Repo)
 			if err != nil {
 				writeAuthorizationError(w, err)
 				return
@@ -260,7 +260,7 @@ func stateHandler(checker Checker, options HandlerOptions) http.HandlerFunc {
 			http.Error(w, "state requires repo", http.StatusBadRequest)
 			return
 		}
-		targetRepo, ok := resolveAuthorizedRepo(w, checker.ConfigStore, caller, repo, options.RequireAuthentication)
+		targetRepo, ok := resolveAuthorizedRepo(w, options, checker.ConfigStore, caller, repo)
 		if !ok {
 			return
 		}
@@ -273,11 +273,11 @@ func stateHandler(checker Checker, options HandlerOptions) http.HandlerFunc {
 	}
 }
 
-func resolveAuthorizedRepo(w http.ResponseWriter, store *ConfigStore, caller, repo string, requireAuth bool) (string, bool) {
-	if !requireAuth {
+func resolveAuthorizedRepo(w http.ResponseWriter, options HandlerOptions, store *ConfigStore, caller, repo string) (string, bool) {
+	if !options.RequireAuthentication {
 		return repo, true
 	}
-	authorizedRepo, err := authorizeRepoAccess(store, caller, repo)
+	authorizedRepo, err := authorizeRepoAccess(options, store, caller, repo)
 	if err != nil {
 		writeAuthorizationError(w, err)
 		return "", false
@@ -313,16 +313,16 @@ func preflightHandler(checker Checker, options HandlerOptions) http.HandlerFunc 
 			writeCheckError(w, err)
 			return
 		}
-		writeJSON(w, buildPreflightResponse(checker.ConfigStore, caller, repoName))
+		writeJSON(w, buildPreflightResponse(options, checker.ConfigStore, caller, repoName))
 	}
 }
 
 // buildPreflightResponse gathers the four readiness facts for repo directly from the
 // config store, so an unconfigured repo is reported honestly rather than masked.
-func buildPreflightResponse(store *ConfigStore, caller, repo string) PreflightResponse {
+func buildPreflightResponse(options HandlerOptions, store *ConfigStore, caller, repo string) PreflightResponse {
 	response := PreflightResponse{
 		AuthenticatedCN:  caller,
-		CallerAuthorized: store.CallerAllowed(caller, repo),
+		CallerAuthorized: callerAuthorizedForRepo(options, store, caller, repo),
 	}
 	entry, ok := store.Lookup(repo)
 	if !ok {
@@ -353,7 +353,7 @@ func configsHandler(checker Checker, options HandlerOptions) http.HandlerFunc {
 				writeCheckError(w, infrastructureError("config store is not configured", nil))
 				return
 			}
-			if !checker.ConfigStore.CallerIsAdmin(caller) {
+			if !callerIsAdmin(options, checker.ConfigStore, caller) {
 				writeForbidden(w, fmt.Sprintf("caller %q is not authorized for /configs", caller))
 				return
 			}
@@ -383,7 +383,7 @@ func shutdownHandler(checker Checker, options HandlerOptions, cancelDeferred fun
 				writeCheckError(w, infrastructureError("config store is not configured", nil))
 				return
 			}
-			if !checker.ConfigStore.CallerIsAdmin(caller) {
+			if !callerIsAdmin(options, checker.ConfigStore, caller) {
 				writeForbidden(w, fmt.Sprintf("caller %q is not authorized for /shutdown", caller))
 				return
 			}
@@ -462,6 +462,61 @@ func applyServeInternalDefaults(options *ServeOptions) {
 }
 
 func validateServeOptions(options ServeOptions) error {
+	switch resolveListenMode(options.ListenMode) {
+	case ListenModeMTLS:
+		return validateMTLSServeOptions(options)
+	case ListenModeLocalHTTP:
+		return validateLocalHTTPServeOptions(options)
+	default:
+		return fmt.Errorf("unsupported listen mode %q", options.ListenMode)
+	}
+}
+
+// resolveListenMode normalizes an unset ServeOptions.ListenMode to the mTLS
+// default, so every caller sees one concrete mode name.
+func resolveListenMode(mode string) string {
+	if mode == "" {
+		return ListenModeMTLS
+	}
+	return mode
+}
+
+// validateLocalHTTPServeOptions rejects everything the loopback plain-HTTP mode
+// must never be combined with (ADR-0010). Its entire security model is "the peer
+// is on this machine", which holds only while the daemon is unreachable from the
+// network and no certificate-derived identity is in play.
+func validateLocalHTTPServeOptions(options ServeOptions) error {
+	if !isLoopbackAddr(options.Addr) {
+		return fmt.Errorf("local listen mode requires a loopback bind address, got %q", options.Addr)
+	}
+	if options.TLS.Enabled() {
+		return errors.New("local listen mode cannot be combined with explicit server TLS inputs")
+	}
+	if options.ManagedRoot != "" {
+		return errors.New("local listen mode cannot be combined with managed development certificates")
+	}
+	if options.HandlerOptions.TrustedProxyHeaders {
+		return errors.New("local listen mode cannot be combined with trusted proxy headers")
+	}
+	return nil
+}
+
+// isLoopbackAddr reports whether addr binds a loopback interface only. An
+// address that cannot be split, or whose host is neither "localhost" nor a
+// loopback IP, fails closed.
+func isLoopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	address := net.ParseIP(host)
+	return address != nil && address.IsLoopback()
+}
+
+func validateMTLSServeOptions(options ServeOptions) error {
 	if options.ManagedRoot != "" && options.TLS.Enabled() {
 		return errors.New("managed development certificates cannot be combined with explicit server TLS inputs")
 	}
@@ -485,6 +540,11 @@ type preparedServerTLS struct {
 }
 
 func prepareServeTLS(options ServeOptions) (preparedServerTLS, error) {
+	// The local listen mode serves plain HTTP: no certificate is read, and no
+	// managed development certificate material is provisioned (ADR-0010).
+	if resolveListenMode(options.ListenMode) == ListenModeLocalHTTP {
+		return preparedServerTLS{}, nil
+	}
 	if options.ManagedRoot == "" {
 		config, err := loadServerTLSConfig(options.TLS)
 		return preparedServerTLS{config: config}, err
@@ -509,9 +569,9 @@ func prepareServeTLS(options ServeOptions) (preparedServerTLS, error) {
 	}, runtime: runtime}, nil
 }
 
-// daemonIdentity describes this daemon for GET /health. Every daemon started
-// through ServeWithOptions listens with mTLS today; S3 adds a local-http mode.
-func daemonIdentity(configDir string) Identity {
+// daemonIdentity describes this daemon for GET /health, so a client can spot a
+// daemon running the wrong build, listen mode, or configs directory.
+func daemonIdentity(configDir, listenMode string) Identity {
 	revision, modified := buildinfo.Current()
 	if absolute, err := filepath.Abs(configDir); err == nil {
 		configDir = absolute
@@ -519,16 +579,18 @@ func daemonIdentity(configDir string) Identity {
 	return Identity{
 		BuildRevision: revision,
 		BuildModified: modified,
-		ListenMode:    ListenModeMTLS,
+		ListenMode:    listenMode,
 		ConfigsDir:    configDir,
 	}
 }
 
 func runServer(ctx context.Context, store *ConfigStore, options ServeOptions) error {
 	shutdownRequested := make(chan struct{}, 1)
+	listenMode := resolveListenMode(options.ListenMode)
 	handlerOptions := options.HandlerOptions
 	handlerOptions.RequireAuthentication = true
-	handlerOptions.Identity = daemonIdentity(options.ConfigDir)
+	handlerOptions.LocalHTTP = listenMode == ListenModeLocalHTTP
+	handlerOptions.Identity = daemonIdentity(options.ConfigDir, listenMode)
 
 	listener, err := net.Listen("tcp", options.Addr)
 	if err != nil {

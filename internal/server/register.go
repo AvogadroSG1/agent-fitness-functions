@@ -48,8 +48,11 @@ func registerHandler(checker Checker, options HandlerOptions) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		callerIsAdmin := checker.ConfigStore.CallerIsAdmin(caller)
-		created, err := checker.ConfigStore.Register(r.Context(), repoName, config, caller, callerIsAdmin)
+		// The implicit local caller is treated as an admin (see callerIsAdmin):
+		// registering a repo against your own machine-local daemon is exactly
+		// the managed onboarding flow the local-http mode exists to serve.
+		isAdmin := callerIsAdmin(options, checker.ConfigStore, caller)
+		created, err := checker.ConfigStore.Register(r.Context(), repoName, config, caller, isAdmin)
 		if err != nil {
 			writeRegisterError(w, err)
 			return

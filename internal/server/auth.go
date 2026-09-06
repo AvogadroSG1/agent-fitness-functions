@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -59,6 +60,11 @@ type callerRepoDocument struct {
 }
 
 type callerContextKey struct{}
+
+// localCallerName is the implicit identity of a loopback peer in the local-http
+// listen mode (ADR-0010). Local developers never hold a client certificate, so
+// the peer's loopback address is the whole credential.
+const localCallerName = "local"
 
 var errUnauthenticated = errors.New("unauthenticated caller")
 
@@ -190,20 +196,34 @@ func authenticatedCaller(r *http.Request) (string, bool) {
 }
 
 func extractCallerName(r *http.Request, options HandlerOptions) (string, error) {
-	if options.TrustedProxyHeaders {
-		if !requestHasVerifiedPeerIdentity(r) {
-			return "", errUnauthenticated
+	if options.LocalHTTP {
+		if err := requireLoopbackPeer(r); err != nil {
+			return "", err
 		}
-		proxyPeer, err := normalizeCallerName(r.TLS.PeerCertificates[0].Subject.CommonName)
-		if err != nil || !trustedProxyPeer(proxyPeer, options.TrustedProxyClientCNs) {
-			return "", errUnauthenticated
-		}
-		caller, err := normalizeCallerName(r.Header.Get("X-Client-CN"))
-		if err != nil {
-			return "", errUnauthenticated
-		}
-		return caller, nil
+		return localCallerName, nil
 	}
+	if options.TrustedProxyHeaders {
+		return extractProxyForwardedCaller(r, options.TrustedProxyClientCNs)
+	}
+	return extractPeerCertificateCaller(r)
+}
+
+func extractProxyForwardedCaller(r *http.Request, trustedProxyClientCNs []string) (string, error) {
+	if !requestHasVerifiedPeerIdentity(r) {
+		return "", errUnauthenticated
+	}
+	proxyPeer, err := normalizeCallerName(r.TLS.PeerCertificates[0].Subject.CommonName)
+	if err != nil || !trustedProxyPeer(proxyPeer, trustedProxyClientCNs) {
+		return "", errUnauthenticated
+	}
+	caller, err := normalizeCallerName(r.Header.Get("X-Client-CN"))
+	if err != nil {
+		return "", errUnauthenticated
+	}
+	return caller, nil
+}
+
+func extractPeerCertificateCaller(r *http.Request) (string, error) {
 	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
 		return "", errUnauthenticated
 	}
@@ -212,6 +232,25 @@ func extractCallerName(r *http.Request, options HandlerOptions) (string, error) 
 		return "", errUnauthenticated
 	}
 	return caller, nil
+}
+
+// requireLoopbackPeer is the whole authentication check of the local-http listen
+// mode. Anything that is not a parseable loopback IP fails closed: the mode only
+// ever binds a loopback address, so a non-loopback peer is a misconfiguration
+// rather than a caller.
+func requireLoopbackPeer(r *http.Request) error {
+	if r == nil {
+		return errUnauthenticated
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return errUnauthenticated
+	}
+	address := net.ParseIP(host)
+	if address == nil || !address.IsLoopback() {
+		return errUnauthenticated
+	}
+	return nil
 }
 
 func requestHasVerifiedPeerIdentity(r *http.Request) bool {
@@ -231,15 +270,37 @@ func trustedProxyPeer(peer string, allowed []string) bool {
 	return false
 }
 
-func authorizeRepoAccess(store *ConfigStore, caller, repo string) (string, error) {
+func authorizeRepoAccess(options HandlerOptions, store *ConfigStore, caller, repo string) (string, error) {
 	repoName, err := canonicalRepoName(repo)
 	if err != nil {
 		return "", err
 	}
-	if store == nil || !store.CallerAllowed(caller, repoName) {
+	if !callerAuthorizedForRepo(options, store, caller, repoName) {
 		return "", fmt.Errorf("caller %q is not authorized for repository %q", caller, repoName)
 	}
 	return repoName, nil
+}
+
+// callerAuthorizedForRepo is the single repository authorization seam. In the
+// local-http listen mode the caller already proved it is a loopback peer during
+// authentication, so it is authorized for every repo the daemon serves: the
+// managed local path deliberately ships no caller-repos.json (ADR-0010).
+func callerAuthorizedForRepo(options HandlerOptions, store *ConfigStore, caller, repo string) bool {
+	if options.LocalHTTP {
+		return true
+	}
+	return store != nil && store.CallerAllowed(caller, repo)
+}
+
+// callerIsAdmin is the single admin authorization seam, shared by /configs,
+// /shutdown and /register. The implicit local caller counts as an admin: the
+// daemon is that developer's own machine-local process, so withholding
+// administration would only lock them out of something they already control.
+func callerIsAdmin(options HandlerOptions, store *ConfigStore, caller string) bool {
+	if options.LocalHTTP {
+		return true
+	}
+	return store.CallerIsAdmin(caller)
 }
 
 func writeUnauthorized(w http.ResponseWriter) {
