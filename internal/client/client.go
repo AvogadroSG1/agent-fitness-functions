@@ -1017,7 +1017,9 @@ func resolveDaemonEndpoint(base daemonEndpoint, certDir string) (daemonEndpoint,
 	}
 	alternate := alternateSchemeAddr(base.addr)
 	if alternate == "" {
-		return base, daemonConflictError{addr: base.addr, cause: probeErr, schemeMismatch: true}
+		// Non-loopback addr: the port-conflict framing (lsof, re-onboard) is
+		// local-only advice, so hand the raw failure to the generic classifier.
+		return base, probeErr
 	}
 	for _, candidate := range alternateSchemeClients(base.client, alternate, certDir) {
 		err := probeDaemon(candidate, alternate)
