@@ -25,7 +25,7 @@ import (
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/server"
 )
 
-const usageLine = "usage: agent-fitness-functions <client validate|client install-hooks|client onboard|client functions|client resolve-dev-cert-version|server start|baseline|doctor|uninstall|upgrade|rollback|runtime provision|runtime doctor>"
+const usageLine = "usage: agent-fitness-functions <client validate|client install-hooks|client onboard|client functions|client history|client resolve-dev-cert-version|server start|baseline|doctor|uninstall|upgrade|rollback|runtime provision|runtime doctor>"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -219,7 +219,7 @@ func runBaselineCommand(args []string, stdout, stderr io.Writer) int {
 
 func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error, historyRuntime ...*client.HistoryRuntime) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions client <validate|install-hooks|onboard|functions|resolve-dev-cert-version>")
+		_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions client <validate|install-hooks|onboard|functions|history|resolve-dev-cert-version>")
 		return 2
 	}
 	switch args[0] {
@@ -231,6 +231,8 @@ func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client,
 		return clientExitCode(client.RunOnboard(args[1:], stdout, stderr, httpClient, starter, historyRuntime...), stderr)
 	case "functions":
 		return clientExitCode(client.RunFunctions(args[1:], stdout, nil), stderr)
+	case "history":
+		return clientExitCode(client.RunHistory(args[1:], stdout), stderr)
 	case "resolve-dev-cert-version":
 		return clientExitCode(client.RunResolveDevCertVersion(args[1:], stdout), stderr)
 	default:

@@ -66,6 +66,7 @@ func TestHistoryPathsRejectNonCheckoutAndEscapingFile(t *testing.T) {
 
 func gitHistory(t *testing.T, dir string, args ...string) {
 	t.Helper()
+	t.Setenv("GIT_TRACE2_EVENT", "0")
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {

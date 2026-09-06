@@ -24,7 +24,7 @@ type Location struct {
 // Relative file paths are rooted at the worktree, even when checkout is nested.
 // Proposed files need not exist; their normalized path MUST remain in the worktree.
 func Resolve(ctx context.Context, checkout, file string) (Location, error) {
-	location, err := resolveGitLocation(ctx, checkout)
+	location, err := ResolveCheckout(ctx, checkout)
 	if err != nil {
 		return Location{}, err
 	}
@@ -43,7 +43,9 @@ func Resolve(ctx context.Context, checkout, file string) (Location, error) {
 	return location, nil
 }
 
-func resolveGitLocation(ctx context.Context, checkout string) (Location, error) {
+// ResolveCheckout locates clone storage for readers without requiring a file or
+// collecting validation-only branch and HEAD metadata. It MUST NOT create files.
+func ResolveCheckout(ctx context.Context, checkout string) (Location, error) {
 	inside, err := gitOutput(ctx, checkout, "rev-parse", "--is-inside-work-tree")
 	if err != nil {
 		return Location{}, fmt.Errorf("resolve history checkout: %w", err)
@@ -66,6 +68,22 @@ func resolveGitLocation(ctx context.Context, checkout string) (Location, error) 
 		DatabasePath: filepath.Join(common, "agent-fitness-functions", "history.sqlite3"),
 		CommonGitDir: filepath.Clean(common), Worktree: filepath.Clean(worktree),
 	}, nil
+}
+
+// FileKey normalizes a file filter using the same rules as captured proposals.
+// Historical files and their parent directories MAY have been deleted.
+func FileKey(worktree, file string) (string, error) {
+	return relativeFile(worktree, file)
+}
+
+// WorktreeKey normalizes a worktree filter without requiring a live checkout.
+// Existing ancestors resolve filesystem aliases; deleted worktrees remain usable.
+func WorktreeKey(worktree string) (string, error) {
+	absolute, err := filepath.Abs(worktree)
+	if err != nil {
+		return "", err
+	}
+	return proposalPath(absolute)
 }
 
 func validateFileName(file string) error {

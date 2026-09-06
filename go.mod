@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/fzipp/gocyclo v0.6.0
+	github.com/pmezard/go-difflib v1.0.0
 	modernc.org/sqlite v1.46.2
 )
 
