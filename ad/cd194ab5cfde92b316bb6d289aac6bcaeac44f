@@ -1,0 +1,25 @@
+internal/client/restart_engine_test.go
+  s_3d6c2c9a391830::t_c3ed681b3415e1 1-248
+internal/client/daemonstatus.go
+  s_3d6c2c9a391830::t_3f61b8d281e32e 4,10-11,14-20,44-50,69-73
+internal/client/restart.go
+  s_3d6c2c9a391830::t_ab1da70ee097f3 19,23-66,72-78,83-84,87-95,98-105,109,113,118,120,122,126-164,184,186-194,217-218,223,225-226,228,230-231,233,236-238,242-243,283-284,286-306,315,345,350,357,365-366,379,381,385-387,392-396
+internal/client/client.go
+  s_3d6c2c9a391830::t_3f61b8d281e32e 1324
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "adcd194ab5cfde92b316bb6d289aac6bcaeac44f",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
