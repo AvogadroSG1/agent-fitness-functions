@@ -3,6 +3,12 @@
 set -euo pipefail
 
 repo=$(git rev-parse --show-toplevel)
+# Environment metadata is ignored safely by binaries that predate history.
+export AGENT_FITNESS_FUNCTIONS_HISTORY_WORKTREE="$repo"
+export AGENT_FITNESS_FUNCTIONS_HISTORY_SOURCE=git
+export AGENT_FITNESS_FUNCTIONS_HISTORY_TOOL=git
+export AGENT_FITNESS_FUNCTIONS_HISTORY_ACTION=pre-push
+export AGENT_FITNESS_FUNCTIONS_HISTORY_SESSION_ID="${AGENT_FITNESS_FUNCTIONS_HISTORY_SESSION_ID:-}"
 agent_fitness_functions_bin=${AGENT_FITNESS_FUNCTIONS_BIN:-agent-fitness-functions}
 # The container/production server serves HTTPS with mandatory mTLS, so default to
 # an https loopback addr. In managed mode (no explicit client TLS material), the
@@ -142,9 +148,9 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
   [[ "$local_sha" == "$null_sha" ]] && continue
 
   if [[ "$remote_sha" == "$null_sha" ]]; then
-    base=$(git merge-base "$local_sha" "origin/HEAD" 2>/dev/null \
-           || git merge-base "$local_sha" "origin/main" 2>/dev/null \
-           || echo "${local_sha}^")
+    base=$(git merge-base "$local_sha" "origin/HEAD" 2>/dev/null ||
+      git merge-base "$local_sha" "origin/main" 2>/dev/null ||
+      echo "${local_sha}^")
     range="${base}..${local_sha}"
   else
     range="${remote_sha}..${local_sha}"
@@ -157,7 +163,7 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
     fi
 
     content_file="$tmpdir/${local_sha:0:8}_$(echo "$file" | tr '/' '_')"
-    if ! git show "${local_sha}:${file}" > "$content_file" 2>/dev/null; then
+    if ! git show "${local_sha}:${file}" >"$content_file" 2>/dev/null; then
       continue
     fi
 

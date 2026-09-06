@@ -190,6 +190,7 @@ func resolveClientTimeout(flagTimeout string) (time.Duration, error) {
 // flag the check needs, with the timeout already resolved from flag, environment, or
 // default.
 type validateOptions struct {
+	history     historyOptions
 	addr        string
 	file        string
 	repo        string
@@ -215,6 +216,7 @@ func parseValidateFlags(args []string) (validateOptions, error) {
 	flags := flag.NewFlagSet("client validate", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var opts validateOptions
+	opts.history.bind(flags)
 	flags.StringVar(&opts.addr, "addr", defaultOnboardAddr, "daemon base URL")
 	flags.StringVar(&opts.file, "file", "", "file path being checked")
 	flags.StringVar(&opts.repo, "repo", "", "repository root")
@@ -257,13 +259,14 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 	}
 	daemon, err := establishDaemon(httpClient, opts.addr, opts.repo, opts.file, opts.clientCert, opts.clientKey, opts.clientCA, starter)
 	if err != nil {
+		opts.history.diagnostic(opts.repo, "", "validation", historyFailureKind(err))
 		return handleValidateFailure(stdout, err, opts.repo)
 	}
 	proposedContent, err := resolveContent(opts.repo, opts.file, opts.content, opts.contentFile, opts.staged)
 	if err != nil {
 		return err
 	}
-	body, err := postCheck(context.Background(), daemon.client, daemon.addr, fitness.ValidationRequest{
+	request, body, err := postCheckExchange(context.Background(), daemon.client, daemon.addr, fitness.ValidationRequest{
 		Repo:            opts.repo,
 		File:            opts.file,
 		ProposedContent: proposedContent,
@@ -271,8 +274,10 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 		DryRun:          opts.dryRun,
 	}, opts.timeout)
 	if err != nil {
+		opts.history.diagnostic(opts.repo, "", "validation", historyFailureKind(err))
 		return handleValidateFailure(stdout, err, opts.repo)
 	}
+	newHistoryCapture(opts.history).complete(context.Background(), opts, request, body, time.Now().UTC())
 	return writeValidationResult(stdout, opts.format, opts.repo, body)
 }
 
@@ -673,10 +678,10 @@ func (installer hookInstaller) installAgentHook() error {
 		return err
 	}
 	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", scriptPath)
-	if err := installer.applyClaudeHook(agentHookSpec(agentHookName)); err != nil {
+	if err := installer.applyClaudeHook(agentHookSpec(agentHookName, "claude-code")); err != nil {
 		return err
 	}
-	return installer.applyCodexHook(agentHookSpec(agentHookName))
+	return installer.applyCodexHook(agentHookSpec(agentHookName, "codex"))
 }
 
 // applyCodexHook idempotently upserts a single PreToolUse entry into
@@ -878,8 +883,8 @@ func gitGuardSpec(name string) claudeHookSpec {
 	}
 }
 
-func agentHookSpec(name string) claudeHookSpec {
-	command := portableHookCommand(name)
+func agentHookSpec(name, tool string) claudeHookSpec {
+	command := "AGENT_FITNESS_FUNCTIONS_HISTORY_TOOL=" + tool + " " + portableHookCommand(name)
 	return claudeHookSpec{
 		entry:   claudeCommandEntry("Edit|Write", command),
 		markers: agentHookNameHistory,
@@ -1227,30 +1232,38 @@ func describeDaemonFailure(cfg DaemonStartConfig, cause error) error {
 }
 
 func postCheck(ctx context.Context, httpClient *http.Client, addr string, request fitness.ValidationRequest, timeout time.Duration) ([]byte, error) {
+	_, result, err := postCheckExchange(ctx, httpClient, addr, request, timeout)
+	return result, err
+}
+
+// postCheckExchange returns the same serialization used by the actual POST.
+// Doctor uses postCheck directly and MUST bypass downstream capture.
+func postCheckExchange(ctx context.Context, httpClient *http.Client, addr string, request fitness.ValidationRequest, timeout time.Duration) ([]byte, []byte, error) {
 	if timeout <= 0 {
 		timeout = defaultCheckTimeout
 	}
 	body, err := json.Marshal(request)
 	if err != nil {
-		return nil, fmt.Errorf("encoding check request: %w", err)
+		return nil, nil, fmt.Errorf("encoding check request: %w", err)
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(addr, "/")+"/check", bytes.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("building check request: %w", err)
+		return body, nil, fmt.Errorf("building check request: %w", err)
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
 	response, err := httpClient.Do(httpRequest)
 	if err != nil {
-		return nil, transportError{err: err}
+		return body, nil, transportError{err: err}
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
-		return nil, httpStatusError{status: response.StatusCode, body: strings.TrimSpace(string(errBody))}
+		return body, nil, httpStatusError{status: response.StatusCode, body: strings.TrimSpace(string(errBody))}
 	}
-	return io.ReadAll(io.LimitReader(response.Body, 10<<20))
+	result, err := io.ReadAll(io.LimitReader(response.Body, 10<<20))
+	return body, result, err
 }
 
 func configureTLS(base *http.Client, certPath, keyPath, caPath string) (*http.Client, error) {

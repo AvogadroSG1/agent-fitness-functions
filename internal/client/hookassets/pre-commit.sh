@@ -3,6 +3,12 @@
 set -euo pipefail
 
 repo=$(git rev-parse --show-toplevel)
+# Environment metadata is ignored safely by binaries that predate history.
+export AGENT_FITNESS_FUNCTIONS_HISTORY_WORKTREE="$repo"
+export AGENT_FITNESS_FUNCTIONS_HISTORY_SOURCE=git
+export AGENT_FITNESS_FUNCTIONS_HISTORY_TOOL=git
+export AGENT_FITNESS_FUNCTIONS_HISTORY_ACTION=pre-commit
+export AGENT_FITNESS_FUNCTIONS_HISTORY_SESSION_ID="${AGENT_FITNESS_FUNCTIONS_HISTORY_SESSION_ID:-}"
 agent_fitness_functions_bin=${AGENT_FITNESS_FUNCTIONS_BIN:-agent-fitness-functions}
 # The container/production server serves HTTPS with mandatory mTLS, so default to
 # an https loopback addr. In managed mode (no explicit client TLS material), the

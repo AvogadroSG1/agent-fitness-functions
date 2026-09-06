@@ -17,6 +17,7 @@ func TestHookScriptsAreByteIdenticalToEmbeddedTwins(t *testing.T) {
 		"pre-tool-use.sh",
 		"git-guard.sh",
 		"format-violations.py",
+		"opencode-plugin.js",
 	} {
 		source, err := os.ReadFile(name)
 		if err != nil {

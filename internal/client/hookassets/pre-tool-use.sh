@@ -2,6 +2,11 @@
 set -euo pipefail
 
 repo=$(git rev-parse --show-toplevel)
+# Generated agent configurations supply the tool identity; a direct invocation
+# MUST leave it unknown. Older binaries safely ignore these environment values.
+export AGENT_FITNESS_FUNCTIONS_HISTORY_WORKTREE="$repo"
+export AGENT_FITNESS_FUNCTIONS_HISTORY_SOURCE=agent
+export AGENT_FITNESS_FUNCTIONS_HISTORY_TOOL="${AGENT_FITNESS_FUNCTIONS_HISTORY_TOOL:-}"
 agent_fitness_functions_bin=${AGENT_FITNESS_FUNCTIONS_BIN:-agent-fitness-functions}
 # The container/production server serves HTTPS with mandatory mTLS, so default to
 # an https loopback addr. In managed mode (no explicit client TLS material), the
@@ -118,7 +123,6 @@ report_infra_error() {
   } >&2
 }
 
-
 payload=$(cat)
 payload_file=$(mktemp)
 content_file=$(mktemp)
@@ -127,9 +131,10 @@ cleanup() {
   rm -f "$payload_file" "$content_file" "$stderr_file"
 }
 trap cleanup EXIT
-printf '%s' "$payload" > "$payload_file"
+printf '%s' "$payload" >"$payload_file"
 
-parsed=$(python3 - "$payload_file" <<'PY'
+parsed=$(
+  python3 - "$payload_file" <<'PY'
 import json
 import sys
 
@@ -146,7 +151,10 @@ try:
     if not file_path:
         print(json.dumps({"error": "missing file_path"}))
     else:
-        print(json.dumps({"file_path": file_path}))
+        metadata = {key: value if isinstance(value, str) else ""
+                    for key, value in (("action", payload.get("tool_name")),
+                                       ("session_id", payload.get("session_id")))}
+        print(json.dumps({"file_path": file_path, **metadata}))
 except Exception as exc:
     print(json.dumps({"error": f"invalid JSON payload: {exc}"}))
 PY
@@ -159,9 +167,14 @@ if [[ -n "$parse_error" ]]; then
 fi
 
 file_path=$(printf '%s' "$parsed" | json_field file_path)
+history_action=$(printf '%s' "$parsed" | json_field action)
+history_session=$(printf '%s' "$parsed" | json_field session_id)
+export AGENT_FITNESS_FUNCTIONS_HISTORY_ACTION="${history_action:-${AGENT_FITNESS_FUNCTIONS_HISTORY_ACTION:-}}"
+export AGENT_FITNESS_FUNCTIONS_HISTORY_SESSION_ID="${history_session:-${AGENT_FITNESS_FUNCTIONS_HISTORY_SESSION_ID:-}}"
 
 repo_prefix=$(cd "$repo" && pwd -P)
-absolute_file=$(python3 - "$repo_prefix" "$file_path" <<'PY'
+absolute_file=$(
+  python3 - "$repo_prefix" "$file_path" <<'PY'
 import os
 import sys
 
@@ -173,13 +186,14 @@ PY
 )
 case "$absolute_file" in
   "$repo_prefix"/*)
-    file=$(python3 - "$repo_prefix" "$absolute_file" <<'PY'
+    file=$(
+      python3 - "$repo_prefix" "$absolute_file" <<'PY'
 import os
 import sys
 
 print(os.path.relpath(sys.argv[2], sys.argv[1]))
 PY
-)
+    )
     ;;
   *)
     echo "Skipping agent-fitness-functions check for file outside repository: $file_path" >&2
@@ -192,7 +206,8 @@ if ! language=$(language_for_file "$file"); then
   exit 0
 fi
 
-content_result=$(python3 - "$payload_file" "$content_file" "$repo_prefix" "$file" <<'PY'
+content_result=$(
+  python3 - "$payload_file" "$content_file" "$repo_prefix" "$file" <<'PY'
 import json
 import os
 import sys
