@@ -22,8 +22,10 @@ type ValidationRequest struct {
 	// DryRun marks a speculative proposal (agent pre-write validation, doctor
 	// probes): the verdict is computed and returned but never persisted into
 	// the repository's outstanding-violation state, because the content may
-	// never land on disk.
-	DryRun bool `json:"dry_run,omitempty"`
+	// never land on disk. It is stated on every request rather than omitted
+	// when false, so a persisting validation says so on the wire instead of
+	// relying on the reader to infer it from an absent field.
+	DryRun bool `json:"dry_run"`
 }
 
 // ValidationResult is the JSON response returned by POST /check.

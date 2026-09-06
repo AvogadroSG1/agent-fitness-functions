@@ -428,5 +428,66 @@ func daemonPort(addr string) string {
 // its identity, and when it is stale (or absent) replace or start it via the
 // S5 restart engine, deriving expectations from this binary and environment.
 func ensureCurrentDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, starter func(DaemonStartConfig) error) error {
-	return nil // stub pending S6 (calm-poc-l9tb)
+	return ensureCurrentDaemonReporting(httpClient, addr, cfg, starter, nil)
+}
+
+// ensureCurrentDaemonReporting is ensureCurrentDaemon with a seam for narrating
+// the replacement: onboard prints why the daemon it found was replaced, while
+// the silent validate path passes nil.
+func ensureCurrentDaemonReporting(httpClient *http.Client, addr string, cfg DaemonStartConfig, starter func(DaemonStartConfig) error, report func([]string)) error {
+	expect := currentDaemonExpectations(expectedListenMode(cfg))
+	identity, err := probeDaemonIdentity(httpClient, addr)
+	if err != nil {
+		return ensureAfterUnreadableIdentity(httpClient, addr, cfg, starter, expect, err, report)
+	}
+	reasons := daemonStaleness(identity, expect)
+	if len(reasons) == 0 {
+		return nil
+	}
+	return replaceStaleDaemon(httpClient, addr, cfg, starter, expect, reasons, report)
+}
+
+// ensureAfterUnreadableIdentity decides what a probe that yielded no identity
+// means, and there are three answers. A transport this client cannot speak is
+// the legacy mTLS daemon the machine is migrating off (ADR-0010): stale by
+// definition, and the restart engine already knows how to stop it. A live
+// listener that answers with a readable non-200 is a foreign process owning the
+// address; naming it is the only safe move, because auto-starting behind it
+// would race a process nobody here owns. Anything else is nothing listening —
+// the ordinary cold start.
+func ensureAfterUnreadableIdentity(httpClient *http.Client, addr string, cfg DaemonStartConfig, starter func(DaemonStartConfig) error, expect daemonExpectations, probeErr error, report func([]string)) error {
+	if isSchemeMismatch(probeErr) || isTLSError(probeErr) {
+		reasons := []string{fmt.Sprintf("the daemon at %s does not answer GET /health on this client's transport (%v), so it predates the current listen mode", addr, probeErr)}
+		return replaceStaleDaemon(httpClient, addr, cfg, starter, expect, reasons, report)
+	}
+	var statusErr httpStatusError
+	if errors.As(probeErr, &statusErr) {
+		return occupiedAddressError(addr, probeErr)
+	}
+	trace := restartTrace{startErr: starter(cfg)}
+	return awaitFreshDaemon(httpClient, addr, expect, trace, defaultRestartTiming())
+}
+
+// replaceStaleDaemon narrates the staleness, restarts, and — when the restart
+// fails — reports both what was wrong and how the replacement went, so the
+// reasons never disappear into a bare failure.
+func replaceStaleDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, starter func(DaemonStartConfig) error, expect daemonExpectations, reasons []string, report func([]string)) error {
+	if report != nil {
+		report(reasons)
+	}
+	if err := restartLocalDaemon(httpClient, addr, cfg, expect, starter); err != nil {
+		return fmt.Errorf("replacing the stale daemon at %s (%s): %w", addr, strings.Join(reasons, "; "), err)
+	}
+	return nil
+}
+
+// occupiedAddressError names the listener this client must not disturb: it owns
+// the address and answers GET /health as something other than a governance
+// daemon, so the next move is to identify that process rather than to start a
+// daemon behind it.
+func occupiedAddressError(addr string, cause error) error {
+	return fmt.Errorf(
+		"the address %s is owned by a process that does not answer GET /health as an agent-fitness-functions daemon (%v); identify it with `lsof -nP -iTCP:%s` and stop it, then re-run",
+		addr, cause, daemonPort(addr),
+	)
 }

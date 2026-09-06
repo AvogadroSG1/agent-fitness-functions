@@ -202,6 +202,9 @@ type validateOptions struct {
 	clientCA    string
 	timeout     time.Duration
 	staged      bool
+	// dryRun marks a speculative validation: the daemon returns the verdict but
+	// records nothing, because the content may never land on disk.
+	dryRun bool
 }
 
 // parseValidateFlags parses the `client validate` flag set and rejects every input
@@ -219,6 +222,7 @@ func parseValidateFlags(args []string) (validateOptions, error) {
 	flags.StringVar(&opts.contentFile, "content-file", "", "path to proposed file content")
 	flags.StringVar(&opts.language, "language", "", "source language")
 	flags.BoolVar(&opts.staged, "staged", false, "read content from git staged state")
+	flags.BoolVar(&opts.dryRun, "dry-run", false, "validate speculatively: return the verdict without recording it in daemon state")
 	flags.StringVar(&opts.format, "format", "json", "output format: json or sarif")
 	timeout := flags.String("timeout", "", "timeout for check validation (default: 10s, env: AGENT_FITNESS_FUNCTIONS_CLIENT_TIMEOUT)")
 	flags.StringVar(&opts.clientCert, "client-cert", "", "mTLS client certificate path")
@@ -264,6 +268,7 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 		File:            opts.file,
 		ProposedContent: proposedContent,
 		Language:        opts.language,
+		DryRun:          opts.dryRun,
 	}, opts.timeout)
 	if err != nil {
 		return handleValidateFailure(stdout, err, opts.repo)

@@ -112,7 +112,7 @@ func (c *Checker) Check(ctx context.Context, request fitness.ValidationRequest) 
 	}
 	state := c.state()
 	if config.EnforcementMode == EnforcementOff {
-		state.ClearRepo(repo)
+		newViolationLedger(state, request.DryRun).ClearRepo(repo)
 		return fitness.ValidationResult{Status: fitness.StatusPass}, nil
 	}
 	if request.Language == "csharp" && config.EnforcementMode == EnforcementBlock {
@@ -326,32 +326,33 @@ func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.Ana
 		return fitness.ValidationResult{}, infrastructureError("running CALM validation", err)
 	}
 	violations := filterViolations(append(fitnessViolations(result, pattern), contentViolations...), config)
+	ledger := newViolationLedger(state, request.DryRun)
 	if len(violations) == 0 {
-		return c.scoreClean(repo, request.File, config, state)
+		return c.scoreClean(repo, request.File, config, ledger)
 	}
-	return c.scoreDirty(repo, request.File, violations, config, state)
+	return c.scoreDirty(repo, request.File, violations, config, ledger)
 }
 
-func (c *Checker) scoreClean(repo, file string, config Config, state *State) (fitness.ValidationResult, error) {
+func (c *Checker) scoreClean(repo, file string, config Config, ledger violationLedger) (fitness.ValidationResult, error) {
 	if config.EnforcementMode == EnforcementBlock {
-		state.ReplaceFile(repo, file, nil)
-		if outstanding := state.Violations(repo); len(outstanding) > 0 {
+		ledger.ReplaceFile(repo, file, nil)
+		if outstanding := ledger.Violations(repo, file, nil); len(outstanding) > 0 {
 			return fitness.ValidationResult{Status: fitness.StatusBlock, Violations: outstanding}, nil
 		}
 	} else {
-		state.ClearRepo(repo)
+		ledger.ClearRepo(repo)
 	}
 	return fitness.ValidationResult{Status: fitness.StatusPass}, nil
 }
 
-func (c *Checker) scoreDirty(repo, file string, violations []fitness.Violation, config Config, state *State) (fitness.ValidationResult, error) {
+func (c *Checker) scoreDirty(repo, file string, violations []fitness.Violation, config Config, ledger violationLedger) (fitness.ValidationResult, error) {
 	switch config.EnforcementMode {
 	case EnforcementAdvisory:
-		state.ClearRepo(repo)
+		ledger.ClearRepo(repo)
 		return fitness.ValidationResult{Status: fitness.StatusAdvisory, Violations: violations}, nil
 	default:
-		state.ReplaceFile(repo, file, violations)
-		return fitness.ValidationResult{Status: fitness.StatusBlock, Violations: state.Violations(repo)}, nil
+		ledger.ReplaceFile(repo, file, violations)
+		return fitness.ValidationResult{Status: fitness.StatusBlock, Violations: ledger.Violations(repo, file, violations)}, nil
 	}
 }
 
@@ -393,6 +394,23 @@ func hasOtherFileViolation(violations []fitness.Violation, file string) bool {
 	return false
 }
 
+// analyzerToolingFailures are the message fragments an external analyzer
+// (Roslyn, radon, the Python findings scan) produces when the tool itself is
+// missing or broken, as opposed to the proposed source being unanalyzable. They
+// are matched as text because the failures cross a process boundary and arrive
+// without types.
+var analyzerToolingFailures = []string{
+	"running Roslyn analyzer",
+	"parsing Roslyn analyzer output",
+	"radon cc error",
+	"radon raw error",
+	"running radon",
+	"parsing radon",
+	"python findings error",
+	"running findings scan",
+	"radon python interpreter unavailable",
+}
+
 func isAnalyzerInfrastructureError(err error) bool {
 	if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist) || errors.Is(err, os.ErrPermission) {
 		return true
@@ -401,16 +419,18 @@ func isAnalyzerInfrastructureError(err error) bool {
 	if errors.As(err, &pathErr) {
 		return true
 	}
-	message := err.Error()
-	return strings.Contains(message, "running Roslyn analyzer") ||
-		strings.Contains(message, "parsing Roslyn analyzer output") ||
-		strings.Contains(message, "radon cc error") ||
-		strings.Contains(message, "radon raw error") ||
-		strings.Contains(message, "running radon") ||
-		strings.Contains(message, "parsing radon") ||
-		strings.Contains(message, "python findings error") ||
-		strings.Contains(message, "running findings scan") ||
-		strings.Contains(message, "radon python interpreter unavailable")
+	return isAnalyzerToolingFailure(err.Error())
+}
+
+// isAnalyzerToolingFailure reports whether an analyzer message names a tooling
+// failure rather than a problem with the file under analysis.
+func isAnalyzerToolingFailure(message string) bool {
+	for _, fragment := range analyzerToolingFailures {
+		if strings.Contains(message, fragment) {
+			return true
+		}
+	}
+	return false
 }
 
 // resolvePatternPath returns the path to the governance pattern. When PatternPath is not set it

@@ -333,7 +333,7 @@ func daemonStartArgs(cfg DaemonStartConfig) []string {
 	listenAddr := strings.TrimPrefix(strings.TrimPrefix(cfg.Addr, "http://"), "https://")
 	args := []string{"server", "start", "--addr", listenAddr, "--block-on-warmup"}
 	if localHTTPStart(cfg) {
-		args = append(args, "--listen-mode", "local-http")
+		args = append(args, "--listen-mode", localHTTPListenMode)
 	}
 	if cfg.ConfigsDir != "" {
 		args = append(args, "--configs-dir", cfg.ConfigsDir)

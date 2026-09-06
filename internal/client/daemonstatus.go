@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/buildinfo"
 )
 
 // identityProbeTimeout bounds one GET /health, matching probeDaemon's budget.
@@ -29,6 +31,10 @@ type daemonIdentity struct {
 	PID           int    `json:"pid"`
 	Legacy        bool   `json:"-"`
 }
+
+// localHTTPListenMode is the listen mode an ADR-0010 loopback plain-HTTP daemon
+// stamps on GET /health.
+const localHTTPListenMode = "local-http"
 
 // daemonExpectations is what the probing client requires of a current daemon.
 type daemonExpectations struct {
@@ -53,7 +59,11 @@ func probeDaemonIdentity(client *http.Client, addr string) (daemonIdentity, erro
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
-		return daemonIdentity{}, httpStatusError{status: response.StatusCode}
+		// The body is carried because a TLS listener states the scheme mismatch
+		// there: it is the difference between a daemon of the previous listen
+		// mode and a foreign process owning the address.
+		detail, _ := io.ReadAll(io.LimitReader(response.Body, 1<<10))
+		return daemonIdentity{}, httpStatusError{status: response.StatusCode, body: strings.TrimSpace(string(detail))}
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, 4096))
 	if err != nil {
@@ -93,13 +103,17 @@ func daemonStaleness(identity daemonIdentity, expect daemonExpectations) []strin
 
 // buildStaleness compares the two build dimensions. A binary built from a dirty
 // working tree is stale even when its revision matches, because the revision no
-// longer describes what is running.
+// longer describes what is running — but only a probing binary that knows its
+// own revision may say so. An unstamped prober (a `go test` binary, a build
+// without VCS information) knows nothing about builds at all, so judging the
+// daemon's working tree against its own would restart a perfectly current
+// daemon on evidence it does not have.
 func buildStaleness(identity daemonIdentity, expect daemonExpectations) []string {
 	reasons := make([]string, 0, 2)
 	if reason := valueMismatchReason("build revision", identity.BuildRevision, expect.BuildRevision); reason != "" {
 		reasons = append(reasons, reason)
 	}
-	if identity.BuildModified && !expect.BuildModified {
+	if expect.BuildRevision != "" && identity.BuildModified && !expect.BuildModified {
 		reasons = append(reasons, "the daemon binary was built from a modified working tree, so its revision does not describe what is running")
 	}
 	return reasons
@@ -131,4 +145,31 @@ func absoluteCleanPath(path string) string {
 		return filepath.Clean(path)
 	}
 	return absolute
+}
+
+// currentDaemonExpectations is what a daemon started by this binary, on this
+// machine, right now would report: this build's stamp, the configs directory
+// this environment resolves, and listenMode when the caller can state one. An
+// empty dimension is not enforced (see daemonStaleness), which is what keeps an
+// unstamped build — or an address whose listen mode nobody can predict — from
+// being judged stale on evidence nobody has.
+func currentDaemonExpectations(listenMode string) daemonExpectations {
+	revision, modified := buildinfo.Current()
+	return daemonExpectations{
+		BuildRevision: revision,
+		BuildModified: modified,
+		ListenMode:    listenMode,
+		ConfigsDir:    resolveConfigsDir(),
+	}
+}
+
+// expectedListenMode is the listen mode a daemon started with cfg would report.
+// Only the ADR-0010 managed-local start states one; the legacy loopback https
+// start and every unmanaged start leave the dimension unenforced rather than
+// guess at a mode this client does not choose.
+func expectedListenMode(cfg DaemonStartConfig) string {
+	if localHTTPStart(cfg) {
+		return localHTTPListenMode
+	}
+	return ""
 }

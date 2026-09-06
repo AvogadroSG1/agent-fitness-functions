@@ -868,9 +868,11 @@ func (o onboarder) installHooks() error {
 	return RunInstallHooks([]string{o.repoRoot}, o.stdout, o.stderr)
 }
 
-// startDaemon auto-starts the local TLS daemon (T1) so the closing doctor gate
-// can reach a live server; it reuses prepareDaemonStart/ensureDaemon exactly as
-// the validate path does. A healthy daemon short-circuits to a no-op.
+// startDaemon makes the local daemon current (T1) so the closing doctor gate
+// reaches a live server of this generation. Onboarding is where a machine
+// crosses generations — a new binary, a new listen mode (ADR-0010), a new
+// configs directory — so a daemon that merely answers is not enough: a stale
+// one is restarted, and only a current one short-circuits to a no-op.
 func (o *onboarder) startDaemon() error {
 	o.step("Starting local governance daemon at %s", o.addr)
 	httpClient, err := configureClientTLSMaterial(o.httpClient, o.tlsMaterial)
@@ -885,10 +887,13 @@ func (o *onboarder) startDaemon() error {
 		return nil
 	}
 	daemonCfg := daemonStartConfigFromMaterial(o.addr, o.tlsMaterial)
-	if err := ensureDaemon(httpClient, o.addr, daemonCfg, o.starter); err != nil {
+	report := func(reasons []string) {
+		o.detail("daemon stale: %s; restarting", strings.Join(reasons, "; "))
+	}
+	if err := ensureCurrentDaemonReporting(httpClient, o.addr, daemonCfg, o.starter, report); err != nil {
 		return err
 	}
-	o.detail("daemon healthy")
+	o.detail("daemon healthy and current")
 	return nil
 }
 

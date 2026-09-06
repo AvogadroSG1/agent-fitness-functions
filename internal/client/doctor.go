@@ -201,6 +201,7 @@ func runDoctorChecks(cfg doctorConfig) []checkResult {
 		checkGovernanceRoot(cfg),
 		checkRoslynAnalyzer(cfg),
 		checkServerReachable(cfg),
+		checkDaemonCurrency(cfg),
 	}
 	results = append(results, checkPreflight(cfg)...)
 	results = append(results, checkValidationPipeline(cfg))
@@ -213,9 +214,60 @@ func runDoctorChecks(cfg doctorConfig) []checkResult {
 // checkDaemonCurrency reports whether the daemon at cfg.addr matches this
 // binary and environment (build revision, listen mode, configs dir); a stale
 // daemon is a warning with the staleness reasons and an onboard remediation.
+// It is advisory throughout: a daemon of the previous generation still answers
+// checks, so the finding is "this machine is due a restart", never a failure —
+// and an unreachable daemon is reported as unverified rather than current,
+// because checkServerReachable already owns that failure.
 func checkDaemonCurrency(cfg doctorConfig) checkResult {
-	// Stub pending S6 (calm-poc-l9tb).
-	return checkResult{name: "daemon up to date", passed: true}
+	const name = "daemon up to date"
+	configured, err := doctorHTTPClient(cfg)
+	if err != nil {
+		return checkResult{name: name, detail: "not verifiable: " + err.Error(), warning: true}
+	}
+	identity, err := probeDaemonIdentity(configured, cfg.addr)
+	if err != nil {
+		return checkResult{name: name, detail: "not verifiable (server unreachable): " + err.Error(), warning: true}
+	}
+	reasons := daemonStaleness(identity, currentDaemonExpectations(doctorListenMode(cfg)))
+	if len(reasons) == 0 {
+		return checkResult{name: name, detail: describeDaemonIdentity(identity), passed: true}
+	}
+	return checkResult{
+		name:        name,
+		detail:      strings.Join(reasons, "; "),
+		remediation: "re-run `agent-fitness-functions client onboard` to restart the daemon current",
+		warning:     true,
+	}
+}
+
+// doctorListenMode is the listen mode the daemon at cfg.addr must report. Only a
+// loopback http address pins one (ADR-0010); every other address leaves the
+// dimension unenforced, exactly as the auto-start path does.
+func doctorListenMode(cfg doctorConfig) string {
+	if isLocalHTTP(cfg.addr) {
+		return localHTTPListenMode
+	}
+	return ""
+}
+
+// describeDaemonIdentity summarizes a current daemon in one line, naming only
+// the dimensions it actually stamps so an older-but-current daemon is not
+// described with empty fields.
+func describeDaemonIdentity(identity daemonIdentity) string {
+	fields := make([]string, 0, 3)
+	for _, field := range []struct{ name, value string }{
+		{"revision", identity.BuildRevision},
+		{"listen-mode", identity.ListenMode},
+		{"configs", identity.ConfigsDir},
+	} {
+		if field.value != "" {
+			fields = append(fields, field.name+"="+field.value)
+		}
+	}
+	if len(fields) == 0 {
+		return "current"
+	}
+	return strings.Join(fields, " ")
 }
 
 func printCheckResult(stdout io.Writer, result checkResult) {
@@ -614,6 +666,9 @@ func checkValidationPipeline(cfg doctorConfig) checkResult {
 		File:            "internal/doctor/synthetic_check.go",
 		ProposedContent: "package doctor\n",
 		Language:        "go",
+		// The probe is speculative by definition — the synthetic file is never
+		// written — so it must never reach the repository's violation ledger.
+		DryRun: true,
 	}
 	body, err := postCheck(context.Background(), configured, cfg.addr, req, 10*time.Second)
 	latency := time.Since(start)

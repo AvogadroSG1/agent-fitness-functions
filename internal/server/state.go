@@ -335,3 +335,56 @@ func sortViolations(violations []fitness.Violation) {
 		return violations[i].FitnessFunction < violations[j].FitnessFunction
 	})
 }
+
+// violationLedger is the outstanding-violation store as the scoring path sees
+// it. A real check writes through to State; a dry run — an agent's speculative
+// proposal, a doctor probe — computes the same verdict and writes nothing,
+// because content that may never land on disk must never poison the ledger the
+// next commit is judged against.
+type violationLedger struct {
+	state  *State
+	dryRun bool
+}
+
+func newViolationLedger(state *State, dryRun bool) violationLedger {
+	return violationLedger{state: state, dryRun: dryRun}
+}
+
+// ReplaceFile records one file's outstanding violations, unless this check is a
+// dry run.
+func (l violationLedger) ReplaceFile(repo, file string, violations []fitness.Violation) {
+	if l.dryRun {
+		return
+	}
+	l.state.ReplaceFile(repo, file, violations)
+}
+
+// ClearRepo drops a repository's outstanding violations, unless this check is a
+// dry run: a dry run is a pure read, so it neither adds entries nor clears the
+// ones a real check recorded.
+func (l violationLedger) ClearRepo(repo string) {
+	if l.dryRun {
+		return
+	}
+	l.state.ClearRepo(repo)
+}
+
+// Violations is the outstanding set the caller is told about after scoring one
+// file: the ledger's own contents for a real check, whose write already landed,
+// and for a dry run the set that withheld write would have produced — the
+// proposed violations standing in for whatever this file currently holds.
+func (l violationLedger) Violations(repo, file string, proposed []fitness.Violation) []fitness.Violation {
+	if !l.dryRun {
+		return l.state.Violations(repo)
+	}
+	outstanding := l.state.Violations(repo)
+	simulated := make([]fitness.Violation, 0, len(outstanding)+len(proposed))
+	for _, violation := range outstanding {
+		if violation.File != file {
+			simulated = append(simulated, violation)
+		}
+	}
+	simulated = append(simulated, proposed...)
+	sortViolations(simulated)
+	return simulated
+}

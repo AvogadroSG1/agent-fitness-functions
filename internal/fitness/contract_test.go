@@ -17,7 +17,7 @@ func TestValidationWireContractUsesSharedVocabulary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal(ValidationRequest) error = %v, want nil", err)
 	}
-	wantRequest := `{"repo":"repo-one","file":"internal/parser/parser.go","proposed_content":"package parser","language":"go"}`
+	wantRequest := `{"repo":"repo-one","file":"internal/parser/parser.go","proposed_content":"package parser","language":"go","dry_run":false}`
 	if string(requestBody) != wantRequest {
 		t.Fatalf("json.Marshal(ValidationRequest) = %s, want %s", requestBody, wantRequest)
 	}

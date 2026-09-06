@@ -253,6 +253,11 @@ fi
 
 args=(client validate --file "$file" --repo "$repo_arg" --content-file "$content_file" --language "$language")
 args+=(--addr "$addr")
+# This hook validates a proposal that may never be written, so the check is a
+# dry run: the daemon returns the verdict without recording it as an
+# outstanding violation for the repository. The commit-time hooks validate
+# content that will land, and deliberately do not pass this flag.
+args+=(--dry-run)
 # Pass mTLS client cert+key only as a pair (the client requires both together);
 # omit when the files are absent so a plain-HTTP local server still works.
 if [[ -f "$client_cert" && -f "$client_key" ]]; then
