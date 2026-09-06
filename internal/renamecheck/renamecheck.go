@@ -82,10 +82,10 @@ const (
 	// protectedCallerRepoKey is the canonical logical governance repository
 	// key (ADR-0009 supersedes ADR-0003's Identity Boundaries clause, which
 	// pinned the predecessor key).
-	protectedCallerRepoKey         = "agent-fitness-functions"
-	protectedCallerRepoCN          = "dev-hook-pool"
-	hookProductPrefixDecl          = `hookProductPrefix = "agent-fitness-functions"`
-	sarifToolNameDecl              = `Name:           "agent-fitness-functions",`
+	protectedCallerRepoKey = "agent-fitness-functions"
+	protectedCallerRepoCN  = "dev-hook-pool"
+	hookProductPrefixDecl  = `hookProductPrefix = "agent-fitness-functions"`
+	sarifToolNameDecl      = `Name:           "agent-fitness-functions",`
 )
 
 // activeSurfaceExclusions lists the paths where predecessor spellings are
@@ -256,19 +256,39 @@ func checkRequirementsLockLineOneOnlyDiff(repoRoot string) CheckResult {
 	if err != nil {
 		return CheckResult{Name: name, Status: StatusFail, Detail: fmt.Sprintf("read %s: %v", path, err)}
 	}
+	head, err := readHeadRequirementsLock(repoRoot)
+	if err != nil {
+		return CheckResult{Name: name, Status: StatusFail, Detail: err.Error()}
+	}
+	prevLines := splitLockLines(head)
+	curLines := splitLockLines(string(current))
+	if len(prevLines) != len(curLines) {
+		return CheckResult{Name: name, Status: StatusFail, Detail: fmt.Sprintf("line count changed: HEAD had %d, working tree has %d", len(prevLines), len(curLines))}
+	}
+	return requirementsLockDiffResult(name, prevLines, curLines)
+}
+
+// readHeadRequirementsLock returns the committed requirements.lock content.
+func readHeadRequirementsLock(repoRoot string) (string, error) {
 	cmd := exec.Command("git", "show", "HEAD:requirements.lock")
 	cmd.Dir = repoRoot
 	var out, stderr bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return CheckResult{Name: name, Status: StatusFail, Detail: fmt.Sprintf("git show HEAD:requirements.lock: %v: %s", err, stderr.String())}
+		return "", fmt.Errorf("git show HEAD:requirements.lock: %v: %s", err, stderr.String())
 	}
-	prevLines := strings.Split(strings.TrimRight(out.String(), "\n"), "\n")
-	curLines := strings.Split(strings.TrimRight(string(current), "\n"), "\n")
-	if len(prevLines) != len(curLines) {
-		return CheckResult{Name: name, Status: StatusFail, Detail: fmt.Sprintf("line count changed: HEAD had %d, working tree has %d", len(prevLines), len(curLines))}
-	}
+	return out.String(), nil
+}
+
+func splitLockLines(content string) []string {
+	return strings.Split(strings.TrimRight(content, "\n"), "\n")
+}
+
+// requirementsLockDiffResult classifies which lines differ: none, line 1 only
+// (the product header comment, the one line the rename is allowed to touch),
+// or anything else.
+func requirementsLockDiffResult(name string, prevLines, curLines []string) CheckResult {
 	var diffLines []int
 	for i := range prevLines {
 		if prevLines[i] != curLines[i] {
@@ -279,13 +299,19 @@ func checkRequirementsLockLineOneOnlyDiff(repoRoot string) CheckResult {
 	case len(diffLines) == 0:
 		return CheckResult{Name: name, Status: StatusPass, Detail: "requirements.lock unchanged (already renamed at HEAD)"}
 	case len(diffLines) == 1 && diffLines[0] == 1:
-		if !strings.Contains(curLines[0], "agent-fitness-functions") || strings.Contains(curLines[0], predecessorProductName) {
-			return CheckResult{Name: name, Status: StatusFail, Detail: fmt.Sprintf("line 1 = %q, want the agent-fitness-functions product header", curLines[0])}
-		}
-		return CheckResult{Name: name, Status: StatusPass, Detail: "only line 1 (the product comment) changed; dependency/hash lines are byte-identical"}
+		return requirementsLockHeaderResult(name, curLines[0])
 	default:
 		return CheckResult{Name: name, Status: StatusFail, Detail: fmt.Sprintf("unexpected diff outside line 1: changed lines %v", diffLines)}
 	}
+}
+
+// requirementsLockHeaderResult asserts line 1 names the current product and no
+// longer names its predecessor.
+func requirementsLockHeaderResult(name, headerLine string) CheckResult {
+	if !strings.Contains(headerLine, "agent-fitness-functions") || strings.Contains(headerLine, predecessorProductName) {
+		return CheckResult{Name: name, Status: StatusFail, Detail: fmt.Sprintf("line 1 = %q, want the agent-fitness-functions product header", headerLine)}
+	}
+	return CheckResult{Name: name, Status: StatusPass, Detail: "only line 1 (the product comment) changed; dependency/hash lines are byte-identical"}
 }
 
 func checkMarkerPrefixCorrectness(repoRoot string) CheckResult {
