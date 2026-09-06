@@ -21,6 +21,9 @@ type functionCatalogEntry struct {
 	Threshold   float64
 	Operator    string
 	Unit        string
+	// DefaultEnabled mirrors govconfig.Default(): five metric functions on,
+	// four generalized functions off.
+	DefaultEnabled bool
 }
 
 // remoteFunctionsResponse mirrors the server's GET /functions body.

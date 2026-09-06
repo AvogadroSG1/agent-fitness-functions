@@ -20,6 +20,9 @@ type functionOption struct {
 	operator    string
 	unit        string
 	enabled     bool
+	// requiresSettings marks a function that cannot be enabled by toggle
+	// alone (layer-sovereignty needs layer definitions).
+	requiresSettings bool
 }
 
 // loadPickerOptions builds the picker's five rows from the embedded governance
