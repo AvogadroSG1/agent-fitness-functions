@@ -1,0 +1,167 @@
+internal/analyzer/python_sql_composition_test.go
+  s_2ef33a6101e3f2::t_62d89979cdf9af 1-78
+.gitignore
+  s_805a4efca7b068::t_1dbec3c54e6029 52-54
+  s_805a4efca7b068::t_190a1eafa3124c 48-51
+  s_805a4efca7b068::t_b6ab40b549b5b6 55-56
+internal/server/checker.go
+  s_2ef33a6101e3f2::t_35c9ad96f09924 110,620
+.opencode/plugins/agent-fitness-functions.js
+  s_e62ea72d813422::t_846d507b7c7e78 1-46
+CONTEXT.md
+  s_771cc807a7b9da::t_be27253878c12c 25
+configs/agent-fitness-functions/config.json
+  s_771cc807a7b9da::t_58dd3ba078b946 2,14-21
+  s_e62ea72d813422::t_846d507b7c7e78 7,10-13
+  s_79132ec0b01a6e::t_acfb5a3ad5a539 1,3-6,8-9,22
+internal/govconfig/settings.go
+  s_2ef33a6101e3f2::t_6f36b305891196 134,167,175
+  s_2ef33a6101e3f2::t_94e91a2c09086c 172-173
+  s_2ef33a6101e3f2::t_27a6d96322bb98 138,188,191,199,208
+  s_2ef33a6101e3f2::t_5b6dbe1778f948 5
+  s_2ef33a6101e3f2::t_3f2e93c4b2cff5 1-4,6-133,135-137,139-166,168-171,174,176-187,189-190,192-198,200-207,209-241
+internal/renamecheck/renamecheck.go
+  s_771cc807a7b9da::t_1ffd954f21f6c4 82-85,335
+repo_hygiene_test.go
+  s_805a4efca7b068::t_dcd7f12dff9246 9-14,20-21
+AGENTS.md
+  s_771cc807a7b9da::t_be27253878c12c 136
+  s_771cc807a7b9da::t_7ada6cb1dd6165 120-129
+internal/client/doctor.go
+  s_2ef33a6101e3f2::t_60b276763304e9 60
+  s_2ef33a6101e3f2::t_a175f0fd06a7da 487-494,497-498
+internal/server/content_scoring.go
+  s_2ef33a6101e3f2::t_35c9ad96f09924 65,98,134-135,138
+configs/config_test.go
+  s_771cc807a7b9da::t_2b587c3a41ecdb 17-24,107-111,116-118,120,125-129,138,143-150
+  s_771cc807a7b9da::t_e03edc5074eed4 112-115
+  s_771cc807a7b9da::t_7cf80904cfda59 151-152
+internal/server/server.go
+  s_2ef33a6101e3f2::t_d8b6b6dbc93599 40
+  s_2ef33a6101e3f2::t_52630a9539b04e 296
+internal/govconfig/config_test.go
+  s_2ef33a6101e3f2::t_9f5fedd5d62f08 1,8,15,25,33,40,46,63,72,75,84,87,96,104,109
+.codex/hooks.json
+  s_c2090e9fed1e70::t_50b1bb734b7275 7-8,10-22,47-60,62-63
+  s_e62ea72d813422::t_846d507b7c7e78 23-40
+README.md
+  s_771cc807a7b9da::t_be27253878c12c 3
+internal/server/invalid_config_reason_test.go
+  s_2ef33a6101e3f2::t_34b4755288da1f 14-15
+  s_2ef33a6101e3f2::t_3bbb7bb68c0c01 1-13,16-33,35-65
+  s_2ef33a6101e3f2::t_eb47cb68896a98 34
+docs/runbooks/onboard-new-repository.md
+  s_771cc807a7b9da::t_be27253878c12c 425
+configs/observatory/config.json
+  s_2ef33a6101e3f2::t_649705d927e368 6,8,11,13-52
+  h_56c22cd4a131f7 1,4-5,7,9-10,12,53-54
+  s_2ef33a6101e3f2::t_15c7098cd5d17a 2-3
+internal/govconfig/settings_test.go
+  s_2ef33a6101e3f2::t_9f5fedd5d62f08 1,59,61,64,76,78,80,83,86,89,92,95,98,106,108,110,112,116,124,132,139,151,169-170,188-189,197,209,211,219,228,232,236,241,243,246,254,256,258,263,268,271,280,282,284,288,293,295,299,305
+self_governance_hook_test.go
+  s_771cc807a7b9da::t_753a749bebd024 1-134
+internal/client/doctor_invalid_config_test.go
+  s_2ef33a6101e3f2::t_ea321d37cbbbf3 1-47
+CLAUDE.md
+  s_771cc807a7b9da::t_be27253878c12c 136
+  s_771cc807a7b9da::t_7ada6cb1dd6165 120-129
+internal/server/register.go
+  s_2ef33a6101e3f2::t_4782afbb417f61 123-125
+internal/client/onboard_config_validation_test.go
+  s_2ef33a6101e3f2::t_d416d8e1ad1a29 1-69
+internal/govconfig/config.go
+  s_2ef33a6101e3f2::t_c7d1dd9312679e 1-160
+internal/server/config.go
+  s_2ef33a6101e3f2::t_2e27d711c24ebd 70-72,74
+  s_2ef33a6101e3f2::t_dee7eba36650ae 9-32,37,39,41,44,46,48,98-100,102,106,109-110
+.claude/settings.json
+  s_c2090e9fed1e70::t_50b1bb734b7275 2,4,8-9,12,15,20,23-46,48-50
+  s_771cc807a7b9da::t_b1f001b7694904 19,47
+  s_771cc807a7b9da::t_4188533d67d6ea 57-70
+internal/client/onboard_shared_state_test.go
+  s_2ef33a6101e3f2::t_e40c68dd5e73bc 33-36,45-47
+  s_2ef33a6101e3f2::t_88c60877e40e94 53
+  s_2ef33a6101e3f2::t_f5022334d74282 48-52
+docs/adr/0009-canonical-governance-key-is-the-product-name.md
+  s_771cc807a7b9da::t_d1320c56bf6b33 1-178
+internal/analyzer/python.go
+  s_2ef33a6101e3f2::t_af8508276de31a 88,90,92,94,102-137,380-383,386-409,412,417,419-425,476-505,516-517,524,530
+docker_contract_test.go
+  s_805a4efca7b068::t_a53d34d2fa6497 97-100
+internal/client/onboard.go
+  s_2ef33a6101e3f2::t_f130c0cbb229fe 907-912
+  s_2ef33a6101e3f2::t_0937ccd926e7ae 494-499
+  s_2ef33a6101e3f2::t_05a52c7ba74c13 20-21
+  s_2ef33a6101e3f2::t_0e94c8f7430f90 939-942
+caller-repos.json
+  s_771cc807a7b9da::t_1d16b27e2714aa 3-4
+.claude/hooks/guard
+  h_56c22cd4a131f7 4-59,63-71,74-81,83,85-89,91-96,99-103,106-110,113-121,124-128,130-132,134-166,169-182,185-191,194-200,202-230,234-235,237-260,262-290,292-371,373-379,382-607,609-611,613-615,617-647,649-650,652-665,668-671,673-677,679-692
+.claude/hooks/secret-scan.sh
+  h_56c22cd4a131f7 1-80,83-258,261-276,279
+.forge-infra-version
+  h_56c22cd4a131f7 1
+.opencode/plugins/forge-hooks.js
+  h_56c22cd4a131f7 1-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "2976bc5bc70f19d4e8af3508050e73087aaea46a",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  },
+  "sessions": {
+    "s_2ef33a6101e3f2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d50e1ad-7dc1-4cc1-8cad-bc2f3a25e6aa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    },
+    "s_771cc807a7b9da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e658cf6-a76d-43d4-91d6-fff7ff797911",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    },
+    "s_79132ec0b01a6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6377ab6-0026-4172-9d1c-4770de1f21e2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    },
+    "s_805a4efca7b068": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "26814c7a-10d5-44f2-921e-ff4ec691bf73",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    },
+    "s_c2090e9fed1e70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3f635567-6260-488a-8abb-cd61d9c6ca72",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    },
+    "s_e62ea72d813422": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "77ae573c-667c-4e91-b1b7-23c9d257e6ed",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
