@@ -32,6 +32,14 @@ A single architectural check detectable at the file boundary. Five are continuou
 The wire contract spoken by both client and server — the request a client sends and the verdict the server returns. Lives in `internal/fitness`, owned by neither side.
 _Avoid_: CheckRequest, CheckResponse.
 
+**Listen mode**:
+Which trust model a running server serves under. `mtls` (the default) is HTTPS with required client certificates, callers identified by certificate CN and authorized in `caller-repos.json` — the container/remote/production path. `local-http` is plain HTTP bound to loopback only, where every loopback peer is the implicit caller `local` — the machine-local developer daemon. Selected by `server start --listen-mode`; see [ADR-0010](docs/adr/0010-plain-http-local-governance.md).
+_Avoid_: calling local-http "insecure mode" or mtls "production mode" — the mode names the transport and caller model, not the environment.
+
+**Dry run**:
+A Validation Request flagged `dry_run` because the proposal is speculative — an agent's pre-write Edit that may never land, or a `doctor` probe for a file that never existed. The verdict is computed and returned exactly as for a real check; it simply never persists into the repository's outstanding-violation state. The commit-path hooks are deliberately *not* dry runs.
+_Avoid_: treating dry run as an enforcement mode — it changes persistence, never the verdict.
+
 **Naming rule**:
 Always spell the product out — `agent-fitness-functions`. No abbreviations. Env vars use the derived prefix `AGENT_FITNESS_FUNCTIONS_*`; bin helpers use the full name (`agent-fitness-functions-serve`, `agent-fitness-functions-test`). Descriptive over short.
 
@@ -75,6 +83,18 @@ sequenceDiagram
 The **server** is the authority. The hook is the enforcement point. The governed repository cannot change thresholds — only which functions are active and what enforcement mode to use.
 
 The server boots with **zero configs** — an empty `configs/` directory is a valid steady state ("awaiting registration"), not a deployment error. Two unprivileged/self-service endpoints exist for that state: `GET /functions` is an unprivileged, repo-agnostic catalog of all nine fitness functions (description, threshold, operator, unit, default-enabled) that any authenticated caller can read before any repo is registered; `POST /register` lets an authenticated caller self-service-create `configs/<repo>/config.json` and bind their own certificate CN in `caller-repos.json` in one call — idempotent for a matching replay (`created: false`), 409 (admin CN required) when the repo already exists with a different configuration, and disabled entirely by the kill switch `AGENT_FITNESS_FUNCTIONS_DISABLE_REGISTRATION=1`.
+
+---
+
+## Does local development need certificates?
+
+No. Since [ADR-0010](docs/adr/0010-plain-http-local-governance.md) the machine-local daemon runs in the `local-http` listen mode: **plain HTTP bound to loopback**, refusing to bind any non-loopback address, refusing explicit TLS material, refusing managed certificate roots, and refusing trusted-proxy mode. A request from a loopback peer carries the implicit caller identity `local`, which is authorized for every repo and counts as an admin; `caller-repos.json` is never consulted. A repo becomes governed by having a config, nothing more.
+
+This was a deliberate narrowing of the trust boundary, not an oversight. Every recurring local failure the system produced was certificate plumbing rather than governance — orphaned CAs, rotation requiring an unmanaged restart, clients presenting the wrong CA's material. A developer validating their own edits on their own machine gains nothing from mutual TLS, and paid for it in onboarding friction and a standing class of outages. The accepted residual risks (any local process is indistinguishable from the developer; a tunnel that re-originates a connection locally looks like loopback) are recorded in the ADR. Multi-user machines should use mTLS mode.
+
+The **remote/container path is unchanged**: HTTPS with mutual TLS, callers identified by client-certificate CN and authorized in `caller-repos.json`, admins gating `/configs` and `/shutdown`. `scripts/generate-dev-certs.sh`, `client onboard --certificates-only`, and `caller-repos.json` all belong to that path now.
+
+One consequence worth knowing: `GET /health` is unauthenticated and returns the daemon's identity — build revision, listen mode, configs directory, pid, start time. That is deliberate, because staleness detection has to work precisely when transport security is broken. It is what lets `client onboard` notice that the daemon on the port is a stale binary, or is still serving mTLS, and gracefully restart it via `POST /shutdown` rather than killing a process.
 
 ---
 
@@ -160,7 +180,8 @@ What these metrics cannot catch: a function that is simple in isolation but orch
 | Component | Location | Purpose |
 |---|---|---|
 | `agent-fitness-functions` binary | `/app/agent-fitness-functions` (built from `cmd/agent-fitness-functions`) | CLI for `client validate`, `client install-hooks`, `client onboard`, `server start`, `baseline`, and `doctor` |
-| Container service | `docker compose up` via `bin/agent-fitness-functions-serve` (Docker Desktop) | **Primary runtime** — starts the server on `localhost:7890` |
+| Container service | `docker compose up` via `bin/agent-fitness-functions-serve` (Docker Desktop) | **Primary production runtime** — HTTPS + mTLS on `localhost:7890`. Not the local development path |
+| Machine-local daemon | Auto-started and kept current by `agent-fitness-functions client onboard` | The local development runtime — plain HTTP on `127.0.0.1:7890`, no certificates (ADR-0010) |
 | Governance rules | `internal/server/checker.go`, `patterns/governance.json` | Thresholds and enabled functions |
 | Pre-commit and agent Edit/Write hooks | Embedded by `agent-fitness-functions client install-hooks` (or `client onboard`) | Commit-time and pre-write enforcement in governed repos; both `PreToolUse` entries are registered in `.claude/settings.json` automatically |
 | `configs/<repo>/config.json` | Mounted into the container | Governance config for the logical repo |
@@ -184,3 +205,4 @@ The `client validate` path now resolves project-local namespaces with `--project
 **Next calibration step:** Extend `AnalyzeRepository` to pass `--project <nearest-csproj>` to the Roslyn CLI for each `.cs` file, regenerate baselines, read the resulting P10 DDC distribution, and update the `minimum` in `patterns/governance.json` accordingly.
 
 *Authored By Peter O'Connor with Assistance from Claude Code (claude-sonnet-4-6) · 2026-06-04 · agent-fitness-functions Context & FAQ*
+*Revised with Assistance from Claude Code (claude-opus-5[1m]) · 2026-09-06 · listen-mode and dry-run vocabulary, ADR-0010 local trust model*

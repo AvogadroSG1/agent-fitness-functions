@@ -114,17 +114,30 @@ graph TD
 
 `agent-fitness-functions` is a single Go binary providing two behaviors from one entry point:
 
-- **CLI mode:** invoked by hooks as `agent-fitness-functions client validate [flags]`. Auto-starts the daemon if not running, then delegates via HTTP.
+- **CLI mode:** invoked by hooks as `agent-fitness-functions client validate [flags]`. Auto-starts the daemon if not running, then delegates via HTTP. The managed-local default address is `http://127.0.0.1:7890`; a loopback request that fails on scheme is retried against the other scheme, so hooks written for either daemon generation keep working during migration.
 - **Daemon mode:** HTTP server on `localhost:7890`. Manages analyzer lifecycle, state, and CALM CLI invocation.
+
+**Listen modes** (`server start --listen-mode`, env `AGENT_FITNESS_FUNCTIONS_LISTEN_MODE`; the flag wins). Exactly two values; anything else is rejected at startup.
+
+| Mode | Transport | Caller identity | Path |
+|---|---|---|---|
+| `mtls` (default) | HTTPS, client certificate required | certificate CN, authorized in `caller-repos.json`; `admins` gates `/configs` and `/shutdown` | Container / remote / production |
+| `local-http` | Plain HTTP, **loopback bind only** | implicit `local` for any loopback peer — an admin, authorized for every repo; `caller-repos.json` never consulted | Machine-local developer daemon (ADR-0010) |
+
+`local-http` fails closed rather than degrading: it refuses a non-loopback bind address, explicit server TLS inputs, managed development certificates, and trusted-proxy headers. A non-loopback peer receives 401. An mTLS peer certificate asserting `CN=local` is rejected, and registration never persists that reserved name.
 
 **Daemon endpoints:**
 
-| Endpoint | Method | Purpose |
-|---|---|---|
-| `/check` | POST | Run fitness check on proposed file content |
-| `/state` | GET | Return outstanding violation state for a repository |
-| `/health` | GET | Liveness check; returns a JSON identity body (`status`, `build_revision`, `build_modified`, `listen_mode`, `configs_dir`, `pid`, `started_at`) so clients can detect a stale daemon pre-auth |
-| `/shutdown` | POST | Graceful shutdown |
+| Endpoint | Method | Auth | Purpose |
+|---|---|---|---|
+| `/check` | POST | authenticated + repo-authorized | Run fitness check on proposed file content |
+| `/state` | GET | authenticated + repo-authorized | Return outstanding violation state for a repository |
+| `/preflight` | GET | authenticated | Report readiness facts (`authenticated_cn`, `repo_configured`, `repo_config_valid`, `caller_authorized`, `enforcement_mode`) rather than 403/404-ing |
+| `/functions` | GET | authenticated, unprivileged, repo-agnostic | The nine-function catalog: description, threshold, operator, unit, default-enabled |
+| `/register` | POST | authenticated (admin only to overwrite a differing config) | Self-service create `configs/<repo>/config.json` and bind the caller's CN |
+| `/configs` | GET | authenticated + **admin** | Operator inventory of every loaded repo config |
+| `/health` | GET | **unauthenticated** | Identity body (`status`, `build_revision`, `build_modified`, `listen_mode`, `configs_dir`, `pid`, `started_at`) so a client can detect a stale daemon before attempting auth. The body shape never varies; a daemon started without an injected identity answers 200 with those fields empty rather than inventing values |
+| `/shutdown` | POST | authenticated + **admin** | Graceful shutdown (`{"status":"shutting_down"}`, then `Shutdown` with a 2s drain). 403 for a non-admin caller |
 
 **`/check` request body:**
 
@@ -133,9 +146,16 @@ graph TD
   "repo": "/Users/poconnor/peter_code/graft",
   "file": "internal/parser/parser.go",
   "proposed_content": "...",
-  "language": "go"
+  "language": "go",
+  "dry_run": false
 }
 ```
+
+`dry_run` marks a **speculative** proposal — an agent's pre-write Edit that may never land, or a `doctor` probe for a file that never existed. The verdict is computed and returned by the identical logic; the only difference is that the repository's outstanding-violation ledger is not written. For a dry run the checker simulates the outstanding set (stored violations, minus any prior entries for this file, plus the proposed ones) instead of persisting. `ValidationResult` carries no `dry_run` field — the response shape is the same either way.
+
+The commit-path hooks (`pre-commit`, `pre-push`) are deliberately **not** dry runs: staged content lands on disk if the commit succeeds, and the repository-wide aggregation is the product's governance model — one file's violation keeps the whole repository blocked until it is fixed (scope decision recorded on `calm-poc-cpvk`).
+
+**Daemon restart.** Nothing restarts the daemon implicitly. `client onboard` compares the `/health` identity against the running binary's expectations across five dimensions — no identity body at all (legacy binary), build revision, build-modified flag, configs directory, listen mode — and on a mismatch takes a machine-wide `restart.lock`, `POST /shutdown`s (retrying the alternate loopback scheme and then managed dev certs, so a pre-ADR-0010 mTLS daemon can be migrated), drains the port, starts a fresh daemon, and re-probes until it observes a current identity. Success is judged by the observed identity, not by which process won the port bind. `doctor` reports staleness as an advisory only; `client validate` never restarts.
 
 **`/check` response:**
 
@@ -873,3 +893,5 @@ This demonstration proves three things in sequence: the fitness function correct
 ---
 
 *Authored By Peter O'Connor with Assistance from Claude Code (databricks-claude-sonnet-4-6) · 2026-05-18 · CALM PoC Engineering Technical Specification*
+
+*Revised with Assistance from Claude Code (claude-fable-5) · 2026-09-06 · listen modes, dry_run semantics, endpoint auth table, daemon restart flow*

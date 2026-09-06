@@ -15,9 +15,20 @@ the `agent-fitness-functions` governance system. It covers three paths:
   authorization into the shared container deployment by hand, then redeploying.
 
 The tooling now automates what this runbook previously walked through by hand
-(config scaffolding, caller-authorization edits, hook installation, cert generation,
-daemon start). What remains genuinely manual is the production redeploy on the
+(config scaffolding, caller-authorization edits, hook installation, daemon start and
+restart). What remains genuinely manual is the production redeploy on the
 manual/air-gapped path below.
+
+> **Transport, by path.** Since
+> [ADR-0010](../adr/0010-plain-http-local-governance.md) the two paths no longer share
+> a trust model. The **local** daemon serves **plain HTTP bound to loopback**, and any
+> loopback peer is the implicit caller `local` — there are no certificates to
+> generate or rotate and no `caller-repos.json` entry for a local repo. The
+> **remote/container** path is unchanged: HTTPS with mutual TLS, client-certificate
+> CNs authorized in `caller-repos.json`, admins gating `/configs` and `/shutdown`.
+> Everything in this runbook that mentions certificates, `caller-repos.json`, or
+> `scripts/generate-dev-certs.sh` belongs to the remote/container path unless it says
+> otherwise.
 
 ## Self-service path
 
@@ -51,9 +62,11 @@ from that empty state end to end:
   (409 otherwise). Operators can disable self-service registration entirely with the
   kill switch `AGENT_FITNESS_FUNCTIONS_DISABLE_REGISTRATION=1`, falling back to the
   manual/air-gapped path below.
-- **In managed/local mode** `onboard` keeps writing the local config and caller-binding
-  files as before — the local daemon reads those files directly, so there is nothing to
-  register remotely.
+- **In managed/local mode** `onboard` writes the repo-local config and syncs it into
+  the machine governance root — the local daemon reads that file directly, so there is
+  nothing to register remotely. Under ADR-0010 it writes **no caller binding**: the
+  loopback caller is implicit, so `caller-repos.json` is not consulted at all and
+  `onboard` prints `Caller authorization: not required (implicit local caller)`.
 
 The manual production path described below remains for air-gapped or otherwise
 disconnected deployments where a live `POST /register` call isn't possible.
@@ -80,12 +93,13 @@ Onboarding is still two distinct acts:
   (developer git)  (AI agent Edit/Write hook)
 ```
 
-For **local** development both acts happen on your machine and `client onboard`
-performs all of them. For **production** the server-side act happens in the container
-deployment; the client-side act is `client install-hooks` in the governed repo with the
+For **local** development both acts happen on your machine over plain HTTP on
+loopback, and `client onboard` performs all of them — the authorization half collapses
+to nothing, because the loopback caller is implicitly authorized for every repo. For
+**production** the server-side act happens in the container deployment over HTTPS +
+mTLS; the client-side act is `client install-hooks` in the governed repo with the
 remote-mode environment variables set (`client onboard` is the local convenience that
-also auto-starts a daemon and generates dev certs — neither is wanted against a shared
-container).
+also auto-starts and restarts a daemon — not wanted against a shared container).
 
 **Critical:** the server resolves config **by repository name**, not by inspecting the
 repo's contents (`internal/server/config.go` `loadConfig`). The hook sends `--repo
@@ -156,34 +170,51 @@ cd /path/to/<repo>
 agent-fitness-functions client onboard
 ```
 
-This runs the whole 0-to-governed sequence and gates on `doctor` at the end:
+On a terminal this is an interactive wizard (see
+[The onboard wizard](#the-onboard-wizard) below); with `--functions`, or with no
+terminal on stdin, it runs straight through on the flag-derived selection. Either way
+it runs the same 0-to-governed sequence, in this order, and gates on `doctor` at the
+end:
 
-1. **Dev certificates** — generated in-process into the machine governance root
-   (`${XDG_STATE_HOME:-~/.local/state}/agent-fitness-functions/governance/certs`, ADR-0007; no
-   `openssl`, no `scripts/generate-dev-certs.sh` needed) with client CN
-   `dev-hook-pool`. One dev CA serves every governed repository on the machine.
-   `AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR` overrides the location.
+1. **Dev certificates** — **skipped on the local path.** In local-http mode
+   (`--addr` is a loopback `http://` URL, the default) the step prints
+   `Dev certificates: not required (local-http mode)` and generates and loads
+   nothing. Certificates are still published here on the legacy managed-TLS-local
+   path (a loopback `https://` `--addr`), under `--certificates-only`, or validated
+   from `AGENT_FITNESS_FUNCTIONS_CLIENT_*` in external/remote mode.
 2. **Server-side config scaffold** — the tracked `<repo>/configs/<repo>/config.json`
-   production handoff artifact from the embedded template, with all five metric
-   fitness functions enabled and all four generalized functions explicitly present
-   but disabled (an existing config is left unchanged), then copied verbatim
-   into the shared governance configs dir the local daemon serves
+   production handoff artifact from the embedded template, with the selected fitness
+   functions enabled and the rest explicitly present but disabled (the default
+   selection is the five metric functions on, the four opt-in ones off), then copied
+   verbatim into the shared governance configs dir the local daemon serves
    (`AGENT_FITNESS_FUNCTIONS_CONFIGS_DIR` if set, else `<govRoot>/configs`).
-   Re-running onboard re-syncs a user-edited repo-local config; the repo-local file
-   is the source of truth.
-3. **Caller authorization** — merges CN `dev-hook-pool → <repo>` into the governance
-   root's `caller-repos.json` (a sibling of its `configs/` directory), accumulating
-   entries across every onboarded repository and preserving all other callers and
-   admins.
-4. **Hook installation** — `install-hooks` (see below).
-5. **Local daemon auto-start** — a TLS daemon on `https://127.0.0.1:7890` (generating
-   dev certs and pointing at the resolved configs directory); a healthy daemon is a
-   no-op. The health wait is 5 seconds.
-6. **Registration acknowledgement** — onboard polls `GET /preflight` (up to 5
-   seconds) until the daemon reports the repo configured and the caller authorized,
-   absorbing the fsnotify reload debounce so the doctor gate never races a live
-   daemon that has not yet seen the files onboard just wrote.
-7. **`doctor` (final gate)** — the ordered checks below. Onboard fails (non-zero exit)
+   An existing config is **left unchanged** unless this run has rewrite authority —
+   a confirmed wizard diff, or `--update`. Re-running onboard always re-syncs the
+   repo-local config into the governance root; the repo-local file is the source of
+   truth.
+3. **Caller authorization** — **skipped on the local path.** Prints
+   `Caller authorization: not required (implicit local caller)`. On the legacy
+   managed-TLS-local path it merges CN `dev-hook-pool → <repo>` into the governance
+   root's `caller-repos.json` (a sibling of its `configs/` directory), preserving all
+   other callers and admins. In external/remote mode this step is replaced by
+   `POST /register`.
+4. **Legacy pre-ADR-0007 migration** — quarantines repo-local state left over from
+   the per-repo-certificate generation. See
+   [Legacy migration](#legacy-migration-pre-adr-0007-repo-local-state) below.
+5. **Hook installation** — `install-hooks` (see below).
+6. **Ensure a current local daemon** — not merely "start one if none is running".
+   Onboard probes `GET /health`, which returns the daemon's identity (build
+   revision, build-modified flag, listen mode, configs dir, pid, start time), and
+   compares it against what this binary expects. A match prints `daemon healthy and
+   current`. A mismatch prints `daemon stale: <reasons>; restarting` and performs the
+   graceful restart described in [Daemon restarts](#daemon-restarts-staleness-and-recovery)
+   below. A daemon still serving `mtls` on the local port is stale by listen mode —
+   that is how a machine migrates onto ADR-0010.
+7. **Registration acknowledgement** — onboard polls `GET /preflight` (up to 5
+   seconds) until the daemon reports the repo configured, its config valid, and the
+   caller authorized, absorbing the fsnotify reload debounce so the doctor gate never
+   races a live daemon that has not yet seen the files onboard just wrote.
+8. **`doctor` (final gate)** — the ordered checks below. Onboard fails (non-zero exit)
    if any non-advisory check fails.
 
 Flags:
@@ -193,15 +224,147 @@ Flags:
 | `--repo <name>` | working-tree basename | Governance repo name (validated against the grammar) |
 | `--enforcement <advisory\|block>` | `advisory` | Enforcement mode written into the scaffolded config |
 | `--addr <url>` | `http://127.0.0.1:7890` | Governance daemon base URL (ADR-0010 local-http default; a legacy `https` loopback daemon is still reached by scheme fallback) |
-| `--functions <a,b,...>` | all five metric functions | Comma-separated subset of fitness functions to enable; accepts three of the four generalized functions (`temporal-purity`, `sql-composition-safety`, `deterministic-ordering`) but rejects `layer-sovereignty` |
+| `--functions <a,b,...>` | all five metric functions | Comma-separated subset of fitness functions to enable; accepts three of the four generalized functions (`temporal-purity`, `sql-composition-safety`, `deterministic-ordering`) but rejects `layer-sovereignty`. **Supplying it suppresses the wizard** even on a terminal |
 | `--update` | off | Rewrite this repository's existing `configs/<repo>/config.json` from the resolved selection. Without it an existing config is never touched. On a terminal the wizard's `y` at the diff gate is the same authority, so `--update` is for runs with no terminal to confirm at (CI, agents, pipes) |
+| `--certificates-only` | off | Publish managed development certificates and **do nothing else** — no config, no hooks, no daemon. Remote/container path only |
+| `--force-dev-cert-rotation` | off | Rotate the managed development certificates. Only meaningful alongside `--certificates-only` or a legacy managed-TLS-local `--addr` |
 | `[path]` | `.` | Repository path |
+
+There is no `--listen-mode` flag on `client onboard`; the mode is derived from the
+scheme of `--addr` and passed to the daemon onboard starts. `--listen-mode` is a
+`server start` flag.
 
 `onboard` is idempotent. In managed/local mode, when it finishes it prints the one
 remaining manual step for production governance (copy the config + caller entry to the
 deployment, redeploy) — see the manual/air-gapped path below. In external/remote TLS
 mode there is no remaining step: registration against `--addr` already happened via
 `POST /register` (see [Self-service path](#self-service-path) above).
+
+### The onboard wizard
+
+`client onboard` prompts when stdin is a real terminal **and** neither `--functions`
+nor `--certificates-only` was passed. Anything else — a pipe, CI, an agent — takes the
+silent flag-derived path and is byte-identical to the pre-wizard behavior. The wizard
+runs five parts in order:
+
+1. **State panel.** Prints the repository name, a daemon line
+   (`daemon: unreachable at <addr> (onboard will start one)` /
+   `daemon: current (<identity>)` / `daemon: stale (<first reason>)`), and a governance
+   status line — `not onboarded (no governance config for this repository yet)`,
+   `up to date (enforcement=<mode>, <n> of <total> fitness functions enabled)`, or
+   `needs attention` followed by one indented line per item. The attention items are:
+   the repo-local config is not registered in the machine governance root; the daemon
+   is not current and onboard will restart it; legacy repo-local dev certs; legacy
+   repo-local caller bindings.
+2. **Enforcement prompt.** `Enforcement mode [advisory/block] (default <mode>):` —
+   the default is this repo's current mode on a re-run, `advisory` on a first onboard.
+   An empty line accepts it; an invalid answer re-prompts (up to five attempts).
+3. **Nine-function picker.** All nine functions with their operator, threshold, and
+   unit; digits toggle, `a` selects all, `n` clears, an empty line confirms. Checks are
+   seeded from the product defaults on a first run and from this repo's current config
+   on a re-run. `layer-sovereignty` is annotated `[prompts for layer definitions]`.
+   Confirming an empty selection re-prompts.
+4. **Layer prompts.** Only when `layer-sovereignty` was ticked and the repo has no
+   layers defined yet. Loops over `{layer name, comma-separated path regexes,
+   comma-separated forbidden-pattern regexes}` until an empty name ends it. An
+   uncompilable regex re-prompts that field, and the assembled config is validated
+   through the daemon's own config parser before anything is written.
+5. **Diff and confirm.** Prints the enforcement change (`<mode> (new)`,
+   `<mode> (unchanged)`, or `<old> -> <new>`) and either the list of functions to
+   enable (first run), `fitness functions: unchanged (...)`, or one
+   `<function>: enabled -> disabled` line per change. `Apply these choices? [y/N]:` —
+   only `y`/`yes` proceeds. Declining exits with an error and writes nothing.
+
+A confirmed diff is what authorizes rewriting an existing `configs/<repo>/config.json`;
+`--update` is the same authority for runs with no terminal. A rewrite carries the
+existing file's `exclude-patterns` and `fitness-function-settings` forward.
+
+`--functions` still rejects `layer-sovereignty` — it needs layer definitions the flag
+cannot express — and its error points at running onboard interactively.
+
+### Daemon restarts: staleness and recovery
+
+Nothing used to restart the local daemon, so a stale binary or stale certificate
+material could serve forever. `onboard` now actuates a restart; `doctor` reports
+staleness as an advisory `⚠` but never restarts; `client validate` never restarts.
+
+A daemon is **stale** when its `GET /health` identity disagrees with the running
+binary's expectations on any of these dimensions (an empty value on either side means
+"not enforced" and never triggers staleness):
+
+| Dimension | Reported reason |
+|---|---|
+| No identity body at all | `the daemon is a legacy binary that reports no identity on GET /health` |
+| Build revision | `daemon build revision "..." does not match the expected "..."` |
+| Build from a modified tree | `the daemon binary was built from a modified working tree, so its revision does not describe what is running` |
+| Configs directory | `daemon configs directory "..." does not match the expected "..."` |
+| Listen mode | `daemon listen mode "..." does not match the expected "..."` |
+
+The restart sequence is:
+
+1. Acquire the machine-wide `restart.lock` in the governance root (an atomic
+   `mkdir`-based lock with a heartbeat).
+2. `POST /shutdown`. On a scheme/TLS mismatch the client retries the alternate
+   loopback scheme, then with the machine's managed dev-cert client — this is the
+   migration path for a still-running pre-ADR-0010 mTLS daemon. The scheme flip is
+   applied **only** to loopback addresses, never to a remote endpoint.
+3. Drain: dial the port until the listener is gone (up to 5s).
+4. Start a fresh daemon from the current binary.
+5. Re-probe `GET /health` until a **current** identity is observed (up to 5s). Success
+   is judged by the observed identity, not by whether our own child won the port bind,
+   so a concurrent `client validate` that auto-started first is not a failure.
+
+If the daemon refuses to shut down, the restart aborts before draining or starting
+anything and prints the escape hatch:
+
+```
+the daemon at <addr> would not shut down (<cause>); identify the process that
+owns the port with `lsof -nP -iTCP:<port>` and stop it, then re-run
+```
+
+#### One-time manual step on legacy mTLS machines (403 on `/shutdown`)
+
+`POST /shutdown` is **admin-gated**. On a machine whose pre-ADR-0010 daemon is still
+serving mTLS and whose `caller-repos.json` has no `admins` list containing the dev CN,
+the shutdown is answered **403** — an explicit refusal — so the migration restart stops
+and falls through to the `lsof` escape hatch above. This is tracked as `calm-poc-nem3`.
+
+The one-time fix, once per affected machine, before re-running onboard:
+
+1. Edit `<govRoot>/caller-repos.json` and add the dev CN to `admins`:
+
+   ```json
+   {
+     "callers": { "dev-hook-pool": ["repo-a", "repo-b"] },
+     "admins": ["dev-hook-pool"]
+   }
+   ```
+
+   `<govRoot>` is `${XDG_STATE_HOME:-~/.local/state}/agent-fitness-functions/governance`.
+2. Wait ~1s — the running daemon hot-reloads the caller policy via `fsnotify`, so no
+   restart is needed for the edit itself to take effect.
+3. Re-run `agent-fitness-functions client onboard` in any governed repo. The restart
+   now succeeds and brings the machine up on local-http.
+
+After the migration the file is no longer consulted for local governance at all. It
+remains the authorization source of truth for the remote/container path.
+
+### Legacy migration (pre-ADR-0007 repo-local state)
+
+Every `onboard` run migrates state left over from the generation that kept
+certificates and caller bindings inside each repository. It is idempotent (a clean
+tree prints nothing) and it never deletes anything — it renames, appending
+`.pre-adr-0007.bak`, with a timestamp suffix if that name is taken.
+
+| Artifact | Action |
+|---|---|
+| `<repo>/certs/` matching the managed layout (a `current` symlink into `versions/`, or a `versions/v-<digest>` child) | Quarantined: `migrated: <path> -> <path>.pre-adr-0007.bak (pre-ADR-0007 repo-local dev certs; delete once you no longer need them)` |
+| `<repo>/certs/` in any other shape | Left alone: `left alone: <path> is not a managed cert layout, so it is not ours to move` |
+| `<repo>/caller-repos.json`, untracked by git | Quarantined: `migrated: <path> -> <path>.pre-adr-0007.bak (untracked pre-ADR-0007 caller bindings)` |
+| `<repo>/caller-repos.json`, tracked by git | Left alone: `left alone: <path> is tracked by git; remove it in a commit - the daemon reads the machine governance root's copy` |
+
+Old hook sidecar scripts that still resolve `cert_dir=$repo/certs` are rewritten by the
+hook-installation step in the same run, so a legacy repo needs no hook editing by hand.
 
 > **Enforcement default is `advisory`.** The scaffolded config starts in `advisory`
 > (report, don't block) so a first onboarding never blocks day-one commits on latent
@@ -256,8 +419,9 @@ what re-running `client onboard` (or `client install-hooks`) does:
 | `.codex/hooks.json` PreToolUse entries | **Portable (tracked)** | Self-locating `git rev-parse --git-path` commands, preserves existing sections |
 | `.opencode/plugins/agent-fitness-functions.js` | **Portable (tracked)** | ESM plugin intercepting `bash`, `edit`, `write` via `tool.execute.before` |
 | `.git/hooks/*` scripts (or `core.hooksPath` equivalents) | **Per-machine** | Inside `.git/`, never committed; installed by `install-hooks` |
-| `<govRoot>/certs` dev CA + client/server certs | **Per-machine** | One CA per machine under `~/.local/state/agent-fitness-functions/governance/` |
-| `<govRoot>/configs/` + `<govRoot>/caller-repos.json` | **Per-machine** | The local daemon's view; rebuilt by onboarding each repo once per machine |
+| `<govRoot>/configs/` | **Per-machine** | The local daemon's view; rebuilt by onboarding each repo once per machine |
+| `<govRoot>/certs` dev CA + client/server certs | **Per-machine, remote/legacy only** | Not produced by a local-http onboard (ADR-0010); still generated by `--certificates-only` and for the container path |
+| `<govRoot>/caller-repos.json` | **Per-machine, remote/legacy only** | Not written or read by a local-http onboard; authorization source of truth for the remote/container path |
 | `.claude/settings.local.json` entries (forge repos) | **Per-machine** | forge gitignores this file; see below |
 
 On a new computer: clone, then run `agent-fitness-functions client onboard` once per
@@ -420,6 +584,11 @@ detector.
 
 ### Step 2 — Authorize the caller
 
+> Remote/container path only. A local-http daemon never consults this file — the
+> loopback caller `local` is implicitly authorized for every repo and is implicitly an
+> admin (ADR-0010). Do not add a `local` entry here; the server rejects an mTLS peer
+> certificate asserting `CN=local` and never persists that name during registration.
+
 The caller's certificate CN MUST be authorized for the repo name in
 `caller-repos.json`. Add the repo to the relevant caller's list:
 
@@ -434,10 +603,21 @@ The caller's certificate CN MUST be authorized for the repo name in
 }
 ```
 
-- `dev-hook-pool` is the CN that `client onboard` / `scripts/generate-dev-certs.sh`
-  issue developer hook certs for. Add the new repo here for local developer commits.
+- `dev-hook-pool` is the CN that `client onboard --certificates-only` and
+  `scripts/generate-dev-certs.sh` issue developer hook certs for. It matters when a
+  developer machine points its hooks at an mTLS server; a purely local-http machine
+  needs no entry here at all.
 - Add a CI caller CN (e.g. `ci-runner-<repo-name>`) for the repo's pipeline.
-- `admins` lists CNs allowed to call the admin-gated `GET /configs` endpoint.
+- `admins` lists CNs allowed to call the admin-gated `GET /configs` and
+  `POST /shutdown` endpoints. A CN missing from `admins` gets **403** on `/shutdown`,
+  which is what blocks a graceful restart on legacy mTLS machines — see
+  [the one-time manual step](#one-time-manual-step-on-legacy-mtls-machines-403-on-shutdown)
+  above.
+
+A legacy shape is also accepted: a bare `{"<cn>": ["<repo>", ...]}` object with no
+`callers`/`admins` wrapper is parsed as callers with no admins. An entry that fails
+validation makes the whole file fail to load, and the daemon falls back to a deny-all
+policy rather than crashing.
 
 Without a matching caller entry, an authenticated request is rejected (the
 `unauthorized` error-kind) even when the config exists.
@@ -454,11 +634,27 @@ Without a matching caller entry, an authenticated request is rejected (the
   (`internal/server/configstore.go`) and hot-reloads both repo configs and the caller
   policy. No restart is required.
 
-The server itself must be started with TLS material. `server start` reads
-`AGENT_FITNESS_FUNCTIONS_TLS_CERT`, `AGENT_FITNESS_FUNCTIONS_TLS_KEY`, and
-`AGENT_FITNESS_FUNCTIONS_TLS_CA` (the `--tls-cert/--tls-key/--tls-ca` flags override
-them). All three must be provided together or the server refuses to start — there is no
-silent plain-HTTP fallback.
+The server itself must be started with TLS material **in its default `mtls` listen
+mode**. `server start` reads `AGENT_FITNESS_FUNCTIONS_TLS_CERT`,
+`AGENT_FITNESS_FUNCTIONS_TLS_KEY`, and `AGENT_FITNESS_FUNCTIONS_TLS_CA` (the
+`--tls-cert/--tls-key/--tls-ca` flags override them). All three must be provided
+together or the server refuses to start — there is no silent plain-HTTP fallback.
+
+#### `server start` listen modes
+
+`--listen-mode` (env `AGENT_FITNESS_FUNCTIONS_LISTEN_MODE`; the flag wins) selects one
+of exactly two modes. Any other value is rejected at startup.
+
+| Mode | Transport | Caller identity | Use |
+|---|---|---|---|
+| `mtls` (default) | HTTPS with required client certificates | client-certificate CN, authorized via `caller-repos.json` | Container / remote / production. Byte-identical to the pre-ADR-0010 behavior |
+| `local-http` | Plain HTTP, loopback bind only | implicit `local` for any loopback peer; an admin, and authorized for every repo | The machine-local developer daemon that `client onboard` starts |
+
+`local-http` fails closed rather than silently degrading. It refuses to start if asked
+to bind a non-loopback address (`local listen mode requires a loopback bind address,
+got "..."`), if given explicit server TLS inputs, if given managed development
+certificates, or if combined with trusted-proxy headers. A non-loopback peer that
+somehow reaches it gets **401**, not an implicit identity.
 
 ### Step 4 — Point the repo's hooks at the container
 
@@ -499,17 +695,73 @@ hides a missing dependency), each with a `→` remediation on failure:
 
 1. `binary` — the resolved executable and build revision.
 2. `python3` / `pyyaml` — present and importable.
-3. `client certificate` — resolved, parseable, CN, and not expired.
-4. `server CA bundle` — resolved and contains PEM certificates.
-5. `server reachable` — `GET /health` returns 200 over TLS.
-6. `server authentication` — the authenticated `GET /preflight?repo=<name>` succeeds
+3. `client certificate` — resolved, parseable, CN, and not expired. **Reports `not
+   applicable in local-http mode` and passes** on the local path.
+4. `server CA bundle` — resolved and contains PEM certificates. Likewise `not
+   applicable in local-http mode` on the local path.
+5. `governance root` — ADR-0007's machine-scoped root has what it needs. On the local
+   path this means the configs directory only: the detail reads
+   `<root> (configs: <dir>, certificates not required)`.
+6. `roslyn analyzer` — the C# analyzer is present and executable. This is a hard
+   failure, not an advisory, even on a machine that governs no C#.
+7. `server reachable` — `GET /health` returns 200. Its remediation names
+   `agent-fitness-functions client onboard`, not a container command.
+8. `daemon up to date` — the daemon's `/health` identity matches this binary's
+   expectations. Advisory `⚠` with the staleness reasons and a "re-run client onboard"
+   remediation when it does not; `not verifiable` when the daemon is unreachable
+   (check 7 already owns that failure).
+9. `server authentication` — the authenticated `GET /preflight?repo=<name>` succeeds
    (401 here means the client certificate was not accepted).
-7. `repo configured server-side` — from `/preflight` facts.
-8. `caller authorized for repo` — from `/preflight` facts.
-9. `enforcement mode` — from `/preflight` facts (advisory `⚠` when unknown).
-10. `git pre-commit hook`, `git pre-push hook`, `agent git-guard hook` (required),
+10. `repo configured server-side` — from `/preflight` facts.
+11. `caller authorized for repo` — from `/preflight` facts; reports `implicit local
+    caller` on the local path.
+12. `enforcement mode` — from `/preflight` facts (advisory `⚠` when unknown).
+13. `validation pipeline` — a synthetic `POST /check` round trip. It is sent with
+    `dry_run: true`, so the probe computes a real verdict but never persists into the
+    repository's outstanding-violation state (`calm-poc-cpvk`).
+14. `git pre-commit hook`, `git pre-push hook`, `agent git-guard hook` (required),
     `agent Edit/Write hook (optional)`, `codex PreToolUse hooks (optional)`, and
     `opencode plugin (optional)` (advisories `⚠` if absent).
+15. `legacy repo-local certs` and `config sync` — remaining pre-ADR-0007 artifacts,
+    and whether the repo-local config matches the copy in the governance root.
+
+### Endpoints and who may call them
+
+| Endpoint | Method | Auth |
+|---|---|---|
+| `/health` | GET | **Unauthenticated by design** — the identity body must be readable precisely when transport security is broken, so staleness detection still works |
+| `/check` | POST | Authenticated; caller must be authorized for the repo |
+| `/state` | GET | Authenticated; caller must be authorized for the repo |
+| `/preflight` | GET | Authenticated; reports authorization as facts rather than 403-ing |
+| `/functions` | GET | Authenticated, unprivileged, repo-agnostic |
+| `/register` | POST | Authenticated; an **admin** CN is required only to overwrite an existing, differing config |
+| `/configs` | GET | Authenticated **and admin** |
+| `/shutdown` | POST | Authenticated **and admin**; 403 otherwise |
+
+In `local-http` mode the loopback caller satisfies every one of those requirements,
+including the admin gates.
+
+### `GET /health` — the identity endpoint
+
+`/health` is more than a liveness ping: it returns the daemon's identity so a client
+can tell a current daemon from a stale one before attempting any authenticated call.
+
+```json
+{
+  "status": "ok",
+  "build_revision": "48fd7b4",
+  "build_modified": false,
+  "listen_mode": "local-http",
+  "configs_dir": "/Users/you/.local/state/agent-fitness-functions/governance/configs",
+  "pid": 41234,
+  "started_at": "2026-09-06T10:11:12Z"
+}
+```
+
+The body shape never varies. A daemon started without an injected identity answers 200
+with the identity fields empty rather than inventing values, and a 200 with no
+parseable identity at all is how the client recognizes a pre-ADR-0010 binary. Gating
+these fields for non-loopback mTLS binds is tracked as `calm-poc-c58t`.
 
 ### `GET /preflight?repo=<name>` — the caller-facing "am I ready?" endpoint
 
@@ -575,11 +827,11 @@ violation)` block. A real block is a *successful* check whose status is `block` 
 
 | `error_kind` | Trigger | Meaning | Fix |
 |--------------|---------|---------|-----|
-| `server_unreachable` | dial refused / timeout / daemon auto-start failure | The governance server could not be reached at all | Run `agent-fitness-functions doctor`; the local daemon auto-starts on `client validate` when dev certs and a repo config exist. Its stdout/stderr are captured at `<govRoot>/certs/daemon.log` (the machine governance root) — check it when auto-start fails |
-| `tls_failure` | TLS handshake / certificate-material error | The client and server did not agree on TLS | Run `doctor`; regenerate dev certs with `scripts/generate-dev-certs.sh --force` |
-| `port_conflict` | TLS probe failure against a live listener on the shared default local port, in managed local mode | A stale daemon from before this machine migrated to the shared governance root (ADR-0007) — or from before a certificate rotation — still owns the configured local port | Identify it with `lsof -i :7890` and stop it, then re-run `client onboard`; or rerun with a distinct `--addr` |
-| `unauthenticated` | HTTP 401 | The server rejected the client certificate | Run `doctor`; regenerate dev certs, or set `AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA` to a trusted pair |
-| `unauthorized` | HTTP 403 | The certificate's CN is not authorized for this repo | Add the CN to `caller-repos.json` for the repo on the server, then redeploy |
+| `server_unreachable` | dial refused / timeout / daemon auto-start failure | The governance server could not be reached at all | Run `agent-fitness-functions doctor`; the local daemon auto-starts on `client validate` when a repo config exists (in local-http mode it needs no certificates). Its stdout/stderr are captured at `<govRoot>/daemon.log` in local-http mode, or `<certDir>/daemon.log` when managed certificates are in play — check it when auto-start fails |
+| `tls_failure` | TLS handshake / certificate-material error | The client and server did not agree on TLS. **Cannot occur on the local-http path** — there is no TLS there; seeing it locally means something is still pointing at an `https` daemon | Run `doctor`. Remote/container: fix or regenerate the client material (`scripts/generate-dev-certs.sh --force` for dev material). Local: re-run `client onboard`, which restarts the daemon into local-http |
+| `port_conflict` | TLS/scheme probe failure against a live listener on the shared default local port, in managed local mode | A stale daemon from a previous generation — before this machine migrated to the shared governance root (ADR-0007), before a certificate rotation, or before ADR-0010 flipped the local listen mode — still owns the configured local port | Re-run `client onboard` first: it detects the mismatch as staleness and restarts the daemon gracefully. If that fails, identify the owner with `lsof -nP -iTCP:7890` and stop it; or rerun with a distinct `--addr` |
+| `unauthenticated` | HTTP 401 | The server rejected the client certificate — or, in local-http mode, the request did not arrive from a loopback peer | Remote/container: run `doctor`; regenerate dev certs, or set `AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA` to a trusted pair. Local: check that `--addr` is a loopback address |
+| `unauthorized` | HTTP 403 | The certificate's CN is not authorized for this repo, or not an admin for an admin-gated endpoint | Remote/container: add the CN to `caller-repos.json` for the repo (and to `admins` for `/configs` or `/shutdown`), then redeploy. Cannot occur for a loopback caller in local-http mode |
 | `not_configured` | HTTP 404 | No `configs/<repo>/config.json` on the server, or `--repo`/`AGENT_FITNESS_FUNCTIONS_REPO_NAME` does not match the config directory | Run `client onboard`, or create `configs/<repo>/config.json` on the server |
 | `invalid_request` | HTTP 400 | The server rejected the request (e.g. malformed `--repo` name or unsupported `--language`) | Check `--repo` (grammar `^[a-z][a-z0-9_-]{0,63}$`) and `--language`; run `doctor` |
 | `server_error` | other non-200 | The server could not produce a verdict | Check the server logs; retry, or run `doctor` |
@@ -602,12 +854,25 @@ other accepted value at the hook layer.
   `AGENT_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` (replace).
 - **Config change not picked up (container)** — container mounts are read-only;
   redeploy the service. A locally running sandbox server hot-reloads via `fsnotify`.
+- **Installed hooks still say `https://127.0.0.1:7890`** — expected, and harmless. The
+  embedded hook scripts have not yet had their `AGENT_FITNESS_FUNCTIONS_ADDR` default
+  flipped; `client validate` falls back between schemes on loopback, so they reach the
+  local-http daemon anyway, at the cost of one failed HTTPS probe per invocation.
+  Tracked as `calm-poc-mzkx`.
+- **A local daemon that will not restart** — see
+  [the one-time manual step](#one-time-manual-step-on-legacy-mtls-machines-403-on-shutdown)
+  for the 403-on-`/shutdown` case, and the `lsof` escape hatch for everything else.
 
 ## Quick reference
 
 ```bash
-# Local: one command (advisory mode by default)
+# Local: one command (advisory mode by default; interactive wizard on a terminal).
+# No certificates, no caller-repos.json entry — plain HTTP on loopback (ADR-0010).
 cd /path/to/<repo> && agent-fitness-functions client onboard
+
+# Local, non-interactive (CI, agents, pipes) — --update authorizes a rewrite
+agent-fitness-functions client onboard --enforcement block \
+  --functions cyclomatic-complexity,logic-density,temporal-purity --update
 
 # Re-check anytime
 agent-fitness-functions doctor
@@ -630,6 +895,8 @@ cd /path/to/<repo> && agent-fitness-functions client install-hooks
 ```
 
 See the [5-minute quickstart](../quickstart-0-to-governed.md) for the developer-facing
-walkthrough.
+walkthrough, and [ADR-0010](../adr/0010-plain-http-local-governance.md) for why the
+local path has no certificates.
 
 *Authored By Peter O'Connor with Assistance from Claude Code (databricks-claude-opus-4-8[1m]) · 2026-07-08 · Onboarding a New Repository runbook*
+*Revised with Assistance from Claude Code (claude-opus-5[1m]) · 2026-09-06 · ADR-0010 plain-HTTP local governance, onboard wizard, daemon restarts*
