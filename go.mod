@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/fzipp/gocyclo v0.6.0
+	modernc.org/sqlite v1.46.2
 )
 
 require (
@@ -17,5 +18,4 @@ require (
 	modernc.org/libc v1.70.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.46.2 // indirect
 )

@@ -29,8 +29,8 @@ type Event struct {
 	SessionID    *string         `json:"session_id"`
 	Status       fitness.Status  `json:"status"`
 	DryRun       bool            `json:"dry_run"`
-	RequestJSON  json.RawMessage `json:"request_json"`
-	ResultJSON   json.RawMessage `json:"result_json"`
+	RequestJSON  json.RawMessage `json:"request_json,omitempty"`
+	ResultJSON   json.RawMessage `json:"result_json,omitempty"`
 }
 
 // Validate rejects incomplete metadata and attempts without a genuine verdict.
