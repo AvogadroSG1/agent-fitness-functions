@@ -89,6 +89,41 @@ func TestRunCheckFallsBackFromHTTPAddrToLegacyHTTPSDaemon(t *testing.T) {
 	}
 }
 
+// A scheme mismatch proves something incompatible already owns the port; if
+// every fallback candidate also fails, the client must report a port conflict
+// without racing an auto-start against the live listener, and must not bury
+// the cause in a generic health-wait timeout.
+func TestSchemeMismatchWithFailedFallbackReportsConflictWithoutAutoStart(t *testing.T) {
+	server := newPassingCheckServer(t, true)
+	defer server.Close()
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR", t.TempDir())
+	httpAddr := "http://" + strings.TrimPrefix(server.URL, "https://")
+
+	starterCalled := false
+	var stdout bytes.Buffer
+	err := RunCheck(
+		[]string{"--addr", httpAddr, "--file", "x.go", "--repo", "/tmp/repo", "--content", "package main\n", "--language", "go"},
+		&stdout, &http.Client{Timeout: time.Second},
+		func(DaemonStartConfig) error { starterCalled = true; return nil },
+	)
+	if starterCalled {
+		t.Fatal("auto-start attempted while an incompatible daemon owns the port")
+	}
+	if !IsInfraError(err) {
+		t.Fatalf("RunCheck error = %v, want infra error", err)
+	}
+	var report infraErrorReport
+	if jsonErr := json.Unmarshal(stdout.Bytes(), &report); jsonErr != nil {
+		t.Fatalf("stdout not JSON: %v\n%s", jsonErr, stdout.String())
+	}
+	if report.ErrorKind != errorKindPortConflict {
+		t.Fatalf("kind = %q, want %q (message: %s)", report.ErrorKind, errorKindPortConflict, report.Message)
+	}
+	if strings.Contains(report.Message, "did not become healthy") {
+		t.Errorf("message %q buries the conflict in a health-wait timeout", report.Message)
+	}
+}
+
 // Managed-local auto-start must launch the daemon in the plain-HTTP local
 // listen mode; non-local starts must not.
 func TestDaemonStartArgsCarryLocalHTTPListenMode(t *testing.T) {
