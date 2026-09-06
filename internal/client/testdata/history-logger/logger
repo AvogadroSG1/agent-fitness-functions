@@ -1,0 +1,3 @@
+#!/bin/sh
+# Fixture for the native logger executable boundary. Arguments are kept intact.
+printf '%s\n' "$3" >> "$HISTORY_TEST_LOG"
