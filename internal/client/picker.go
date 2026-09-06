@@ -49,9 +49,10 @@ func loadPickerOptions() ([]functionOption, error) {
 			unit:        rule.Unit,
 			enabled:     defaults[key],
 			// layer-sovereignty is the only function whose enablement needs
-			// more than a toggle; the guard lives in
-			// rejectUnsettableSelection so the picker itself stays a
-			// straight checklist.
+			// more than a toggle: the wizard prompts for its layer
+			// definitions (S10), and rejectUnsettableSelection remains only
+			// as a guard for direct callers that bypass both the wizard and
+			// --functions.
 			requiresSettings: key == "layer-sovereignty",
 		})
 	}

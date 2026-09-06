@@ -135,10 +135,16 @@ func promptWizardLayers(reader *bufio.Reader, out io.Writer, enforcement string,
 // its forbidden patterns, repeated until an empty name ends the list.
 func readWizardLayers(reader *bufio.Reader, out io.Writer) ([]govconfig.LayerRule, error) {
 	layers := make([]govconfig.LayerRule, 0, 2)
-	for len(layers) < wizardLayerLimit {
+	for {
+		// The bound is checked after reading the name so the terminating empty
+		// line is always consumed — exiting early would leave it queued as the
+		// next prompt's answer.
 		name, err := promptWizardValue(reader, out, "\nLayer name (empty line when done): ")
 		if err != nil || name == "" {
 			return layers, err
+		}
+		if len(layers) >= wizardLayerLimit {
+			return nil, fmt.Errorf("layer limit of %d reached; define the remainder in fitness-function-settings directly", wizardLayerLimit)
 		}
 		layer, err := promptWizardLayer(reader, out, name)
 		if err != nil {
@@ -146,7 +152,6 @@ func readWizardLayers(reader *bufio.Reader, out io.Writer) ([]govconfig.LayerRul
 		}
 		layers = append(layers, layer)
 	}
-	return layers, nil
 }
 
 // promptWizardLayer reads the two pattern lists that define one named layer.
