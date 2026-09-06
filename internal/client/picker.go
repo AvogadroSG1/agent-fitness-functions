@@ -180,3 +180,30 @@ func stdinIsTerminal(f *os.File) bool {
 	}
 	return fileIsTerminal(f)
 }
+
+// wizardFacts is everything the onboard wizard shows before prompting: the
+// repo's current governance (nil on first onboard) and the machine state
+// gathered by the onboarder (sync, daemon, legacy artifacts).
+type wizardFacts struct {
+	RepoName      string
+	Current       *govconfig.Config
+	ConfigSynced  bool
+	DaemonSummary string
+	LegacyNotes   []string
+}
+
+// wizardOutcome is what the user chose: enforcement, the nine-key function
+// selection, and whether they confirmed the diff (declining leaves every file
+// untouched).
+type wizardOutcome struct {
+	Enforcement string
+	Functions   map[string]bool
+	Confirmed   bool
+}
+
+// runOnboardWizard drives the interactive flow: current-state panel,
+// enforcement prompt (default = current mode on an update run), nine-function
+// picker seeded from the current config, then a diff+confirm gate.
+func runOnboardWizard(in io.Reader, out io.Writer, facts wizardFacts) (wizardOutcome, error) {
+	return wizardOutcome{}, nil // stub pending S9 (calm-poc-a65i)
+}
