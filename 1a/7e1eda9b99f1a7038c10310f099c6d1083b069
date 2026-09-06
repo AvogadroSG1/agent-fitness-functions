@@ -1,0 +1,21 @@
+internal/client/client_test.go
+  s_3d6c2c9a391830::t_de39032b083bd1 477-481
+hooks/pre_commit_test.go
+  s_3d6c2c9a391830::t_008bb3930799dc 377-379
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "1a7e1eda9b99f1a7038c10310f099c6d1083b069",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "unknown"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}

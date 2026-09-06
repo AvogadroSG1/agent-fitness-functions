@@ -1,0 +1,49 @@
+cmd/agent-fitness-functions/main.go
+  s_3d6c2c9a391830::t_26fbfb72386d84 333-376
+  s_3d6c2c9a391830::t_ec2e3f1a47d622 318-319
+  s_3d6c2c9a391830::t_f4f1e8898c1de3 271
+  s_3d6c2c9a391830::t_651d1a5f3d4097 305-309
+  s_3d6c2c9a391830::t_94bda1ed92fbd5 282
+  s_3d6c2c9a391830::t_f7a42f4b12e16e 377
+internal/server/auth.go
+  s_3d6c2c9a391830::t_eed4f52ab3192b 199-201,203-221,223-226
+  s_3d6c2c9a391830::t_4952faba0a2ba6 10
+  s_3d6c2c9a391830::t_7d8a63b9343792 64-68
+  s_3d6c2c9a391830::t_90d5529722f50f 254,273,278,284-304
+  s_3d6c2c9a391830::t_360ef3b55d14fe 237-253
+  s_3d6c2c9a391830::t_410ef3eff65b07 255
+  s_3d6c2c9a391830::t_e64aa3f18779db 305
+internal/server/repo_path_authorization_test.go
+  s_3d6c2c9a391830::t_cc1231fd1feded 36
+  s_3d6c2c9a391830::t_538e495c325932 46
+internal/server/register.go
+  s_3d6c2c9a391830::t_d4dc1da4dba8b6 51-55
+internal/server/server.go
+  s_3d6c2c9a391830::t_f5455671051dc0 543-547
+  s_3d6c2c9a391830::t_26e65204056cef 322,325
+  s_3d6c2c9a391830::t_1f2115642e793a 589,592-593
+  s_3d6c2c9a391830::t_cd44f581e98b28 386
+  s_3d6c2c9a391830::t_f4db57c38111bc 572-574,582
+  s_3d6c2c9a391830::t_f82ec2a9868f16 356
+  s_3d6c2c9a391830::t_b5a4c36b1fb009 168
+  s_3d6c2c9a391830::t_b2ff051dfc0d7c 276-277,280
+  s_3d6c2c9a391830::t_6b0517e41424ce 316
+  s_3d6c2c9a391830::t_f39165645deb3a 263
+  s_3d6c2c9a391830::t_38bc1ca230c661 465-519
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "d8e175e045f583a6462ae387a3ab73afdd6639e4",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+internal/client/restart_mtls_test.go
+  s_3d6c2c9a391830::t_2ef9f88480f4a9 1-164
+internal/client/daemonstatus.go
+  s_3d6c2c9a391830::t_0497dae0b99c50 5,8,61-64,66-90,93-118
+internal/client/onboard.go
+  s_3d6c2c9a391830::t_410971fe05d3c7 726
+internal/client/restart.go
+  s_3d6c2c9a391830::t_bda3da4ac62090 1-311
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7f2d0bf359216da81f5ffd7c37c72e9bc8355b28",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}

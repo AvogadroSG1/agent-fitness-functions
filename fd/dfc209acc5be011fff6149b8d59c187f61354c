@@ -1,0 +1,21 @@
+docs/adr/0010-plain-http-local-governance.md
+  s_3d6c2c9a391830::t_1c9453740b99df 1-88
+internal/server/auth.go
+  s_3d6c2c9a391830::t_3dc52de30382fb 303
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "fddfc209acc5be011fff6149b8d59c187f61354c",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}

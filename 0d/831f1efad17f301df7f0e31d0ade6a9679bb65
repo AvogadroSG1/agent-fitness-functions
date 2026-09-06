@@ -1,0 +1,23 @@
+internal/client/onboard_migration_test.go
+  s_3d6c2c9a391830::t_332a1d60b11eed 1-167
+internal/client/onboard.go
+  s_3d6c2c9a391830::t_b354d67af61d06 434
+  s_3d6c2c9a391830::t_b0de3c81c86a25 447-449
+  s_3d6c2c9a391830::t_d3cd434360a942 444-446,450-458
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "0d831f1efad17f301df7f0e31d0ade6a9679bb65",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}

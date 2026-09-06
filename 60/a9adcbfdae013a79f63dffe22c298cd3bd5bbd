@@ -1,0 +1,27 @@
+internal/server/dryrun_test.go
+  s_3d6c2c9a391830::t_afc8323b218f9c 1-55
+internal/client/doctor.go
+  s_3d6c2c9a391830::t_36c5f2d810cb54 213-220
+internal/client/restart.go
+  s_3d6c2c9a391830::t_eae7292d85e34e 426-432
+internal/client/ensure_current_test.go
+  s_3d6c2c9a391830::t_2d3595405a7694 1-225
+internal/fitness/contract.go
+  s_3d6c2c9a391830::t_ddbfeaf313f999 22-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "60a9adcbfdae013a79f63dffe22c298cd3bd5bbd",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}

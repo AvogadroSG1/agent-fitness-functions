@@ -1,0 +1,44 @@
+internal/server/checker.go
+  s_3d6c2c9a391830::t_af48c2f6b9f1e3 397-413,422-433
+  s_3d6c2c9a391830::t_b9d3bcf1b68732 115,329,331,333,336,338-339,343,348,351,354-355
+internal/client/daemonstatus.go
+  s_3d6c2c9a391830::t_0584e9ceaa360a 12-13,35-38,62-66,149-175
+  s_3d6c2c9a391830::t_a574c8693939ab 106-110,116
+internal/fitness/contract_test.go
+  s_3d6c2c9a391830::t_e1169ad4f6f9c2 20
+hooks/pre-tool-use.sh
+  s_3d6c2c9a391830::t_595f743b41b5b8 256-260
+internal/server/state.go
+  s_3d6c2c9a391830::t_9c809d9642e86b 338-390
+internal/client/onboard.go
+  s_3d6c2c9a391830::t_24c2facac75fed 871-875,890-893,896
+internal/client/daemon.go
+  s_3d6c2c9a391830::t_1c22e74ca85a98 336
+internal/client/hookassets/pre-tool-use.sh
+  s_3d6c2c9a391830::t_595f743b41b5b8 256-260
+internal/client/doctor.go
+  s_3d6c2c9a391830::t_85b4f92d7b9bec 669-671
+  s_3d6c2c9a391830::t_0cf10d797709b5 204,217-220,222-270
+internal/fitness/contract.go
+  s_3d6c2c9a391830::t_e1169ad4f6f9c2 25-28
+internal/client/client.go
+  s_3d6c2c9a391830::t_7cbd0ce1e53460 205-207,225,271
+internal/client/restart.go
+  s_3d6c2c9a391830::t_1c22e74ca85a98 431-492
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "912da88a6d2ecd8207261c6bf0049173364ddd60",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}

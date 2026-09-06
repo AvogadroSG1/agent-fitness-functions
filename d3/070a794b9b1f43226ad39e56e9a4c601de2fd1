@@ -1,0 +1,27 @@
+internal/client/client.go
+  s_3d6c2c9a391830::t_13a9a5a629938f 340,355,366,388,396
+  s_3d6c2c9a391830::t_b7488d1ad75f70 341-342,347-354,356-365,367-387,389-395,397-401
+  s_3d6c2c9a391830::t_21c6f84120de40 402
+internal/client/legacymigration.go
+  s_3d6c2c9a391830::t_461ffdcef1617f 1-160
+internal/client/onboard.go
+  s_3d6c2c9a391830::t_ab909be59cb741 446-448,450,452-456
+internal/client/doctor.go
+  s_3d6c2c9a391830::t_0603362a667c64 989,1011
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "d3070a794b9b1f43226ad39e56e9a4c601de2fd1",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
