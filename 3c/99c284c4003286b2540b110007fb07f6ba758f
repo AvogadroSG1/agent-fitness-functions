@@ -1,0 +1,21 @@
+internal/client/historycapture_test.go
+  s_cf963430e803c8::t_858a6e3a1eb8d7 69-71
+  s_cf963430e803c8::t_40d897b2a8e80a 1-46,48-68,72-89
+  s_cf963430e803c8::t_c78ada80bce27b 47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "3c99c284c4003286b2540b110007fb07f6ba758f",
+  "prompts": {},
+  "sessions": {
+    "s_cf963430e803c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a076aa-0fc6-7d81-b3ef-65e1cc030235",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
