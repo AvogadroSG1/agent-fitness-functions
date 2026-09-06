@@ -1,0 +1,23 @@
+docs/spec/engineering-spec.md
+  s_3d6c2c9a391830::t_5e5a1906179d71 896-897
+CLAUDE.md
+  s_3d6c2c9a391830::t_5e5a1906179d71 101
+AGENTS.md
+  s_3d6c2c9a391830::t_5e5a1906179d71 101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a3f8a0b2ad7ef36f2a5e174f154f9965cf155b0a",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
