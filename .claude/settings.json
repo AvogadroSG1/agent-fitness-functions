@@ -16,7 +16,7 @@
       {
         "hooks": [
           {
-            "command": "AGENT_FITNESS_FUNCTIONS_BIN=\"$(pwd)/.tmp/agent-fitness-functions\" AGENT_FITNESS_FUNCTIONS_ADDR=https://127.0.0.1:7890 AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR=\"$(pwd)/certs\" AGENT_FITNESS_FUNCTIONS_REPO_NAME=calm-poc \"$(pwd)/hooks/pre-tool-use.sh\"",
+            "command": "AGENT_FITNESS_FUNCTIONS_ADDR=https://127.0.0.1:7890 AGENT_FITNESS_FUNCTIONS_REPO_NAME=agent-fitness-functions \"$(git rev-parse --show-toplevel)/hooks/pre-tool-use.sh\"",
             "type": "command"
           }
         ],
@@ -30,24 +30,6 @@
           }
         ],
         "matcher": "Bash"
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/avogadro/peter_code/agent-fitness-functions/.git/hooks/agent-fitness-functions-git-guard",
-            "type": "command"
-          }
-        ],
-        "matcher": "Bash"
-      },
-      {
-        "hooks": [
-          {
-            "command": "/Users/avogadro/peter_code/agent-fitness-functions/.git/hooks/agent-fitness-functions-pre-tool-use",
-            "type": "command"
-          }
-        ],
-        "matcher": "Edit|Write"
       }
     ],
     "SessionStart": [
@@ -62,11 +44,11 @@
             "type": "command"
           },
           {
-            "command": "command -v forge \u003e/dev/null 2\u003e\u00261 \u0026\u0026 forge sync-allowlist --check || true",
+            "command": "command -v forge >/dev/null 2>&1 && forge sync-allowlist --check || true",
             "type": "command"
           },
           {
-            "command": "command -v forge \u003e/dev/null 2\u003e\u00261 \u0026\u0026 forge upgrade --check || true",
+            "command": "command -v forge >/dev/null 2>&1 && forge upgrade --check || true",
             "type": "command"
           }
         ],
