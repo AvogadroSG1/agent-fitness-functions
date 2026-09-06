@@ -123,7 +123,7 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 	if err != nil {
 		return onboarder{}, err
 	}
-	selectedFunctions, err := resolveSelectedFunctions(parsedFlags.functions, parsedFlags.certificatesOnly, stdout)
+	selectedFunctions, err := resolveSelectedFunctions(parsedFlags.functions)
 	if err != nil {
 		return onboarder{}, err
 	}
@@ -140,14 +140,15 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 3 * time.Second}
 	}
-	tlsResolution, err := resolveOnboardTLS(parsedFlags.addr, httpClient)
+	tlsResolution, governance, err := resolveOnboardSession(parsedFlags, stdout, repoName, repoRoot,
+		onboardGovernance{enforcement: mode, functions: selectedFunctions}, httpClient)
 	if err != nil {
 		return onboarder{}, err
 	}
 	return onboarder{
 		repoName:             repoName,
 		repoRoot:             repoRoot,
-		enforcement:          mode,
+		enforcement:          governance.enforcement,
 		addr:                 parsedFlags.addr,
 		configsDir:           onboardConfigsDir(),
 		repoConfigsDir:       filepath.Join(repoRoot, "configs"),
@@ -160,9 +161,34 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 		tlsMode:              tlsResolution.tlsMode,
 		tlsMaterial:          tlsResolution.tlsMaterial,
 		callerCN:             tlsResolution.callerCN,
-		selectedFunctions:    selectedFunctions,
+		selectedFunctions:    governance.functions,
 		localHTTP:            tlsResolution.tlsMode.managed && isLocalHTTP(parsedFlags.addr),
 	}, nil
+}
+
+// onboardGovernance is the governance a run applies: the enforcement mode and
+// the fitness-function selection (nil meaning the all-five default). It is
+// resolved from flags first and then, on an interactive run, from the wizard.
+type onboardGovernance struct {
+	enforcement string
+	functions   map[string]bool
+}
+
+// resolveOnboardSession resolves the daemon transport and then the governance
+// this run applies. The two belong together: the wizard describes the daemon
+// through the transport's http client, and its confirmed answers override the
+// flag-derived enforcement mode and function selection. A non-interactive run
+// returns the flag-derived governance untouched.
+func resolveOnboardSession(flags onboardFlags, stdout io.Writer, repoName, repoRoot string, governance onboardGovernance, httpClient *http.Client) (onboardTLSResolution, onboardGovernance, error) {
+	tlsResolution, err := resolveOnboardTLS(flags.addr, httpClient)
+	if err != nil {
+		return onboardTLSResolution{}, onboardGovernance{}, err
+	}
+	if !wizardApplies(flags) {
+		return tlsResolution, governance, nil
+	}
+	chosen, err := resolveWizardOutcome(stdout, repoName, repoRoot, flags.addr, tlsResolution.httpClient)
+	return tlsResolution, chosen, err
 }
 
 // onboardFlags holds the parsed `client onboard` flag set plus its positional
@@ -201,38 +227,65 @@ func parseOnboardFlags(args []string) (onboardFlags, error) {
 	}, nil
 }
 
-// resolveSelectedFunctions resolves the fitness functions the scaffolded config
-// enables. --functions wins outright. Otherwise, a real interactive terminal
-// (and not --certificates-only, which never scaffolds a config) gets the
-// picker checklist instead of the silent all-five default; every
+// resolveSelectedFunctions resolves the fitness functions the scaffolded
+// config enables from --functions. A run without the flag returns nil — the
+// all-five default — which a real terminal then replaces with the wizard's
+// selection once the repository has been identified (wizardApplies). Every
 // non-interactive context (go test, CI, pipes, --certificates-only) keeps
 // today's nil selection unchanged.
-func resolveSelectedFunctions(functionsFlag string, certificatesOnly bool, stdout io.Writer) (map[string]bool, error) {
-	if functionsFlag != "" {
-		return parseFunctionsFlag(functionsFlag)
-	}
-	if certificatesOnly || !stdinIsTerminal(os.Stdin) {
+func resolveSelectedFunctions(functionsFlag string) (map[string]bool, error) {
+	if functionsFlag == "" {
 		return nil, nil
 	}
-	return promptSelectedFunctions(stdout)
+	return parseFunctionsFlag(functionsFlag)
 }
 
-// promptSelectedFunctions loads the embedded catalog and runs the interactive
-// picker over the real stdin/stdout, isolated so resolveSelectedFunctions
-// stays a simple sequence of checks.
-func promptSelectedFunctions(stdout io.Writer) (map[string]bool, error) {
-	options, err := loadPickerOptions()
+// wizardApplies reports whether this run presents the interactive onboard
+// wizard: a real terminal, no --functions selection to honor, and a run that
+// scaffolds governance at all (--certificates-only does not).
+func wizardApplies(flags onboardFlags) bool {
+	return flags.functions == "" && !flags.certificatesOnly && stdinIsTerminal(os.Stdin)
+}
+
+// resolveWizardOutcome runs the onboard wizard over the real terminal and maps
+// the confirmed choices onto the enforcement mode and fitness-function
+// selection this run will scaffold. Declining aborts before any step has
+// written a file, naming what was declined.
+func resolveWizardOutcome(stdout io.Writer, repoName, repoRoot, addr string, httpClient *http.Client) (onboardGovernance, error) {
+	facts := gatherWizardFacts(repoName, repoRoot, addr, httpClient)
+	outcome, err := runOnboardWizard(os.Stdin, stdout, facts)
 	if err != nil {
-		return nil, err
+		return onboardGovernance{}, err
 	}
-	selected, err := runFunctionPicker(os.Stdin, stdout, options)
-	if err != nil {
-		return nil, err
+	if !outcome.Confirmed {
+		return onboardGovernance{}, usageError{err: fmt.Errorf("onboard declined at the confirmation step: %s was not applied and nothing was written", describeWizardChoice(outcome))}
 	}
-	if err := rejectUnsettableSelection(selected); err != nil {
-		return nil, err
+	if err := rejectUnsettableSelection(outcome.Functions); err != nil {
+		return onboardGovernance{}, err
 	}
-	return selected, nil
+	if facts.Current != nil {
+		return reportExistingConfigUntouched(stdout, facts, outcome, repoName), nil
+	}
+	return onboardGovernance{enforcement: outcome.Enforcement, functions: outcome.Functions}, nil
+}
+
+// reportExistingConfigUntouched keeps an update run honest: this slice
+// scaffolds only a repository's first config, so confirmed changes against an
+// existing one are named and dropped rather than silently discarded. Applying
+// them is `client onboard --update`, ADR-0010 slice S10.
+func reportExistingConfigUntouched(stdout io.Writer, facts wizardFacts, outcome wizardOutcome, repoName string) onboardGovernance {
+	current := *facts.Current
+	inForce := onboardGovernance{enforcement: defaultWizardEnforcement(facts), functions: current.FitnessFunctions}
+	changes := wizardOutcomeChanges(current, outcome)
+	if len(changes) == 0 {
+		return inForce
+	}
+	_, _ = fmt.Fprintf(stdout, "\nconfigs/%s/config.json already governs this repository and was left unchanged.\n", repoName)
+	for _, change := range changes {
+		_, _ = fmt.Fprintf(stdout, "  would change: %s\n", change)
+	}
+	_, _ = fmt.Fprintln(stdout, "  applying these changes needs `client onboard --update`, which arrives in ADR-0010 slice S10.")
+	return inForce
 }
 
 func resolveCertificatesOnlyOnboarder(extraArgs []string, forceDevCertRotation bool) (onboarder, error) {

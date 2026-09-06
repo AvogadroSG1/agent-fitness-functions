@@ -240,11 +240,16 @@ func checkDaemonCurrency(cfg doctorConfig) checkResult {
 	}
 }
 
-// doctorListenMode is the listen mode the daemon at cfg.addr must report. Only a
+// doctorListenMode is the listen mode the daemon at cfg.addr must report.
+func doctorListenMode(cfg doctorConfig) string {
+	return addrListenMode(cfg.addr)
+}
+
+// addrListenMode is the listen mode a daemon serving addr must report. Only a
 // loopback http address pins one (ADR-0010); every other address leaves the
 // dimension unenforced, exactly as the auto-start path does.
-func doctorListenMode(cfg doctorConfig) string {
-	if isLocalHTTP(cfg.addr) {
+func addrListenMode(addr string) string {
+	if isLocalHTTP(addr) {
 		return localHTTPListenMode
 	}
 	return ""
