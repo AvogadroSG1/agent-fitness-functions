@@ -1,0 +1,33 @@
+CONTEXT.md
+  s_cf963430e803c8::t_0b144f298617fc 71
+  s_cf963430e803c8::t_023cbff053f83f 36-37,63,67
+  s_cf963430e803c8::t_0dee11dddff6c8 68
+  s_cf963430e803c8::t_d2a8444a8cad5b 66
+  s_cf963430e803c8::t_2d40168960483b 35,38,230-231
+  s_cf963430e803c8::t_76a8716ece9f23 70
+  s_cf963430e803c8::t_bf6598892f3654 39-42,64
+  s_cf963430e803c8::t_fa2e05dd681a3d 69
+  s_cf963430e803c8::t_173ca3bec5dbc0 43-46,65
+docs/adr/0011-client-validation-history-is-downstream-observability.md
+  s_cf963430e803c8::t_023cbff053f83f 1-35,37,44-48,51,54-64
+  s_cf963430e803c8::t_0dee11dddff6c8 36,41,52-53
+  s_cf963430e803c8::t_ef0d30e3a696d2 42
+  s_cf963430e803c8::t_fa2e05dd681a3d 38-39
+  s_cf963430e803c8::t_0b144f298617fc 40,43,49-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "2dc9408f04a1d7756f88ece39efad3c45bdd399b",
+  "prompts": {},
+  "sessions": {
+    "s_cf963430e803c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a076aa-0fc6-7d81-b3ef-65e1cc030235",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
