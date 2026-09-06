@@ -158,6 +158,7 @@ remove local governance state too, delete the `governance/` directory under
 If you are working from a source checkout instead of an installed release (e.g.
 repository development), the manual prerequisite path still applies:
 
+- Go 1.25 or newer for source builds; minimum-toolchain verification uses Go 1.25.14.
 - `python3` with `pyyaml` for the hooks and violation formatter:
   `python3 -m pip install -r hooks/requirements.txt`.
 - The FINOS `calm` CLI 1.40.0 on `PATH` for the server (`npm install -g
@@ -434,6 +435,90 @@ Repositories initialized by the `forge` scaffolder come pre-wired with Beads and
 - **Automatic composition:** `forge` creates a dispatcher hook (e.g. `.beads/hooks/pre-commit`) that calls Beads' hook (`.beads/hooks/pre-commit.old`) and then Lefthook's hook (`.beads/hooks/pre-commit.lefthook`). `install-hooks` recognizes this dispatcher pattern via the sibling-signature rule (the dispatcher references `.old` and `.lefthook` by name, and those siblings carry known-owner signatures) and inserts the agent-fitness-functions sidecar call before Lefthook's stage.
 - **Execution order:** Beads hook → agent-fitness-functions sidecar → Lefthook. All three stages run exactly once; a nonzero exit from Beads or agent-fitness-functions blocks the subsequent stages.
 - **PreToolUse entries in `.claude/settings.local.json`:** Because `forge upgrade` rewrites `.claude/settings.json` wholesale on every run (and runs at every Claude session start), PreToolUse entries cannot be stored there. `install-hooks` instead upserts them to `.claude/settings.local.json`, which `forge` gitignores and never overwrites. Entries are per-machine: run `agent-fitness-functions client install-hooks` once per fresh clone. Running `agent-fitness-functions client doctor` flags missing PreToolUse entries (advisory `⚠` if absent) and explains the per-machine setup.
+
+## Repository validation history
+
+`client onboard` starts or reconciles one **local history writer** per user after
+governance setup succeeds. This also applies when the governance server is remote:
+the history writer and history databases remain on the client machine. Writer
+startup failure is a warning and does not fail otherwise successful onboarding.
+`doctor` reports an absent or stale writer as a warning; it does not start or repair
+the writer implicitly. Run `agent-fitness-functions client onboard` to reconcile it.
+
+Each local Git clone stores completed validation attempts at
+`<common-git-dir>/agent-fitness-functions/history.sqlite3`. Git worktrees share that
+database, with worktree, branch, and HEAD recorded per attempt. Separate clones and
+machines have separate histories. Removing a linked worktree preserves its records.
+`uninstall --yes` stops the verified local writer before removing its executable and
+retains every clone's database. If writer shutdown cannot be confirmed, uninstall
+preserves the executable and reports the incomplete uninstall. Records do not expire
+or undergo automatic pruning.
+
+History retains each submitted source string and its received pass, advisory, or
+block verdict, including unknown request/result JSON values. Agent dry-run attempts
+remain **proposals**: a passing verdict does not prove an edit was applied. The
+server's outstanding-violation state still excludes dry runs. Invocation source,
+tool, action, and session ID are recorded when supplied; unavailable identity is
+`null` in JSON and `unknown` in text. The server's implicit `local` caller and Git
+authorship do not identify the agent.
+
+History delivery is at most once and downstream of validation. The validation
+client never opens SQLite, waits for persistence, starts the writer, retries an
+event, or replays dropped events. A busy database, absent writer, or overload MAY
+lose a record while validation keeps its original output and exit behavior. A
+missing record is not proof that validation did not run. Timeouts, connection
+failures, malformed responses, and warming responses create no history row; their
+bounded operational diagnostics go through native OS `logger` without source or
+raw response bodies. OS logging failure is itself dropped. OpenTelemetry remains
+a possible future consumer of that stream.
+
+### Inspect and compare proposals
+
+Read commands open existing storage read-only and work with the writer and governance
+server stopped. They do not initialize, migrate, or repair a database. Unlike
+`client validate --repo LOGICAL_NAME`, history's `--repo PATH` selects a Git checkout
+and defaults to the current directory. For validation, `--history-worktree PATH`
+selects the checkout independently of the governance key.
+
+```bash
+agent-fitness-functions client history list --repo /path/to/checkout --format json
+agent-fitness-functions client history list --file src/example.go --session SESSION_ID --limit 20
+agent-fitness-functions client history list --worktree /path/to/linked-worktree --before 42
+agent-fitness-functions client history show EVENT_ID --format json
+agent-fitness-functions client history diff FROM_ID TO_ID --format json
+```
+
+| Command | JSON output and selection |
+|---------|---------------------------|
+| `list` | `{"records": [...], "next_before": null}`; newest sequence first, payloads omitted. `--file`, `--session`, and `--worktree` filter records. `--limit` defaults to 50 (1–1000); `--before` is an exclusive sequence cursor. Use a returned `next_before` for the next page. |
+| `show EVENT_ID` | One record with metadata and `request_json` / `result_json` objects, including `request_json.proposed_content`. |
+| `diff FROM_ID TO_ID` | `from` and `to` record contexts plus `unified_diff`, with three context lines. IDs MUST refer to the same normalized file; explicit comparison across worktrees is allowed. |
+
+All three commands accept `--repo PATH` and `--format text|json` (default `text`).
+An absent database produces an empty list without creating files. Exit `0` means
+successful inspection, including a nonempty diff; exit `2` means invalid arguments
+or an unlike-file comparison; exit `1` means missing IDs or unavailable/corrupt
+storage. Comparison is explicit and does not automatically pair attempts or infer
+that one proposal caused another to pass.
+
+### Capture context
+
+Manual validation defaults to source `manual` with unknown tool, action, and session.
+The optional flags `--history-source`, `--history-tool`, `--history-action`,
+`--history-session-id`, and `--history-worktree` override corresponding
+`AGENT_FITNESS_FUNCTIONS_HISTORY_SOURCE`, `_TOOL`, `_ACTION`, `_SESSION_ID`, and
+`_WORKTREE` environment variables (each uses the full prefix).
+Installed agent and Git hooks supply known context using environment variables so
+older binaries ignore the metadata safely. Git hooks keep their staged/committed
+source selection; stored contents are the contents actually submitted.
+
+The writer's default socket is beneath the installer state root at
+`history/writer.sock`, in a private 0700 directory. The history directory is 0700
+and its database is 0600. `AGENT_FITNESS_FUNCTIONS_HISTORY_SOCKET` MAY override the
+socket for isolated tests or long state-root paths; an overlong Unix socket path is
+rejected. Attribution fields describe local invocation context, not authenticated
+identity. See [ADR-0011](../adr/0011-client-validation-history-is-downstream-observability.md)
+for the delivery and lifecycle decisions.
 
 ## Manual / air-gapped production path — server-side onboarding
 
@@ -900,3 +985,5 @@ local path has no certificates.
 
 *Authored By Peter O'Connor with Assistance from Claude Code (databricks-claude-opus-4-8[1m]) · 2026-07-08 · Onboarding a New Repository runbook*
 *Revised with Assistance from Claude Code (claude-opus-5[1m]) · 2026-09-06 · ADR-0010 plain-HTTP local governance, onboard wizard, daemon restarts*
+
+*Authored By Peter O'Connor with Assistance from Codex (gpt-6) · 2026-09-06 · Repository validation history operator reference*

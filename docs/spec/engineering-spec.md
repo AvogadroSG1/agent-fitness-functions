@@ -22,7 +22,7 @@ date modified: Sunday, May 18th 2026
 
 This document specifies the engineering design for a PoC system that enforces architectural fitness functions at two interception points: before an AI agent writes a file (Claude Code, OpenAI Codex, and OpenCode tool-use hooks/plugins) and before a developer commits code (git pre-commit hook).
 
-The central component — `agent-fitness-functions` — runs as a Go HTTP daemon. It analyzes proposed source code changes against three fitness functions, translates results into a CALM-compliant architecture document, calls the FINOS `calm` CLI validator, and returns a pass, a block with explanation, or an advisory message. Enforcement behavior is configured per repository.
+The central component — `agent-fitness-functions` — runs as a Go HTTP daemon. It analyzes proposed source code changes against the enabled functions from the nine-function catalog, translates results into a CALM-compliant architecture document, calls the FINOS `calm` CLI validator, and returns a pass, a block with explanation, or an advisory message. Enforcement behavior is configured per repository.
 
 The system runs entirely locally. No cloud dependencies are required.
 
@@ -275,6 +275,56 @@ done
 ```
 
 ---
+
+### 3.6 Repository validation history
+
+The client records completed pass, advisory, and block attempts as downstream
+observability ([ADR-0011](../adr/0011-client-validation-history-is-downstream-observability.md)).
+Source builds require Go 1.25 or newer; minimum-toolchain verification uses Go 1.25.14.
+The pure-Go SQLite driver preserves CGO-disabled release and container builds.
+
+```mermaid
+flowchart LR
+    O[client onboard] -->|reconcile| W[Local history writer]
+    C[client validate] -->|Validation Request| S[Governance server]
+    S -->|Validation Result| C
+    C -->|original output and exit| H[Hook or CLI caller]
+    C -. at most once .-> W
+    W --> D[(Clone common Git directory / SQLite)]
+    R[client history list / show / diff] -->|read only| D
+    C -. operational diagnostics .-> L[OS event stream]
+    W -. operational diagnostics .-> L
+```
+
+`internal/history` owns storage, Git location resolution, reads, and explicit source
+comparison. `internal/historyipc` owns bounded Unix stream frames;
+`internal/historyservice` owns the sole local writer and its lifecycle;
+`internal/osevent` owns native OS diagnostics. The server has no history database
+or filesystem access. A local writer serves client-side databases even when
+governance runs remotely.
+
+The writer stores `<common-git-dir>/agent-fitness-functions/history.sqlite3`, shared
+across worktrees in one clone. Each record contains its worktree-relative file,
+worktree, available branch/HEAD, invocation source, tool/action/session, UTC
+completion/recording times, sequence, event ID, dry-run flag, and original
+request/result JSON values. Unknown identity remains null. The submitted source is
+retained exactly inside `request_json`; a passing dry-run proposal is not evidence
+of an applied edit. Dry-run capture does not persist server outstanding violations.
+
+Validation attempts one nonblocking publication and never opens SQLite or waits for
+writer persistence. The writer inserts once with zero database busy timeout;
+duplicate event IDs are idempotent. Partial frames, capacity exhaustion, unavailable
+writers, or failed writes drop an event. There is no retry, replay, spool, automatic
+expiration, or pruning. Timeouts, malformed/warming responses, and transport failures
+produce OS diagnostics without history rows. Diagnostics exclude submitted source
+and raw responses; OpenTelemetry is a possible future consumer.
+
+Onboard reconciles the writer after successful governance setup. Doctor reports
+writer warnings without implicit repair; uninstall stops a verified writer and
+preserves all clone databases. Reads work while the writer is stopped, never create
+or repair storage, and expose text or JSON through `client history list`, `show`,
+and `diff`. See the [operator reference](../runbooks/onboard-new-repository.md#repository-validation-history)
+for flags, JSON shapes, exit codes, storage permissions, and lifecycle remediation.
 
 ## 4. Test Repositories
 
@@ -895,3 +945,5 @@ This demonstration proves three things in sequence: the fitness function correct
 *Authored By Peter O'Connor with Assistance from Claude Code (databricks-claude-sonnet-4-6) · 2026-05-18 · CALM PoC Engineering Technical Specification*
 
 *Revised with Assistance from Claude Code (claude-fable-5) · 2026-09-06 · listen modes, dry_run semantics, endpoint auth table, daemon restart flow*
+
+*Authored By Peter O'Connor with Assistance from Codex (gpt-6) · 2026-09-06 · Repository validation history architecture and build minimum*

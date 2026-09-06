@@ -1,6 +1,6 @@
 # Repository Validation History Implementation Plan
 
-> For agentic workers: use the executing-plans skill to execute the Beads slices below. Beads is the task tracker; this document specifies behavior and verification. Implementation has not started.
+> For agentic workers: use the executing-plans skill to execute the Beads slices below. Beads is the task tracker; this document specifies behavior and verification. Implementation is present; final verification and slice 7 reviews are pending.
 
 **Goal:** Let a developer or agent inspect submitted source versions, their actual validation verdicts, and explicit comparisons within a local repository clone.
 
@@ -201,7 +201,13 @@ Run container-contract tests and the documented Docker build with its pinned bui
 
 Planning evidence: the saved macOS probe delivered complete 1 KiB through 5 MiB payloads while reads were paused; a paused 15 MiB send returned `EAGAIN` after a partial send, supporting complete-frame rejection. A tagged native `logger` event was read back from the macOS event log. These probes are not product tests, do not cover Linux, and do not establish a latency or delivery guarantee. Source and results are saved under `~/peter_code/scratch_work/repository_validation_history_code/`.
 
-Review the specification before the first implementation slice. Use Beads for execution status; all seven implementation issues remain open at this handoff. Follow the repository's scoped commit/push protocol and required co-authors. No deployment, governance restart, or installed-hook update is part of this planning session.
+The specification review preceded implementation. Slices 1–6 are implemented with their dispatched specification and quality reviews addressed. Slice 7 adds real CLI/writer integration scenarios and contributor documentation; its final platform verification and reviews remain pending. Use Beads for current execution status. Follow the repository's scoped commit/push protocol and required co-authors. No deployment, live governance restart, or installed-hook update is part of this implementation session.
+
+Verification recorded on 2026-09-06: full `go test ./...` with Go 1.25.14, the normal
+local-toolchain repository gate, `go vet ./...`, the history/client race gate, and
+the CGO-disabled minimum-toolchain binary build passed. The corrected product
+Docker image built successfully and passed its Node/CALM runtime contract. Final
+slice 7 cross-platform integration and specification/quality review remain pending.
 
 ## Primary references
 

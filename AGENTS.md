@@ -51,6 +51,9 @@ bd close <id>         # Complete work
 
 ## Build & Test
 
+Go 1.25 is the minimum source-build toolchain; minimum-version verification uses
+`GOTOOLCHAIN=go1.25.14`. CGO-disabled release builds MUST remain supported.
+
 Use the repo-local Go caches so builds work in sandboxed environments:
 
 ```bash
@@ -143,6 +146,19 @@ The tracked entry still sets `AGENT_FITNESS_FUNCTIONS_ADDR=https://127.0.0.1:789
 
 This repository governs itself under the key `agent-fitness-functions` (ADR-0009), resolved from `configs/agent-fitness-functions/config.json`.
 
+## Repository validation history
+
+History changes MUST follow [ADR-0011](docs/adr/0011-client-validation-history-is-downstream-observability.md).
+`internal/history`, `internal/historyipc`, `internal/historyservice`, and
+`internal/osevent` own clone-local storage, handoff, the local writer, and OS diagnostics.
+Validation MUST preserve caller output/exit behavior and MUST NOT wait for SQLite,
+start the writer, or replay dropped events. Worktrees share their common Git
+directory's history; passing dry-run records remain proposals and unknown identity
+remains unknown. For lifecycle, read CLI flags/JSON/exits, or context selection, read
+the [history operator reference](docs/runbooks/onboard-new-repository.md#repository-validation-history).
+Cross-process verification uses `go test -tags=integration -run TestHistoryCrossProcess ./internal/client`
+with isolated sockets and fixture repositories on macOS and Linux.
+
 ## Naming Surface
 
 - Product and binary: `agent-fitness-functions` — always spelled out in full, no abbreviations.
@@ -160,3 +176,5 @@ This repository governs itself under the key `agent-fitness-functions` (ADR-0009
 - `docs/adr/0007-machine-scoped-shared-governance-state.md` — one governance root and one daemon per machine
 - `docs/adr/0010-plain-http-local-governance.md` — why local governance has no certificates, and what stayed mTLS
 - `docs/threshold-calibration.md` / `docs/threshold-exceptions.md` — how thresholds were derived
+
+*Authored By Peter O'Connor with Assistance from Codex (gpt-6) · 2026-09-06 · Contributor guidance for repository validation history*
