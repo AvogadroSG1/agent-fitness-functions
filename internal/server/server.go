@@ -12,8 +12,10 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/buildinfo"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
@@ -21,7 +23,23 @@ import (
 const (
 	maxValidationRequestBytes = 5 << 20
 	defaultConfigsDir         = "/app/configs"
+	// ListenModeMTLS is the Identity.ListenMode reported by a daemon that
+	// authenticates callers with mutual TLS.
+	ListenModeMTLS = "mtls"
 )
+
+// HealthResponse is the JSON response returned by GET /health. It stays
+// unauthenticated so a client can detect a stale daemon (wrong build, listen
+// mode, or configs dir) before attempting mTLS.
+type HealthResponse struct {
+	Status        string `json:"status"`
+	BuildRevision string `json:"build_revision"`
+	BuildModified bool   `json:"build_modified"`
+	ListenMode    string `json:"listen_mode"`
+	ConfigsDir    string `json:"configs_dir"`
+	PID           int    `json:"pid"`
+	StartedAt     string `json:"started_at"`
+}
 
 // StateResponse is the JSON response returned by GET /state for one repository.
 type StateResponse struct {
@@ -84,6 +102,7 @@ func NewHandlerWithChecker(checker Checker, shutdown func()) http.Handler {
 }
 
 func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOptions) http.Handler {
+	startedAt := time.Now()
 	if checker.State == nil {
 		checker.State = NewState()
 	}
@@ -99,9 +118,7 @@ func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOpti
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	mux.HandleFunc("/health", healthHandler(options.Identity, startedAt))
 	mux.HandleFunc("/check", withAuthenticatedCaller(checkHandler(checker, options), options))
 	mux.HandleFunc("/state", withAuthenticatedCaller(stateHandler(checker, options), options))
 	mux.HandleFunc("/preflight", withAuthenticatedCaller(preflightHandler(checker, options), options))
@@ -110,6 +127,22 @@ func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOpti
 	mux.HandleFunc("/functions", withAuthenticatedCaller(functionsHandler(checker, options), options))
 	mux.HandleFunc("/shutdown", withAuthenticatedCaller(shutdownHandler(checker, options, cancelDeferred, shutdown), options))
 	return mux
+}
+
+func healthHandler(identity Identity, startedAt time.Time) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(HealthResponse{
+			Status:        "ok",
+			BuildRevision: identity.BuildRevision,
+			BuildModified: identity.BuildModified,
+			ListenMode:    identity.ListenMode,
+			ConfigsDir:    identity.ConfigsDir,
+			PID:           os.Getpid(),
+			StartedAt:     startedAt.Format(time.RFC3339),
+		})
+	}
 }
 
 func checkHandler(checker Checker, options HandlerOptions) http.HandlerFunc {
@@ -472,10 +505,26 @@ func prepareServeTLS(options ServeOptions) (preparedServerTLS, error) {
 	}, runtime: runtime}, nil
 }
 
+// daemonIdentity describes this daemon for GET /health. Every daemon started
+// through ServeWithOptions listens with mTLS today; S3 adds a local-http mode.
+func daemonIdentity(configDir string) Identity {
+	revision, modified := buildinfo.Current()
+	if absolute, err := filepath.Abs(configDir); err == nil {
+		configDir = absolute
+	}
+	return Identity{
+		BuildRevision: revision,
+		BuildModified: modified,
+		ListenMode:    ListenModeMTLS,
+		ConfigsDir:    configDir,
+	}
+}
+
 func runServer(ctx context.Context, store *ConfigStore, options ServeOptions) error {
 	shutdownRequested := make(chan struct{}, 1)
 	handlerOptions := options.HandlerOptions
 	handlerOptions.RequireAuthentication = true
+	handlerOptions.Identity = daemonIdentity(options.ConfigDir)
 
 	listener, err := net.Listen("tcp", options.Addr)
 	if err != nil {

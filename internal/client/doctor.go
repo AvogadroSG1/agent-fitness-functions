@@ -14,11 +14,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime/debug"
 	"strings"
 	"time"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/buildinfo"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/installer"
 )
@@ -204,30 +204,10 @@ func checkBinary() checkResult {
 		path = "agent-fitness-functions"
 	}
 	detail := path
-	if revision := buildRevision(); revision != "" {
+	if revision, _ := buildinfo.Current(); revision != "" {
 		detail = path + " (" + revision + ")"
 	}
 	return checkResult{name: "binary", detail: detail, passed: true}
-}
-
-func buildRevision() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return ""
-	}
-	for _, setting := range info.Settings {
-		if setting.Key == "vcs.revision" {
-			return truncateRevision(setting.Value, 12)
-		}
-	}
-	return ""
-}
-
-func truncateRevision(value string, length int) string {
-	if len(value) > length {
-		return value[:length]
-	}
-	return value
 }
 
 func checkPython3() checkResult {
