@@ -947,8 +947,22 @@ func TestRunBaselineWithoutEmitConfigSkipsConfig(t *testing.T) {
 	}
 }
 
+func TestGitFixtureDoesNotNotifyExternalTraceConsumer(t *testing.T) {
+	trace := filepath.Join(t.TempDir(), "trace.json")
+	t.Setenv("GIT_TRACE2_EVENT", trace)
+	runGit(t, t.TempDir(), "init")
+	if _, err := os.Stat(trace); !os.IsNotExist(err) {
+		t.Fatalf("fixture Git notified an external trace consumer: %v", err)
+	}
+}
+
 func runGit(t *testing.T, repo string, args ...string) {
 	t.Helper()
+	if len(args) > 0 && args[0] == "init" {
+		// External trace consumers can write into a fixture after Git exits,
+		// racing TempDir cleanup. Disable delivery before the first command.
+		t.Setenv("GIT_TRACE2_EVENT", "0")
+	}
 	command := exec.Command("git", append([]string{"-C", repo}, args...)...)
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("git %v failed: %v\n%s", args, err, output)
