@@ -1,6 +1,6 @@
 # Repository Validation History Implementation Plan
 
-> For agentic workers: use the executing-plans skill to execute the Beads slices below. Beads is the task tracker; this document specifies behavior and verification. Implementation is present; final verification and slice 7 reviews are pending.
+> All seven slices are implemented and verified. Their specification and quality reviews, followed by the whole-feature review, are complete. Beads tracks completion; this document preserves the accepted implementation contract.
 
 **Goal:** Let a developer or agent inspect submitted source versions, their actual validation verdicts, and explicit comparisons within a local repository clone.
 
@@ -193,6 +193,7 @@ From the repository root, use its documented caches. The feature is not complete
 GOTOOLCHAIN=go1.25.14 GOCACHE="$PWD/.tmp/go-build" GOMODCACHE="$PWD/.tmp/go-mod" go test ./...
 GOCACHE="$PWD/.tmp/go-build" GOMODCACHE="$PWD/.tmp/go-mod" go test . ./configs ./cmd/agent-fitness-functions ./internal/server
 GOCACHE="$PWD/.tmp/go-build" GOMODCACHE="$PWD/.tmp/go-mod" go test -race ./internal/history ./internal/historyipc ./internal/historyservice ./internal/osevent ./internal/client
+GOTOOLCHAIN=go1.25.14 GOCACHE="$PWD/.tmp/go-build" GOMODCACHE="$PWD/.tmp/go-mod" go test -tags integration ./internal/client -run '^TestHistory(CrossProcess|RequestObservation)' -count=1
 CGO_ENABLED=0 GOCACHE="$PWD/.tmp/go-build" GOMODCACHE="$PWD/.tmp/go-mod" go build ./cmd/agent-fitness-functions
 git diff --check
 ```
@@ -201,13 +202,17 @@ Run container-contract tests and the documented Docker build with its pinned bui
 
 Planning evidence: the saved macOS probe delivered complete 1 KiB through 5 MiB payloads while reads were paused; a paused 15 MiB send returned `EAGAIN` after a partial send, supporting complete-frame rejection. A tagged native `logger` event was read back from the macOS event log. These probes are not product tests, do not cover Linux, and do not establish a latency or delivery guarantee. Source and results are saved under `~/peter_code/scratch_work/repository_validation_history_code/`.
 
-The specification review preceded implementation. Slices 1–6 are implemented with their dispatched specification and quality reviews addressed. Slice 7 adds real CLI/writer integration scenarios and contributor documentation; its final platform verification and reviews remain pending. Use Beads for current execution status. Follow the repository's scoped commit/push protocol and required co-authors. No deployment, live governance restart, or installed-hook update is part of this implementation session.
+The specification review preceded implementation. All seven slices are implemented, with every dispatched specification and quality review addressed. The final whole-feature review approved the implementation through commit `337377d`. Slice 7 adds real CLI/writer integration scenarios and contributor documentation. Use Beads for execution status and the authoritative Obsidian implementation results for saved evidence. No deployment, live governance restart, or installed-hook update was part of this implementation session.
 
 Verification recorded on 2026-09-06: full `go test ./...` with Go 1.25.14, the normal
 local-toolchain repository gate, `go vet ./...`, the history/client race gate, and
 the CGO-disabled minimum-toolchain binary build passed. The corrected product
-Docker image built successfully and passed its Node/CALM runtime contract. Final
-slice 7 cross-platform integration and specification/quality review remain pending.
+Docker image built successfully, passed its Node/CALM runtime contract, and validated
+the passing CALM architecture fixture. Final process scenarios, caller Git-state
+isolation, and cancellation regressions passed on macOS and Linux arm64; the same
+native process checks passed with race detection. Product OS logging read-back
+passed on both platforms. The final source, diagnostic reproductions, and verification
+scripts are saved in `~/peter_code/scratch_work/repository_validation_history_code/`.
 
 ## Primary references
 
