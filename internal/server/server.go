@@ -131,9 +131,7 @@ func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOpti
 
 func healthHandler(identity Identity, startedAt time.Time) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(HealthResponse{
+		writeJSON(w, HealthResponse{
 			Status:        "ok",
 			BuildRevision: identity.BuildRevision,
 			BuildModified: identity.BuildModified,

@@ -123,7 +123,7 @@ graph TD
 |---|---|---|
 | `/check` | POST | Run fitness check on proposed file content |
 | `/state` | GET | Return outstanding violation state for a repository |
-| `/health` | GET | Liveness check |
+| `/health` | GET | Liveness check; returns a JSON identity body (`status`, `build_revision`, `build_modified`, `listen_mode`, `configs_dir`, `pid`, `started_at`) so clients can detect a stale daemon pre-auth |
 | `/shutdown` | POST | Graceful shutdown |
 
 **`/check` request body:**
