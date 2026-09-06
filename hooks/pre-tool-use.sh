@@ -122,8 +122,9 @@ report_infra_error() {
 payload=$(cat)
 payload_file=$(mktemp)
 content_file=$(mktemp)
+stderr_file=$(mktemp)
 cleanup() {
-  rm -f "$payload_file" "$content_file"
+  rm -f "$payload_file" "$content_file" "$stderr_file"
 }
 trap cleanup EXIT
 printf '%s' "$payload" > "$payload_file"
@@ -253,11 +254,6 @@ fi
 
 args=(client validate --file "$file" --repo "$repo_arg" --content-file "$content_file" --language "$language")
 args+=(--addr "$addr")
-# This hook validates a proposal that may never be written, so the check is a
-# dry run: the daemon returns the verdict without recording it as an
-# outstanding violation for the repository. The commit-time hooks validate
-# content that will land, and deliberately do not pass this flag.
-args+=(--dry-run)
 # Pass mTLS client cert+key only as a pair (the client requires both together);
 # omit when the files are absent so a plain-HTTP local server still works.
 if [[ -f "$client_cert" && -f "$client_key" ]]; then
@@ -267,10 +263,45 @@ if [[ -f "$client_ca" ]]; then
   args+=(--client-ca "$client_ca")
 fi
 
-if result=$("$agent_fitness_functions_bin" "${args[@]}"); then
-  rc=0
-else
-  rc=$?
+# run_client_validate runs one validation, leaving stdout in $result, stderr in
+# $validate_stderr and the exit code in $rc. Stderr is captured rather than
+# streamed because the retry decision below is made from it; the caller replays
+# it so no diagnostic is lost to the capture.
+run_client_validate() {
+  if result=$("$agent_fitness_functions_bin" "$@" 2>"$stderr_file"); then
+    rc=0
+  else
+    rc=$?
+  fi
+  validate_stderr=$(cat "$stderr_file")
+}
+
+# rejected_dry_run_flag reports whether this failure is a binary that predates
+# --dry-run refusing the flag. It matches the flag parser's own wording, so a
+# violation message that merely mentions a dry run can never be mistaken for it.
+rejected_dry_run_flag() {
+  [[ "$rc" -eq 2 ]] || return 1
+  printf '%s\n%s\n' "$validate_stderr" "$result" |
+    grep -qE '(not defined|unknown flag|unknown option|invalid flag)[:=]? *-{1,2}dry-run'
+}
+
+# This hook validates a proposal that may never be written, so the check is a
+# dry run: the daemon returns the verdict without recording it as an
+# outstanding violation for the repository. The commit-time hooks validate
+# content that will land, and deliberately do not pass this flag.
+#
+# A binary older than the flag rejects it as a usage error, and a hook that
+# turned that skew into a failure would block every edit on the machine. So the
+# validation is retried once without the flag: the old binary then records the
+# verdict the way it always did, which still governs this edit, and the skew
+# ends the next time the binary is installed.
+run_client_validate "${args[@]}" --dry-run
+if rejected_dry_run_flag; then
+  echo "agent-fitness-functions: this binary predates --dry-run; validating without it (re-install the binary so speculative edits stop being recorded)" >&2
+  run_client_validate "${args[@]}"
+fi
+if [[ -n "$validate_stderr" ]]; then
+  printf '%s\n' "$validate_stderr" >&2
 fi
 if [[ "$rc" -ne 0 ]]; then
   if is_infra_error "$rc" "$result"; then

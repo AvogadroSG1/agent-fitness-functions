@@ -462,6 +462,29 @@ func runGitClientTest(t *testing.T, repo string, args ...string) {
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("git %v failed: %v\n%s", args, err, output)
 	}
+	if len(args) > 0 && args[0] == "init" {
+		disableGitBackgroundMaintenance(t, repo)
+	}
+}
+
+// disableGitBackgroundMaintenance stops git from detaching auto-gc and
+// maintenance into a repository t.TempDir() is about to remove. A background
+// git process writing into .git races that removal and fails the test with
+// "TempDir RemoveAll cleanup: ... .git: directory not empty" long after its
+// assertions passed — the same settings hooks/pre_commit_test.go pins.
+func disableGitBackgroundMaintenance(t *testing.T, repo string) {
+	t.Helper()
+	for _, setting := range [][2]string{
+		{"maintenance.auto", "false"},
+		{"maintenance.autoDetach", "false"},
+		{"gc.auto", "0"},
+		{"gc.autoDetach", "false"},
+	} {
+		command := exec.Command("git", "-C", repo, "config", setting[0], setting[1])
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("git config %s: %v\n%s", setting[0], err, output)
+		}
+	}
 }
 
 func useDeterministicGitClientTest(t *testing.T, repo string) {

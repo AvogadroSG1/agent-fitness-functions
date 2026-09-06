@@ -235,7 +235,7 @@ func checkDaemonCurrency(cfg doctorConfig) checkResult {
 	return checkResult{
 		name:        name,
 		detail:      strings.Join(reasons, "; "),
-		remediation: "re-run `agent-fitness-functions client onboard` to restart the daemon current",
+		remediation: "re-run `agent-fitness-functions client onboard` to restart the daemon and make it current",
 		warning:     true,
 	}
 }

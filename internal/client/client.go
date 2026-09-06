@@ -1076,6 +1076,10 @@ func configureClientTLSMaterial(base *http.Client, material clientTLSMaterial) (
 	return configured, nil
 }
 
+// ensureDaemon guarantees only that a daemon answers at addr, starting one when
+// nothing does. It asks nothing about which generation answered, which is why it
+// is the right — and only — behaviour for an address this machine does not own:
+// ensureCurrentDaemon delegates here for every non-loopback endpoint.
 func ensureDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, starter func(DaemonStartConfig) error) error {
 	endpoint := daemonEndpoint{addr: addr, client: httpClient}
 	return ensureProbedDaemon(endpoint, cfg, starter, probeDaemon(httpClient, addr))

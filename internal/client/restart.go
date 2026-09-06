@@ -435,6 +435,15 @@ func ensureCurrentDaemon(httpClient *http.Client, addr string, cfg DaemonStartCo
 // the replacement: onboard prints why the daemon it found was replaced, while
 // the silent validate path passes nil.
 func ensureCurrentDaemonReporting(httpClient *http.Client, addr string, cfg DaemonStartConfig, starter func(DaemonStartConfig) error, report func([]string)) error {
+	if localDaemonScheme(addr) == "" {
+		// A daemon that is not on this machine's loopback is not ours to stop:
+		// DaemonStartConfig.Local marks managed certificate provisioning, not
+		// locality (daemonStartConfigFromMaterial sets it for any managed mode),
+		// so the address is the only trustworthy evidence. Currency is a
+		// machine-local concern; a remote endpoint gets the plain ensure it has
+		// always had, and never a shutdown or a restart.
+		return ensureDaemon(httpClient, addr, cfg, starter)
+	}
 	expect := currentDaemonExpectations(expectedListenMode(cfg))
 	identity, err := probeDaemonIdentity(httpClient, addr)
 	if err != nil {

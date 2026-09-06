@@ -336,7 +336,9 @@ func (c *Checker) runValidationAndScore(ctx context.Context, result analyzer.Ana
 func (c *Checker) scoreClean(repo, file string, config Config, ledger violationLedger) (fitness.ValidationResult, error) {
 	if config.EnforcementMode == EnforcementBlock {
 		ledger.ReplaceFile(repo, file, nil)
-		if outstanding := ledger.Violations(repo, file, nil); len(outstanding) > 0 {
+		// A clean file contributes nothing, so the outstanding set is whatever
+		// the repository's other files still owe (the blackboard verdict).
+		if outstanding := ledger.OutstandingAfter(repo, file, nil); len(outstanding) > 0 {
 			return fitness.ValidationResult{Status: fitness.StatusBlock, Violations: outstanding}, nil
 		}
 	} else {
@@ -352,7 +354,10 @@ func (c *Checker) scoreDirty(repo, file string, violations []fitness.Violation, 
 		return fitness.ValidationResult{Status: fitness.StatusAdvisory, Violations: violations}, nil
 	default:
 		ledger.ReplaceFile(repo, file, violations)
-		return fitness.ValidationResult{Status: fitness.StatusBlock, Violations: ledger.Violations(repo, file, violations)}, nil
+		// This file's violations replace its previous ones and merge with the
+		// rest of the repository's; a dry run computes that merge without
+		// having performed the write above.
+		return fitness.ValidationResult{Status: fitness.StatusBlock, Violations: ledger.OutstandingAfter(repo, file, violations)}, nil
 	}
 }
 

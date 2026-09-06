@@ -341,6 +341,13 @@ func sortViolations(violations []fitness.Violation) {
 // proposal, a doctor probe — computes the same verdict and writes nothing,
 // because content that may never land on disk must never poison the ledger the
 // next commit is judged against.
+//
+// Scope decision (calm-poc-cpvk, recorded on the issue): only speculative
+// proposals dry-run. The commit-path hooks stay wet, and the repository-wide
+// aggregation they feed is deliberate — the ledger is the blackboard on which
+// one file's violation keeps the whole repository blocked until it is fixed.
+// Making every check non-persistent would delete that governance model, not
+// improve it; the fix was to stop counting proposals that never landed.
 type violationLedger struct {
 	state  *State
 	dryRun bool
@@ -369,11 +376,12 @@ func (l violationLedger) ClearRepo(repo string) {
 	l.state.ClearRepo(repo)
 }
 
-// Violations is the outstanding set the caller is told about after scoring one
-// file: the ledger's own contents for a real check, whose write already landed,
-// and for a dry run the set that withheld write would have produced — the
-// proposed violations standing in for whatever this file currently holds.
-func (l violationLedger) Violations(repo, file string, proposed []fitness.Violation) []fitness.Violation {
+// OutstandingAfter is the set the caller is told about once file has been
+// scored with proposed. For a real check the write has already landed, so the
+// answer is simply the ledger's contents and the two arguments only describe
+// how it got there; for a dry run they are the withheld write itself, applied
+// to a copy — proposed standing in for whatever the ledger holds for file.
+func (l violationLedger) OutstandingAfter(repo, file string, proposed []fitness.Violation) []fitness.Violation {
 	if !l.dryRun {
 		return l.state.Violations(repo)
 	}

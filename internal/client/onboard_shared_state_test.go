@@ -27,6 +27,7 @@ func onboardTestRepo(t *testing.T) string {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v\n%s", err, output)
 	}
+	disableGitBackgroundMaintenance(t, root)
 	return root
 }
 
