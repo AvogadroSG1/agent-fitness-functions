@@ -66,6 +66,16 @@ var generalizedFitnessFunctionKeys = []string{
 	"deterministic-ordering",
 }
 
+// allFitnessFunctionKeys is the canonical catalog order every user-facing
+// listing follows: the five metric-scored functions, then the four
+// generalized ones. It returns a fresh slice so no caller can mutate the two
+// source slices through it.
+func allFitnessFunctionKeys() []string {
+	keys := make([]string, 0, len(fitnessFunctionKeys)+len(generalizedFitnessFunctionKeys))
+	keys = append(keys, fitnessFunctionKeys...)
+	return append(keys, generalizedFitnessFunctionKeys...)
+}
+
 // onboarder holds the resolved inputs for a single onboard run. Dependencies are
 // injected (like doctor.go) so the individual steps stay unit-testable.
 type onboarder struct {
@@ -215,7 +225,14 @@ func promptSelectedFunctions(stdout io.Writer) (map[string]bool, error) {
 	if err != nil {
 		return nil, err
 	}
-	return runFunctionPicker(os.Stdin, stdout, options)
+	selected, err := runFunctionPicker(os.Stdin, stdout, options)
+	if err != nil {
+		return nil, err
+	}
+	if err := rejectUnsettableSelection(selected); err != nil {
+		return nil, err
+	}
+	return selected, nil
 }
 
 func resolveCertificatesOnlyOnboarder(extraArgs []string, forceDevCertRotation bool) (onboarder, error) {
