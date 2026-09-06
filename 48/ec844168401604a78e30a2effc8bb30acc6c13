@@ -1,0 +1,19 @@
+docs/plans/2026-09-06-repository-validation-history.md
+  s_cf963430e803c8::t_fd3fa41366a1fb 3,196,205,210-215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "48ec844168401604a78e30a2effc8bb30acc6c13",
+  "prompts": {},
+  "sessions": {
+    "s_cf963430e803c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a076aa-0fc6-7d81-b3ef-65e1cc030235",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
