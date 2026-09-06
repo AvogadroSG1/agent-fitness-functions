@@ -431,7 +431,7 @@ func (o *onboarder) run() error {
 	} else {
 		steps = append(steps, o.registerRemote)
 	}
-	steps = append(steps, o.installHooks, o.startDaemon, o.awaitRegistration, o.runDoctor)
+	steps = append(steps, o.migrateLegacy, o.installHooks, o.startDaemon, o.awaitRegistration, o.runDoctor)
 	for _, step := range steps {
 		if err := step(); err != nil {
 			return err
@@ -439,6 +439,21 @@ func (o *onboarder) run() error {
 	}
 	o.printManualRemainder()
 	return nil
+}
+
+// migrateLegacy quarantines pre-ADR-0007 repo-local governance state so stale
+// certificate material can never again be presented to the shared daemon.
+func (o *onboarder) migrateLegacy() error {
+	return migrateLegacyState(o.repoRoot, func(line string) {
+		_, _ = fmt.Fprintln(o.stdout, line)
+	})
+}
+
+// migrateLegacyState is the repo-local cleanup: quarantine a managed-layout
+// certs/ directory and an untracked root caller-repos.json (tracked ones are
+// only warned about), idempotently, reporting every action taken.
+func migrateLegacyState(repoRoot string, report func(string)) error {
+	return nil // stub pending S7 (calm-poc-cwcf)
 }
 
 func (o *onboarder) ensureCerts() error {
