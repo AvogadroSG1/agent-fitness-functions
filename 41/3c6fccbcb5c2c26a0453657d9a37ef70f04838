@@ -1,0 +1,62 @@
+internal/history/paths_validation_test.go
+  s_cf963430e803c8::t_6d72768a80a6e3 86-116
+  s_cf963430e803c8::t_f9fac766e8a43b 1-72
+  s_cf963430e803c8::t_a6ea2fc31fc6c0 73-85
+internal/history/event_validation_test.go
+  s_cf963430e803c8::t_f9fac766e8a43b 1-69
+  s_cf963430e803c8::t_a6ea2fc31fc6c0 70-77
+internal/history/paths.go
+  s_cf963430e803c8::t_175511c48cea39 102-106,108-113,123-131
+  s_cf963430e803c8::t_195fccdb7fd882 27-46,71,73,77-84,115-117,122,132-148
+  s_cf963430e803c8::t_08c3d49f38daff 1-26,47-70,72,74,89,98-101,149-185
+  s_cf963430e803c8::t_17dc0d1f0dfe7b 75-76,85,87-88,107,114,118-121
+  s_cf963430e803c8::t_aad0bba644323e 86,90-97
+docker_contract_test.go
+  s_cf963430e803c8::t_e66752c23cacda 18
+internal/history/event.go
+  s_cf963430e803c8::t_aad0bba644323e 94
+  s_cf963430e803c8::t_195fccdb7fd882 34,39-76,87,90,93,96,99-101,107,110,115,118-120
+  s_cf963430e803c8::t_8a3319b7ba16c6 31-33
+  s_cf963430e803c8::t_5a99bdcb75b366 35-38
+  s_cf963430e803c8::t_9b20755584cdb4 77-79,84-86
+  s_cf963430e803c8::t_f285eec4839091 88-89
+  s_cf963430e803c8::t_d4c40d9116b888 91-92
+  s_cf963430e803c8::t_fe9cd23c87b393 95
+  s_cf963430e803c8::t_716831e996ddc2 97-98
+  s_cf963430e803c8::t_5a99f67b33af33 102-106
+  s_cf963430e803c8::t_4bf6ce70503d93 108-109
+  s_cf963430e803c8::t_5eab6ee9117c8f 111-114
+  s_cf963430e803c8::t_a00f383144ea17 116-117
+  s_fe900986fd4f82::t_00be847f129060 1-30,80-83
+Dockerfile
+  s_cf963430e803c8::t_d46f0cd1a0f495 3
+go.mod
+  s_cf963430e803c8::t_d46f0cd1a0f495 3
+  s_cf963430e803c8::t_f0f30a9eaa48e2 10-21
+go.sum
+  s_cf963430e803c8::t_e15ff182adda32 1-2,7-14,17-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "413c6fccbcb5c2c26a0453657d9a37ef70f04838",
+  "prompts": {},
+  "sessions": {
+    "s_cf963430e803c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a076aa-0fc6-7d81-b3ef-65e1cc030235",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    },
+    "s_fe900986fd4f82": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07760-d037-7341-a78a-7b4115562284",
+        "model": "unknown"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
