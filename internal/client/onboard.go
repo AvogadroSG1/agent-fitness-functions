@@ -443,17 +443,18 @@ func (o *onboarder) run() error {
 
 // migrateLegacy quarantines pre-ADR-0007 repo-local governance state so stale
 // certificate material can never again be presented to the shared daemon.
+// The step header is printed lazily so a repo with no legacy state — every repo
+// onboarded since ADR-0007 — says nothing at all. See legacymigration.go for
+// what is quarantined and what is only reported.
 func (o *onboarder) migrateLegacy() error {
+	announced := false
 	return migrateLegacyState(o.repoRoot, func(line string) {
-		_, _ = fmt.Fprintln(o.stdout, line)
+		if !announced {
+			o.step("Legacy pre-ADR-0007 repo-local state")
+			announced = true
+		}
+		o.detail("%s", line)
 	})
-}
-
-// migrateLegacyState is the repo-local cleanup: quarantine a managed-layout
-// certs/ directory and an untracked root caller-repos.json (tracked ones are
-// only warned about), idempotently, reporting every action taken.
-func migrateLegacyState(repoRoot string, report func(string)) error {
-	return nil // stub pending S7 (calm-poc-cwcf)
 }
 
 func (o *onboarder) ensureCerts() error {

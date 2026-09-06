@@ -986,7 +986,7 @@ func checkLegacyRepoLocalCerts(cfg doctorConfig) []checkResult {
 	return []checkResult{{
 		name:        "legacy repo-local certs",
 		detail:      legacyCurrent + " still exists from a pre-ADR-0007 layout",
-		remediation: "re-run `agent-fitness-functions client onboard`, then delete this directory - it is safe to remove once the shared governance root is healthy",
+		remediation: "re-run `agent-fitness-functions client onboard` - it quarantines this directory automatically (renamed aside, never deleted)",
 		warning:     true,
 	}}
 }
@@ -1008,7 +1008,7 @@ func checkConfigSync(cfg doctorConfig) []checkResult {
 	sharedPath := filepath.Join(governanceConfigsDir(), cfg.repo, "config.json")
 	shared, err := os.ReadFile(sharedPath)
 	name := "config sync"
-	remediation := "re-run `agent-fitness-functions client onboard` to sync the repo-local config into the shared governance root"
+	remediation := "re-run `agent-fitness-functions client onboard` - it syncs the repo-local config into the shared governance root automatically"
 	if err != nil {
 		return []checkResult{{
 			name:        name,

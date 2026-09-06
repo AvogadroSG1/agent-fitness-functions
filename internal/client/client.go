@@ -337,7 +337,66 @@ func (installer hookInstaller) installGitHook(hookName, embeddedPath string) err
 	if err := installer.writeFormatter(hooksDir); err != nil {
 		return err
 	}
+	if err := installer.refreshOrphanSidecars(hooksDir, hookName, embeddedPath); err != nil {
+		return err
+	}
 	_, _ = fmt.Fprintf(installer.stdout, "installed %s\n", targetHook)
+	return nil
+}
+
+// refreshOrphanSidecars brings sidecar scripts that no host hook references any
+// more up to the current generation. handleExistingGitHook only refreshes a
+// sidecar when the host hook exists AND names it, so a repo whose host hook was
+// deleted (or never existed) kept whatever sidecar body an old install left
+// behind — including the pre-ADR-0007 body that hard-coded cert_dir=$repo/certs.
+// A marker-matched sidecar is therefore rewritten here unconditionally; one
+// under a predecessor generation's file name is removed instead, since only the
+// current name can be referenced from now on.
+func (installer hookInstaller) refreshOrphanSidecars(hooksDir, hookName, embeddedPath string) error {
+	current := sidecarHookName(hookName)
+	for _, name := range sidecarHookNames(hookName) {
+		path := filepath.Join(hooksDir, name)
+		matched, err := fileHasSidecarMarker(path, hookName)
+		if err != nil {
+			return err
+		}
+		if !matched {
+			continue
+		}
+		if err := installer.replaceOrphanSidecar(path, name == current, embeddedPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// fileHasSidecarMarker reports whether path exists and carries any generation's
+// sidecar marker for hookName. A file that is merely absent is not an error.
+func fileHasSidecarMarker(path, hookName string) (bool, error) {
+	content, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("reading sidecar %s: %w", path, err)
+	}
+	return hookHasSidecar(content, hookName), nil
+}
+
+// replaceOrphanSidecar rewrites a current-generation sidecar with the embedded
+// body, or deletes a predecessor-named one.
+func (installer hookInstaller) replaceOrphanSidecar(path string, isCurrent bool, embeddedPath string) error {
+	if !isCurrent {
+		if err := os.Remove(path); err != nil {
+			return fmt.Errorf("removing stale sidecar %s: %w", path, err)
+		}
+		_, _ = fmt.Fprintf(installer.stdout, "removed stale sidecar %s\n", path)
+		return nil
+	}
+	if err := installer.writeEmbeddedExecutable(embeddedPath, path); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(installer.stdout, "updated %s\n", path)
 	return nil
 }
 
