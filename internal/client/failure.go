@@ -89,9 +89,24 @@ func (e transportError) Unwrap() error { return e.err }
 type daemonConflictError struct {
 	addr  string
 	cause error
+	// schemeMismatch records that the listener answered on a different protocol
+	// than addr's scheme and no fallback scheme reached it either (ADR-0010
+	// migration). The contested port is still the problem, but certificate trust
+	// never was, so the diagnosis must not talk about dev CAs.
+	schemeMismatch bool
 }
 
 func (e daemonConflictError) Error() string {
+	if e.schemeMismatch {
+		return fmt.Sprintf(
+			"%s is already owned by a listener this client cannot speak to on either scheme, "+
+				"so no daemon can be started there: stop whatever holds the port "+
+				"(most likely a governance daemon from an earlier listen-mode generation), "+
+				"run `agent-fitness-functions client onboard` to restart it in the current listen mode, "+
+				"or rerun with a distinct --addr (%v)",
+			e.addr, e.cause,
+		)
+	}
 	return fmt.Sprintf(
 		"%s is already serving TLS that this client does not trust: "+
 			"either this repository is presenting stale repo-local certs left over from before "+
@@ -241,34 +256,44 @@ func isTimeoutError(err error) bool {
 // dev CA, so the fix is to stop it or move this client to a distinct port.
 func portConflictInfraError(conflict daemonConflictError) infraError {
 	return infraError{
-		kind: errorKindPortConflict,
-		message: fmt.Sprintf(
-			"a daemon that does not trust this repository's dev CA is already listening at %s (most likely another repository's local daemon, or a stale one from before certificate rotation): %v",
-			conflict.addr, conflict.cause,
-		),
+		kind:        errorKindPortConflict,
+		message:     portConflictMessage(conflict),
 		remediation: "identify the conflicting daemon with `lsof -i :<port>` and stop it, or rerun with a distinct --addr; only one repository can use the shared default local daemon port at a time",
 	}
 }
 
+// portConflictMessage states what actually holds the contested address. A scheme
+// mismatch names the protocol disagreement, because certificate trust was never
+// in play there; anything else is the dev-CA conflict this error began as.
+func portConflictMessage(conflict daemonConflictError) string {
+	if conflict.schemeMismatch {
+		return fmt.Sprintf(
+			"a listener this client cannot speak to on either scheme already owns %s (most likely a governance daemon from an earlier listen-mode generation): %v",
+			conflict.addr, conflict.cause,
+		)
+	}
+	return fmt.Sprintf(
+		"a daemon that does not trust this repository's dev CA is already listening at %s (most likely another repository's local daemon, or a stale one from before certificate rotation): %v",
+		conflict.addr, conflict.cause,
+	)
+}
+
 // isSchemeMismatch reports whether err is the signature of speaking the wrong
 // scheme to a daemon, in either direction: a TLS client meeting a plain-HTTP
-// server (net/http reports "server gave HTTP response to HTTPS client", or the
-// raw tls.RecordHeaderError it is derived from), or a plain-HTTP client meeting a
-// TLS server (a Go server answers 400 "Client sent an HTTP request to an HTTPS
-// server"). Both are migration states during the ADR-0010 move of the local
-// daemon off mTLS, not setup faults, so the client retries the other scheme
-// rather than reporting them.
+// server, which net/http's Client substitutes for the underlying
+// tls.RecordHeaderError before any caller sees it (http.ErrSchemeMismatch), or a
+// plain-HTTP client meeting a TLS server, which a Go server answers with 400
+// "Client sent an HTTP request to an HTTPS server". Both are migration states
+// during the ADR-0010 move of the local daemon off mTLS, not setup faults, so the
+// client retries the other scheme rather than reporting them.
 func isSchemeMismatch(err error) bool {
 	if err == nil {
 		return false
 	}
-	var recordHeader tls.RecordHeaderError
-	if errors.As(err, &recordHeader) {
+	if errors.Is(err, http.ErrSchemeMismatch) {
 		return true
 	}
-	message := err.Error()
-	return strings.Contains(message, "server gave HTTP response to HTTPS client") ||
-		strings.Contains(message, "an HTTP request to an HTTPS server")
+	return strings.Contains(err.Error(), "an HTTP request to an HTTPS server")
 }
 
 // isTLSError reports whether err is a TLS handshake or certificate-material problem,

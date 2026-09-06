@@ -1000,8 +1000,11 @@ func establishDaemon(httpClient *http.Client, addr, repo, file, certFlag, keyFla
 
 // resolveDaemonEndpoint probes base and, when the probe fails because the daemon
 // speaks the other scheme, retries once against the alternate scheme and returns
-// whichever endpoint answered. The returned error is the base probe's error (nil
-// once an endpoint is healthy), so the caller can still decide to auto-start.
+// whichever endpoint answered. The returned error is nil once an endpoint is
+// healthy; when every fallback candidate also failed it is a daemonConflictError
+// carrying the LAST candidate's failure, not the original mismatch, because that
+// last failure is what actually explains why this client cannot talk to whatever
+// owns the address.
 //
 // Fallback is deliberately restricted to loopback addresses by
 // alternateSchemeAddr: it exists so hooks written against either generation keep
@@ -1014,14 +1017,16 @@ func resolveDaemonEndpoint(base daemonEndpoint, certDir string) (daemonEndpoint,
 	}
 	alternate := alternateSchemeAddr(base.addr)
 	if alternate == "" {
-		return base, probeErr
+		return base, daemonConflictError{addr: base.addr, cause: probeErr, schemeMismatch: true}
 	}
 	for _, candidate := range alternateSchemeClients(base.client, alternate, certDir) {
-		if probeDaemon(candidate, alternate) == nil {
+		err := probeDaemon(candidate, alternate)
+		if err == nil {
 			return daemonEndpoint{addr: alternate, client: candidate}, nil
 		}
+		probeErr = err
 	}
-	return base, probeErr
+	return base, daemonConflictError{addr: base.addr, cause: probeErr, schemeMismatch: true}
 }
 
 // alternateSchemeClients are the clients to try against the alternate-scheme
@@ -1076,19 +1081,8 @@ func ensureProbedDaemon(endpoint daemonEndpoint, cfg DaemonStartConfig, starter 
 	if probeErr == nil {
 		return nil
 	}
-	// A TLS/certificate handshake failure is not fixed by (re)starting a daemon, and
-	// auto-start would race an already-listening server. In managed local mTLS mode
-	// this client's own dev-cert material has already loaded cleanly by the time the
-	// probe runs, so a TLS failure here means the listener on the shared port belongs
-	// to someone else's daemon; name that conflict instead of reporting raw cert
-	// wording. The local-http mode carries no certificates at all, and outside managed
-	// local mode the TLS material is caller-supplied, so in both cases a genuine
-	// external CA mismatch is still possible and the raw error is preserved.
-	if isTLSError(probeErr) {
-		if cfg.Local && !localHTTPStart(cfg) {
-			return daemonConflictError{addr: endpoint.addr, cause: probeErr}
-		}
-		return probeErr
+	if owned, isOwned := addressAlreadyOwned(endpoint.addr, cfg, probeErr); isOwned {
+		return owned
 	}
 	if err := starter(cfg); err != nil {
 		return fmt.Errorf("starting daemon: %w", err)
@@ -1097,6 +1091,36 @@ func ensureProbedDaemon(endpoint daemonEndpoint, cfg DaemonStartConfig, starter 
 		return describeDaemonFailure(cfg, err)
 	}
 	return nil
+}
+
+// addressAlreadyOwned reports the error to surface when the probe already proves
+// that something is listening on the address, so auto-start would race a live
+// listener and bury the real cause under a five-second health-wait timeout.
+//
+// Two probe outcomes prove it. A scheme mismatch that survived fallback means a
+// listener answered — just not one this client can talk to on either scheme; it
+// arrives pre-wrapped as a conflict by resolveDaemonEndpoint. A TLS/certificate
+// handshake failure means a TLS listener answered and rejected us: in managed
+// local mTLS mode this client's own dev-cert material has already loaded cleanly
+// by then, so the listener belongs to someone else's daemon and is named as a
+// conflict; in local-http mode (no certificates at all) and outside managed local
+// mode (caller-supplied material) a genuine CA mismatch is still possible, so the
+// raw error is preserved instead.
+func addressAlreadyOwned(addr string, cfg DaemonStartConfig, probeErr error) (error, bool) {
+	var conflict daemonConflictError
+	if errors.As(probeErr, &conflict) {
+		return probeErr, true
+	}
+	if isSchemeMismatch(probeErr) {
+		return daemonConflictError{addr: addr, cause: probeErr, schemeMismatch: true}, true
+	}
+	if !isTLSError(probeErr) {
+		return nil, false
+	}
+	if cfg.Local && !localHTTPStart(cfg) {
+		return daemonConflictError{addr: addr, cause: probeErr}, true
+	}
+	return probeErr, true
 }
 
 // describeDaemonFailure annotates a health-wait timeout with what auto-start

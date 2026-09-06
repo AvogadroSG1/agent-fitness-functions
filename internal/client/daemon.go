@@ -275,18 +275,29 @@ func resolveConfigsDir() string {
 //   - anything else  → remote/unmanaged: the caller owns its own TLS material and
 //     nothing is auto-provisioned or auto-started on its behalf.
 func localDaemonScheme(addr string) string {
+	parsed, ok := parseLocalDaemonURL(addr)
+	if !ok {
+		return ""
+	}
+	return parsed.Scheme
+}
+
+// parseLocalDaemonURL parses addr and reports whether it names a loopback
+// governance daemon over http or https, returning the parsed URL so callers can
+// rebuild a variant of it rather than performing string surgery on the input.
+func parseLocalDaemonURL(addr string) (*url.URL, bool) {
 	parsed, err := url.Parse(addr)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return ""
+		return nil, false
 	}
 	host := parsed.Hostname()
 	if host == "localhost" {
-		return parsed.Scheme
+		return parsed, true
 	}
 	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
-		return parsed.Scheme
+		return parsed, true
 	}
-	return ""
+	return nil, false
 }
 
 func isLocalHTTPS(addr string) bool { return localDaemonScheme(addr) == "https" }
@@ -298,14 +309,16 @@ func isLocalHTTP(addr string) bool { return localDaemonScheme(addr) == "http" }
 // for the machine-local daemon (ADR-0010), never applied to a remote endpoint
 // where retrying https as http would be a transport-security downgrade.
 func alternateSchemeAddr(addr string) string {
-	switch localDaemonScheme(addr) {
-	case "http":
-		return "https://" + strings.TrimPrefix(addr, "http://")
-	case "https":
-		return "http://" + strings.TrimPrefix(addr, "https://")
-	default:
+	parsed, ok := parseLocalDaemonURL(addr)
+	if !ok {
 		return ""
 	}
+	if parsed.Scheme == "http" {
+		parsed.Scheme = "https"
+	} else {
+		parsed.Scheme = "http"
+	}
+	return parsed.String()
 }
 
 // localHTTPStart reports whether this auto-start must launch the daemon in the
