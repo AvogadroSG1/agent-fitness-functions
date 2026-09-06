@@ -34,6 +34,8 @@ func AnalyzeRepository(ctx context.Context, root, language string, options Repos
 		case "csharp":
 			csprojPath, _ := FindNearestCsproj(file, root)
 			result, err = AnalyzeCSharpFileWithProject(ctx, file, csprojPath, options.RoslynPath)
+		case "typescript":
+			result, err = AnalyzeTypeScriptFile(file)
 		default:
 			return nil, fmt.Errorf("unsupported language %q", language)
 		}
@@ -50,8 +52,9 @@ func discoverFiles(root, language string) ([]string, error) {
 		return DiscoverGoFiles(root)
 	}
 	extension := map[string]string{
-		"python": ".py",
-		"csharp": ".cs",
+		"python":     ".py",
+		"csharp":     ".cs",
+		"typescript": ".ts",
 	}[language]
 	if extension == "" {
 		return nil, fmt.Errorf("unsupported language %q", language)
@@ -63,12 +66,13 @@ func discoverFiles(root, language string) ([]string, error) {
 		}
 		if entry.IsDir() {
 			switch entry.Name() {
-			case ".git", ".venv", ".pytest_cache", ".worktrees", "node_modules", "bin", "obj":
+			case ".git", ".venv", ".pytest_cache", ".worktrees", "node_modules", "bin", "obj", "dist", "build", ".next":
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if strings.HasSuffix(entry.Name(), extension) {
+		if strings.HasSuffix(entry.Name(), extension) ||
+			(language == "typescript" && strings.HasSuffix(entry.Name(), ".tsx")) {
 			files = append(files, current)
 		}
 		return nil

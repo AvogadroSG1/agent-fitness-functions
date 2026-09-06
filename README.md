@@ -15,7 +15,7 @@ operator reference for both local and production onboarding.
 - Go 1.22 or newer for the `agent-fitness-functions` binary
 - FINOS CALM CLI 1.40.0 via `npm install -g @finos/calm-cli@1.40.0`
 - `radon` 6.0.1 on `PATH`, or pass `--radon <path>`, for Python baseline analysis
-- .NET 8 SDK for `tools/roslyn-analyzer`; `agent-fitness-functions baseline --language csharp` builds the local analyzer automatically when `--roslyn <path>` is omitted
+- .NET 8 SDK for `tools/roslyn-analyzer`; `agent-fitness-functions baseline --language csharp` builds the local analyzer automatically when `--roslyn <path>` is omitted. TypeScript audits (`--language typescript`) use the built-in lexical analyzer and do not require Node.js.
 - `pyyaml` 6+ for hook violation formatting: `python3 -m pip install -r hooks/requirements.txt`
 - Docker with BuildKit for validating the container image; the image packages the Go server, FINOS CALM CLI 1.40.0, Python `radon==6.0.1`, and the self-contained .NET 8 Roslyn analyzer.
 
@@ -177,6 +177,13 @@ Generate a C# baseline from a fresh checkout with:
 
 ```bash
 go run ./cmd/agent-fitness-functions baseline --repo /path/to/repo --language csharp --output baseline-report.json
+```
+
+Generate an audit-only TypeScript report with:
+
+```bash
+go run ./cmd/agent-fitness-functions baseline \
+  --repo /path/to/repo --language typescript --output baseline-report.json
 ```
 
 The Roslyn analyzer is also packageable as a local .NET tool:

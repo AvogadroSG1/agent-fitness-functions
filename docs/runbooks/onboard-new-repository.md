@@ -878,7 +878,7 @@ agent-fitness-functions client onboard --enforcement block \
 agent-fitness-functions doctor
 
 # Production: derive a config from a baseline, then deploy it
-agent-fitness-functions baseline --repo /path/to/<repo> --language <go|python|csharp> \
+agent-fitness-functions baseline --repo /path/to/<repo> --language <go|python|csharp|typescript> \
   --output baseline-report-<repo>.json --emit-config configs/<repo>/config.json --name <repo>
 #   1. copy configs/<repo>/config.json to the deployment
 #   2. authorize the caller CN in caller-repos.json
