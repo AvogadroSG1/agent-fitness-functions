@@ -1,0 +1,14 @@
+docs/handoffs/agent-cockpit-handoff-2026-09-02.md
+  h_56c22cd4a131f7 1-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "e871b7ababba30e42acdfbbc58028015519e0a4e",
+  "prompts": {},
+  "humans": {
+    "h_56c22cd4a131f7": {
+      "author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
