@@ -1,0 +1,19 @@
+internal/historyservice/service_test.go
+  s_cf963430e803c8::t_f628aaee055a80 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "bc4a74dce91429c72c2dfd93421a85c7e06564d9",
+  "prompts": {},
+  "sessions": {
+    "s_cf963430e803c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a076aa-0fc6-7d81-b3ef-65e1cc030235",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
