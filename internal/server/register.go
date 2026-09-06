@@ -120,7 +120,9 @@ func buildRegisterConfig(request RegisterRequest) (Config, error) {
 	}
 	fitnessFunctions, err := normalizeFitnessFunctions(request.FitnessFunctions)
 	if err != nil {
-		return Config{}, err
+		// govconfig returns plain errors; classify here so a bad request body
+		// stays a 400 rather than degrading to a 500 in writeCheckError.
+		return Config{}, inputError(err.Error(), nil)
 	}
 	return Config{
 		EnforcementMode:    mode,

@@ -1,0 +1,22 @@
+{
+  "enforcement-mode": "block",
+  "enforcement-on-error": "block",
+  "fitness-functions": {
+    "cyclomatic-complexity": true,
+    "dependency-discipline": true,
+    "deterministic-ordering": false,
+    "implementation-depth": true,
+    "interface-width": true,
+    "layer-sovereignty": false,
+    "logic-density": true,
+    "sql-composition-safety": false,
+    "temporal-purity": false
+  },
+  "exclude-patterns": [
+    "fixtures/violations/go/*.go",
+    "fixtures/violations/python/*.py",
+    "*_test.go",
+    "test_*.py",
+    "*_test.py"
+  ]
+}

@@ -422,7 +422,7 @@ The caller's certificate CN MUST be authorized for the repo name in
   "callers": {
     "ci-runner-graft": ["graft"],
     "ci-runner-all": ["graft", "ringstation", "slackstatus"],
-    "dev-hook-pool": ["calm-poc", "graft", "ringstation", "slackstatus", "<repo-name>"]
+    "dev-hook-pool": ["agent-fitness-functions", "graft", "ringstation", "slackstatus", "<repo-name>"]
   },
   "admins": ["dev-hook-pool"]
 }

@@ -2792,4 +2792,3 @@ func TestHandlerCheckCSharpWarmupFailureAllowsSubsequentRetry(t *testing.T) {
 		t.Fatalf("resp2 status = %d, body = %q; want 200 OK after warmup failure cleared", resp2.StatusCode, body2)
 	}
 }
-

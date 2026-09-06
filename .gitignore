@@ -45,4 +45,12 @@ tmp/
 tools/roslyn-analyzer/bin/
 
 # npm install output for the committed CALM CLI lockfile (package-lock.json IS committed)
-tools/calm-runtime/node_modules/.opencode/
+tools/calm-runtime/node_modules/
+
+# Python test cache
+.pytest_cache/
+
+# Quarantine for files flagged unused by the file audit (never committed)
+/archives/
+/.agents/.DS_Store
+/.agents/skills

@@ -1,0 +1,54 @@
+{
+  "enforcement-mode": "advisory",
+  "enforcement-on-error": "advisory",
+  "fitness-functions": {
+    "cyclomatic-complexity": true,
+    "dependency-discipline": true,
+    "implementation-depth": true,
+    "interface-width": true,
+    "logic-density": true,
+    "temporal-purity": true,
+    "deterministic-ordering": true,
+    "sql-composition-safety": true,
+    "layer-sovereignty": true
+  },
+  "fitness-function-settings": {
+    "layer-sovereignty": {
+      "layers": [
+        {
+          "name": "bronze",
+          "paths": [
+            "**/transformations/bronze/**",
+            "transformations/bronze/**"
+          ],
+          "forbidden-patterns": [
+            "(?i)(FROM|JOIN|INTO|UPDATE|TABLE|EXISTS)\\s+(silver|gold)\\.",
+            "TableRef\\(\\s*\"(silver|gold)\""
+          ]
+        },
+        {
+          "name": "silver",
+          "paths": [
+            "**/transformations/silver/**",
+            "transformations/silver/**"
+          ],
+          "forbidden-patterns": [
+            "(?i)(FROM|JOIN|INTO|UPDATE|TABLE|EXISTS)\\s+gold\\.",
+            "TableRef\\(\\s*\"gold\""
+          ]
+        },
+        {
+          "name": "gold",
+          "paths": [
+            "**/transformations/gold/**",
+            "transformations/gold/**"
+          ],
+          "forbidden-patterns": [
+            "(?i)(FROM|JOIN|INTO|UPDATE|TABLE|EXISTS)\\s+bronze\\.",
+            "TableRef\\(\\s*\"bronze\""
+          ]
+        }
+      ]
+    }
+  }
+}

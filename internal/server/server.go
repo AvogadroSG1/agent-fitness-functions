@@ -37,6 +37,7 @@ type PreflightResponse struct {
 	AuthenticatedCN  string          `json:"authenticated_cn"`
 	RepoConfigured   bool            `json:"repo_configured"`
 	RepoConfigValid  bool            `json:"repo_config_valid"`
+	RepoConfigError  string          `json:"repo_config_error,omitempty"`
 	CallerAuthorized bool            `json:"caller_authorized"`
 	EnforcementMode  EnforcementMode `json:"enforcement_mode"`
 }
@@ -292,6 +293,7 @@ func buildPreflightResponse(store *ConfigStore, caller, repo string) PreflightRe
 	}
 	response.RepoConfigured = true
 	response.RepoConfigValid = entry.Valid
+	response.RepoConfigError = entry.Error
 	if entry.Valid {
 		response.EnforcementMode = entry.Config.EnforcementMode
 	}

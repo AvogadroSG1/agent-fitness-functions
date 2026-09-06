@@ -14,6 +14,14 @@ import (
 // names in caller-repos.json must satisfy it so authorizations resolve to configs.
 var repoNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 
+// canonicalGovernanceKey is the logical governance repository key this
+// repository governs itself under (ADR-0009); retiredGovernanceKey is the
+// predecessor key it supersedes.
+const (
+	canonicalGovernanceKey = "agent-fitness-functions"
+	retiredGovernanceKey   = "calm-poc"
+)
+
 type mountedConfig struct {
 	EnforcementMode  string          `json:"enforcement-mode"`
 	EnforcementError string          `json:"enforcement-on-error"`
@@ -96,15 +104,29 @@ func TestCallerRepoBindings(t *testing.T) {
 	}
 }
 
-func TestCalmPocConfigExcludesIntentionalViolationFixtures(t *testing.T) {
-	content, err := os.ReadFile(filepath.Join("calm-poc", "config.json"))
+// TestSelfGovernanceConfigExcludesIntentionalViolationFixtures locks the mounted
+// config for the canonical governance key this repository governs itself under
+// (ADR-0009). The fixtures under fixtures/violations/ are calibrated to fail
+// specific fitness functions on purpose, so editing them must not be blocked by
+// the repository's own PreToolUse hook.
+//
+// This asserts the configured policy, not its runtime effect: Config.IsExcluded
+// currently matches base names only, so the two path-shaped patterns never fire.
+// That defect predates ADR-0009's config merge and is tracked as calm-poc-t91y.
+func TestSelfGovernanceConfigExcludesIntentionalViolationFixtures(t *testing.T) {
+	path := filepath.Join(canonicalGovernanceKey, "config.json")
+	content, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("read calm-poc/config.json: %v", err)
+		t.Fatalf("read %s: %v", path, err)
 	}
 
 	var config mountedConfig
 	if err := json.Unmarshal(content, &config); err != nil {
-		t.Fatalf("parse calm-poc/config.json: %v", err)
+		t.Fatalf("parse %s: %v", path, err)
+	}
+
+	if config.EnforcementMode != "block" {
+		t.Errorf("%s enforcement-mode = %q, want %q; this repository enforces its own architecture", path, config.EnforcementMode, "block")
 	}
 
 	wantPatterns := []string{
@@ -113,8 +135,18 @@ func TestCalmPocConfigExcludesIntentionalViolationFixtures(t *testing.T) {
 	}
 	for _, want := range wantPatterns {
 		if !containsString(config.ExcludePatterns, want) {
-			t.Fatalf("calm-poc exclude-patterns = %#v, want %q", config.ExcludePatterns, want)
+			t.Fatalf("%s exclude-patterns = %#v, want %q", path, config.ExcludePatterns, want)
 		}
+	}
+}
+
+// TestRetiredGovernanceKeyHasNoMountedConfig asserts the predecessor governance
+// key is gone. ADR-0009 supersedes ADR-0003's Identity Boundaries clause: there
+// is exactly one logical governance key for this repository, and it is the
+// product name.
+func TestRetiredGovernanceKeyHasNoMountedConfig(t *testing.T) {
+	if _, err := os.Stat(filepath.Join(retiredGovernanceKey, "config.json")); !os.IsNotExist(err) {
+		t.Fatalf("configs/%s/config.json still exists (stat err = %v); ADR-0009 retired it in favour of configs/%s/", retiredGovernanceKey, err, canonicalGovernanceKey)
 	}
 }
 

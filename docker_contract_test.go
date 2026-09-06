@@ -94,16 +94,10 @@ func TestDevCertificateBootstrapContract(t *testing.T) {
 		mustNotContain(t, script, forbidden)
 	}
 
-	certIgnoreContent, err := os.ReadFile("certs/.gitignore")
-	if err != nil {
-		t.Fatalf("read certs/.gitignore: %v", err)
-	}
-	certIgnores := linesSet(string(certIgnoreContent))
-	for _, pattern := range []string{"*", "!.gitignore"} {
-		if !certIgnores[pattern] {
-			t.Fatalf("certs/.gitignore missing %q", pattern)
-		}
-	}
+	// ADR-0007 moved the development CA out of <repo>/certs and into the machine
+	// governance root, so the repository no longer carries a certs/ directory to
+	// self-ignore. The "no certificate material is tracked" invariant is asserted
+	// in repo_hygiene_test.go instead.
 
 	readmeContent, err := os.ReadFile("README.md")
 	if err != nil {

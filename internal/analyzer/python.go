@@ -85,30 +85,54 @@ func pythonRadonCLIMetrics(ctx context.Context, file, radonPath string) ([]Funct
 	if err := ctx.Err(); err != nil {
 		return nil, FileMetric{}, err
 	}
-	functions, err := parseRadonCC(file, ccOutput)
+	functions, err := tolerantRadonCC(file, ccOutput)
 	if err != nil {
-		if strings.Contains(err.Error(), "invalid syntax") || strings.Contains(err.Error(), "radon cc error") {
-			functions = []FunctionMetric{}
-		} else {
-			return nil, FileMetric{}, err
-		}
+		return nil, FileMetric{}, err
 	}
-	fileMetric, err := parseRadonRaw(file, rawOutput)
+	fileMetric, err := tolerantRadonRaw(file, rawOutput)
 	if err != nil {
-		if strings.Contains(err.Error(), "invalid syntax") || strings.Contains(err.Error(), "radon raw error") {
-			fallback, fbErr := fallbackFileMetric(file)
-			if fbErr != nil {
-				return nil, FileMetric{}, err
-			}
-			fileMetric = fallback
-		} else {
-			return nil, FileMetric{}, err
-		}
+		return nil, FileMetric{}, err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, FileMetric{}, err
 	}
 	return functions, fileMetric, nil
+}
+
+// isRadonSourceError reports whether err is radon failing to parse the source
+// rather than radon itself being broken.
+func isRadonSourceError(err error, toolMarker string) bool {
+	return strings.Contains(err.Error(), "invalid syntax") || strings.Contains(err.Error(), toolMarker)
+}
+
+// tolerantRadonCC treats a source file radon cannot parse as having no
+// functions, so the file is still scored on its remaining metrics.
+func tolerantRadonCC(file string, output []byte) ([]FunctionMetric, error) {
+	functions, err := parseRadonCC(file, output)
+	if err == nil {
+		return functions, nil
+	}
+	if isRadonSourceError(err, "radon cc error") {
+		return []FunctionMetric{}, nil
+	}
+	return nil, err
+}
+
+// tolerantRadonRaw falls back to counting the file directly when radon cannot
+// parse it, surfacing the original parse error if that fallback also fails.
+func tolerantRadonRaw(file string, output []byte) (FileMetric, error) {
+	fileMetric, err := parseRadonRaw(file, output)
+	if err == nil {
+		return fileMetric, nil
+	}
+	if !isRadonSourceError(err, "radon raw error") {
+		return FileMetric{}, err
+	}
+	fallback, fallbackErr := fallbackFileMetric(file)
+	if fallbackErr != nil {
+		return FileMetric{}, err
+	}
+	return fallback, nil
 }
 
 func fallbackFileMetric(file string) (FileMetric, error) {
@@ -353,38 +377,52 @@ func radonPythonCommand(radonPath string) (string, []string, bool) {
 	}
 	path, err := exec.LookPath(radonPath)
 	if err != nil {
-		if managed := managedPythonInterpreterPath(os.Getenv); managed != "" {
-			return managed, nil, true
-		}
-		for _, candidate := range modernPythonCandidates {
-			if p, err := exec.LookPath(candidate); err == nil {
-				return p, nil, true
-			}
-		}
+		return fallbackPythonInterpreter()
+	}
+	line, ok := readFirstLine(path)
+	if !ok {
 		return "", nil, false
 	}
+	if !strings.HasPrefix(line, "#!") {
+		return fallbackPythonInterpreter()
+	}
+	return interpreterFromShebang(strings.TrimPrefix(line, "#!"))
+}
+
+// fallbackPythonInterpreter resolves an interpreter when radon is absent from
+// PATH or is not a shebang script: the managed interpreter first, then the
+// known-modern candidates.
+func fallbackPythonInterpreter() (string, []string, bool) {
+	if managed := managedPythonInterpreterPath(os.Getenv); managed != "" {
+		return managed, nil, true
+	}
+	for _, candidate := range modernPythonCandidates {
+		if path, err := exec.LookPath(candidate); err == nil {
+			return path, nil, true
+		}
+	}
+	return "", nil, false
+}
+
+// readFirstLine returns the first line of path, trimmed. It reports false when
+// the file cannot be opened or yields nothing.
+func readFirstLine(path string) (string, bool) {
 	file, err := os.Open(path)
 	if err != nil {
-		return "", nil, false
+		return "", false
 	}
 	defer func() { _ = file.Close() }()
 	line, err := bufio.NewReader(file).ReadString('\n')
 	if err != nil && line == "" {
-		return "", nil, false
+		return "", false
 	}
-	line = strings.TrimSpace(line)
-	if !strings.HasPrefix(line, "#!") {
-		if managed := managedPythonInterpreterPath(os.Getenv); managed != "" {
-			return managed, nil, true
-		}
-		for _, candidate := range modernPythonCandidates {
-			if p, err := exec.LookPath(candidate); err == nil {
-				return p, nil, true
-			}
-		}
-		return "", nil, false
-	}
-	fields := strings.Fields(strings.TrimPrefix(line, "#!"))
+	return strings.TrimSpace(line), true
+}
+
+// interpreterFromShebang splits a shebang body into interpreter and arguments,
+// unwrapping "/usr/bin/env python3" style indirection.
+func interpreterFromShebang(shebang string) (string, []string, bool) {
+	fields := strings.Fields(shebang)
 	if len(fields) == 0 {
 		return "", nil, false
 	}
@@ -435,7 +473,36 @@ def _temporal_purity(tree):
     return found
 
 
-def _sql_composition_kind(call):
+# psycopg2's sql.SQL("... {x} ...").format(x=sql.Identifier(col)) is a SAFE
+# composition API: it quotes identifiers instead of splicing text, and it is
+# exactly what this rule's own remediation message tells callers to adopt.
+# Only .format() on a receiver that is not a SQL composable is genuine string
+# interpolation.
+_SQL_COMPOSABLE_FACTORIES = ("sql.SQL", "psycopg2.sql.SQL", "SQL")
+
+
+def _is_sql_composable(node):
+    return isinstance(node, ast.Call) and _dotted(node.func) in _SQL_COMPOSABLE_FACTORIES
+
+
+def _sql_composable_names(tree):
+    names = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or not _is_sql_composable(node.value):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                names.add(target.id)
+    return names
+
+
+def _sql_composition_receiver_is_safe(receiver, composable_names):
+    if _is_sql_composable(receiver):
+        return True
+    return isinstance(receiver, ast.Name) and receiver.id in composable_names
+
+
+def _sql_composition_kind(call, composable_names):
     first = call.args[0] if call.args else None
     if isinstance(first, ast.JoinedStr):
         return "py-fstring-execute"
@@ -446,18 +513,21 @@ def _sql_composition_kind(call):
         and isinstance(first.func, ast.Attribute)
         and first.func.attr == "format"
     ):
+        if _sql_composition_receiver_is_safe(first.func.value, composable_names):
+            return None
         return "py-str-format-execute"
     return None
 
 
 def _sql_composition(tree):
     found = []
+    composable_names = _sql_composable_names(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
             continue
         if node.func.attr not in ("execute", "executemany"):
             continue
-        kind = _sql_composition_kind(node)
+        kind = _sql_composition_kind(node, composable_names)
         if kind is not None:
             found.append(_finding("sql-composition-safety", kind, node))
     return found

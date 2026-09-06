@@ -17,6 +17,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/govconfig"
 )
 
 //go:embed configtemplates/*
@@ -489,6 +491,12 @@ func (o onboarder) syncSharedConfig(repoLocalConfigPath string) error {
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", repoLocalConfigPath, err)
 	}
+	// Refuse to register a config the daemon would reject. Copying it anyway
+	// defers the failure to the next commit, where it surfaces as an HTTP 503
+	// naming neither the file nor the invariant that caused it.
+	if err := govconfig.Validate(content); err != nil {
+		return fmt.Errorf("%s is not a valid governance config: %w", repoLocalConfigPath, err)
+	}
 	sharedPath := filepath.Join(o.configsDir, o.repoName, "config.json")
 	if err := os.MkdirAll(filepath.Dir(sharedPath), 0o755); err != nil {
 		return fmt.Errorf("creating shared config directory: %w", err)
@@ -896,8 +904,12 @@ func (o *onboarder) awaitRegistration() error {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("daemon at %s did not acknowledge %q within 5s (configured=%v authorized=%v); check the governance configs dir it serves",
-				o.addr, o.repoName, report.RepoConfigured, report.CallerAuthorized)
+			detail := ""
+			if report.RepoConfigError != "" {
+				detail = "; config rejected: " + report.RepoConfigError
+			}
+			return fmt.Errorf("daemon at %s did not acknowledge %q within 5s (configured=%v valid=%v authorized=%v)%s; check the governance configs dir it serves",
+				o.addr, o.repoName, report.RepoConfigured, report.RepoConfigValid, report.CallerAuthorized, detail)
 		}
 		time.Sleep(150 * time.Millisecond)
 	}
@@ -924,7 +936,10 @@ func (o *onboarder) preflightAcknowledged(httpClient *http.Client) (preflightRep
 	if response.StatusCode != http.StatusOK || json.NewDecoder(response.Body).Decode(&report) != nil {
 		return preflightReport{}, false
 	}
-	return report, report.RepoConfigured && report.CallerAuthorized
+	// RepoConfigValid matters as much as RepoConfigured: the server reports a
+	// present-but-invalid config as configured, so without this a config
+	// edited after onboard sails through and only fails at the next commit.
+	return report, report.RepoConfigured && report.RepoConfigValid && report.CallerAuthorized
 }
 
 func (o *onboarder) runDoctor() error {

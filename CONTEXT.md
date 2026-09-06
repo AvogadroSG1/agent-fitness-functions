@@ -22,7 +22,7 @@ _Avoid_: serve.
 The offline calibration command that bulk-analyzes a repository to derive thresholds. Belongs to neither client nor server — it is a top-level calibration concern.
 
 **CALM**:
-The FINOS Common Architecture Language Model — the external **standard** this tool enforces. Survives in `.calm/config.json`, `configs/`, and the FINOS `calm` CLI dependency. The source repository and Go module are `github.com/AvogadroSG1/agent-fitness-functions`; the logical governance key `calm-poc` remains unchanged. Distinct from the product.
+The FINOS Common Architecture Language Model — the external **standard** this tool enforces. Survives in `.calm/config.json`, `configs/`, and the FINOS `calm` CLI dependency. The source repository and Go module are `github.com/AvogadroSG1/agent-fitness-functions`, and since ADR-0009 the logical governance key is `agent-fitness-functions` too. Distinct from the product.
 _Avoid_: using CALM to name our product or binary.
 
 **Fitness Function**:

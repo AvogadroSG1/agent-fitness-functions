@@ -57,6 +57,7 @@ type preflightReport struct {
 	AuthenticatedCN  string `json:"authenticated_cn"`
 	RepoConfigured   bool   `json:"repo_configured"`
 	RepoConfigValid  bool   `json:"repo_config_valid"`
+	RepoConfigError  string `json:"repo_config_error"`
 	CallerAuthorized bool   `json:"caller_authorized"`
 	EnforcementMode  string `json:"enforcement_mode"`
 }
@@ -483,10 +484,18 @@ func repoConfiguredResult(cfg doctorConfig, report preflightReport) checkResult 
 		}
 	}
 	if !report.RepoConfigValid {
+		// An invalid config is usually valid JSON that breaks a governance
+		// invariant, so lead with the server's own reason and never assert the
+		// JSON is malformed. Older servers omit the reason; fall back to
+		// naming the file the user has to open.
+		detail := fmt.Sprintf("repository %q has an invalid config", cfg.repo)
+		if report.RepoConfigError != "" {
+			detail += ": " + report.RepoConfigError
+		}
 		return checkResult{
 			name:        "repo configured server-side",
-			detail:      fmt.Sprintf("repository %q has an invalid config", cfg.repo),
-			remediation: fmt.Sprintf("fix the JSON in configs/%s/config.json on the server", cfg.repo),
+			detail:      detail,
+			remediation: fmt.Sprintf("correct configs/%s/config.json on the server, then re-run `agent-fitness-functions client onboard`", cfg.repo),
 		}
 	}
 	return checkResult{name: "repo configured server-side", detail: cfg.repo, passed: true}

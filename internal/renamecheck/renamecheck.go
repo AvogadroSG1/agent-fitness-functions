@@ -79,7 +79,10 @@ const (
 	protectedModulePath            = "github.com/AvogadroSG1/agent-fitness-functions"
 	protectedCalmNodeTag           = `json:"calm_node"`
 	protectedPredecessorLiteral    = `"calm-poc-dev-ca", "` + predecessorProductName + `"`
-	protectedCallerRepoKey         = "calm-poc"
+	// protectedCallerRepoKey is the canonical logical governance repository
+	// key (ADR-0009 supersedes ADR-0003's Identity Boundaries clause, which
+	// pinned the predecessor key).
+	protectedCallerRepoKey         = "agent-fitness-functions"
 	protectedCallerRepoCN          = "dev-hook-pool"
 	hookProductPrefixDecl          = `hookProductPrefix = "agent-fitness-functions"`
 	sarifToolNameDecl              = `Name:           "agent-fitness-functions",`
@@ -329,7 +332,7 @@ func checkProtectedPathExactness(repoRoot string) CheckResult {
 	checkContains("go.mod", "module "+protectedModulePath, "module path")
 	checkContains(filepath.Join("internal", "fitness", "contract.go"), protectedCalmNodeTag, "calm_node JSON tag")
 	checkContains(filepath.Join("internal", "devcerts", "state.go"), protectedPredecessorLiteral, "predecessor CA/server identity literal")
-	checkContains("caller-repos.json", protectedCallerRepoKey, "caller-repos.json calm-poc key")
+	checkContains("caller-repos.json", protectedCallerRepoKey, "caller-repos.json canonical governance key")
 	checkContains("caller-repos.json", protectedCallerRepoCN, "caller-repos.json dev-hook-pool CN")
 
 	govData, err := os.ReadFile(filepath.Join(repoRoot, "patterns", "governance.json"))

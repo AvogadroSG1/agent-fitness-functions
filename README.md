@@ -1,6 +1,6 @@
 # Agent Fitness Functions
 
-Agent Fitness Functions is a local proof-of-concept architecture-as-code system that uses FINOS CALM fitness functions to evaluate proposed source changes before they are written or committed. The source repository and Go module are `github.com/AvogadroSG1/agent-fitness-functions`; the logical governance key remains `calm-poc`, while the product and binary surface are `agent-fitness-functions`.
+Agent Fitness Functions is a local proof-of-concept architecture-as-code system that uses FINOS CALM fitness functions to evaluate proposed source changes before they are written or committed. The source repository, Go module, product, binary, and — since ADR-0009 — the logical governance key are all `agent-fitness-functions`.
 
 See [docs/spec/why-and-what.md](docs/spec/why-and-what.md) and [docs/spec/engineering-spec.md](docs/spec/engineering-spec.md) for the product and engineering specification.
 

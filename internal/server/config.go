@@ -1,44 +1,52 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/govconfig"
+)
+
+// The governance config schema lives in internal/govconfig so the client can
+// apply the identical acceptance rule at onboard time without importing the
+// daemon. These aliases keep that move invisible to the rest of the server.
+type (
+	// Config is the mounted governance config shape loaded by the server.
+	Config = govconfig.Config
+	// EnforcementMode controls how active violations are routed.
+	EnforcementMode = govconfig.EnforcementMode
+	// ErrorEnforcementMode controls how analyzer failures are routed.
+	ErrorEnforcementMode = govconfig.ErrorEnforcementMode
+	// FitnessFunctionSettings holds structured per-function configuration.
+	FitnessFunctionSettings = govconfig.FitnessFunctionSettings
+	// LayerRule defines one architectural layer for layer-sovereignty.
+	LayerRule = govconfig.LayerRule
+	// LayerSovereigntySettings configures the layer-sovereignty function.
+	LayerSovereigntySettings = govconfig.LayerSovereigntySettings
+	// DeterministicOrderingSettings configures the deterministic-ordering function.
+	DeterministicOrderingSettings = govconfig.DeterministicOrderingSettings
+	// TemporalPuritySettings configures the temporal-purity function.
+	TemporalPuritySettings = govconfig.TemporalPuritySettings
 )
 
 const (
 	// EnforcementBlock rejects active violations.
-	EnforcementBlock EnforcementMode = "block"
+	EnforcementBlock = govconfig.EnforcementBlock
 	// EnforcementAdvisory reports active violations without rejecting the change.
-	EnforcementAdvisory EnforcementMode = "advisory"
+	EnforcementAdvisory = govconfig.EnforcementAdvisory
 	// EnforcementOff disables checks for the repository.
-	EnforcementOff EnforcementMode = "off"
+	EnforcementOff = govconfig.EnforcementOff
 
 	// EnforcementOnErrorBlock fails closed when an analyzer cannot produce a verdict.
-	EnforcementOnErrorBlock ErrorEnforcementMode = "block"
+	EnforcementOnErrorBlock = govconfig.EnforcementOnErrorBlock
 	// EnforcementOnErrorAdvisory reports analyzer failures without blocking the request.
-	EnforcementOnErrorAdvisory ErrorEnforcementMode = "advisory"
+	EnforcementOnErrorAdvisory = govconfig.EnforcementOnErrorAdvisory
 	// EnforcementOnErrorPass suppresses analyzer failures.
-	EnforcementOnErrorPass ErrorEnforcementMode = "pass"
+	EnforcementOnErrorPass = govconfig.EnforcementOnErrorPass
 )
-
-// EnforcementMode controls how active violations are routed.
-type EnforcementMode string
-
-// ErrorEnforcementMode controls how analyzer failures are routed.
-type ErrorEnforcementMode string
-
-// Config is the mounted governance config shape loaded by the server.
-type Config struct {
-	EnforcementMode         EnforcementMode          `json:"enforcement-mode"`
-	EnforcementOnError      ErrorEnforcementMode     `json:"enforcement-on-error,omitempty"`
-	FitnessFunctions        map[string]bool          `json:"fitness-functions"`
-	ExcludePatterns         []string                 `json:"exclude-patterns,omitempty"`
-	FitnessFunctionSettings *FitnessFunctionSettings `json:"fitness-function-settings,omitempty"`
-}
 
 var (
 	repoNamePattern        = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
@@ -59,8 +67,11 @@ func loadConfig(store *ConfigStore, repo string) (Config, string, error) {
 		return Config{}, "", notFoundError(fmt.Sprintf("repository %q is not configured", repoName), nil)
 	}
 	if !entry.Valid {
+		// The reason belongs in Message, not only in the wrapped error:
+		// writeCheckError serializes Message alone, and a caller that is told
+		// only "invalid config" cannot act on it.
 		return Config{}, "", infrastructureError(
-			fmt.Sprintf("repository %q has an invalid config", repoName),
+			fmt.Sprintf("repository %q has an invalid config: %s", repoName, entry.Error),
 			errors.New(entry.Error),
 		)
 	}
@@ -84,73 +95,19 @@ func canonicalRepoName(repo string) (string, error) {
 	return name, nil
 }
 
+// parseConfigContent normalizes a mounted config.json. govconfig returns plain
+// errors; callers that map a failure onto an HTTP status classify it at their
+// own boundary (see buildRegisterConfig).
 func parseConfigContent(content []byte) (Config, error) {
-	var config Config
-	if err := json.Unmarshal(content, &config); err != nil {
-		return Config{}, inputError("parsing repository config", err)
-	}
-	if config.EnforcementMode == "" {
-		config.EnforcementMode = EnforcementBlock
-	}
-	switch config.EnforcementMode {
-	case EnforcementBlock, EnforcementAdvisory, EnforcementOff:
-	default:
-		return Config{}, inputError(fmt.Sprintf("unsupported enforcement mode %q", config.EnforcementMode), nil)
-	}
-	if config.EnforcementOnError == "" {
-		config.EnforcementOnError = EnforcementOnErrorBlock
-	}
-	switch config.EnforcementOnError {
-	case EnforcementOnErrorBlock, EnforcementOnErrorAdvisory, EnforcementOnErrorPass:
-	default:
-		return Config{}, inputError(fmt.Sprintf("unsupported enforcement-on-error mode %q", config.EnforcementOnError), nil)
-	}
-	fitnessFunctions, err := normalizeFitnessFunctions(config.FitnessFunctions)
-	if err != nil {
-		return Config{}, err
-	}
-	config.FitnessFunctions = fitnessFunctions
-	if err := rejectUnknownFitnessFunctionSettingsKeys(content); err != nil {
-		return Config{}, err
-	}
-	if err := validateFitnessFunctionSettings(&config); err != nil {
-		return Config{}, err
-	}
-	return config, nil
+	return govconfig.Parse(content)
 }
 
 func defaultConfig() Config {
-	return Config{
-		EnforcementMode:    EnforcementBlock,
-		EnforcementOnError: EnforcementOnErrorBlock,
-		FitnessFunctions: map[string]bool{
-			"cyclomatic-complexity":  true,
-			"interface-width":        true,
-			"implementation-depth":   true,
-			"logic-density":          true,
-			"dependency-discipline":  true,
-			"layer-sovereignty":      false,
-			"temporal-purity":        false,
-			"sql-composition-safety": false,
-			"deterministic-ordering": false,
-		},
-	}
+	return govconfig.Default()
 }
 
-func (c Config) enabled(name string) bool {
-	enabled, ok := c.FitnessFunctions[name]
-	return ok && enabled
-}
-
-func (c Config) isExcluded(file string) bool {
-	base := filepath.Base(file)
-	for _, pattern := range c.ExcludePatterns {
-		matched, err := filepath.Match(pattern, base)
-		if err == nil && matched {
-			return true
-		}
-	}
-	return false
+func normalizeFitnessFunctions(functions map[string]bool) (map[string]bool, error) {
+	return govconfig.NormalizeFitnessFunctions(functions)
 }
 
 func extractRepositoryName(repoPath string) string {
@@ -190,22 +147,4 @@ func validateRepoName(repo string) (string, error) {
 		return "", inputError("invalid repository name", nil)
 	}
 	return repoName, nil
-}
-
-func normalizeFitnessFunctions(functions map[string]bool) (map[string]bool, error) {
-	defaults := defaultConfig().FitnessFunctions
-	normalized := make(map[string]bool, len(defaults))
-	for name, enabled := range defaults {
-		normalized[name] = enabled
-	}
-	if functions == nil {
-		return normalized, nil
-	}
-	for name, enabled := range functions {
-		if _, ok := defaults[name]; !ok {
-			return nil, inputError(fmt.Sprintf("unsupported fitness function %q", name), nil)
-		}
-		normalized[name] = enabled
-	}
-	return normalized, nil
 }

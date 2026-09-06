@@ -62,7 +62,7 @@ func scoreContentFunctions(
 	}
 	for _, scorer := range contentScorers {
 		rule, ok := pattern.FitnessFunctions[scorer.name]
-		if !ok || rule.Operator != scorer.operator || !config.enabled(scorer.name) {
+		if !ok || rule.Operator != scorer.operator || !config.Enabled(scorer.name) {
 			continue
 		}
 		count, scored := scorer.score(contentScoringInput{
@@ -95,7 +95,7 @@ const maxReportedOrderByClause = 80
 // the proposed content that carry no configured tie-breaker token, and reports
 // them as a single per-file violation.
 func deterministicOrderingViolations(input contentScoringInput) (int, []fitness.Violation) {
-	tokens := input.config.tieBreakerTokens()
+	tokens := input.config.TieBreakerTokens()
 	offenders := make([]string, 0)
 	for _, clause := range windowOrderByClauses(input.request.ProposedContent) {
 		if containsTieBreaker(clause, tokens) {
@@ -131,11 +131,11 @@ func deterministicOrderingViolations(input contentScoringInput) (int, []fitness.
 func layerSovereigntyViolations(input contentScoringInput) (int, []fitness.Violation) {
 	layerNames := make([]string, 0)
 	matches := make([]string, 0)
-	for _, layer := range input.config.layerRules() {
-		if !layer.matchesPath(input.request.File) {
+	for _, layer := range input.config.LayerRules() {
+		if !layer.MatchesPath(input.request.File) {
 			continue
 		}
-		found := layer.forbiddenMatches(input.request.ProposedContent)
+		found := layer.ForbiddenMatches(input.request.ProposedContent)
 		if len(found) == 0 {
 			continue
 		}

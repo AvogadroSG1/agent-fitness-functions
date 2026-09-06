@@ -107,7 +107,7 @@ func (c *Checker) Check(ctx context.Context, request fitness.ValidationRequest) 
 	if err != nil {
 		return fitness.ValidationResult{}, err
 	}
-	if config.isExcluded(request.File) {
+	if config.IsExcluded(request.File) {
 		return fitness.ValidationResult{Status: fitness.StatusPass}, nil
 	}
 	state := c.state()
@@ -617,7 +617,7 @@ func dependencyDisciplineViolations(result analyzer.AnalysisResult, pattern calm
 func filterViolations(violations []fitness.Violation, config Config) []fitness.Violation {
 	filtered := make([]fitness.Violation, 0, len(violations))
 	for _, violation := range violations {
-		if !config.enabled(strings.ReplaceAll(violation.FitnessFunction, "_", "-")) {
+		if !config.Enabled(strings.ReplaceAll(violation.FitnessFunction, "_", "-")) {
 			continue
 		}
 		filtered = append(filtered, violation)

@@ -30,10 +30,10 @@ func onboardTestRepo(t *testing.T) string {
 	return root
 }
 
-// runManagedOnboardCore resolves the onboarder for repoName at repoRoot and
-// runs the managed local mutation steps (certs, config scaffold+sync, caller
-// authorization) without the daemon/doctor tail, mirroring run()'s order.
-func runManagedOnboardCore(t *testing.T, repoName, repoRoot string) *onboarder {
+// resolveOnboarderForTest resolves the onboarder for repoName at repoRoot
+// against a daemon that answers every request 200 OK, without running any
+// step. Callers drive the steps they care about.
+func resolveOnboarderForTest(t *testing.T, repoName, repoRoot string) onboarder {
 	t.Helper()
 	okClient := &http.Client{Transport: clientRoundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil
@@ -42,6 +42,15 @@ func runManagedOnboardCore(t *testing.T, repoName, repoRoot string) *onboarder {
 	if err != nil {
 		t.Fatalf("resolveOnboarder(%s): %v", repoName, err)
 	}
+	return o
+}
+
+// runManagedOnboardCore resolves the onboarder for repoName at repoRoot and
+// runs the managed local mutation steps (certs, config scaffold+sync, caller
+// authorization) without the daemon/doctor tail, mirroring run()'s order.
+func runManagedOnboardCore(t *testing.T, repoName, repoRoot string) *onboarder {
+	t.Helper()
+	o := resolveOnboarderForTest(t, repoName, repoRoot)
 	for name, step := range map[string]func() error{"ensureCerts": o.ensureCerts, "scaffoldConfig": o.scaffoldConfig, "authorizeCaller": o.authorizeCaller} {
 		if err := step(); err != nil {
 			t.Fatalf("%s(%s): %v (onboard owns creating the machine governance root on a fresh machine)", name, repoName, err)
