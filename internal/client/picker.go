@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/govconfig"
 )
 
 // functionOption is one row of the interactive onboarding picker: a fitness
@@ -25,16 +26,20 @@ type functionOption struct {
 	requiresSettings bool
 }
 
-// loadPickerOptions builds the picker's five rows from the embedded governance
-// pattern (analyzer.GlobalThresholds), in the canonical fitnessFunctionKeys
-// order, all enabled to start — mirroring the non-interactive default.
+// loadPickerOptions builds the picker's nine rows from the embedded governance
+// pattern (analyzer.GlobalThresholds), in the canonical allFitnessFunctionKeys
+// order, pre-checked from govconfig.Default() — the five metric functions on,
+// the four generalized ones off — so the picker opens on exactly the
+// governance a repo gets when it selects nothing.
 func loadPickerOptions() ([]functionOption, error) {
 	rules, err := analyzer.GlobalThresholds()
 	if err != nil {
 		return nil, fmt.Errorf("loading embedded governance pattern: %w", err)
 	}
-	options := make([]functionOption, 0, len(fitnessFunctionKeys))
-	for _, key := range fitnessFunctionKeys {
+	keys := allFitnessFunctionKeys()
+	defaults := govconfig.Default().FitnessFunctions
+	options := make([]functionOption, 0, len(keys))
+	for _, key := range keys {
 		rule := rules[key]
 		options = append(options, functionOption{
 			name:        key,
@@ -42,7 +47,12 @@ func loadPickerOptions() ([]functionOption, error) {
 			threshold:   rule.Threshold,
 			operator:    rule.Operator,
 			unit:        rule.Unit,
-			enabled:     true,
+			enabled:     defaults[key],
+			// layer-sovereignty is the only function whose enablement needs
+			// more than a toggle; the guard lives in
+			// rejectUnsettableSelection so the picker itself stays a
+			// straight checklist.
+			requiresSettings: key == "layer-sovereignty",
 		})
 	}
 	return options, nil
@@ -132,15 +142,26 @@ func pickerSelections(options []functionOption) map[string]bool {
 // checkbox state, name, description, and threshold so the user is choosing
 // among the system's real fitness functions rather than guessing names.
 func renderPickerOptions(out io.Writer, options []functionOption) {
-	_, _ = fmt.Fprintln(out, "\nSelect fitness functions to enable (digit toggles, 'a' all, 'n' none, empty line confirms):")
+	_, _ = fmt.Fprintf(out, "\nSelect fitness functions to enable (digits 1-%d toggle, 'a' all, 'n' none, empty line confirms):\n", len(options))
 	for i, option := range options {
 		mark := " "
 		if option.enabled {
 			mark = "x"
 		}
-		_, _ = fmt.Fprintf(out, "  [%s] %d. %-22s %s (%s %g %s)\n",
-			mark, i+1, option.name, option.description, option.operator, option.threshold, option.unit)
+		_, _ = fmt.Fprintf(out, "  [%s] %d. %-23s %s (%s %g %s)%s\n",
+			mark, i+1, option.name, option.description, option.operator, option.threshold, option.unit,
+			pickerSettingsNote(option))
 	}
+}
+
+// pickerSettingsNote flags a row the user can tick but cannot finish here:
+// enabling it also needs fitness-function-settings, which onboard rejects
+// today (rejectUnsettableSelection) and prompts for from ADR-0010 slice S10.
+func pickerSettingsNote(option functionOption) string {
+	if option.requiresSettings {
+		return " [needs fitness-function-settings]"
+	}
+	return ""
 }
 
 // stdinIsTerminal reports whether f is an interactive terminal, using only

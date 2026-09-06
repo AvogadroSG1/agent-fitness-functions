@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/govconfig"
 )
 
 // functionCatalogEntry is the rendered-table shape shared by the offline (embedded
@@ -113,9 +114,10 @@ func remoteFunctionCatalog(addr string, httpClient *http.Client) ([]functionCata
 	if err != nil {
 		return nil, err
 	}
-	return buildCatalogEntries(func(key string) remoteFunctionsEntry {
+	entries := buildCatalogEntries(func(key string) remoteFunctionsEntry {
 		return body.Functions[key]
-	}), nil
+	})
+	return overlayRemoteDefaults(entries, body.Functions), nil
 }
 
 func fetchRemoteFunctions(httpClient *http.Client, addr string) (remoteFunctionsResponse, error) {
@@ -131,29 +133,58 @@ func fetchRemoteFunctions(httpClient *http.Client, addr string) (remoteFunctions
 	return body, nil
 }
 
-// buildCatalogEntries iterates fitnessFunctionKeys in deterministic order, resolving
-// each entry's fields via lookup (map iteration order is otherwise random).
+// buildCatalogEntries iterates all nine keys in canonical catalog order,
+// resolving each entry's rule fields via lookup (map iteration order is
+// otherwise random). DefaultEnabled comes from govconfig.Default() rather than
+// lookup, so an offline catalog and a lookup that carries no enablement both
+// report the shipped defaults; remote mode overlays the daemon's own answer.
 func buildCatalogEntries(lookup func(key string) remoteFunctionsEntry) []functionCatalogEntry {
-	entries := make([]functionCatalogEntry, 0, len(fitnessFunctionKeys))
-	for _, key := range fitnessFunctionKeys {
+	keys := allFitnessFunctionKeys()
+	defaults := govconfig.Default().FitnessFunctions
+	entries := make([]functionCatalogEntry, 0, len(keys))
+	for _, key := range keys {
 		found := lookup(key)
 		entries = append(entries, functionCatalogEntry{
-			Name:        key,
-			Description: found.Description,
-			Threshold:   found.Threshold,
-			Operator:    found.Operator,
-			Unit:        found.Unit,
+			Name:           key,
+			Description:    found.Description,
+			Threshold:      found.Threshold,
+			Operator:       found.Operator,
+			Unit:           found.Unit,
+			DefaultEnabled: defaults[key],
 		})
 	}
 	return entries
 }
 
-func renderFunctionsTable(w io.Writer, entries []functionCatalogEntry) {
-	_, _ = fmt.Fprintf(w, "%-24s %-4s %-10s %-10s %s\n", "fitness function", "op", "threshold", "unit", "description")
-	for _, entry := range entries {
-		_, _ = fmt.Fprintf(w, "%-24s %-4s %-10.3f %-10s %s\n",
-			entry.Name, entry.Operator, entry.Threshold, entry.Unit, entry.Description)
+// overlayRemoteDefaults replaces DefaultEnabled with the daemon's own answer for
+// every key the response actually carried, so --remote reports the governance
+// the server applies rather than the client's compiled-in defaults.
+func overlayRemoteDefaults(entries []functionCatalogEntry, remote map[string]remoteFunctionsEntry) []functionCatalogEntry {
+	for i, entry := range entries {
+		if found, ok := remote[entry.Name]; ok {
+			entries[i].DefaultEnabled = found.DefaultEnabled
+		}
 	}
+	return entries
+}
+
+func renderFunctionsTable(w io.Writer, entries []functionCatalogEntry) {
+	_, _ = fmt.Fprintf(w, "%-24s %-4s %-10s %-10s %-8s %s\n",
+		"fitness function", "op", "threshold", "unit", "default", "description")
+	for _, entry := range entries {
+		_, _ = fmt.Fprintf(w, "%-24s %-4s %-10.3f %-10s %-8s %s\n",
+			entry.Name, entry.Operator, entry.Threshold, entry.Unit,
+			defaultEnabledLabel(entry.DefaultEnabled), entry.Description)
+	}
+}
+
+// defaultEnabledLabel renders the default column: on for the metric functions
+// every governed repo gets, off for the opt-in generalized ones.
+func defaultEnabledLabel(enabled bool) string {
+	if enabled {
+		return "on"
+	}
+	return "off"
 }
 
 // scaffoldableGeneralizedFunctionKeys are the generalized fitness functions
@@ -221,8 +252,26 @@ func functionsFlagUsageError(bad string) error {
 		bad, strings.Join(allowed, ", "))}
 }
 
+// layerSovereigntyRemedy is shared by the --functions rejection and the
+// interactive picker guard so both name the same way forward. ADR-0010 slice
+// S10 replaces the manual step with an interactive layer prompt inside
+// client onboard; until then the layers must be written by hand.
+const layerSovereigntyRemedy = "it requires layer definitions: " +
+	"define fitness-function-settings.layer-sovereignty.layers in the config file, " +
+	"then re-run client onboard (interactive onboard will prompt for layers in a later slice)"
+
 func layerSovereigntyFlagUsageError() error {
 	return usageError{err: errors.New(
-		"layer-sovereignty cannot be scaffolded via --functions: it requires layer definitions; " +
-			"enable it and define fitness-function-settings.layer-sovereignty.layers directly in the config file")}
+		"layer-sovereignty cannot be scaffolded via --functions: " + layerSovereigntyRemedy)}
+}
+
+// rejectUnsettableSelection fails a picker selection that turned on a fitness
+// function onboard cannot finish configuring, before anything is written to
+// disk. layer-sovereignty is the only one today; S10 turns this rejection
+// into an interactive layer prompt.
+func rejectUnsettableSelection(selected map[string]bool) error {
+	if selected["layer-sovereignty"] {
+		return fmt.Errorf("layer-sovereignty cannot be enabled from the picker alone: %s", layerSovereigntyRemedy)
+	}
+	return nil
 }
