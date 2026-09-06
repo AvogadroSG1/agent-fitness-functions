@@ -49,6 +49,9 @@ type wizardOutcome struct {
 	Enforcement string
 	Functions   map[string]bool
 	Confirmed   bool
+	// Layers carries the layer-sovereignty definitions prompted for when the
+	// user enables that function without existing settings (S10).
+	Layers []govconfig.LayerRule
 }
 
 // runOnboardWizard drives the interactive flow: current-state panel,

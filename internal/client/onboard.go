@@ -100,6 +100,13 @@ type onboarder struct {
 	// that authenticates by loopback peer. It owns no certificates and consults
 	// no caller-repos.json, so onboarding it is config scaffold + hooks + daemon.
 	localHTTP bool
+	// update permits rewriting an existing repo-local config (S10): set by the
+	// wizard's confirmed diff or the --update flag; without it an existing
+	// config is never touched.
+	update bool
+	// layers carries prompted layer-sovereignty definitions to write into the
+	// scaffolded config's fitness-function-settings (S10).
+	layers []govconfig.LayerRule
 }
 
 // RunOnboard performs the whole local 0-to-governed sequence in one command:
@@ -201,7 +208,9 @@ type onboardFlags struct {
 	certificatesOnly     bool
 	forceDevCertRotation bool
 	functions            string
-	extra                []string
+	// update permits rewriting an existing repo-local config (S10).
+	update bool
+	extra  []string
 }
 
 func parseOnboardFlags(args []string) (onboardFlags, error) {
