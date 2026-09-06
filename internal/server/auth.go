@@ -27,6 +27,10 @@ type HandlerOptions struct {
 	// Identity is reported by GET /health so clients can detect a stale
 	// daemon (binary revision, listen mode, or configs dir mismatch).
 	Identity Identity
+	// LocalHTTP marks the loopback plain-HTTP listen mode (ADR-0010): requests
+	// from loopback peers carry an implicit caller identity instead of a client
+	// certificate, and repo/admin authorization is satisfied for them.
+	LocalHTTP bool
 }
 
 // Identity describes the running daemon so /health callers can compare it

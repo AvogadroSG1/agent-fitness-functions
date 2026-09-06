@@ -26,6 +26,9 @@ const (
 	// ListenModeMTLS is the Identity.ListenMode reported by a daemon that
 	// authenticates callers with mutual TLS.
 	ListenModeMTLS = "mtls"
+	// ListenModeLocalHTTP is the loopback plain-HTTP local mode (ADR-0010):
+	// no TLS, implicit loopback caller, non-loopback binds refused.
+	ListenModeLocalHTTP = "local-http"
 )
 
 // HealthResponse is the JSON response returned by GET /health. It stays
@@ -77,6 +80,9 @@ type ConfigsRepoResponse struct {
 }
 
 type ServeOptions struct {
+	// ListenMode selects mTLS (default) or the loopback plain-HTTP local
+	// mode (ADR-0010); see ListenModeMTLS and ListenModeLocalHTTP.
+	ListenMode      string
 	Addr            string
 	ConfigDir       string
 	Ready           io.Writer
