@@ -160,10 +160,12 @@ func skipsManagedProvisioning(mode clientTLSMode, explicitServerTLS bool, certDi
 	return !mode.managed || explicitServerTLS || certDir == "" || !isLocalHTTPS(addr)
 }
 
-// prepareDaemonStart resolves the auto-start configuration and, on the zero-config
-// loopback path, materializes dev certificates so the auto-started TLS server and
-// this client trust the same CA. Dev material is only provisioned when the caller
-// passed no explicit client TLS flags and the addr is an https loopback URL.
+// prepareDaemonStart resolves the auto-start configuration. A loopback http addr
+// is the ADR-0010 managed-local path and needs no certificate material at all; a
+// loopback https addr is the legacy managed-TLS local path, where dev certificates
+// are materialized so the auto-started TLS server and this client trust the same
+// CA. Dev material is only provisioned when the caller passed no explicit client
+// TLS flags and the addr is an https loopback URL.
 func prepareDaemonStart(addr, certDir, certFlag, keyFlag, caFlag string) (DaemonStartConfig, error) {
 	mode, err := resolveClientTLSMode(certFlag, keyFlag, caFlag, certDir)
 	if err != nil {
@@ -173,6 +175,9 @@ func prepareDaemonStart(addr, certDir, certFlag, keyFlag, caFlag string) (Daemon
 	explicitServerTLS := hasExplicitServerTLS()
 	if selector != "" && explicitServerTLS {
 		return DaemonStartConfig{}, usageError{err: errors.New("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit server or client TLS inputs")}
+	}
+	if isLocalHTTP(addr) && !explicitServerTLS {
+		return localHTTPDaemonStartConfig(addr, mode), nil
 	}
 	if skipsManagedProvisioning(mode, explicitServerTLS, certDir, addr) {
 		return DaemonStartConfig{Addr: addr, CertDir: certDir, ExplicitClientTLS: mode.explicit()}, nil
@@ -184,7 +189,23 @@ func prepareDaemonStart(addr, certDir, certFlag, keyFlag, caFlag string) (Daemon
 	return daemonStartConfigFromMaterial(addr, material), nil
 }
 
+// localHTTPDaemonStartConfig is the ADR-0010 managed-local start configuration: a
+// loopback plain-HTTP daemon authenticates callers by loopback peer, so the start
+// owns a governance configs directory and no certificate material whatsoever — no
+// managed root to publish into, no server certificate, no CA.
+func localHTTPDaemonStartConfig(addr string, mode clientTLSMode) DaemonStartConfig {
+	return DaemonStartConfig{
+		Addr:              addr,
+		Local:             true,
+		ConfigsDir:        resolveConfigsDir(),
+		ExplicitClientTLS: mode.explicit(),
+	}
+}
+
 func daemonStartConfigFromMaterial(addr string, material clientTLSMaterial) DaemonStartConfig {
+	if isLocalHTTP(addr) {
+		return localHTTPDaemonStartConfig(addr, material.mode)
+	}
 	cfg := DaemonStartConfig{Addr: addr, CertDir: material.mode.root, ExplicitClientTLS: material.mode.explicit()}
 	if !material.mode.managed {
 		return cfg
@@ -242,22 +263,65 @@ func resolveConfigsDir() string {
 	return governanceConfigsDir()
 }
 
-func isLocalHTTPS(addr string) bool {
+// localDaemonScheme is the single classification rule behind every local-vs-remote
+// decision in this package. It returns the URL scheme of addr when addr names a
+// loopback governance daemon, and "" for anything else:
+//
+//   - loopback http  → managed-local governance in the ADR-0010 plain-HTTP listen
+//     mode: the daemon authenticates by loopback peer, so the client carries no
+//     certificate material at all;
+//   - loopback https → the legacy managed-TLS local daemon, still supported while
+//     machines migrate off mTLS;
+//   - anything else  → remote/unmanaged: the caller owns its own TLS material and
+//     nothing is auto-provisioned or auto-started on its behalf.
+func localDaemonScheme(addr string) string {
 	parsed, err := url.Parse(addr)
-	if err != nil || parsed.Scheme != "https" {
-		return false
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return ""
 	}
 	host := parsed.Hostname()
 	if host == "localhost" {
-		return true
+		return parsed.Scheme
 	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return parsed.Scheme
+	}
+	return ""
+}
+
+func isLocalHTTPS(addr string) bool { return localDaemonScheme(addr) == "https" }
+
+func isLocalHTTP(addr string) bool { return localDaemonScheme(addr) == "http" }
+
+// alternateSchemeAddr is addr with its scheme flipped between http and https,
+// defined only for loopback daemon addresses: scheme fallback is a migration aid
+// for the machine-local daemon (ADR-0010), never applied to a remote endpoint
+// where retrying https as http would be a transport-security downgrade.
+func alternateSchemeAddr(addr string) string {
+	switch localDaemonScheme(addr) {
+	case "http":
+		return "https://" + strings.TrimPrefix(addr, "http://")
+	case "https":
+		return "http://" + strings.TrimPrefix(addr, "https://")
+	default:
+		return ""
+	}
+}
+
+// localHTTPStart reports whether this auto-start must launch the daemon in the
+// ADR-0010 loopback plain-HTTP listen mode: a managed-local start whose address is
+// a loopback http URL. A managed-local start against a loopback https URL is the
+// legacy mTLS daemon and keeps the server's default listen mode.
+func localHTTPStart(cfg DaemonStartConfig) bool {
+	return cfg.Local && !isLocalHTTPS(cfg.Addr)
 }
 
 func daemonStartArgs(cfg DaemonStartConfig) []string {
 	listenAddr := strings.TrimPrefix(strings.TrimPrefix(cfg.Addr, "http://"), "https://")
 	args := []string{"server", "start", "--addr", listenAddr, "--block-on-warmup"}
+	if localHTTPStart(cfg) {
+		args = append(args, "--listen-mode", "local-http")
+	}
 	if cfg.ConfigsDir != "" {
 		args = append(args, "--configs-dir", cfg.ConfigsDir)
 	}
@@ -265,13 +329,18 @@ func daemonStartArgs(cfg DaemonStartConfig) []string {
 }
 
 // daemonLogPath is where the detached daemon's stdout/stderr are captured: beside
-// the gitignored dev certs, so it is repo-scoped and never committed. Empty when
-// no cert dir was resolved — output capture is then simply unavailable.
+// the gitignored dev certs when a managed-TLS start resolved a cert dir, otherwise
+// (the ADR-0010 local-http start, which owns no cert dir) directly in the machine
+// governance root. Empty for an unmanaged start, which owns neither location —
+// output capture is then simply unavailable.
 func daemonLogPath(cfg DaemonStartConfig) string {
-	if cfg.CertDir == "" {
-		return ""
+	if cfg.CertDir != "" {
+		return filepath.Join(cfg.CertDir, "daemon.log")
 	}
-	return filepath.Join(cfg.CertDir, "daemon.log")
+	if cfg.Local {
+		return filepath.Join(governanceRoot(), "daemon.log")
+	}
+	return ""
 }
 
 // openDaemonLog opens the daemon log for append, creating it if needed, and writes
@@ -284,6 +353,9 @@ func openDaemonLog(cfg DaemonStartConfig, listenAddr string) io.WriteCloser {
 	if path == "" {
 		return nopWriteCloser{io.Discard}
 	}
+	// The local-http start owns no cert dir, so the governance root may not exist
+	// yet on a machine that has never published dev certificates there.
+	_ = os.MkdirAll(filepath.Dir(path), 0o755)
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return nopWriteCloser{io.Discard}

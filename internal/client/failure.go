@@ -250,6 +250,27 @@ func portConflictInfraError(conflict daemonConflictError) infraError {
 	}
 }
 
+// isSchemeMismatch reports whether err is the signature of speaking the wrong
+// scheme to a daemon, in either direction: a TLS client meeting a plain-HTTP
+// server (net/http reports "server gave HTTP response to HTTPS client", or the
+// raw tls.RecordHeaderError it is derived from), or a plain-HTTP client meeting a
+// TLS server (a Go server answers 400 "Client sent an HTTP request to an HTTPS
+// server"). Both are migration states during the ADR-0010 move of the local
+// daemon off mTLS, not setup faults, so the client retries the other scheme
+// rather than reporting them.
+func isSchemeMismatch(err error) bool {
+	if err == nil {
+		return false
+	}
+	var recordHeader tls.RecordHeaderError
+	if errors.As(err, &recordHeader) {
+		return true
+	}
+	message := err.Error()
+	return strings.Contains(message, "server gave HTTP response to HTTPS client") ||
+		strings.Contains(message, "an HTTP request to an HTTPS server")
+}
+
 // isTLSError reports whether err is a TLS handshake or certificate-material problem,
 // via typed x509/tls errors first and a text fallback for wrapped cert-load failures.
 func isTLSError(err error) bool {

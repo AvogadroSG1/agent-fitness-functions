@@ -42,7 +42,10 @@ func TestResolveDoctorConfigLoadsManagedGenerationOnceForAllChecks(t *testing.T)
 	}
 	t.Cleanup(func() { resolveManagedVersion = originalResolve })
 
-	cfg, err := resolveDoctorConfig(nil, &http.Client{Transport: clientRoundTripFunc(func(*http.Request) (*http.Response, error) {
+	// Pinned to the legacy managed-TLS loopback daemon: the ADR-0010 local-http
+	// default resolves no managed generation at all, so single-resolution is only
+	// a meaningful contract on the mTLS path.
+	cfg, err := resolveDoctorConfig([]string{"--addr", "https://127.0.0.1:7890"}, &http.Client{Transport: clientRoundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"authenticated_cn":"dev-hook-pool"}`)), Header: make(http.Header)}, nil
 	})})
 	if err != nil {

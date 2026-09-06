@@ -212,7 +212,7 @@ func parseValidateFlags(args []string) (validateOptions, error) {
 	flags := flag.NewFlagSet("client validate", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var opts validateOptions
-	flags.StringVar(&opts.addr, "addr", "https://127.0.0.1:7890", "daemon base URL")
+	flags.StringVar(&opts.addr, "addr", defaultOnboardAddr, "daemon base URL")
 	flags.StringVar(&opts.file, "file", "", "file path being checked")
 	flags.StringVar(&opts.repo, "repo", "", "repository root")
 	flags.StringVar(&opts.content, "content", "", "proposed file content")
@@ -251,7 +251,7 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 	if err != nil {
 		return err
 	}
-	configuredClient, err := establishDaemon(httpClient, opts.addr, opts.repo, opts.file, opts.clientCert, opts.clientKey, opts.clientCA, starter)
+	daemon, err := establishDaemon(httpClient, opts.addr, opts.repo, opts.file, opts.clientCert, opts.clientKey, opts.clientCA, starter)
 	if err != nil {
 		return handleValidateFailure(stdout, err, opts.repo)
 	}
@@ -259,7 +259,7 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 	if err != nil {
 		return err
 	}
-	body, err := postCheck(context.Background(), configuredClient, opts.addr, fitness.ValidationRequest{
+	body, err := postCheck(context.Background(), daemon.client, daemon.addr, fitness.ValidationRequest{
 		Repo:            opts.repo,
 		File:            opts.file,
 		ProposedContent: proposedContent,
@@ -954,31 +954,100 @@ func appendFile(path string, content []byte) (err error) {
 	return nil
 }
 
+// daemonEndpoint is a resolved daemon base URL together with the http client
+// configured to talk to it. The two travel together because scheme fallback can
+// change both at once.
+type daemonEndpoint struct {
+	addr   string
+	client *http.Client
+}
+
 // establishDaemon resolves dev-cert/configs discovery, provisions the zero-config
-// local TLS material when applicable, configures the mTLS client, and ensures a
-// reachable daemon. It returns the client to use for the validation request.
-func establishDaemon(httpClient *http.Client, addr, repo, file, certFlag, keyFlag, caFlag string, starter func(DaemonStartConfig) error) (*http.Client, error) {
+// local TLS material when applicable, configures the client, and ensures a
+// reachable daemon. The endpoint it returns is what the validation request must
+// use: its address differs from addr when scheme fallback found the daemon on the
+// other scheme (ADR-0010 migration).
+func establishDaemon(httpClient *http.Client, addr, repo, file, certFlag, keyFlag, caFlag string, starter func(DaemonStartConfig) error) (daemonEndpoint, error) {
 	certDir := resolveDevCertDir()
 	mode, err := resolveClientTLSMode(certFlag, keyFlag, caFlag, certDir)
 	if err != nil {
-		return nil, err
+		return daemonEndpoint{}, err
 	}
+	// Managed dev certificates exist for exactly one endpoint: the legacy
+	// managed-TLS local daemon. A loopback http addr (ADR-0010) and a remote addr
+	// both leave the client with no managed material.
 	if mode.managed && !isLocalHTTPS(addr) {
 		mode = clientTLSMode{}
 	}
 	material, err := loadClientTLSMode(mode, mode.managed)
 	if err != nil {
-		return nil, err
+		return daemonEndpoint{}, err
 	}
-	daemonCfg := daemonStartConfigFromMaterial(addr, material)
 	configuredClient, err := configureClientTLSMaterial(httpClient, material)
 	if err != nil {
-		return nil, err
+		return daemonEndpoint{}, err
 	}
-	if err := ensureDaemon(configuredClient, addr, daemonCfg, starter); err != nil {
-		return nil, err
+	endpoint, probeErr := resolveDaemonEndpoint(daemonEndpoint{addr: addr, client: configuredClient}, certDir)
+	if probeErr == nil {
+		return endpoint, nil
 	}
-	return configuredClient, nil
+	daemonCfg := daemonStartConfigFromMaterial(endpoint.addr, material)
+	if err := ensureProbedDaemon(endpoint, daemonCfg, starter, probeErr); err != nil {
+		return daemonEndpoint{}, err
+	}
+	return endpoint, nil
+}
+
+// resolveDaemonEndpoint probes base and, when the probe fails because the daemon
+// speaks the other scheme, retries once against the alternate scheme and returns
+// whichever endpoint answered. The returned error is the base probe's error (nil
+// once an endpoint is healthy), so the caller can still decide to auto-start.
+//
+// Fallback is deliberately restricted to loopback addresses by
+// alternateSchemeAddr: it exists so hooks written against either generation keep
+// working while a machine migrates to the ADR-0010 plain-HTTP local daemon, and
+// must never silently downgrade a remote https endpoint to plain HTTP.
+func resolveDaemonEndpoint(base daemonEndpoint, certDir string) (daemonEndpoint, error) {
+	probeErr := probeDaemon(base.client, base.addr)
+	if probeErr == nil || !isSchemeMismatch(probeErr) {
+		return base, probeErr
+	}
+	alternate := alternateSchemeAddr(base.addr)
+	if alternate == "" {
+		return base, probeErr
+	}
+	for _, candidate := range alternateSchemeClients(base.client, alternate, certDir) {
+		if probeDaemon(candidate, alternate) == nil {
+			return daemonEndpoint{addr: alternate, client: candidate}, nil
+		}
+	}
+	return base, probeErr
+}
+
+// alternateSchemeClients are the clients to try against the alternate-scheme
+// address, in order: the caller's own configured client first — it already carries
+// whatever transport or explicit TLS material was configured for this run — and
+// then, only when falling back to a loopback https daemon, the managed
+// dev-certificate client a legacy mTLS daemon requires. Managed material is loaded
+// without publishing: a probe must never mint certificates as a side effect.
+func alternateSchemeClients(base *http.Client, alternate, certDir string) []*http.Client {
+	clients := []*http.Client{base}
+	if !isLocalHTTPS(alternate) {
+		return clients
+	}
+	mode, err := resolveClientTLSMode("", "", "", certDir)
+	if err != nil || !mode.managed {
+		return clients
+	}
+	material, err := loadClientTLSMode(mode, false)
+	if err != nil {
+		return clients
+	}
+	managed, err := configureClientTLSMaterial(base, material)
+	if err != nil {
+		return clients
+	}
+	return append(clients, managed)
 }
 
 func configureClientTLSMaterial(base *http.Client, material clientTLSMaterial) (*http.Client, error) {
@@ -996,27 +1065,35 @@ func configureClientTLSMaterial(base *http.Client, material clientTLSMaterial) (
 }
 
 func ensureDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, starter func(DaemonStartConfig) error) error {
-	probeErr := probeDaemon(httpClient, addr)
+	endpoint := daemonEndpoint{addr: addr, client: httpClient}
+	return ensureProbedDaemon(endpoint, cfg, starter, probeDaemon(httpClient, addr))
+}
+
+// ensureProbedDaemon is ensureDaemon over an already-performed probe, so a caller
+// that has just probed (scheme-fallback resolution) does not pay for a second
+// round trip or risk classifying a different failure than the one it saw.
+func ensureProbedDaemon(endpoint daemonEndpoint, cfg DaemonStartConfig, starter func(DaemonStartConfig) error, probeErr error) error {
 	if probeErr == nil {
 		return nil
 	}
 	// A TLS/certificate handshake failure is not fixed by (re)starting a daemon, and
-	// auto-start would race an already-listening server. In managed local mode this
-	// client's own dev-cert material has already loaded cleanly by the time the probe
-	// runs, so a TLS failure here means the listener on the shared port belongs to
-	// someone else's daemon; name that conflict instead of reporting raw cert wording.
-	// Outside managed local mode the TLS material is caller-supplied, so a genuine
+	// auto-start would race an already-listening server. In managed local mTLS mode
+	// this client's own dev-cert material has already loaded cleanly by the time the
+	// probe runs, so a TLS failure here means the listener on the shared port belongs
+	// to someone else's daemon; name that conflict instead of reporting raw cert
+	// wording. The local-http mode carries no certificates at all, and outside managed
+	// local mode the TLS material is caller-supplied, so in both cases a genuine
 	// external CA mismatch is still possible and the raw error is preserved.
 	if isTLSError(probeErr) {
-		if cfg.Local {
-			return daemonConflictError{addr: addr, cause: probeErr}
+		if cfg.Local && !localHTTPStart(cfg) {
+			return daemonConflictError{addr: endpoint.addr, cause: probeErr}
 		}
 		return probeErr
 	}
 	if err := starter(cfg); err != nil {
 		return fmt.Errorf("starting daemon: %w", err)
 	}
-	if err := waitHealthy(httpClient, addr, 5*time.Second); err != nil {
+	if err := waitHealthy(endpoint.client, endpoint.addr, 5*time.Second); err != nil {
 		return describeDaemonFailure(cfg, err)
 	}
 	return nil
@@ -1030,7 +1107,7 @@ func ensureDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, s
 // to decode — and it names explicit client certificates only when the caller really
 // supplied them, since a remote --addr also leaves the start unmanaged.
 func describeDaemonFailure(cfg DaemonStartConfig, cause error) error {
-	if cfg.ManagedRoot == "" {
+	if cfg.ManagedRoot == "" && !cfg.Local {
 		devTLS := "dev-tls=unmanaged"
 		if cfg.ExplicitClientTLS {
 			devTLS += " (explicit client certs in use)"
@@ -1038,6 +1115,11 @@ func describeDaemonFailure(cfg DaemonStartConfig, cause error) error {
 		return fmt.Errorf("%w [addr=%s %s]", cause, cfg.Addr, devTLS)
 	}
 	fields := []string{"addr=" + cfg.Addr}
+	if localHTTPStart(cfg) {
+		// ADR-0010: this start owns no certificates, so naming a dev-TLS mode
+		// would send the reader looking for a cert problem that cannot exist.
+		fields = append(fields, "listen-mode=local-http", "dev-tls=not required")
+	}
 	for _, field := range []struct{ name, value string }{
 		{"dev-cert-dir", cfg.CertDir},
 		{"configs-dir", cfg.ConfigsDir},
@@ -1207,7 +1289,9 @@ func isHealthy(httpClient *http.Client, addr string) bool {
 
 // probeDaemon performs one GET /health and returns the underlying error (dial refused,
 // TLS handshake, non-200) so callers can distinguish an unreachable server from a
-// TLS/cert problem. It returns nil only when the server answers 200.
+// TLS/cert problem. A non-200 carries a snippet of the response body, because that
+// body is where a TLS server states that it was sent a plain HTTP request — the
+// signal scheme fallback keys on. It returns nil only when the server answers 200.
 func probeDaemon(httpClient *http.Client, addr string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	defer cancel()
@@ -1221,6 +1305,10 @@ func probeDaemon(httpClient *http.Client, addr string) error {
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 1<<10))
+		if detail := strings.TrimSpace(string(body)); detail != "" {
+			return fmt.Errorf("health check returned HTTP %d: %s", response.StatusCode, detail)
+		}
 		return fmt.Errorf("health check returned HTTP %d", response.StatusCode)
 	}
 	return nil

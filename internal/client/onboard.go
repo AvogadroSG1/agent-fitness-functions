@@ -25,7 +25,11 @@ import (
 var embeddedConfigTemplates embed.FS
 
 const (
-	defaultOnboardAddr         = "https://127.0.0.1:7890"
+	// defaultOnboardAddr is the machine-local governance daemon in the ADR-0010
+	// plain-HTTP listen mode. It is the default for every command that talks to a
+	// daemon (validate, onboard, doctor, functions --remote); a legacy https
+	// loopback daemon is still reached by scheme fallback during migration.
+	defaultOnboardAddr         = "http://127.0.0.1:7890"
 	callerRepoBindingsFileName = "caller-repos.json"
 	// repoNameRule is the server's repository-name grammar (internal/server/config.go
 	// repoNamePattern), duplicated for actionable client-side error messages.
@@ -82,6 +86,10 @@ type onboarder struct {
 	tlsMaterial          clientTLSMaterial
 	callerCN             string
 	selectedFunctions    map[string]bool
+	// localHTTP marks the ADR-0010 managed-local path: a loopback http daemon
+	// that authenticates by loopback peer. It owns no certificates and consults
+	// no caller-repos.json, so onboarding it is config scaffold + hooks + daemon.
+	localHTTP bool
 }
 
 // RunOnboard performs the whole local 0-to-governed sequence in one command:
@@ -143,6 +151,7 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 		tlsMaterial:          tlsResolution.tlsMaterial,
 		callerCN:             tlsResolution.callerCN,
 		selectedFunctions:    selectedFunctions,
+		localHTTP:            tlsResolution.tlsMode.managed && isLocalHTTP(parsedFlags.addr),
 	}, nil
 }
 
@@ -433,6 +442,13 @@ func (o *onboarder) run() error {
 }
 
 func (o *onboarder) ensureCerts() error {
+	if o.localHTTP {
+		// ADR-0010: the loopback plain-HTTP daemon has no TLS to configure, so
+		// generating a dev CA here would only recreate the certificate-plumbing
+		// failure class the mode exists to remove.
+		o.step("Dev certificates: not required (local-http mode)")
+		return nil
+	}
 	if !o.tlsMode.managed {
 		o.step("External client certificates: unchanged")
 		o.detail("client CN %s validated", o.callerCN)
@@ -611,6 +627,12 @@ func overlayGeneralizedFunctions(functions map[string]bool) {
 }
 
 func (o onboarder) authorizeCaller() error {
+	if o.localHTTP {
+		// ADR-0010: a loopback peer carries the implicit caller identity and the
+		// daemon never consults caller-repos.json, so there is nothing to bind.
+		o.step("Caller authorization: not required (implicit local caller)")
+		return nil
+	}
 	bindingsPath := onboardCallerBindingsPath(o.configsDir)
 	o.step("Caller authorization: %s", bindingsPath)
 	if o.callerCN == "" {
@@ -955,7 +977,10 @@ func (o *onboarder) runDoctor() error {
 		tlsLoaded:  true,
 		httpClient: httpClient,
 	}
-	if o.tlsMode.managed {
+	switch {
+	case o.localHTTP:
+		cfg.localHTTP = true
+	case o.tlsMode.managed:
 		paths := o.tlsMaterial.version.Paths()
 		cfg.clientCert = paths.ClientCertificate
 		cfg.clientKey = paths.ClientKey
@@ -963,7 +988,7 @@ func (o *onboarder) runDoctor() error {
 		cfg.managed = true
 		cfg.clientLeaf = o.tlsMaterial.certificate.Leaf
 		cfg.rootCAs = o.tlsMaterial.roots
-	} else {
+	default:
 		cfg.clientCert = o.tlsMode.cert
 		cfg.clientKey = o.tlsMode.key
 		cfg.clientCA = o.tlsMode.ca
@@ -986,11 +1011,23 @@ func (o onboarder) printManualRemainder() {
 		return
 	}
 	configPath := filepath.Join(o.repoConfigsDir, o.repoName, "config.json")
-	bindingsPath := onboardCallerBindingsPath(o.configsDir)
 	_, _ = fmt.Fprintf(o.stdout, "\n%s is governed locally.\n", o.repoName)
 	_, _ = fmt.Fprintln(o.stdout, "Remaining manual step for PRODUCTION governance:")
-	_, _ = fmt.Fprintf(o.stdout, "  - copy %s and the %s entry to the production deployment, then redeploy the container\n", configPath, bindingsPath)
+	_, _ = fmt.Fprintf(o.stdout, "  - copy %s to the production deployment, then redeploy the container\n", configPath)
+	_, _ = fmt.Fprintf(o.stdout, "  - %s\n", o.productionCallerAuthorizationRemainder())
 	_, _ = fmt.Fprintln(o.stdout, "  - see docs/runbooks/onboard-new-repository.md")
+}
+
+// productionCallerAuthorizationRemainder names the caller authorization the
+// production (mTLS) deployment still needs. The legacy managed-TLS local path
+// already wrote that entry into this machine's governance root, so it can point
+// at a concrete file to copy; the local-http path (ADR-0010) never writes one, so
+// it describes the entry the operator has to add on the production side instead.
+func (o onboarder) productionCallerAuthorizationRemainder() string {
+	if o.localHTTP {
+		return fmt.Sprintf("authorize the deploying client's CN for %s in the production %s", o.repoName, callerRepoBindingsFileName)
+	}
+	return fmt.Sprintf("copy the %s entry from %s to the production deployment", o.repoName, onboardCallerBindingsPath(o.configsDir))
 }
 
 func (o onboarder) step(format string, args ...any) {

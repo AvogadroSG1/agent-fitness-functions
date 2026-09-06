@@ -32,13 +32,16 @@ func onboardTestRepo(t *testing.T) string {
 
 // resolveOnboarderForTest resolves the onboarder for repoName at repoRoot
 // against a daemon that answers every request 200 OK, without running any
-// step. Callers drive the steps they care about.
+// step. Callers drive the steps they care about. The addr is pinned to the
+// legacy managed-TLS loopback daemon: these scenarios are about the dev-cert
+// and caller-binding artifacts of the mTLS local path, which the ADR-0010
+// local-http default (now `http://`) deliberately no longer produces.
 func resolveOnboarderForTest(t *testing.T, repoName, repoRoot string) onboarder {
 	t.Helper()
 	okClient := &http.Client{Transport: clientRoundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil
 	})}
-	o, err := resolveOnboarder([]string{"--repo", repoName, repoRoot}, &bytes.Buffer{}, &bytes.Buffer{}, okClient, func(DaemonStartConfig) error { return nil })
+	o, err := resolveOnboarder([]string{"--repo", repoName, "--addr", "https://127.0.0.1:7890", repoRoot}, &bytes.Buffer{}, &bytes.Buffer{}, okClient, func(DaemonStartConfig) error { return nil })
 	if err != nil {
 		t.Fatalf("resolveOnboarder(%s): %v", repoName, err)
 	}

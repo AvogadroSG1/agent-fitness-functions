@@ -39,6 +39,10 @@ type doctorConfig struct {
 	tlsError   error
 	httpClient *http.Client
 	repair     bool
+	// localHTTP marks the ADR-0010 loopback plain-HTTP daemon: there is no client
+	// certificate, no CA bundle and no caller binding to verify, so those checks
+	// report as not applicable instead of failing a correctly configured machine.
+	localHTTP bool
 }
 
 // checkResult is one ordered ✔/✘ line. A warning is an advisory result that prints
@@ -97,7 +101,7 @@ func runDoctorWithConfig(cfg doctorConfig, stdout io.Writer) error {
 func resolveDoctorConfig(args []string, httpClient *http.Client) (doctorConfig, error) {
 	flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	addr := flags.String("addr", "https://127.0.0.1:7890", "governance daemon base URL")
+	addr := flags.String("addr", defaultOnboardAddr, "governance daemon base URL")
 	repo := flags.String("repo", "", "repository name (defaults to the git working-tree basename)")
 	clientCert := flags.String("client-cert", "", "mTLS client certificate path")
 	clientKey := flags.String("client-key", "", "mTLS client private key path")
@@ -106,12 +110,9 @@ func resolveDoctorConfig(args []string, httpClient *http.Client) (doctorConfig, 
 	if err := flags.Parse(args); err != nil {
 		return doctorConfig{}, usageError{err: err}
 	}
-	if _, err := resolveClientTLSMode(*clientCert, *clientKey, *clientCA, ""); err != nil {
-		return doctorConfig{}, err
-	}
 	repoRoot := resolveRepoRoot("", "")
 	certDir := resolveDevCertDir()
-	mode, err := resolveClientTLSMode(*clientCert, *clientKey, *clientCA, certDir)
+	mode, localHTTP, err := doctorDaemonTLSMode(*addr, *clientCert, *clientKey, *clientCA, certDir)
 	if err != nil {
 		return doctorConfig{}, err
 	}
@@ -144,7 +145,36 @@ func resolveDoctorConfig(args []string, httpClient *http.Client) (doctorConfig, 
 		tlsError:   tlsErr,
 		httpClient: httpClient,
 		repair:     *repair,
+		localHTTP:  localHTTP,
 	}, nil
+}
+
+// doctorDaemonTLSMode resolves the client TLS mode doctor must verify against
+// addr, and reports whether this run is the ADR-0010 local-http path. A loopback
+// http daemon authenticates by loopback peer, so resolving managed development
+// certificates for it would make a certless machine — exactly the machine the
+// mode exists to serve — fail every certificate check. Explicit client TLS
+// material still wins outright: a caller who supplied certificates asked for
+// mTLS, and mTLS is then what doctor verifies.
+func doctorDaemonTLSMode(addr, certFlag, keyFlag, caFlag, certDir string) (clientTLSMode, bool, error) {
+	if _, err := resolveClientTLSMode(certFlag, keyFlag, caFlag, ""); err != nil {
+		return clientTLSMode{}, false, err
+	}
+	mode, err := resolveClientTLSMode(certFlag, keyFlag, caFlag, certDir)
+	if err != nil {
+		return clientTLSMode{}, false, err
+	}
+	if isLocalHTTP(addr) && !hasExplicitClientTLS(certFlag, keyFlag, caFlag) {
+		return clientTLSMode{}, true, nil
+	}
+	return mode, false, nil
+}
+
+// notApplicableInLocalHTTP is the informational result a transport-security check
+// reports when the daemon is the loopback plain-HTTP one: nothing is misconfigured,
+// the check simply has no subject.
+func notApplicableInLocalHTTP(name string) checkResult {
+	return checkResult{name: name, detail: "not applicable in local-http mode", passed: true}
 }
 
 // resolveDoctorRepo derives the repository name the server keys its config on: the
@@ -236,6 +266,9 @@ func checkPyYAML() checkResult {
 }
 
 func checkClientCertificate(cfg doctorConfig) checkResult {
+	if cfg.localHTTP {
+		return notApplicableInLocalHTTP("client certificate")
+	}
 	if cfg.tlsError != nil {
 		return checkResult{name: "client certificate", detail: cfg.tlsError.Error(), remediation: "regenerate certs with scripts/generate-dev-certs.sh --force"}
 	}
@@ -292,6 +325,9 @@ func loadClientLeaf(certPath, keyPath string) (*x509.Certificate, error) {
 }
 
 func checkServerCABundle(cfg doctorConfig) checkResult {
+	if cfg.localHTTP {
+		return notApplicableInLocalHTTP("server CA bundle")
+	}
 	if cfg.tlsError != nil {
 		return checkResult{name: "server CA bundle", detail: cfg.tlsError.Error(), remediation: "regenerate certs with scripts/generate-dev-certs.sh --force"}
 	}
@@ -338,6 +374,10 @@ func checkGovernanceRoot(cfg doctorConfig) checkResult {
 		root = selector
 	}
 	switch {
+	case cfg.localHTTP:
+		// ADR-0010: the local-http daemon needs the configs directory under this
+		// root, but no certificate generation has to have happened there.
+		return checkResult{name: name, detail: fmt.Sprintf("%s (configs: %s, certificates not required)", root, governanceConfigsDir()), passed: true}
 	case cfg.managed:
 		// This session already resolved a managed generation once (onboard
 		// startup or resolveDoctorConfig's own TLS load, see
@@ -447,8 +487,12 @@ func preflightStatusResult(status int) (checkResult, bool) {
 }
 
 func preflightCheckResults(cfg doctorConfig, report preflightReport) []checkResult {
+	authenticated := "authenticated as CN=" + report.AuthenticatedCN
+	if cfg.localHTTP {
+		authenticated = "implicit local caller (CN=" + report.AuthenticatedCN + ")"
+	}
 	return []checkResult{
-		{name: "server authentication", detail: "authenticated as CN=" + report.AuthenticatedCN, passed: true},
+		{name: "server authentication", detail: authenticated, passed: true},
 		repoConfiguredResult(cfg, report),
 		callerAuthorizedResult(cfg, report),
 		enforcementModeResult(report),
@@ -482,6 +526,9 @@ func repoConfiguredResult(cfg doctorConfig, report preflightReport) checkResult 
 }
 
 func callerAuthorizedResult(cfg doctorConfig, report preflightReport) checkResult {
+	if cfg.localHTTP && report.CallerAuthorized {
+		return checkResult{name: "caller authorized for repo", detail: "implicit local caller", passed: true}
+	}
 	if !report.CallerAuthorized {
 		return checkResult{
 			name:        "caller authorized for repo",
