@@ -210,6 +210,14 @@ func runDoctorChecks(cfg doctorConfig) []checkResult {
 	return results
 }
 
+// checkDaemonCurrency reports whether the daemon at cfg.addr matches this
+// binary and environment (build revision, listen mode, configs dir); a stale
+// daemon is a warning with the staleness reasons and an onboard remediation.
+func checkDaemonCurrency(cfg doctorConfig) checkResult {
+	// Stub pending S6 (calm-poc-l9tb).
+	return checkResult{name: "daemon up to date", passed: true}
+}
+
 func printCheckResult(stdout io.Writer, result checkResult) {
 	mark := "✘"
 	switch {

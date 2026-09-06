@@ -19,6 +19,11 @@ type ValidationRequest struct {
 	File            string `json:"file"`
 	ProposedContent string `json:"proposed_content"`
 	Language        string `json:"language"`
+	// DryRun marks a speculative proposal (agent pre-write validation, doctor
+	// probes): the verdict is computed and returned but never persisted into
+	// the repository's outstanding-violation state, because the content may
+	// never land on disk.
+	DryRun bool `json:"dry_run,omitempty"`
 }
 
 // ValidationResult is the JSON response returned by POST /check.

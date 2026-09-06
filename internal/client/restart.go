@@ -423,3 +423,10 @@ func daemonPort(addr string) string {
 	}
 	return parsed.Port()
 }
+
+// ensureCurrentDaemon guarantees a healthy, up-to-date daemon at addr: probe
+// its identity, and when it is stale (or absent) replace or start it via the
+// S5 restart engine, deriving expectations from this binary and environment.
+func ensureCurrentDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, starter func(DaemonStartConfig) error) error {
+	return nil // stub pending S6 (calm-poc-l9tb)
+}
