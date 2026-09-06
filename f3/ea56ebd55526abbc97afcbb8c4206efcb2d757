@@ -1,0 +1,21 @@
+internal/server/server.go
+  s_3d6c2c9a391830::t_5c69ca2efeb832 134
+docs/spec/engineering-spec.md
+  s_3d6c2c9a391830::t_dfb4a17b728597 126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f3ea56ebd55526abbc97afcbb8c4206efcb2d757",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
