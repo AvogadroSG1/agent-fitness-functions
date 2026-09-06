@@ -1,0 +1,20 @@
+cmd/agent-fitness-functions/history_commands_test.go
+  s_cf963430e803c8::t_f91217e4bbf494 1-44,48-79
+  s_cf963430e803c8::t_c5d51faaea77bf 45-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ea68e53e460ad123e421ebe8600c4915d9e215f2",
+  "prompts": {},
+  "sessions": {
+    "s_cf963430e803c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a076aa-0fc6-7d81-b3ef-65e1cc030235",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
