@@ -1,0 +1,20 @@
+.claude/settings.json
+  s_771cc807a7b9da::t_b1f001b7694904 51
+  s_771cc807a7b9da::t_ff7cb32abe4e27 19,47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "e758e98da39952631036948e0a5c906cde5c4799",
+  "prompts": {},
+  "sessions": {
+    "s_771cc807a7b9da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e658cf6-a76d-43d4-91d6-fff7ff797911",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
