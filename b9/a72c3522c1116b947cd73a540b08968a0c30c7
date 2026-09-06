@@ -1,0 +1,24 @@
+internal/server/auth.go
+  s_3d6c2c9a391830::t_729ac47cca18a4 30-33
+internal/server/localmode_test.go
+  s_3d6c2c9a391830::t_9381621e163d14 1-133
+internal/server/server.go
+  s_3d6c2c9a391830::t_f7ae68f7ba275e 29-31
+  s_3d6c2c9a391830::t_cd2b6053cafb24 83-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b9a72c3522c1116b947cd73a540b08968a0c30c7",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
