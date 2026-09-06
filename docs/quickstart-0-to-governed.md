@@ -40,11 +40,6 @@ hand-authored `.claude/settings.json` block for local governance.
 make install          # builds and installs into ~/.local/bin (PREFIX overrides it)
 ```
 
-For a normal source checkout, `make install` also provisions the pinned managed
-Python runtime containing `radon`, using the repository's locked dependencies.
-It requires the host `python3` and network access to download the wheels. Release
-archive installs use `scripts/install.sh --provision-runtimes` instead.
-
 Make sure `~/.local/bin` is on `PATH`. On macOS the recipe installs with
 `install -S` — write a temp file, then rename into place — rather than an in-place
 overwrite, because overwriting a running signed binary on Apple Silicon leaves a stale

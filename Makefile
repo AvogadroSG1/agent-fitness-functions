@@ -69,11 +69,7 @@ install: build
 			echo "Installing $$helper to $(DESTDIR)$(BINDIR)/$$helper"; \
 			$(INSTALL_BIN) "$(BIN_DIR)/$$helper" "$(DESTDIR)$(BINDIR)/$$helper"; \
 		fi \
-		done
-	@if [ -z "$(DESTDIR)" ]; then \
-			echo "Provisioning managed Python runtime (radon $(shell sed -n 's/^radon==\([^ ]*\).*/\1/p' requirements.lock))"; \
-			$(DESTDIR)$(BINDIR)/$(BIN_NAME) runtime provision --only python --assets "$(CURDIR)"; \
-		fi
+	done
 	@echo "Installed $(BIN_NAME) and helpers into $(DESTDIR)$(BINDIR)"
 
 uninstall:

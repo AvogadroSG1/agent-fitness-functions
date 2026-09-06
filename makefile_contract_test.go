@@ -26,17 +26,3 @@ func TestMakefileInstallsBinaryWithSafeCopy(t *testing.T) {
 		t.Error("Makefile must not install the main binary with a plain in-place `install -m 755` copy")
 	}
 }
-
-func TestMakefileInstallProvisionsManagedPythonRuntime(t *testing.T) {
-	content, err := os.ReadFile("Makefile")
-	if err != nil {
-		t.Fatalf("reading Makefile: %v", err)
-	}
-	text := string(content)
-	if !strings.Contains(text, "runtime provision --only python --assets") {
-		t.Error("Makefile install must provision the managed Python runtime")
-	}
-	if !strings.Contains(text, "if [ -z \"$(DESTDIR)\" ]") {
-		t.Error("Makefile must not provision host runtimes during DESTDIR staging installs")
-	}
-}
