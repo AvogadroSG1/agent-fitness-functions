@@ -1,0 +1,20 @@
+internal/historyipc/protocol_test.go
+  s_cf963430e803c8::t_6139ee2e7d2eb7 1-37,39-60,63-65,67-68
+  s_cf963430e803c8::t_9cf8b20f884e1f 38,61-62,66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "58e2af487b0721985385ffc2bf94e4a9836eb3e2",
+  "prompts": {},
+  "sessions": {
+    "s_cf963430e803c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a076aa-0fc6-7d81-b3ef-65e1cc030235",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
