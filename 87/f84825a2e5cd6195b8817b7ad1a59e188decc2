@@ -1,0 +1,20 @@
+internal/history/store_test.go
+  s_cf963430e803c8::t_0c79edbccd2f8e 91-95
+  s_cf963430e803c8::t_61a3dcfe999721 1-90,96-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "87f84825a2e5cd6195b8817b7ad1a59e188decc2",
+  "prompts": {},
+  "sessions": {
+    "s_cf963430e803c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a076aa-0fc6-7d81-b3ef-65e1cc030235",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
