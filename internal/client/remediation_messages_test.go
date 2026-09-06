@@ -36,21 +36,34 @@ func TestCheckServerReachableRemediationNamesOnboard(t *testing.T) {
 	}
 }
 
-// A health-wait failure for an unmanaged (explicit client TLS) daemon start must say
-// so in words instead of rendering tls=off with <none> placeholders.
+// A health-wait failure outside managed dev TLS must say so in words instead of
+// rendering tls=off with <none> placeholders — and must only claim explicit client
+// certs are in use when the caller actually supplied them (ManagedRoot is also empty
+// when a remote --addr disabled managed TLS with no certs given at all).
 func TestDescribeDaemonFailureUnmanagedDetail(t *testing.T) {
 	cause := errors.New("daemon at https://127.0.0.1:7890 did not become healthy within 5s")
-	err := describeDaemonFailure(DaemonStartConfig{Addr: "https://127.0.0.1:7890"}, cause)
-	if err == nil {
-		t.Fatal("expected an error")
+
+	bare := describeDaemonFailure(DaemonStartConfig{Addr: "https://governance.example.com:7890"}, cause).Error()
+	if !strings.Contains(bare, "dev-tls=unmanaged") {
+		t.Errorf("message %q must describe the unmanaged TLS mode in words", bare)
 	}
-	message := err.Error()
-	if !strings.Contains(message, "dev-tls=unmanaged (explicit client certs in use)") {
-		t.Errorf("message %q must describe the unmanaged TLS mode in words", message)
+	if strings.Contains(bare, "explicit client certs in use") {
+		t.Errorf("message %q must not claim explicit certs when none were supplied", bare)
 	}
-	for _, noise := range []string{"tls=off", "dev-cert-dir=<none>", "configs-dir=<none>"} {
-		if strings.Contains(message, noise) {
-			t.Errorf("message %q must not contain placeholder noise %q", message, noise)
+
+	explicit := describeDaemonFailure(DaemonStartConfig{
+		Addr:              "https://governance.example.com:7890",
+		ExplicitClientTLS: true,
+	}, cause).Error()
+	if !strings.Contains(explicit, "dev-tls=unmanaged (explicit client certs in use)") {
+		t.Errorf("message %q must name the explicit client TLS material", explicit)
+	}
+
+	for _, message := range []string{bare, explicit} {
+		for _, noise := range []string{"tls=off", "dev-cert-dir=<none>", "configs-dir=<none>"} {
+			if strings.Contains(message, noise) {
+				t.Errorf("message %q must not contain placeholder noise %q", message, noise)
+			}
 		}
 	}
 }

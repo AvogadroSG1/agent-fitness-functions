@@ -89,8 +89,9 @@ func TestStartDaemonWithoutLogDestinationStillStarts(t *testing.T) {
 }
 
 // TestDescribeDaemonFailureNamesDaemonLog: a health-wait failure must point at
-// the captured daemon log when one exists, and name no log at all when auto-start
-// owned no log destination, so the user knows exactly where (not) to look.
+// the captured daemon log when a managed auto-start owns one, and fall back to the
+// unmanaged summary (which names no paths at all) when it does not, so the user knows
+// exactly where (not) to look.
 func TestDescribeDaemonFailureNamesDaemonLog(t *testing.T) {
 	cause := errors.New("daemon at https://127.0.0.1:7890 did not become healthy within 5s")
 	withLog := describeDaemonFailure(DaemonStartConfig{
@@ -105,5 +106,29 @@ func TestDescribeDaemonFailureNamesDaemonLog(t *testing.T) {
 	withoutLog := describeDaemonFailure(DaemonStartConfig{Addr: "https://127.0.0.1:7890"}, cause)
 	if strings.Contains(withoutLog.Error(), "log=") {
 		t.Fatalf("error = %q, want no log field without a log destination", withoutLog.Error())
+	}
+}
+
+// TestDescribeDaemonFailureOmitsUnsetManagedFields: a managed auto-start names only
+// the paths it actually owns, so a missing configs dir is left out entirely rather
+// than reported as an empty or placeholder value.
+func TestDescribeDaemonFailureOmitsUnsetManagedFields(t *testing.T) {
+	cause := errors.New("daemon at https://127.0.0.1:7890 did not become healthy within 5s")
+	message := describeDaemonFailure(DaemonStartConfig{
+		Addr:        "https://127.0.0.1:7890",
+		ManagedRoot: filepath.Join("/x", "certs"),
+		CertDir:     filepath.Join("/x", "certs"),
+	}, cause).Error()
+
+	if strings.Contains(message, "configs-dir=") {
+		t.Fatalf("error = %q, want the unset configs dir omitted", message)
+	}
+	for _, want := range []string{
+		"dev-cert-dir=" + filepath.Join("/x", "certs"),
+		"log=" + filepath.Join("/x", "certs", "daemon.log"),
+	} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("error = %q, want to contain %q", message, want)
+		}
 	}
 }

@@ -422,7 +422,7 @@ func checkServerReachable(cfg doctorConfig) checkResult {
 		return checkResult{
 			name:        "server reachable",
 			detail:      "GET " + strings.TrimRight(cfg.addr, "/") + "/health did not return 200",
-			remediation: "run `agent-fitness-functions client onboard` to start the local daemon, or point --addr at a running server",
+			remediation: "run `agent-fitness-functions client onboard` to start the local daemon, or point --addr at a running governance daemon",
 		}
 	}
 	return checkResult{name: "server reachable", detail: cfg.addr + "/health OK", passed: true}

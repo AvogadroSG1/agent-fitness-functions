@@ -93,7 +93,14 @@ type daemonConflictError struct {
 
 func (e daemonConflictError) Error() string {
 	return fmt.Sprintf(
-		"%s is already serving TLS that this client does not trust: either this repository is presenting stale repo-local certs left over from before the shared governance root (the daemon itself may be healthy) or a stale daemon started before that migration still owns the port — another repository's local daemon is possible but no longer expected now that repos share one root — run `agent-fitness-functions doctor` to tell them apart, then rerun `client onboard` to re-register against the shared governance root, stop the conflicting daemon, or rerun with a distinct --addr (%v)",
+		"%s is already serving TLS that this client does not trust: "+
+			"either this repository is presenting stale repo-local certs left over from before "+
+			"the shared governance root (the daemon itself may be healthy) "+
+			"or a stale daemon started before that migration still owns the port "+
+			"— another repository's local daemon is possible but no longer expected now that repos share one root — "+
+			"run `agent-fitness-functions doctor` to tell them apart, then rerun `client onboard` "+
+			"to re-register against the shared governance root, stop the conflicting daemon, "+
+			"or rerun with a distinct --addr (%v)",
 		e.addr, e.cause,
 	)
 }

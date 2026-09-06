@@ -18,9 +18,10 @@ BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 HELPERS = agent-fitness-functions-serve agent-fitness-functions-test
 
-# -S is BSD install's safe copy: write a temporary file, then rename it into place.
-# Overwriting a running binary in place corrupts the kernel's code-signature cache on
-# Apple Silicon and the next exec of the installed binary is SIGKILLed. GNU coreutils
+# The hazard is a cp-style in-place overwrite of a running, signed binary: on Apple
+# Silicon the stale code-signature cache SIGKILLs the next exec. macOS install(1)
+# already replaces the target atomically (temporary file, then rename); -S additionally
+# flushes the copy and states that atomic-replace intent explicitly. GNU coreutils
 # install reads -S as --suffix=SUFFIX, so the flag stays on the Darwin branch.
 ifeq ($(shell uname -s),Darwin)
 INSTALL_BIN ?= install -S -m 755
@@ -51,6 +52,7 @@ help:
 	@echo "  PREFIX        Install prefix (default: $(HOME)/.local)"
 	@echo "  BINDIR        Binary directory (default: $(PREFIX)/bin)"
 	@echo "  DESTDIR       Staging directory prefix (default: empty)"
+	@echo "  INSTALL_BIN   Install command for binaries (default: $(INSTALL_BIN))"
 
 build:
 	@mkdir -p $(BIN_DIR)

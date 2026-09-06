@@ -58,6 +58,13 @@ func hasExplicitClientTLS(certFlag, keyFlag, caFlag string) bool {
 		os.Getenv(envClientCert) != "" || os.Getenv(envClientKey) != "" || os.Getenv(envClientCA) != ""
 }
 
+// explicit reports whether this mode carries caller-supplied client TLS material.
+// Unmanaged is not the same as explicit: a remote --addr turns managed provisioning
+// off and leaves a zero mode with no certificate paths at all.
+func (mode clientTLSMode) explicit() bool {
+	return !mode.managed && (mode.cert != "" || mode.key != "" || mode.ca != "")
+}
+
 func resolveClientTLSMode(certFlag, keyFlag, caFlag, defaultRoot string) (clientTLSMode, error) {
 	selector := os.Getenv(envDevCertDir)
 	explicit := hasExplicitClientTLS(certFlag, keyFlag, caFlag)
@@ -135,6 +142,9 @@ type DaemonStartConfig struct {
 	ConfigsDir  string
 	CertDir     string
 	Env         []string
+	// ExplicitClientTLS records that the caller supplied client TLS material, so a
+	// failure message can distinguish it from unmanaged-with-no-certificates.
+	ExplicitClientTLS bool
 }
 
 // hasExplicitServerTLS reports whether the caller supplied server TLS material
@@ -165,7 +175,7 @@ func prepareDaemonStart(addr, certDir, certFlag, keyFlag, caFlag string) (Daemon
 		return DaemonStartConfig{}, usageError{err: errors.New("AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR cannot be combined with explicit server or client TLS inputs")}
 	}
 	if skipsManagedProvisioning(mode, explicitServerTLS, certDir, addr) {
-		return DaemonStartConfig{Addr: addr, CertDir: certDir}, nil
+		return DaemonStartConfig{Addr: addr, CertDir: certDir, ExplicitClientTLS: mode.explicit()}, nil
 	}
 	material, err := loadClientTLSMode(mode, true)
 	if err != nil {
@@ -175,7 +185,7 @@ func prepareDaemonStart(addr, certDir, certFlag, keyFlag, caFlag string) (Daemon
 }
 
 func daemonStartConfigFromMaterial(addr string, material clientTLSMaterial) DaemonStartConfig {
-	cfg := DaemonStartConfig{Addr: addr, CertDir: material.mode.root}
+	cfg := DaemonStartConfig{Addr: addr, CertDir: material.mode.root, ExplicitClientTLS: material.mode.explicit()}
 	if !material.mode.managed {
 		return cfg
 	}

@@ -1025,12 +1025,17 @@ func ensureDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, s
 // describeDaemonFailure annotates a health-wait timeout with what auto-start
 // attempted, including the captured daemon log path, so the user sees a
 // setup problem (and where to look), not a bare timeout. Only paths auto-start
-// actually owns are named: an unmanaged start (explicit client TLS material)
-// owns no dev-cert dir, configs dir, or log, so it says so in words rather than
-// printing placeholders the reader would have to decode.
+// actually owns are named: an unmanaged start owns no dev-cert dir, configs dir, or
+// log, so it says so in words rather than printing placeholders the reader would have
+// to decode — and it names explicit client certificates only when the caller really
+// supplied them, since a remote --addr also leaves the start unmanaged.
 func describeDaemonFailure(cfg DaemonStartConfig, cause error) error {
 	if cfg.ManagedRoot == "" {
-		return fmt.Errorf("%w [addr=%s dev-tls=unmanaged (explicit client certs in use)]", cause, cfg.Addr)
+		devTLS := "dev-tls=unmanaged"
+		if cfg.ExplicitClientTLS {
+			devTLS += " (explicit client certs in use)"
+		}
+		return fmt.Errorf("%w [addr=%s %s]", cause, cfg.Addr, devTLS)
 	}
 	fields := []string{"addr=" + cfg.Addr}
 	for _, field := range []struct{ name, value string }{
