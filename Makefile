@@ -18,6 +18,16 @@ BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 HELPERS = agent-fitness-functions-serve agent-fitness-functions-test
 
+# -S is BSD install's safe copy: write a temporary file, then rename it into place.
+# Overwriting a running binary in place corrupts the kernel's code-signature cache on
+# Apple Silicon and the next exec of the installed binary is SIGKILLed. GNU coreutils
+# install reads -S as --suffix=SUFFIX, so the flag stays on the Darwin branch.
+ifeq ($(shell uname -s),Darwin)
+INSTALL_BIN ?= install -S -m 755
+else
+INSTALL_BIN ?= install -m 755
+endif
+
 .PHONY: all build build-all install uninstall test test-short fmt vet clean dev-certs help
 
 all: build
@@ -51,11 +61,11 @@ build-all: build
 
 install: build
 	@mkdir -p $(DESTDIR)$(BINDIR)
-	install -m 755 $(BIN_DIR)/$(BIN_NAME) $(DESTDIR)$(BINDIR)/$(BIN_NAME)
+	$(INSTALL_BIN) $(BIN_DIR)/$(BIN_NAME) $(DESTDIR)$(BINDIR)/$(BIN_NAME)
 	@for helper in $(HELPERS); do \
 		if [ -f "$(BIN_DIR)/$$helper" ]; then \
 			echo "Installing $$helper to $(DESTDIR)$(BINDIR)/$$helper"; \
-			install -m 755 "$(BIN_DIR)/$$helper" "$(DESTDIR)$(BINDIR)/$$helper"; \
+			$(INSTALL_BIN) "$(BIN_DIR)/$$helper" "$(DESTDIR)$(BINDIR)/$$helper"; \
 		fi \
 	done
 	@echo "Installed $(BIN_NAME) and helpers into $(DESTDIR)$(BINDIR)"

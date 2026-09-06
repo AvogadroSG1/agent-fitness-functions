@@ -227,7 +227,7 @@ func TestCheckServerReachableUnreachable(t *testing.T) {
 	if result.passed {
 		t.Fatalf("unreachable server passed = true, want false")
 	}
-	if !strings.Contains(result.remediation, "governance server") {
+	if !strings.Contains(result.remediation, "client onboard") {
 		t.Fatalf("remediation = %q, want start-server hint", result.remediation)
 	}
 }

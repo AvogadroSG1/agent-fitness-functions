@@ -186,57 +186,89 @@ func resolveClientTimeout(flagTimeout string) (time.Duration, error) {
 	return defaultCheckTimeout, nil
 }
 
-// RunCheck validates one file by posting a validation request to the daemon.
-func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter func(DaemonStartConfig) error) error {
+// validateOptions is one parsed and validated `client validate` invocation: every
+// flag the check needs, with the timeout already resolved from flag, environment, or
+// default.
+type validateOptions struct {
+	addr        string
+	file        string
+	repo        string
+	content     string
+	contentFile string
+	language    string
+	format      string
+	clientCert  string
+	clientKey   string
+	clientCA    string
+	timeout     time.Duration
+	staged      bool
+}
+
+// parseValidateFlags parses the `client validate` flag set and rejects every input
+// problem — unknown flags, an unusable timeout, unusable client TLS material, missing
+// --file/--repo, an unsupported --format — before RunCheck contacts a daemon, so a
+// setup mistake never costs a round trip.
+func parseValidateFlags(args []string) (validateOptions, error) {
 	flags := flag.NewFlagSet("client validate", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	addr := flags.String("addr", "https://127.0.0.1:7890", "daemon base URL")
-	file := flags.String("file", "", "file path being checked")
-	repo := flags.String("repo", "", "repository root")
-	content := flags.String("content", "", "proposed file content")
-	contentFile := flags.String("content-file", "", "path to proposed file content")
-	language := flags.String("language", "", "source language")
-	staged := flags.Bool("staged", false, "read content from git staged state")
-	format := flags.String("format", "json", "output format: json or sarif")
+	var opts validateOptions
+	flags.StringVar(&opts.addr, "addr", "https://127.0.0.1:7890", "daemon base URL")
+	flags.StringVar(&opts.file, "file", "", "file path being checked")
+	flags.StringVar(&opts.repo, "repo", "", "repository root")
+	flags.StringVar(&opts.content, "content", "", "proposed file content")
+	flags.StringVar(&opts.contentFile, "content-file", "", "path to proposed file content")
+	flags.StringVar(&opts.language, "language", "", "source language")
+	flags.BoolVar(&opts.staged, "staged", false, "read content from git staged state")
+	flags.StringVar(&opts.format, "format", "json", "output format: json or sarif")
 	timeout := flags.String("timeout", "", "timeout for check validation (default: 10s, env: AGENT_FITNESS_FUNCTIONS_CLIENT_TIMEOUT)")
-	clientCert := flags.String("client-cert", "", "mTLS client certificate path")
-	clientKey := flags.String("client-key", "", "mTLS client private key path")
-	clientCA := flags.String("client-ca", "", "server CA bundle path")
+	flags.StringVar(&opts.clientCert, "client-cert", "", "mTLS client certificate path")
+	flags.StringVar(&opts.clientKey, "client-key", "", "mTLS client private key path")
+	flags.StringVar(&opts.clientCA, "client-ca", "", "server CA bundle path")
 	if err := flags.Parse(args); err != nil {
-		return usageError{err: err}
+		return validateOptions{}, usageError{err: err}
 	}
 	checkTimeout, err := resolveClientTimeout(*timeout)
 	if err != nil {
-		return usageError{err: err}
+		return validateOptions{}, usageError{err: err}
 	}
-	if _, err := resolveClientTLSMode(*clientCert, *clientKey, *clientCA, ""); err != nil {
-		return err
+	opts.timeout = checkTimeout
+	if _, err := resolveClientTLSMode(opts.clientCert, opts.clientKey, opts.clientCA, ""); err != nil {
+		return validateOptions{}, err
 	}
-	if *file == "" || *repo == "" {
-		return usageError{err: errors.New("client validate requires --file and --repo")}
+	if opts.file == "" || opts.repo == "" {
+		return validateOptions{}, usageError{err: errors.New("client validate requires --file and --repo")}
 	}
 	validFormats := map[string]bool{"json": true, "sarif": true}
-	if !validFormats[*format] {
-		return usageError{err: fmt.Errorf("unsupported format %q: use json or sarif", *format)}
+	if !validFormats[opts.format] {
+		return validateOptions{}, usageError{err: fmt.Errorf("unsupported format %q: use json or sarif", opts.format)}
 	}
-	configuredClient, err := establishDaemon(httpClient, *addr, *repo, *file, *clientCert, *clientKey, *clientCA, starter)
-	if err != nil {
-		return handleValidateFailure(stdout, err, *repo)
-	}
-	proposedContent, err := resolveContent(*repo, *file, *content, *contentFile, *staged)
+	return opts, nil
+}
+
+// RunCheck validates one file by posting a validation request to the daemon.
+func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter func(DaemonStartConfig) error) error {
+	opts, err := parseValidateFlags(args)
 	if err != nil {
 		return err
 	}
-	body, err := postCheck(context.Background(), configuredClient, *addr, fitness.ValidationRequest{
-		Repo:            *repo,
-		File:            *file,
-		ProposedContent: proposedContent,
-		Language:        *language,
-	}, checkTimeout)
+	configuredClient, err := establishDaemon(httpClient, opts.addr, opts.repo, opts.file, opts.clientCert, opts.clientKey, opts.clientCA, starter)
 	if err != nil {
-		return handleValidateFailure(stdout, err, *repo)
+		return handleValidateFailure(stdout, err, opts.repo)
 	}
-	return writeValidationResult(stdout, *format, *repo, body)
+	proposedContent, err := resolveContent(opts.repo, opts.file, opts.content, opts.contentFile, opts.staged)
+	if err != nil {
+		return err
+	}
+	body, err := postCheck(context.Background(), configuredClient, opts.addr, fitness.ValidationRequest{
+		Repo:            opts.repo,
+		File:            opts.file,
+		ProposedContent: proposedContent,
+		Language:        opts.language,
+	}, opts.timeout)
+	if err != nil {
+		return handleValidateFailure(stdout, err, opts.repo)
+	}
+	return writeValidationResult(stdout, opts.format, opts.repo, body)
 }
 
 // RunInstallHooks installs embedded Git and Claude hooks into a repository.
@@ -992,20 +1024,25 @@ func ensureDaemon(httpClient *http.Client, addr string, cfg DaemonStartConfig, s
 
 // describeDaemonFailure annotates a health-wait timeout with what auto-start
 // attempted, including the captured daemon log path, so the user sees a
-// setup problem (and where to look), not a bare timeout.
+// setup problem (and where to look), not a bare timeout. Only paths auto-start
+// actually owns are named: an unmanaged start (explicit client TLS material)
+// owns no dev-cert dir, configs dir, or log, so it says so in words rather than
+// printing placeholders the reader would have to decode.
 func describeDaemonFailure(cfg DaemonStartConfig, cause error) error {
-	tlsState := "off"
-	if cfg.ManagedRoot != "" {
-		tlsState = "on"
+	if cfg.ManagedRoot == "" {
+		return fmt.Errorf("%w [addr=%s dev-tls=unmanaged (explicit client certs in use)]", cause, cfg.Addr)
 	}
-	return fmt.Errorf("%w [addr=%s tls=%s dev-cert-dir=%s configs-dir=%s log=%s]", cause, cfg.Addr, tlsState, orNone(cfg.CertDir), orNone(cfg.ConfigsDir), orNone(daemonLogPath(cfg)))
-}
-
-func orNone(value string) string {
-	if value == "" {
-		return "<none>"
+	fields := []string{"addr=" + cfg.Addr}
+	for _, field := range []struct{ name, value string }{
+		{"dev-cert-dir", cfg.CertDir},
+		{"configs-dir", cfg.ConfigsDir},
+		{"log", daemonLogPath(cfg)},
+	} {
+		if field.value != "" {
+			fields = append(fields, field.name+"="+field.value)
+		}
 	}
-	return value
+	return fmt.Errorf("%w [%s]", cause, strings.Join(fields, " "))
 }
 
 func postCheck(ctx context.Context, httpClient *http.Client, addr string, request fitness.ValidationRequest, timeout time.Duration) ([]byte, error) {

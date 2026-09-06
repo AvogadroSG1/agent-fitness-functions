@@ -80,11 +80,12 @@ func (e transportError) Unwrap() error { return e.err }
 
 // daemonConflictError reports a TLS probe failure against a live listener on the shared
 // default local daemon port when this client's own managed dev-cert material has
-// already loaded cleanly. That combination means the listener trusts a different dev
-// CA. Since ADR-0007 moved every repository onto one shared machine governance root,
-// this is most likely a stale daemon left over from before this machine migrated to
-// the shared root (or from before a certificate rotation) rather than another
-// repository's daemon — each repo no longer keeps its own dev CA.
+// already loaded cleanly. That combination means the two ends do not share a dev CA,
+// which has two likely causes since ADR-0007 moved every repository onto one shared
+// machine governance root: a healthy daemon reached with stale repo-local certs left
+// over from before that migration, or a stale daemon still owning the port. Another
+// repository's daemon is possible but no longer expected — each repo no longer keeps
+// its own dev CA — so the message names both likely causes and points at doctor.
 type daemonConflictError struct {
 	addr  string
 	cause error
@@ -92,7 +93,7 @@ type daemonConflictError struct {
 
 func (e daemonConflictError) Error() string {
 	return fmt.Sprintf(
-		"%s is already serving TLS that this client does not trust; most likely a stale daemon started before this machine migrated to the shared governance root (or before a certificate rotation) still owns this port — another repository's local daemon is possible but no longer expected now that repos share one root — stop it, rerun `client onboard` to re-register against the shared governance daemon, or rerun with a distinct --addr (%v)",
+		"%s is already serving TLS that this client does not trust: either this repository is presenting stale repo-local certs left over from before the shared governance root (the daemon itself may be healthy) or a stale daemon started before that migration still owns the port — another repository's local daemon is possible but no longer expected now that repos share one root — run `agent-fitness-functions doctor` to tell them apart, then rerun `client onboard` to re-register against the shared governance root, stop the conflicting daemon, or rerun with a distinct --addr (%v)",
 		e.addr, e.cause,
 	)
 }

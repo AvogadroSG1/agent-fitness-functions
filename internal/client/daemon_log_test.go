@@ -89,8 +89,8 @@ func TestStartDaemonWithoutLogDestinationStillStarts(t *testing.T) {
 }
 
 // TestDescribeDaemonFailureNamesDaemonLog: a health-wait failure must point at
-// the captured daemon log when one exists, and say <none> when it does not,
-// so the user knows exactly where (not) to look.
+// the captured daemon log when one exists, and name no log at all when auto-start
+// owned no log destination, so the user knows exactly where (not) to look.
 func TestDescribeDaemonFailureNamesDaemonLog(t *testing.T) {
 	cause := errors.New("daemon at https://127.0.0.1:7890 did not become healthy within 5s")
 	withLog := describeDaemonFailure(DaemonStartConfig{
@@ -103,7 +103,7 @@ func TestDescribeDaemonFailureNamesDaemonLog(t *testing.T) {
 		t.Fatalf("error = %q, want to name the daemon log path", withLog.Error())
 	}
 	withoutLog := describeDaemonFailure(DaemonStartConfig{Addr: "https://127.0.0.1:7890"}, cause)
-	if !strings.Contains(withoutLog.Error(), "log=<none>") {
-		t.Fatalf("error = %q, want log=<none> without a log destination", withoutLog.Error())
+	if strings.Contains(withoutLog.Error(), "log=") {
+		t.Fatalf("error = %q, want no log field without a log destination", withoutLog.Error())
 	}
 }
