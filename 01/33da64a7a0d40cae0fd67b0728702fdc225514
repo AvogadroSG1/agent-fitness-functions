@@ -1,0 +1,23 @@
+installed_hook_mtls_test.go
+  s_cf963430e803c8::t_bc8b46ac1fa6e2 161-169
+  s_cf963430e803c8::t_9d7b0b67378675 172-176
+cmd/agent-fitness-functions/main_test.go
+  s_cf963430e803c8::t_9d7b0b67378675 961-965
+  s_cf963430e803c8::t_bc8b46ac1fa6e2 950-958
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "0133da64a7a0d40cae0fd67b0728702fdc225514",
+  "prompts": {},
+  "sessions": {
+    "s_cf963430e803c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a076aa-0fc6-7d81-b3ef-65e1cc030235",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
