@@ -1,7 +1,20 @@
 {
+  "admins": [
+    "dev-hook-pool"
+  ],
   "callers": {
-    "ci-runner-all": ["graft", "ringstation", "slackstatus", "observatory"],
-    "dev-hook-pool": ["calm-poc", "graft", "ringstation", "slackstatus", "observatory"]
-  },
-  "admins": ["dev-hook-pool"]
+    "ci-runner-all": [
+      "graft",
+      "ringstation",
+      "slackstatus",
+      "observatory"
+    ],
+    "dev-hook-pool": [
+      "graft",
+      "ringstation",
+      "slackstatus",
+      "observatory",
+      "agent-fitness-functions"
+    ]
+  }
 }
