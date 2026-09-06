@@ -1,0 +1,41 @@
+internal/client/client_test.go
+  s_3d6c2c9a391830::t_3a04c769ed9e81 465-487
+internal/client/restart.go
+  s_3d6c2c9a391830::t_f2c33f1287c1aa 438-446
+internal/client/ensure_remote_test.go
+  s_3d6c2c9a391830::t_28b5d585673a34 1-56
+hooks/pre-tool-use.sh
+  s_3d6c2c9a391830::t_b4e05172f05db8 125,127,266-304
+internal/client/onboard_shared_state_test.go
+  s_3d6c2c9a391830::t_3a04c769ed9e81 30
+internal/client/hookassets/pre-tool-use.sh
+  s_3d6c2c9a391830::t_b4e05172f05db8 125,127,266-304
+hooks/dry_run_skew_test.go
+  s_3d6c2c9a391830::t_5f60d5b82889f3 1-95
+internal/server/dryrun_ledger_test.go
+  s_3d6c2c9a391830::t_d66173af392667 1-185
+internal/client/doctor.go
+  s_3d6c2c9a391830::t_ac27549372040e 238
+internal/server/state.go
+  s_3d6c2c9a391830::t_ac27549372040e 344-350,379-384
+internal/server/checker.go
+  s_3d6c2c9a391830::t_ac27549372040e 339-341,357-360
+internal/client/client.go
+  s_3d6c2c9a391830::t_162d90aabc146c 1079-1082
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "d27861bb71521f1bcd36ce5ce6b95a2a36e7d0f1",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
