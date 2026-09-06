@@ -32,6 +32,18 @@ A single architectural check detectable at the file boundary. Five are continuou
 The wire contract spoken by both client and server — the request a client sends and the verdict the server returns. Lives in `internal/fitness`, owned by neither side.
 _Avoid_: CheckRequest, CheckResponse.
 
+**Validation history**:
+A local repository clone's available records of submitted source versions and their **Validation Results**, shared across its worktrees and supporting comparison of failed and later passing submissions.
+_Avoid_: treating history as a complete audit trail or a prerequisite for validation.
+
+**Passing proposal**:
+A proposed source version with a passing **Validation Result**, without evidence that the edit was applied.
+_Avoid_: fixed or applied solely because validation passed.
+
+**Validation origin**:
+The reported invocation source, calling tool, and available session identifier associated with a submission in **Validation history**.
+_Avoid_: treating the server's implicit `local` caller as an individual agent identity.
+
 **Listen mode**:
 Which trust model a running server serves under. `mtls` (the default) is HTTPS with required client certificates, callers identified by certificate CN and authorized in `caller-repos.json` — the container/remote/production path. `local-http` is plain HTTP bound to loopback only, where every loopback peer is the implicit caller `local` — the machine-local developer daemon. Selected by `server start --listen-mode`; see [ADR-0010](docs/adr/0010-plain-http-local-governance.md).
 _Avoid_: calling local-http "insecure mode" or mtls "production mode" — the mode names the transport and caller model, not the environment.
@@ -48,8 +60,34 @@ Always spell the product out — `agent-fitness-functions`. No abbreviations. En
 - The **client** sends a **Validation Request** to the **server**; the **server** returns a **Validation Result**.
 - Both **client** and **server** depend on the shared **fitness** contract; the contract depends on neither.
 - **baseline** calibrates the thresholds the **server** later enforces.
+- **Validation history** belongs to the local repository clone and consumes events produced by the **client**; each recorded validation MUST retain its submitted version and verdict for comparison, including speculative proposals.
+- A **Passing proposal** MUST NOT be presented as proof of an applied fix; step 1 compares submissions without requiring proof that a passing version was saved or committed.
+- **Validation history** MUST retain the **Validation origin** when available; missing identity MUST remain explicitly unknown.
+- Worktrees of one local clone MUST share **Validation history**, with worktree and branch context recorded on each entry; separate clones and machines have separate histories.
+- **Validation history** is downstream observability with at-most-once delivery: events MAY be lost, and history persistence MUST NOT block validation or change its verdict or exit behavior. A missing record MUST NOT be treated as proof that validation did not run. See [ADR-0011](docs/adr/0011-client-validation-history-is-downstream-observability.md).
+- Attempts that receive no **Validation Result**, such as connection failures and timeouts, MUST be logged to the operating system's event logging stream and MUST NOT enter **Validation history**; OpenTelemetry integration is a possible future consumer.
+- Recorded **Validation history** MUST NOT expire or be automatically pruned in step 1; retention controls are outside the current scope.
+- The **client history** interface supports listing records, inspecting a record, and diffing two explicitly selected record IDs, with JSON output available; comparison MUST NOT infer that one attempt caused another to pass.
+- **client onboard** MUST start one client-owned history writer per user on the machine; that writer serves the databases of local clones independently of the governance server. **client validate** MUST NOT start the writer or replay events when it is unavailable.
 
 ---
+
+## How can I inspect earlier proposals?
+
+`client history list`, `show EVENT_ID`, and `diff FROM_ID TO_ID` read the current
+clone's database directly, even when its local writer is stopped. Their `--repo`
+option selects a checkout path; `client validate --repo` selects a logical governance
+key and uses `--history-worktree` for an explicit checkout. See the
+[operator reference](docs/runbooks/onboard-new-repository.md#repository-validation-history)
+for filters, JSON output, lifecycle, and exit behavior.
+
+```mermaid
+flowchart LR
+    C[Client receives verdict] --> H[Caller receives original output]
+    C -. at most once .-> W[Local writer]
+    W --> D[(Clone history shared by worktrees)]
+    R[Explicit proposal inspection] -->|read only| D
+```
 
 ## How does CALM actually work?
 
@@ -206,3 +244,5 @@ The `client validate` path now resolves project-local namespaces with `--project
 
 *Authored By Peter O'Connor with Assistance from Claude Code (claude-sonnet-4-6) · 2026-06-04 · agent-fitness-functions Context & FAQ*
 *Revised with Assistance from Claude Code (claude-opus-5[1m]) · 2026-09-06 · listen-mode and dry-run vocabulary, ADR-0010 local trust model*
+
+*Authored By Peter O'Connor with Assistance from Codex (gpt-6) · 2026-09-06 · Repository validation history vocabulary*

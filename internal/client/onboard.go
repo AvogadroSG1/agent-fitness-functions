@@ -116,7 +116,7 @@ type onboarder struct {
 // authorization, hook installation, local daemon auto-start, and a final doctor
 // gate. It returns a non-nil error (mapped to a non-zero exit) when any step or
 // the closing doctor run fails; advisory doctor warnings are not failures.
-func RunOnboard(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(DaemonStartConfig) error) error {
+func RunOnboard(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(DaemonStartConfig) error, historyRuntime ...*HistoryRuntime) error {
 	o, err := resolveOnboarder(args, stdout, stderr, httpClient, starter)
 	if err != nil {
 		return err
@@ -124,7 +124,13 @@ func RunOnboard(args []string, stdout, stderr io.Writer, httpClient *http.Client
 	if o.certificatesOnly {
 		return ensureDevCerts(o.certDir, o.forceDevCertRotation)
 	}
-	return o.run()
+	if err := o.run(); err != nil {
+		return err
+	}
+	if len(historyRuntime) != 0 {
+		reconcileHistory(historyRuntime[0], stderr)
+	}
+	return nil
 }
 
 func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(DaemonStartConfig) error) (onboarder, error) {

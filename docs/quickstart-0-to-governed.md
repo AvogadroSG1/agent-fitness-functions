@@ -7,6 +7,11 @@ you what state the repo is in, lets you pick from the nine-function catalog,
 writes the config, installs the Git and agent hooks, makes sure a current local
 daemon is running, and gates on `doctor`.
 
+Source builds require Go 1.25 or newer; minimum-toolchain verification uses Go 1.25.14.
+Successful onboarding also starts or reconciles one local history writer per user,
+including when governance uses a remote server. A writer failure produces a warning;
+validation continues with its existing output and exit behavior.
+
 **There are no certificates on the local path.** Since
 [ADR-0010](adr/0010-plain-http-local-governance.md) the machine-local daemon
 speaks plain HTTP on loopback and trusts any loopback peer as the implicit
@@ -304,4 +309,24 @@ instead. The full production sequence — including `baseline --emit-config`, th
 troubleshooting table — is in
 [Onboarding a New Repository](runbooks/onboard-new-repository.md).
 
-*Authored By Peter O'Connor with Assistance from Claude Code (claude-opus-5[1m]) · 2026-09-06 · Quickstart rewrite for ADR-0010 plain-HTTP local governance and the onboard wizard*
+## Inspect a proposal's validation history
+
+After a hook or manual validation completes, inspect recorded attempts from either
+worktree of the same clone:
+
+```bash
+agent-fitness-functions client history list
+agent-fitness-functions client history show EVENT_ID --format json
+agent-fitness-functions client history diff FROM_ID TO_ID
+```
+
+Copy IDs from `list` to inspect the exact submitted versions and their verdicts.
+Passing dry-run attempts remain proposals; they do not establish that an edit was
+applied. Unknown tool or session identity remains unknown. History is clone-local,
+shared across worktrees, retained without automatic expiration, and readable with
+the writer stopped. Delivery is at most once: a missing record does not mean the
+validation never ran, and unavailable history does not change validation behavior.
+See the [history operator reference](runbooks/onboard-new-repository.md#repository-validation-history)
+for filters, JSON, exit codes, diagnostics, and lifecycle details.
+
+*Authored By Peter O'Connor with Assistance from Codex (gpt-6) · 2026-09-06 · Quickstart and repository validation history*

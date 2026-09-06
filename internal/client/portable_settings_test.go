@@ -54,7 +54,10 @@ func TestInstallHooksWritesPortableClaudeCommands(t *testing.T) {
 	if len(commands) != 2 {
 		t.Fatalf("PreToolUse commands = %v, want git-guard and Edit/Write entries", commands)
 	}
-	wants := map[string]bool{portableCommandFor(gitGuardName): false, portableCommandFor(agentHookName): false}
+	wants := map[string]bool{
+		portableCommandFor(gitGuardName): false,
+		"AGENT_FITNESS_FUNCTIONS_HISTORY_TOOL=claude-code " + portableCommandFor(agentHookName): false,
+	}
 	for _, command := range commands {
 		if strings.Contains(command, repo) {
 			t.Errorf("command %q embeds the machine-local repo path %q; the tracked settings.json must stay machine-portable", command, repo)

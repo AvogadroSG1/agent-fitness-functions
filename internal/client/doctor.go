@@ -202,6 +202,7 @@ func runDoctorChecks(cfg doctorConfig) []checkResult {
 		checkRoslynAnalyzer(cfg),
 		checkServerReachable(cfg),
 		checkDaemonCurrency(cfg),
+		checkHistoryWriter(),
 	}
 	results = append(results, checkPreflight(cfg)...)
 	results = append(results, checkValidationPipeline(cfg))

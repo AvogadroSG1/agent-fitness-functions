@@ -15,7 +15,7 @@ func TestDockerfileContainerContract(t *testing.T) {
 		t.Fatalf("read Dockerfile: %v", err)
 	}
 	dockerfile := string(content)
-	mustContain(t, dockerfile, "FROM golang:1.22.4-alpine3.20 AS go-build")
+	mustContain(t, dockerfile, "FROM golang:1.25-alpine@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59 AS go-build")
 	mustContain(t, dockerfile, "FROM mcr.microsoft.com/dotnet/sdk:8.0.301 AS dotnet-build")
 	mustContain(t, dockerfile, "FROM mcr.microsoft.com/dotnet/runtime-deps:8.0.6")
 	mustContain(t, dockerfile, "ARG TARGETOS")
@@ -43,9 +43,11 @@ func TestDockerfileContainerContract(t *testing.T) {
 	mustContain(t, dockerfile, `--cacert "$AGENT_FITNESS_FUNCTIONS_TLS_CA" https://127.0.0.1:7890/health`)
 	mustContain(t, dockerfile, `curl --fail --silent http://127.0.0.1:7890/health`)
 	mustNotContain(t, dockerfile, "/app/certs/current")
-	mustContain(t, dockerfile, "nodejs")
-	mustContain(t, dockerfile, "npm")
-	mustContain(t, dockerfile, "npm install -g @finos/calm-cli@1.40.0")
+	mustContain(t, dockerfile, "FROM node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS node-runtime")
+	mustContain(t, dockerfile, "COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node")
+	mustContain(t, dockerfile, "COPY --from=node-runtime /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm")
+	mustNotContain(t, dockerfile, "        nodejs ")
+	mustContain(t, dockerfile, "npm_config_engine_strict=true npm install -g @finos/calm-cli@1.40.0")
 	mustContain(t, dockerfile, "python3 -m pip install --no-cache-dir --break-system-packages --require-hashes -r /tmp/requirements.lock")
 
 	userIndex := strings.Index(dockerfile, "useradd -u 1001")

@@ -20,30 +20,32 @@ import (
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/client"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/historyservice"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/installer"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/server"
 )
 
-const usageLine = "usage: agent-fitness-functions <client validate|client install-hooks|client onboard|client functions|client resolve-dev-cert-version|server start|baseline|doctor|uninstall|upgrade|rollback|runtime provision|runtime doctor>"
+const usageLine = "usage: agent-fitness-functions <client validate|client install-hooks|client onboard|client functions|client history|client resolve-dev-cert-version|server start|baseline|doctor|uninstall|upgrade|rollback|runtime provision|runtime doctor>"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
-	return runWithDependencies(args, stdout, stderr, &http.Client{Timeout: 30 * time.Second}, client.StartDaemon)
+	historyRuntime := client.NewHistoryRuntime(os.Getenv)
+	return runWithDependencies(args, stdout, stderr, &http.Client{Timeout: 30 * time.Second}, client.StartDaemon, &historyRuntime)
 }
 
-func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
+func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error, historyRuntime ...*client.HistoryRuntime) int {
 	if len(args) == 0 {
 		_, _ = fmt.Fprintln(stderr, usageLine)
 		return 2
 	}
 
-	if code, handled := dispatchPrimaryCommand(args, stdout, stderr, httpClient, starter); handled {
+	if code, handled := dispatchPrimaryCommand(args, stdout, stderr, httpClient, starter, historyRuntime...); handled {
 		return code
 	}
-	if code, handled := dispatchLifecycleCommand(args, stdout, stderr); handled {
+	if code, handled := dispatchLifecycleCommand(args, stdout, stderr, historyRuntime...); handled {
 		return code
 	}
 	_, _ = fmt.Fprintf(stderr, "unknown command %q\n", args[0])
@@ -53,13 +55,13 @@ func runWithDependencies(args []string, stdout, stderr io.Writer, httpClient *ht
 // dispatchPrimaryCommand handles the everyday top-level subcommands (help,
 // client, server, doctor, baseline). It reports handled=false for anything
 // else so the caller can fall through to dispatchLifecycleCommand.
-func dispatchPrimaryCommand(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) (int, bool) {
+func dispatchPrimaryCommand(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error, historyRuntime ...*client.HistoryRuntime) (int, bool) {
 	switch args[0] {
 	case "--help", "-h", "help":
 		_, _ = fmt.Fprintln(stdout, usageLine)
 		return 0, true
 	case "client":
-		return runClient(args[1:], stdout, stderr, httpClient, starter), true
+		return runClient(args[1:], stdout, stderr, httpClient, starter, historyRuntime...), true
 	case "server":
 		return runServer(args[1:], stderr), true
 	case "doctor":
@@ -74,10 +76,10 @@ func dispatchPrimaryCommand(args []string, stdout, stderr io.Writer, httpClient 
 // dispatchLifecycleCommand handles the ADR-0005 lifecycle/runtime/internal
 // subcommands (uninstall, upgrade, rollback, runtime, internal). It reports
 // handled=false for anything else so the caller can report "unknown command".
-func dispatchLifecycleCommand(args []string, stdout, stderr io.Writer) (int, bool) {
+func dispatchLifecycleCommand(args []string, stdout, stderr io.Writer, historyRuntime ...*client.HistoryRuntime) (int, bool) {
 	switch args[0] {
 	case "uninstall":
-		return runUninstallCommand(args[1:], stdout, stderr), true
+		return runUninstallCommand(args[1:], stdout, stderr, historyRuntime...), true
 	case "upgrade":
 		return runUpgradeCommand(args[1:], stdout, stderr), true
 	case "rollback":
@@ -106,8 +108,12 @@ func runDoctorCommand(args []string, stdout, stderr io.Writer, httpClient *http.
 // ADR-0005 lifecycle subcommands: uninstall removes product-owned installer
 // state, upgrade installs a new version through the same verified atomic path
 // install.sh uses, and rollback repoints current at the retained predecessor.
-func runUninstallCommand(args []string, stdout, stderr io.Writer) int {
-	if err := installer.RunUninstall(args, stdout, stderr, os.Getenv); err != nil {
+func runUninstallCommand(args []string, stdout, stderr io.Writer, historyRuntime ...*client.HistoryRuntime) int {
+	var beforeRemoval func() error
+	if len(historyRuntime) != 0 && historyRuntime[0] != nil {
+		beforeRemoval = func() error { return historyRuntime[0].Stop(context.Background()) }
+	}
+	if err := installer.RunUninstallBeforeRemoval(args, stdout, stderr, os.Getenv, beforeRemoval); err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
 		if installer.IsUsageError(err) {
 			return 2
@@ -183,6 +189,8 @@ func runInternalCommand(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	switch args[0] {
+	case "history-writer":
+		return runHistoryWriter(args[1:], stderr)
 	case "publish-current":
 		if err := installer.RunPublishCurrent(args[1:], stdout, stderr, os.Getenv); err != nil {
 			_, _ = fmt.Fprintln(stderr, err)
@@ -209,9 +217,9 @@ func runBaselineCommand(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error) int {
+func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error, historyRuntime ...*client.HistoryRuntime) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions client <validate|install-hooks|onboard|functions|resolve-dev-cert-version>")
+		_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions client <validate|install-hooks|onboard|functions|history|resolve-dev-cert-version>")
 		return 2
 	}
 	switch args[0] {
@@ -220,9 +228,11 @@ func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client,
 	case "install-hooks":
 		return clientExitCode(client.RunInstallHooks(args[1:], stdout, stderr), stderr)
 	case "onboard":
-		return clientExitCode(client.RunOnboard(args[1:], stdout, stderr, httpClient, starter), stderr)
+		return clientExitCode(client.RunOnboard(args[1:], stdout, stderr, httpClient, starter, historyRuntime...), stderr)
 	case "functions":
 		return clientExitCode(client.RunFunctions(args[1:], stdout, nil), stderr)
+	case "history":
+		return clientExitCode(client.RunHistory(args[1:], stdout), stderr)
 	case "resolve-dev-cert-version":
 		return clientExitCode(client.RunResolveDevCertVersion(args[1:], stdout), stderr)
 	default:
@@ -631,4 +641,23 @@ func (e usageError) Unwrap() error {
 func isUsageError(err error) bool {
 	var target usageError
 	return errors.As(err, &target)
+}
+
+func runHistoryWriter(args []string, stderr io.Writer) int {
+	if len(args) != 0 {
+		if _, err := fmt.Fprintln(stderr, "internal history-writer accepts no arguments"); err != nil {
+			return 2
+		}
+		return 2
+	}
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	if err := historyservice.Run(ctx, historyservice.Config{}); err != nil {
+		// The service logs bounded operational categories through the OS event stream.
+		if _, writeErr := fmt.Fprintln(stderr, "local history writer stopped with an operational error"); writeErr != nil {
+			return 1
+		}
+		return 1
+	}
+	return 0
 }

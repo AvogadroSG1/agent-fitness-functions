@@ -12,7 +12,7 @@ operator reference for both local and production onboarding.
 
 ## Tool Requirements
 
-- Go 1.22 or newer for the `agent-fitness-functions` binary
+- Go 1.25 or newer for the `agent-fitness-functions` binary (minimum-toolchain verification uses Go 1.25.14)
 - FINOS CALM CLI 1.40.0 via `npm install -g @finos/calm-cli@1.40.0`
 - `radon` 6.0.1 on `PATH`, or pass `--radon <path>`, for Python baseline analysis
 - .NET 8 SDK for `tools/roslyn-analyzer`; `agent-fitness-functions baseline --language csharp` builds the local analyzer automatically when `--roslyn <path>` is omitted
@@ -21,7 +21,7 @@ operator reference for both local and production onboarding.
 
 ## Container Image
 
-The repository includes a multi-stage `Dockerfile` for the containerized agent-fitness-functions service. It builds the Go server, publishes the .NET analyzer, installs FINOS CALM CLI 1.40.0, installs Python plus `radon==6.0.1`, runs as non-root `appuser` uid 1001, and starts with `/app/agent-fitness-functions server start`.
+The repository includes a multi-stage `Dockerfile` for the containerized agent-fitness-functions service. It builds the Go server, publishes the .NET analyzer, installs FINOS CALM CLI 1.40.0 on the pinned official Node 24 runtime with npm engine checks enabled, installs Python plus `radon==6.0.1`, runs as non-root `appuser` uid 1001, and starts with `/app/agent-fitness-functions server start`.
 
 Use a Docker-enabled environment to verify the image contract:
 
@@ -29,29 +29,12 @@ Use a Docker-enabled environment to verify the image contract:
 docker build --build-arg GIT_SHA="$(git rev-parse --short HEAD)" --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t agent-fitness-functions:local .
 ```
 
-`docker-compose.yml` provides the local/staging deployment contract. It mounts `./configs`, `./certs`, and `./caller-repos.json` read-only, runs the container as a hardened service, and configures TLS through the `AGENT_FITNESS_FUNCTIONS_TLS_CERT/KEY/CA` environment variables.
+Local development uses `make install` followed by `agent-fitness-functions client onboard`; it requires no certificates or Docker. `docker-compose.yml` is the remote/container deployment contract. Its managed certificate selection uses the machine governance root (ADR-0007); operators MUST follow the [onboarding runbook](docs/runbooks/onboard-new-repository.md) for mounts, caller authorization, and external TLS configuration.
 
-`server start` resolves its TLS material from those environment variables (the `--tls-cert/--tls-key/--tls-ca` flags override them when set). All three must be provided together or the server refuses to start; setting only some — or none while expecting HTTPS — is a configuration error rather than a silent plain-HTTP fallback.
-
-Before running Compose, provide these local certificate files for the mounted TLS volume:
-
-```text
-certs/server.crt
-certs/server.key
-certs/ca.crt
-```
-
-For local verification, generate non-production development certificates with:
+To verify the container deployment with managed development certificates:
 
 ```bash
 scripts/generate-dev-certs.sh
-```
-
-The script also creates `certs/client.crt` and `certs/client.key` with CN `dev-hook-pool` for authenticated local hook checks. Generated files under `certs/` are ignored by git and excluded from the Docker build context.
-
-Then verify the deployment artifact with:
-
-```bash
 docker compose config --quiet
 docker compose up --build
 ```
@@ -153,6 +136,7 @@ ln -sf "$(pwd)/bin"/agent-fitness-functions-* ~/.local/bin/
 | `agent-fitness-functions doctor` | Ordered ✔/✘/⚠ readiness checks (binary, python3/pyyaml, TLS material where applicable, governance root, Roslyn analyzer, server reachability, daemon currency, `/preflight` facts, validation pipeline, installed hooks, config sync), each with a one-line remediation. Run it anytime to diagnose setup. Flags: `--addr`, `--repo`, `--repair`, `--client-cert/--client-key/--client-ca`. |
 | `agent-fitness-functions client install-hooks [repo]` | Install the embedded Git hooks **and** the agent Edit/Write validation hook into a repository, configuring `PreToolUse` hooks across Claude Code (`.claude/settings.json`), OpenAI Codex (`.codex/hooks.json`), and OpenCode (`.opencode/plugins/agent-fitness-functions.js`) with zero manual authoring. See [Onboarding a New Repository](docs/runbooks/onboard-new-repository.md). |
 | `agent-fitness-functions client resolve-dev-cert-version` | Print the current validated managed `versions/v-...` path for shell handoff; accepts no arguments. |
+| `agent-fitness-functions client history list / show / diff` | Inspect completed proposals in the current clone, including submitted source, verdict, and available origin. Reads work with the local writer stopped. See the [history operator reference](docs/runbooks/onboard-new-repository.md#repository-validation-history). |
 | `agent-fitness-functions-serve [--build]` | Start the agent-fitness-functions server container via Docker Compose (Docker Desktop) |
 | `agent-fitness-functions-test <file>` | Validate a file's fitness functions against the running server |
 
@@ -186,3 +170,5 @@ dotnet pack tools/roslyn-analyzer/CalmRoslynAnalyzer.csproj
 ```
 
 Measured cold start for the Debug Roslyn analyzer on 2026-05-18 was 0.12 seconds for a one-file C# fixture.
+
+*Authored By Peter O'Connor with Assistance from Codex (gpt-6) · 2026-09-06 · Contributor setup and repository validation history*

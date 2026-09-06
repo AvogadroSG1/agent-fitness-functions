@@ -441,6 +441,7 @@ func TestEmbeddedHookAssetsMatchAuthoritativeHooks(t *testing.T) {
 		"git-guard.sh",
 		"pre-tool-use.sh",
 		"format-violations.py",
+		"opencode-plugin.js",
 	} {
 		authoritative, err := os.ReadFile(filepath.Join(hooksDir, name))
 		if err != nil {
