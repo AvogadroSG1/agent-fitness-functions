@@ -49,9 +49,10 @@ func loadPickerOptions() ([]functionOption, error) {
 			unit:        rule.Unit,
 			enabled:     defaults[key],
 			// layer-sovereignty is the only function whose enablement needs
-			// more than a toggle; the guard lives in
-			// rejectUnsettableSelection so the picker itself stays a
-			// straight checklist.
+			// more than a toggle: the wizard prompts for its layer
+			// definitions (S10), and rejectUnsettableSelection remains only
+			// as a guard for direct callers that bypass both the wizard and
+			// --functions.
 			requiresSettings: key == "layer-sovereignty",
 		})
 	}
@@ -154,12 +155,12 @@ func renderPickerOptions(out io.Writer, options []functionOption) {
 	}
 }
 
-// pickerSettingsNote flags a row the user can tick but cannot finish here:
-// enabling it also needs fitness-function-settings, which onboard rejects
-// today (rejectUnsettableSelection) and prompts for from ADR-0010 slice S10.
+// pickerSettingsNote flags a row that needs more than a tick: enabling it
+// also needs fitness-function-settings, which the wizard prompts for once the
+// checklist is confirmed.
 func pickerSettingsNote(option functionOption) string {
 	if option.requiresSettings {
-		return " [needs fitness-function-settings]"
+		return " [prompts for layer definitions]"
 	}
 	return ""
 }

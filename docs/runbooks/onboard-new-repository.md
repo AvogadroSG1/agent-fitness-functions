@@ -38,8 +38,8 @@ from that empty state end to end:
   checklist over the same catalog instead of the silent default.
   `--functions temporal-purity,sql-composition-safety,deterministic-ordering` may
   include three of the four generalized functions; `layer-sovereignty` is rejected by
-  `--functions` because it needs hand-authored layer definitions onboard cannot infer
-  (see below).
+  `--functions` because it needs layer definitions onboard cannot infer — on a
+  terminal the wizard prompts for them instead (see below).
 - **In external/remote TLS mode** (`AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA` set,
   `--addr` pointing at a server that is not a managed local dev daemon), `onboard`
   self-service registers the repo with `POST /register` instead of writing local
@@ -192,8 +192,9 @@ Flags:
 |------|---------|---------|
 | `--repo <name>` | working-tree basename | Governance repo name (validated against the grammar) |
 | `--enforcement <advisory\|block>` | `advisory` | Enforcement mode written into the scaffolded config |
-| `--addr <url>` | `https://127.0.0.1:7890` | Governance daemon base URL |
+| `--addr <url>` | `http://127.0.0.1:7890` | Governance daemon base URL (ADR-0010 local-http default; a legacy `https` loopback daemon is still reached by scheme fallback) |
 | `--functions <a,b,...>` | all five metric functions | Comma-separated subset of fitness functions to enable; accepts three of the four generalized functions (`temporal-purity`, `sql-composition-safety`, `deterministic-ordering`) but rejects `layer-sovereignty` |
+| `--update` | off | Rewrite this repository's existing `configs/<repo>/config.json` from the resolved selection. Without it an existing config is never touched. On a terminal the wizard's `y` at the diff gate is the same authority, so `--update` is for runs with no terminal to confirm at (CI, agents, pipes) |
 | `[path]` | `.` | Repository path |
 
 `onboard` is idempotent. In managed/local mode, when it finishes it prints the one
@@ -367,7 +368,12 @@ turn the new ones on.
 `validateFitnessFunctionSettings` rejects `"layer-sovereignty": true` with an empty or
 absent `fitness-function-settings.layer-sovereignty.layers`. There is no offline way
 to infer layers from a repository, so `client onboard --functions` refuses
-`layer-sovereignty` outright; author the layers by hand. A complete example (mirroring
+`layer-sovereignty` outright. There are two ways to supply the layers: enable it in
+the interactive `client onboard` wizard, which prompts for each layer's name, path
+patterns, and forbidden patterns (rejecting a pattern Go's `regexp` package will not
+compile and re-asking for that field), or author them by hand. A repository that
+already defines layers keeps them verbatim — the wizard never re-asks for settings it
+can read. A complete example (mirroring
 `internal/server/config_settings_test.go`'s `settingsConfig` fixture):
 
 ```json

@@ -11,10 +11,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -100,6 +102,13 @@ type onboarder struct {
 	// that authenticates by loopback peer. It owns no certificates and consults
 	// no caller-repos.json, so onboarding it is config scaffold + hooks + daemon.
 	localHTTP bool
+	// update permits rewriting an existing repo-local config (S10): set by the
+	// wizard's confirmed diff or the --update flag; without it an existing
+	// config is never touched.
+	update bool
+	// layers carries prompted layer-sovereignty definitions to write into the
+	// scaffolded config's fitness-function-settings (S10).
+	layers []govconfig.LayerRule
 }
 
 // RunOnboard performs the whole local 0-to-governed sequence in one command:
@@ -163,15 +172,28 @@ func resolveOnboarder(args []string, stdout, stderr io.Writer, httpClient *http.
 		callerCN:             tlsResolution.callerCN,
 		selectedFunctions:    governance.functions,
 		localHTTP:            tlsResolution.tlsMode.managed && isLocalHTTP(parsedFlags.addr),
+		update:               rewriteAuthorized(parsedFlags, governance),
+		layers:               governance.layers,
 	}, nil
 }
 
-// onboardGovernance is the governance a run applies: the enforcement mode and
-// the fitness-function selection (nil meaning the all-five default). It is
-// resolved from flags first and then, on an interactive run, from the wizard.
+// onboardGovernance is the governance a run applies: the enforcement mode,
+// the fitness-function selection (nil meaning the all-five default), the
+// layer-sovereignty definitions that selection needs, and whether this run
+// may rewrite a config that already exists. It is resolved from flags first
+// and then, on an interactive run, from the wizard.
 type onboardGovernance struct {
 	enforcement string
 	functions   map[string]bool
+	layers      []govconfig.LayerRule
+	update      bool
+}
+
+// rewriteAuthorized reports whether this run may rewrite a config that
+// already exists: --update, the authority a run with no terminal declares up
+// front, or the wizard diff a developer confirmed on one.
+func rewriteAuthorized(flags onboardFlags, governance onboardGovernance) bool {
+	return flags.update || governance.update
 }
 
 // resolveOnboardSession resolves the daemon transport and then the governance
@@ -201,7 +223,9 @@ type onboardFlags struct {
 	certificatesOnly     bool
 	forceDevCertRotation bool
 	functions            string
-	extra                []string
+	// update permits rewriting an existing repo-local config (S10).
+	update bool
+	extra  []string
 }
 
 func parseOnboardFlags(args []string) (onboardFlags, error) {
@@ -213,6 +237,7 @@ func parseOnboardFlags(args []string) (onboardFlags, error) {
 	certificatesOnly := flags.Bool("certificates-only", false, "publish managed development certificates only")
 	forceDevCertRotation := flags.Bool("force-dev-cert-rotation", false, "request managed development certificate rotation")
 	functionsFlag := flags.String("functions", "", "comma-separated subset of fitness functions to enable (default: all five)")
+	update := flags.Bool("update", false, "rewrite this repository's existing governance config from the resolved selection")
 	if err := flags.Parse(args); err != nil {
 		return onboardFlags{}, usageError{err: err}
 	}
@@ -223,6 +248,7 @@ func parseOnboardFlags(args []string) (onboardFlags, error) {
 		certificatesOnly:     *certificatesOnly,
 		forceDevCertRotation: *forceDevCertRotation,
 		functions:            *functionsFlag,
+		update:               *update,
 		extra:                flags.Args(),
 	}, nil
 }
@@ -248,9 +274,8 @@ func wizardApplies(flags onboardFlags) bool {
 }
 
 // resolveWizardOutcome runs the onboard wizard over the real terminal and maps
-// the confirmed choices onto the enforcement mode and fitness-function
-// selection this run will scaffold. Declining aborts before any step has
-// written a file, naming what was declined.
+// the confirmed choices onto the governance this run will apply. Declining
+// aborts before any step has written a file, naming what was declined.
 func resolveWizardOutcome(stdout io.Writer, repoName, repoRoot, addr string, httpClient *http.Client) (onboardGovernance, error) {
 	facts := gatherWizardFacts(repoName, repoRoot, addr, httpClient)
 	outcome, err := runOnboardWizard(os.Stdin, stdout, facts)
@@ -260,32 +285,44 @@ func resolveWizardOutcome(stdout io.Writer, repoName, repoRoot, addr string, htt
 	if !outcome.Confirmed {
 		return onboardGovernance{}, usageError{err: fmt.Errorf("onboard declined at the confirmation step: %s was not applied and nothing was written", describeWizardChoice(outcome))}
 	}
-	if err := rejectUnsettableSelection(outcome.Functions); err != nil {
-		return onboardGovernance{}, err
-	}
-	if facts.Current != nil {
-		return reportExistingConfigUntouched(stdout, facts, outcome, repoName), nil
-	}
-	return onboardGovernance{enforcement: outcome.Enforcement, functions: outcome.Functions}, nil
+	return wizardGovernance(stdout, facts, outcome, repoName), nil
 }
 
-// reportExistingConfigUntouched keeps an update run honest: this slice
-// scaffolds only a repository's first config, so confirmed changes against an
-// existing one are named and dropped rather than silently discarded. Applying
-// them is `client onboard --update`, ADR-0010 slice S10.
-func reportExistingConfigUntouched(stdout io.Writer, facts wizardFacts, outcome wizardOutcome, repoName string) onboardGovernance {
-	current := *facts.Current
-	inForce := onboardGovernance{enforcement: defaultWizardEnforcement(facts), functions: current.FitnessFunctions}
-	changes := wizardOutcomeChanges(current, outcome)
+// wizardGovernance maps confirmed wizard answers onto the governance this run
+// applies. Confirming the diff IS the authority to rewrite an existing config
+// (ADR-0010 D3: the one deliberate exception to never-rewrite, gated on an
+// interactive confirmation), so an update run reports update exactly when the
+// confirmed choices differ from the governance in force. --update is the
+// same authority for a run with no terminal to confirm at.
+func wizardGovernance(stdout io.Writer, facts wizardFacts, outcome wizardOutcome, repoName string) onboardGovernance {
+	governance := onboardGovernance{
+		enforcement: outcome.Enforcement,
+		functions:   maps.Clone(outcome.Functions),
+		layers:      slices.Clone(outcome.Layers),
+	}
+	if facts.Current == nil {
+		return governance
+	}
+	changes := wizardOutcomeChanges(cloneGovernanceConfig(facts.Current), outcome)
 	if len(changes) == 0 {
-		return inForce
+		return governance
 	}
-	_, _ = fmt.Fprintf(stdout, "\nconfigs/%s/config.json already governs this repository and was left unchanged.\n", repoName)
+	_, _ = fmt.Fprintf(stdout, "\nRewriting configs/%s/config.json as confirmed:\n", repoName)
 	for _, change := range changes {
-		_, _ = fmt.Fprintf(stdout, "  would change: %s\n", change)
+		_, _ = fmt.Fprintf(stdout, "  %s\n", change)
 	}
-	_, _ = fmt.Fprintln(stdout, "  applying these changes needs `client onboard --update`, which arrives in ADR-0010 slice S10.")
-	return inForce
+	governance.update = true
+	return governance
+}
+
+// cloneGovernanceConfig copies a config the wizard read from disk, its
+// fitness-function map included. Every path that derives choices from the
+// governance in force works on this copy, so none of them can write through
+// to the facts the panel reported.
+func cloneGovernanceConfig(current *govconfig.Config) govconfig.Config {
+	clone := *current
+	clone.FitnessFunctions = maps.Clone(current.FitnessFunctions)
+	return clone
 }
 
 func resolveCertificatesOnlyOnboarder(extraArgs []string, forceDevCertRotation bool) (onboarder, error) {
@@ -553,24 +590,39 @@ func (o *onboarder) ensureCerts() error {
 	return nil
 }
 
-// scaffoldConfig scaffolds the tracked repo-local production artifact (if
-// absent) and then always re-syncs it, verbatim, into the shared machine
-// governance root the daemon actually serves (ADR-0007). The repo-local file
-// is the source of truth: a re-run never rewrites it, only the shared copy.
+// scaffoldConfig scaffolds the tracked repo-local production artifact and
+// then always re-syncs it, verbatim, into the shared machine governance root
+// the daemon actually serves (ADR-0007). The repo-local file is the source of
+// truth: a plain re-run never rewrites it, only the shared copy.
 func (o onboarder) scaffoldConfig() error {
 	configPath := filepath.Join(o.repoConfigsDir, o.repoName, "config.json")
 	o.step("Server-side config: %s", configPath)
-	if fileExists(configPath) {
-		o.detail("already present — leaving unchanged")
-	} else if err := o.writeScaffoldConfig(configPath); err != nil {
+	if err := o.writeRepoLocalConfig(configPath); err != nil {
 		return err
 	}
 	return o.syncSharedConfig(configPath)
 }
 
-// writeScaffoldConfig renders and writes the fresh repo-local config template.
-func (o onboarder) writeScaffoldConfig(configPath string) error {
-	content, err := renderScaffoldConfig(o.enforcement, o.selectedFunctions)
+// writeRepoLocalConfig writes the repo-local config when this run has the
+// authority to: always for a repository that has none, and on an update run
+// — --update, or a wizard diff the developer confirmed — for one that already
+// exists. Without that authority an existing file is never touched.
+func (o onboarder) writeRepoLocalConfig(configPath string) error {
+	if !fileExists(configPath) {
+		return o.writeScaffoldConfig(configPath, configExtras{}, "scaffolded")
+	}
+	if !o.update {
+		o.detail("already present — leaving unchanged")
+		return nil
+	}
+	return o.writeScaffoldConfig(configPath, readConfigExtras(configPath), "rewrote")
+}
+
+// writeScaffoldConfig renders and writes the repo-local config through the one
+// rendering path every config onboard produces shares, so a rewrite and a
+// fresh scaffold have the identical shape.
+func (o onboarder) writeScaffoldConfig(configPath string, extras configExtras, verb string) error {
+	content, err := renderGovernanceConfig(o.enforcement, o.selectedFunctions, o.scaffoldLayers(), extras)
 	if err != nil {
 		return err
 	}
@@ -580,8 +632,18 @@ func (o onboarder) writeScaffoldConfig(configPath string) error {
 	if err := os.WriteFile(configPath, content, 0o644); err != nil {
 		return fmt.Errorf("writing %s: %w", configPath, err)
 	}
-	o.detail("scaffolded %s config with %s", o.enforcement, scaffoldedFunctionsDetail(o.selectedFunctions))
+	o.detail("%s %s config with %s", verb, o.enforcement, scaffoldedFunctionsDetail(o.selectedFunctions))
 	return nil
+}
+
+// scaffoldLayers returns the layer definitions this run writes: the prompted
+// (or carried-through) layers when layer-sovereignty is selected, and none
+// otherwise, so a config never carries settings for a function it disables.
+func (o onboarder) scaffoldLayers() []govconfig.LayerRule {
+	if !o.selectedFunctions["layer-sovereignty"] {
+		return nil
+	}
+	return o.layers
 }
 
 // syncSharedConfig copies the tracked repo-local config byte-for-byte into
@@ -632,53 +694,106 @@ func scaffoldedFunctionsDetail(selected map[string]bool) string {
 }
 
 // scaffoldConfigDocument is the config shape written by onboard. It carries the
-// template's enforcement fields and the explicitly populated fitness functions.
+// template's enforcement fields, the explicitly populated fitness functions,
+// and the exclude patterns and fitness-function settings a rewrite carries
+// forward from the config it replaces.
 type scaffoldConfigDocument struct {
-	EnforcementMode    string          `json:"enforcement-mode"`
-	EnforcementOnError string          `json:"enforcement-on-error,omitempty"`
-	FitnessFunctions   map[string]bool `json:"fitness-functions"`
+	EnforcementMode         string                             `json:"enforcement-mode"`
+	EnforcementOnError      string                             `json:"enforcement-on-error,omitempty"`
+	FitnessFunctions        map[string]bool                    `json:"fitness-functions"`
+	ExcludePatterns         []string                           `json:"exclude-patterns,omitempty"`
+	FitnessFunctionSettings *govconfig.FitnessFunctionSettings `json:"fitness-function-settings,omitempty"`
 }
 
-// renderScaffoldConfig loads the embedded advisory/block template (whose
-// fitness-functions map is empty) and fills every one of the five functions so
-// the written config is explicit, matching the onboarding runbook's example.
-func renderScaffoldConfig(enforcement string, selected map[string]bool) ([]byte, error) {
-	raw, err := embeddedConfigTemplates.ReadFile("configtemplates/" + enforcement + "-template.json")
+// configExtras is the part of an existing config a rewrite must neither
+// invent nor destroy: hand-authored exclude patterns and the fitness-function
+// settings onboard does not prompt for.
+type configExtras struct {
+	excludePatterns []string
+	settings        *govconfig.FitnessFunctionSettings
+}
+
+// readConfigExtras reads what a rewrite of the config at path carries
+// forward. An unreadable or unparseable file yields nothing to carry: a
+// rewrite is how a developer recovers from exactly that file, so reading it
+// must never fail the run.
+func readConfigExtras(path string) configExtras {
+	content, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("reading embedded config template: %w", err)
+		return configExtras{}
 	}
-	var config scaffoldConfigDocument
-	if err := json.Unmarshal(raw, &config); err != nil {
-		return nil, fmt.Errorf("parsing embedded config template: %w", err)
+	parsed, err := govconfig.Parse(content)
+	if err != nil {
+		return configExtras{}
 	}
-	if selected != nil {
-		// Copy the selection so the overlay below never mutates a
-		// caller-owned map.
-		functions := make(map[string]bool, len(selected))
-		for name, enabled := range selected {
-			functions[name] = enabled
-		}
-		config.FitnessFunctions = functions
-		// A selection that already names at least one generalized function
-		// (via parseFunctionsFlag) widens the scaffold to all nine keys, the
-		// missing generalized ones landing false. A purely-classic selection
-		// (whether built by parseFunctionsFlag or handed in directly) keeps
-		// the historical five-key envelope untouched — pre-generalized
-		// callers of renderScaffoldConfig with a plain five-key map must see
-		// exactly five keys back.
-		if containsAnyKey(selected, generalizedFitnessFunctionKeys) {
-			overlayGeneralizedFunctions(config.FitnessFunctions)
-		}
-	} else {
-		functions := enabledFitnessFunctions()
-		overlayGeneralizedFunctions(functions)
-		config.FitnessFunctions = functions
+	return configExtras{excludePatterns: parsed.ExcludePatterns, settings: parsed.FitnessFunctionSettings}
+}
+
+// renderGovernanceConfig renders the config document onboard writes: the
+// embedded advisory/block template (whose fitness-functions map is empty)
+// filled with every function explicitly, the selected layer definitions, and
+// the extras carried forward from a config being rewritten.
+func renderGovernanceConfig(enforcement string, selected map[string]bool, layers []govconfig.LayerRule, extras configExtras) ([]byte, error) {
+	config, err := loadScaffoldTemplate(enforcement)
+	if err != nil {
+		return nil, err
 	}
+	config.FitnessFunctions = scaffoldedFunctions(selected)
+	config.ExcludePatterns = extras.excludePatterns
+	config.FitnessFunctionSettings = layerSovereigntySettings(extras.settings, layers)
 	encoded, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("encoding scaffolded config: %w", err)
 	}
 	return append(encoded, '\n'), nil
+}
+
+func loadScaffoldTemplate(enforcement string) (scaffoldConfigDocument, error) {
+	raw, err := embeddedConfigTemplates.ReadFile("configtemplates/" + enforcement + "-template.json")
+	if err != nil {
+		return scaffoldConfigDocument{}, fmt.Errorf("reading embedded config template: %w", err)
+	}
+	var config scaffoldConfigDocument
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return scaffoldConfigDocument{}, fmt.Errorf("parsing embedded config template: %w", err)
+	}
+	return config, nil
+}
+
+// scaffoldedFunctions resolves the fitness-functions map the rendered config
+// carries. A selection that already names at least one generalized function
+// (via parseFunctionsFlag or the picker) widens the scaffold to all nine
+// keys, the missing generalized ones landing false. A purely-classic
+// selection keeps the historical five-key envelope untouched — pre-generalized
+// callers handing in a plain five-key map must see exactly five keys back.
+func scaffoldedFunctions(selected map[string]bool) map[string]bool {
+	if selected == nil {
+		functions := enabledFitnessFunctions()
+		overlayGeneralizedFunctions(functions)
+		return functions
+	}
+	// Copy the selection so the overlay never mutates a caller-owned map.
+	functions := maps.Clone(selected)
+	if containsAnyKey(selected, generalizedFitnessFunctionKeys) {
+		overlayGeneralizedFunctions(functions)
+	}
+	return functions
+}
+
+// layerSovereigntySettings folds the chosen layers into the settings carried
+// forward, leaving every other settings block exactly as the repository
+// authored it. No layers means nothing to fold: the carried settings, layer
+// definitions included, survive the rewrite untouched.
+func layerSovereigntySettings(carried *govconfig.FitnessFunctionSettings, layers []govconfig.LayerRule) *govconfig.FitnessFunctionSettings {
+	if len(layers) == 0 {
+		return carried
+	}
+	settings := govconfig.FitnessFunctionSettings{}
+	if carried != nil {
+		settings = *carried
+	}
+	settings.LayerSovereignty = &govconfig.LayerSovereigntySettings{Layers: layers}
+	return &settings
 }
 
 func enabledFitnessFunctions() map[string]bool {
