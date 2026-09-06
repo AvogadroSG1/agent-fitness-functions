@@ -1,10 +1,16 @@
 # Platform UX Evaluation: 0 to Governed
 
-> **Historical snapshot.** This evaluation predates ADR-0007: managed dev
-> certificates and the daemon's configs directory now default to the machine
-> governance root (`~/.local/state/agent-fitness-functions/governance/`), not
-> `<repo>/certs` / `<repo>/configs` as described below. See
-> [ADR-0007](adr/0007-machine-scoped-shared-governance-state.md) and the
+> **Historical snapshot.** This evaluation predates ADR-0007 and ADR-0010, and its
+> findings have since been resolved. Managed dev certificates and the daemon's configs
+> directory now default to the machine governance root
+> (`~/.local/state/agent-fitness-functions/governance/`), not `<repo>/certs` /
+> `<repo>/configs` as described below. More importantly, **the local path no longer
+> uses TLS at all**: the machine-local daemon serves plain HTTP on loopback with an
+> implicit caller, so F1's certificate deadlock and the `https://127.0.0.1:7890`
+> default it describes no longer exist, and F2's agent Edit/Write hook is installed by
+> `client install-hooks`. See
+> [ADR-0007](adr/0007-machine-scoped-shared-governance-state.md),
+> [ADR-0010](adr/0010-plain-http-local-governance.md), and the
 > [onboarding runbook](runbooks/onboard-new-repository.md) for current behavior.
 
 **Date:** 2026-07-08

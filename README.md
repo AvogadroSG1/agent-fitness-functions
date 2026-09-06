@@ -93,20 +93,32 @@ The local `.calm` mode (described in the CLI tools section below) is a **sandbox
 | `AGENT_FITNESS_FUNCTIONS_REPO_NAME` | Recommended | Logical repository name (overrides working-tree basename) |
 | `AGENT_FITNESS_FUNCTIONS_ON_ERROR` | Optional | `block` (default) or `advisory` — whether an infrastructure/setup failure blocks the commit or agent edit. Mirrors the server's `enforcement-on-error`; distinct from a real architecture violation. |
 
-With no explicit client TLS input, the client resolves one immutable managed version
-beneath `AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR` or the machine governance root
-(`${XDG_STATE_HOME:-~/.local/state}/agent-fitness-functions/governance/certs`, ADR-0007) — the hooks pass
-no TLS material at all and leave that resolution to `client validate`. Client TLS
-flags or `AGENT_FITNESS_FUNCTIONS_CLIENT_*` variables select external mode and retain
+### Local development needs no certificates (ADR-0010)
+
+Since [ADR-0010](docs/adr/0010-plain-http-local-governance.md) the machine-local daemon
+serves **plain HTTP bound to loopback** (`http://127.0.0.1:7890`) in the `local-http`
+listen mode, and any loopback peer is the implicit caller `local` — an admin,
+authorized for every repo, with `caller-repos.json` never consulted. `client onboard`
+therefore generates **no certificates** and writes **no caller binding** on the local
+path. Everything above about TLS material, `caller-repos.json`, and
+`scripts/generate-dev-certs.sh` belongs to the container/remote path.
+
+When TLS *is* in play (the container path, or the legacy managed-TLS-on-loopback
+daemon), the client resolves one immutable managed version beneath
+`AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR` or the machine governance root
+(`${XDG_STATE_HOME:-~/.local/state}/agent-fitness-functions/governance/certs`, ADR-0007)
+when no explicit client TLS input is given — the hooks pass no TLS material at all and
+leave that resolution to `client validate`. Client TLS flags or
+`AGENT_FITNESS_FUNCTIONS_CLIENT_*` variables select external mode and retain
 flag-over-environment precedence. The managed selector cannot be combined with an
-explicit client TLS input. `client onboard` generates managed dev certs (CN
-`dev-hook-pool`) into the shared machine governance root automatically — one dev CA
-serves every governed repository on the machine.
+explicit client TLS input. `client onboard --certificates-only` publishes managed dev
+certs (CN `dev-hook-pool`) into the shared machine governance root — one dev CA serves
+every governed repository on the machine.
 
 Full onboarding with external client TLS validates the certificate/key pair, CA chain,
 client-auth profile, and non-empty leaf CN before changing the repository. The external
-daemon MUST already be healthy because automatic local daemon startup requires managed
-development certificates; onboarding authorizes the verified external leaf CN.
+daemon MUST already be healthy because it is never auto-started; onboarding registers
+the repo and authorizes the verified external leaf CN via `POST /register`.
 
 All hooks enforce HTTPS when `AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` is set. Connections over plain HTTP to a non-loopback address are rejected at the hook layer.
 
@@ -137,8 +149,8 @@ ln -sf "$(pwd)/bin"/agent-fitness-functions-* ~/.local/bin/
 
 | Command | Purpose |
 |---------|---------|
-| `agent-fitness-functions client onboard [repo]` | **Single-command 0-to-governed** — dev certs, per-repo config scaffold, caller authorization, hook installation, local daemon auto-start, and a `doctor` gate. Idempotent. Flags: `--repo`, `--enforcement advisory\|block` (default `advisory`), `--addr`. See the [quickstart](docs/quickstart-0-to-governed.md). |
-| `agent-fitness-functions doctor` | Ordered ✔/✘/⚠ readiness checks (binary, python3/pyyaml, client cert, CA, server reachability, `/preflight` facts, installed hooks), each with a one-line remediation. Run it anytime to diagnose setup. Flags: `--addr`, `--repo`, `--client-cert/--client-key/--client-ca`. |
+| `agent-fitness-functions client onboard [repo]` | **Single-command 0-to-governed** — per-repo config scaffold, legacy-state migration, hook installation, ensuring a current local daemon (restarting a stale one), and a `doctor` gate. No certificates on the local path. Interactive wizard on a terminal; silent and flag-driven otherwise. Idempotent. Flags: `--repo`, `--enforcement advisory\|block` (default `advisory`), `--functions`, `--update`, `--addr`. See the [quickstart](docs/quickstart-0-to-governed.md). |
+| `agent-fitness-functions doctor` | Ordered ✔/✘/⚠ readiness checks (binary, python3/pyyaml, TLS material where applicable, governance root, Roslyn analyzer, server reachability, daemon currency, `/preflight` facts, validation pipeline, installed hooks, config sync), each with a one-line remediation. Run it anytime to diagnose setup. Flags: `--addr`, `--repo`, `--repair`, `--client-cert/--client-key/--client-ca`. |
 | `agent-fitness-functions client install-hooks [repo]` | Install the embedded Git hooks **and** the agent Edit/Write validation hook into a repository, configuring `PreToolUse` hooks across Claude Code (`.claude/settings.json`), OpenAI Codex (`.codex/hooks.json`), and OpenCode (`.opencode/plugins/agent-fitness-functions.js`) with zero manual authoring. See [Onboarding a New Repository](docs/runbooks/onboard-new-repository.md). |
 | `agent-fitness-functions client resolve-dev-cert-version` | Print the current validated managed `versions/v-...` path for shell handoff; accepts no arguments. |
 | `agent-fitness-functions-serve [--build]` | Start the agent-fitness-functions server container via Docker Compose (Docker Desktop) |
