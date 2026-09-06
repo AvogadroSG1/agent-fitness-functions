@@ -458,6 +458,11 @@ func TestEmbeddedHookAssetsMatchAuthoritativeHooks(t *testing.T) {
 
 func runGitClientTest(t *testing.T, repo string, args ...string) {
 	t.Helper()
+	if len(args) > 0 && args[0] == "init" {
+		// Must precede the init itself: git init is the command most likely to
+		// wake a machine-level trace2 consumer that writes into .git/.
+		t.Setenv("GIT_TRACE2_EVENT", "0")
+	}
 	command := exec.Command("git", append([]string{"-C", repo}, args...)...)
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("git %v failed: %v\n%s", args, err, output)

@@ -983,10 +983,14 @@ func checkLegacyRepoLocalCerts(cfg doctorConfig) []checkResult {
 	if _, err := os.Lstat(legacyCurrent); err != nil {
 		return nil
 	}
+	remediation := "this certs directory is not a recognized managed layout; inspect it and remove it by hand if it is stale"
+	if isManagedCertLayout(filepath.Join(cfg.repoRoot, "certs")) {
+		remediation = "re-run `agent-fitness-functions client onboard` - it quarantines this directory automatically (renamed aside, never deleted)"
+	}
 	return []checkResult{{
 		name:        "legacy repo-local certs",
 		detail:      legacyCurrent + " still exists from a pre-ADR-0007 layout",
-		remediation: "re-run `agent-fitness-functions client onboard` - it quarantines this directory automatically (renamed aside, never deleted)",
+		remediation: remediation,
 		warning:     true,
 	}}
 }

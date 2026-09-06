@@ -23,6 +23,8 @@ import (
 func onboardTestRepo(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
+	// Must precede the init: see runGitClientTest.
+	t.Setenv("GIT_TRACE2_EVENT", "0")
 	cmd := exec.Command("git", "init", "--quiet", root)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v\n%s", err, output)

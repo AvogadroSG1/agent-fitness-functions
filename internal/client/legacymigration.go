@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -101,7 +102,13 @@ func isManagedCertLayout(certsDir string) bool {
 }
 
 // hasVersionedCertChild reports whether versionsDir holds a v-<digest> entry.
+// versionsDir must be a real directory: a symlinked versions/ could point at an
+// unrelated tree whose contents must not classify this certs dir as managed.
 func hasVersionedCertChild(versionsDir string) bool {
+	info, err := os.Lstat(versionsDir)
+	if err != nil || !info.IsDir() {
+		return false
+	}
 	entries, err := os.ReadDir(versionsDir)
 	if err != nil {
 		return false
@@ -119,30 +126,48 @@ func hasVersionedCertChild(versionsDir string) bool {
 // overwriting the earlier quarantine, so repeated onboards accumulate evidence
 // instead of destroying it.
 func quarantineLegacyPath(path string) (string, error) {
-	target, err := freeQuarantinePath(path)
-	if err != nil {
-		return "", err
-	}
-	if err := os.Rename(path, target); err != nil {
-		return "", fmt.Errorf("quarantining %s: %w", path, err)
-	}
-	return target, nil
-}
-
-// freeQuarantinePath resolves an unused quarantine name for path.
-func freeQuarantinePath(path string) (string, error) {
 	candidate := path + legacyQuarantineSuffix
 	for attempt := 0; attempt < 10; attempt++ {
-		taken, err := pathExists(candidate)
-		if err != nil {
-			return "", err
-		}
-		if !taken {
+		err := claimQuarantinePath(path, candidate)
+		if err == nil {
 			return candidate, nil
+		}
+		if !isQuarantineCollision(err) {
+			return "", fmt.Errorf("quarantining %s: %w", path, err)
 		}
 		candidate = fmt.Sprintf("%s%s.%s", path, legacyQuarantineSuffix, time.Now().UTC().Format("20060102T150405.000000000Z"))
 	}
 	return "", fmt.Errorf("no free quarantine name beside %s", path)
+}
+
+// claimQuarantinePath moves path to target fail-closed against concurrent
+// onboards. A regular file is claimed via link+remove, which refuses an
+// existing target outright — rename(2) would silently replace it. Directories
+// and symlinks cannot be hard-linked, so they pre-check then rename; a racer's
+// freshly renamed quarantine is non-empty, which rename also refuses.
+func claimQuarantinePath(path, target string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode().IsRegular() {
+		if err := os.Link(path, target); err != nil {
+			return err
+		}
+		return os.Remove(path)
+	}
+	taken, err := pathExists(target)
+	if err != nil {
+		return err
+	}
+	if taken {
+		return os.ErrExist
+	}
+	return os.Rename(path, target)
+}
+
+func isQuarantineCollision(err error) bool {
+	return errors.Is(err, os.ErrExist) || errors.Is(err, syscall.ENOTEMPTY)
 }
 
 // pathIsTrackedByGit reports whether relPath is tracked in the repository at
