@@ -98,7 +98,7 @@ Helper scripts live in `bin/` (`agent-fitness-functions-serve`, `agent-fitness-f
 
 ### Local governance transport (ADR-0010)
 
-The machine-local daemon serves **plain HTTP on loopback** (`http://127.0.0.1:7890`), and any loopback peer is the implicit caller `local` — an admin, authorized for every repo. Local development generates no certificates and writes no `caller-repos.json` entry. mTLS, `caller-repos.json`, `scripts/generate-dev-certs.sh`, and `--certificates-only` are the remote/container path. Do not document `docker compose up --build` or `https://127.0.0.1:7890` as a local remediation.
+The machine-local daemon serves **plain HTTP on loopback** (`http://127.0.0.1:7890`), and any loopback peer is the implicit caller `local` — an admin, authorized for every repo. Local development generates no certificates and writes no `caller-repos.json` entry. mTLS, `caller-repos.json`, `scripts/generate-dev-certs.sh`, and `--certificates-only` are the remote/container path. Docs MUST NOT present `docker compose up --build` or `https://127.0.0.1:7890` as a local remediation.
 
 ## Architecture Overview
 

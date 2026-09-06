@@ -893,3 +893,5 @@ This demonstration proves three things in sequence: the fitness function correct
 ---
 
 *Authored By Peter O'Connor with Assistance from Claude Code (databricks-claude-sonnet-4-6) · 2026-05-18 · CALM PoC Engineering Technical Specification*
+
+*Revised with Assistance from Claude Code (claude-fable-5) · 2026-09-06 · listen modes, dry_run semantics, endpoint auth table, daemon restart flow*
