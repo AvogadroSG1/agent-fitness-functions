@@ -1,0 +1,29 @@
+caller-repos.json
+  s_771cc807a7b9da::t_102c9d252a34e9 2-4,6-19
+certs/.gitignore
+  s_805a4efca7b068::t_105a37764413bc 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ace69103c6b3aca9cf6a45add985e51d657385f6",
+  "prompts": {},
+  "sessions": {
+    "s_771cc807a7b9da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e658cf6-a76d-43d4-91d6-fff7ff797911",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    },
+    "s_805a4efca7b068": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "26814c7a-10d5-44f2-921e-ff4ec691bf73",
+        "model": "unknown"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
