@@ -1,0 +1,42 @@
+internal/history/schema.sql
+  s_cf963430e803c8::t_05fa1a135c6fec 1-22
+go.mod
+  s_cf963430e803c8::t_05fa1a135c6fec 8
+internal/history/store.go
+  s_cf963430e803c8::t_999b55eea56101 200,207,212,215-216
+  s_cf963430e803c8::t_60168a24356c8d 36-38,53-75
+  s_cf963430e803c8::t_decc325a315803 10,174,189-190,195-196
+  s_cf963430e803c8::t_05fa1a135c6fec 1-5,7-9,11-12,14-35,39-48,50-52,76-173,182,184,187-188,197-199,201-206,208-211,213-214,217-226,234-237,239-246,248-272
+  s_cf963430e803c8::t_84746acc2e5f80 6,175-176,178-179,181,185,238
+  s_cf963430e803c8::t_47fb7dc71613d9 13,49,227-233
+  s_cf963430e803c8::t_15b01e1a29205c 177,180,183,186,191-194,247
+internal/history/store_supplemental_test.go
+  s_cf963430e803c8::t_15b01e1a29205c 201-203,207,216-218
+  s_cf963430e803c8::t_999b55eea56101 7,131-137,144-170
+  s_cf963430e803c8::t_1f30ac6cc2981b 6,13-103
+  s_cf963430e803c8::t_7863be2b09fe00 1-5,8-12,104-130,138-143,171-200,204-206,208-215,219-240
+internal/history/reader.go
+  s_cf963430e803c8::t_decc325a315803 135
+  s_cf963430e803c8::t_15b01e1a29205c 112-120,159,164
+  s_cf963430e803c8::t_47fb7dc71613d9 66,90,137,141,144
+  s_cf963430e803c8::t_05fa1a135c6fec 1-42,44-65,67-89,91-111,121-134,136,138-140,142-143,145-158,160-163,165-285
+  s_cf963430e803c8::t_60168a24356c8d 43
+internal/history/event.go
+  s_cf963430e803c8::t_999b55eea56101 32-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "21fbce998b905b8e357e9d23cb2d772c92d7b9e9",
+  "prompts": {},
+  "sessions": {
+    "s_cf963430e803c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a076aa-0fc6-7d81-b3ef-65e1cc030235",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
