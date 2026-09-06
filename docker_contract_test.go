@@ -15,7 +15,7 @@ func TestDockerfileContainerContract(t *testing.T) {
 		t.Fatalf("read Dockerfile: %v", err)
 	}
 	dockerfile := string(content)
-	mustContain(t, dockerfile, "FROM golang:1.22.4-alpine3.20 AS go-build")
+	mustContain(t, dockerfile, "FROM golang:1.25-alpine@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59 AS go-build")
 	mustContain(t, dockerfile, "FROM mcr.microsoft.com/dotnet/sdk:8.0.301 AS dotnet-build")
 	mustContain(t, dockerfile, "FROM mcr.microsoft.com/dotnet/runtime-deps:8.0.6")
 	mustContain(t, dockerfile, "ARG TARGETOS")
