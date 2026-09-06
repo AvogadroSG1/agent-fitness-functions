@@ -216,19 +216,29 @@ func extractProxyForwardedCaller(r *http.Request, trustedProxyClientCNs []string
 	if err != nil || !trustedProxyPeer(proxyPeer, trustedProxyClientCNs) {
 		return "", errUnauthenticated
 	}
-	caller, err := normalizeCallerName(r.Header.Get("X-Client-CN"))
-	if err != nil {
-		return "", errUnauthenticated
-	}
-	return caller, nil
+	return externallyAssertedCaller(r.Header.Get("X-Client-CN"))
 }
 
 func extractPeerCertificateCaller(r *http.Request) (string, error) {
 	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
 		return "", errUnauthenticated
 	}
-	caller, err := normalizeCallerName(r.TLS.PeerCertificates[0].Subject.CommonName)
-	if err != nil {
+	return externallyAssertedCaller(r.TLS.PeerCertificates[0].Subject.CommonName)
+}
+
+// externallyAssertedCaller normalizes an identity asserted by something outside
+// this daemon — a peer certificate, or a trusted proxy's X-Client-CN header —
+// and refuses the reserved local identity, which only the loopback path may
+// mint (ADR-0010). Without this, any CA the server trusts could issue CN=local
+// and inherit the implicit caller's blanket authorization.
+//
+// The reservation lives here, at authentication time, and deliberately not in
+// normalizeCallerName or buildCallerRepoPolicy: a hand-written caller-repos.json
+// that happens to mention "local" must stay a loadable policy document rather
+// than fail closed for every other caller in it.
+func externallyAssertedCaller(assertedName string) (string, error) {
+	caller, err := normalizeCallerName(assertedName)
+	if err != nil || caller == localCallerName {
 		return "", errUnauthenticated
 	}
 	return caller, nil

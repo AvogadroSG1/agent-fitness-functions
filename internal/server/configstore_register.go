@@ -104,8 +104,13 @@ func (s *ConfigStore) activateRepoConfig(ctx context.Context, repo string) error
 
 // registerCallerBinding ensures callerCN is bound to repo in
 // caller-repos.json, writing the file only when the binding is missing, and
-// synchronously reloading the in-memory policy when it changed.
+// synchronously reloading the in-memory policy when it changed. The reserved
+// local identity is unbindable, so registering in the local listen mode leaves
+// caller-repos.json untouched.
 func (s *ConfigStore) registerCallerBinding(ctx context.Context, callerCN, repo string) error {
+	if !callerBindingIsPersistable(callerCN) {
+		return nil
+	}
 	changed, err := s.bindCallerToRepo(callerCN, repo)
 	if err != nil {
 		return err
@@ -114,6 +119,19 @@ func (s *ConfigStore) registerCallerBinding(ctx context.Context, callerCN, repo 
 		return nil
 	}
 	return s.reloadCallerRepoPolicy(ctx)
+}
+
+// callerBindingIsPersistable rejects the reserved local identity (ADR-0010,
+// docs/adr/0010-plain-http-local-governance.md). The local listen mode
+// authorizes loopback peers without ever reading caller-repos.json, so a
+// persisted "local" binding buys nothing there — and it would leak: the same
+// governance root can later be served over mTLS, where a stored binding would
+// hand every locally registered repository to any client whose certificate
+// says CN=local. Authentication reserves that name for the loopback path
+// (see externallyAssertedCaller), so a callerCN of "local" reaching this point
+// can only have come from a loopback peer.
+func callerBindingIsPersistable(callerCN string) bool {
+	return callerCN != localCallerName
 }
 
 // bindCallerToRepo appends repo to callerCN's repository list in

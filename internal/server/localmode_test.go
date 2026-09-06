@@ -94,8 +94,8 @@ func TestLocalHTTPRegisterDoesNotBindImplicitCaller(t *testing.T) {
 	request.Body = io.NopCloser(strings.NewReader(`{"repo":"fresh-repo"}`))
 	handler.ServeHTTP(recorder, request)
 
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("POST /register = %d, want 200 body=%q", recorder.Code, recorder.Body.String())
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("POST /register = %d, want 201 body=%q", recorder.Code, recorder.Body.String())
 	}
 	if policy := store.CallerRepoPolicy(); policy.Allows(localCallerName, "fresh-repo") {
 		t.Error(`caller-repos policy binds "local" after a local-mode register; the implicit caller must never be persisted`)
