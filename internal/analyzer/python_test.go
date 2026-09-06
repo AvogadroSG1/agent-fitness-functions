@@ -13,6 +13,11 @@ import (
 )
 
 func TestAnalyzePythonFile_Python312TypeAliasSyntax(t *testing.T) {
+	if radon, managed := resolvePythonRadonPath(os.Getenv); !managed {
+		if _, err := exec.LookPath(radon); err != nil {
+			t.Skip("radon not installed")
+		}
+	}
 	ctx := context.Background()
 	dir := t.TempDir()
 	sourceFile := filepath.Join(dir, "google_source.py")
@@ -44,6 +49,25 @@ class GoogleConnector:
 	}
 	if len(result.Functions) == 0 {
 		t.Errorf("expected at least 1 function, got %d", len(result.Functions))
+	}
+}
+
+func TestAnalyzePythonFileWithoutRadonFailsClosed(t *testing.T) {
+	if _, managed := resolvePythonRadonPath(func(string) string { return "" }); managed {
+		t.Skip("managed radon runtime is installed")
+	}
+	if _, err := exec.LookPath("radon"); err == nil {
+		t.Skip("radon is installed")
+	}
+
+	file := filepath.Join(t.TempDir(), "known_complexity.py")
+	if err := os.WriteFile(file, []byte("def known(value):\n    if value:\n        return 1\n    return 0\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	_, err := AnalyzePythonFile(context.Background(), file, "")
+	if err == nil || !strings.Contains(err.Error(), "radon") {
+		t.Fatalf("AnalyzePythonFile error = %v, want radon availability error", err)
 	}
 }
 
