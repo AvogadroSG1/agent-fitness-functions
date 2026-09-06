@@ -1,6 +1,7 @@
 package server
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -78,6 +79,44 @@ func TestLocalHTTPRejectsNonLoopbackPeers(t *testing.T) {
 	}
 }
 
+// Registering a repo in local mode must not write the implicit caller into
+// caller-repos.json: local-http never reads it, and a persisted "local"
+// binding would hand every local registration to any future mTLS client that
+// presents CN=local against the same governance root.
+func TestLocalHTTPRegisterDoesNotBindImplicitCaller(t *testing.T) {
+	store := newAuthorizedTestConfigStore(t, `{"callers":{}}`)
+	handler := NewHandlerWithOptions(Checker{ConfigStore: store}, nil, HandlerOptions{
+		RequireAuthentication: true,
+		LocalHTTP:             true,
+	})
+	recorder := httptest.NewRecorder()
+	request := localRequest(http.MethodPost, "/register", "127.0.0.1:39000")
+	request.Body = io.NopCloser(strings.NewReader(`{"repo":"fresh-repo"}`))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("POST /register = %d, want 200 body=%q", recorder.Code, recorder.Body.String())
+	}
+	if policy := store.CallerRepoPolicy(); policy.Allows(localCallerName, "fresh-repo") {
+		t.Error(`caller-repos policy binds "local" after a local-mode register; the implicit caller must never be persisted`)
+	}
+}
+
+// The implicit caller name is reserved: an mTLS peer certificate bearing
+// CN=local must not authenticate, so no external CA can mint the local
+// identity.
+func TestMTLSRejectsReservedLocalCallerCN(t *testing.T) {
+	store := newAuthorizedTestConfigStore(t, `{"callers":{"local":["repo-one"]}}`)
+	writeRepoConfig(t, store, "repo-one", EnforcementAdvisory, map[string]bool{"cyclomatic-complexity": true})
+	handler := NewHandlerWithOptions(Checker{ConfigStore: store}, nil, HandlerOptions{RequireAuthentication: true})
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, preflightRequest(t, "repo-one", "local"))
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("GET /preflight with CN=local over mTLS = %d, want 401 (reserved identity)", recorder.Code)
+	}
+}
+
 func TestLocalHTTPModeValidatesBindAndTLSInputs(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -102,6 +141,15 @@ func TestLocalHTTPModeValidatesBindAndTLSInputs(t *testing.T) {
 			name:    "managed certificates refused",
 			options: ServeOptions{ListenMode: ListenModeLocalHTTP, Addr: "127.0.0.1:7890", ManagedRoot: "/govroot"},
 			wantErr: "managed",
+		},
+		{
+			name: "trusted proxy mode refused",
+			options: ServeOptions{
+				ListenMode:     ListenModeLocalHTTP,
+				Addr:           "127.0.0.1:7890",
+				HandlerOptions: HandlerOptions{TrustedProxyHeaders: true},
+			},
+			wantErr: "proxy",
 		},
 		{
 			name:    "ipv4 loopback accepted",
