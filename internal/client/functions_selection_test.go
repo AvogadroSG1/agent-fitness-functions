@@ -68,9 +68,9 @@ func TestRenderScaffoldConfigHonorsSelectedFunctions(t *testing.T) {
 		"logic-density":         true,
 		"dependency-discipline": false,
 	}
-	content, err := renderScaffoldConfig("advisory", selected)
+	content, err := renderGovernanceConfig("advisory", selected, nil, configExtras{})
 	if err != nil {
-		t.Fatalf("renderScaffoldConfig with selection: %v", err)
+		t.Fatalf("renderGovernanceConfig with selection: %v", err)
 	}
 	var doc scaffoldConfigDocument
 	if err := json.Unmarshal(content, &doc); err != nil {
@@ -85,9 +85,9 @@ func TestRenderScaffoldConfigHonorsSelectedFunctions(t *testing.T) {
 		}
 	}
 
-	defaulted, err := renderScaffoldConfig("advisory", nil)
+	defaulted, err := renderGovernanceConfig("advisory", nil, nil, configExtras{})
 	if err != nil {
-		t.Fatalf("renderScaffoldConfig with nil selection: %v", err)
+		t.Fatalf("renderGovernanceConfig with nil selection: %v", err)
 	}
 	var defaultDoc scaffoldConfigDocument
 	if err := json.Unmarshal(defaulted, &defaultDoc); err != nil {

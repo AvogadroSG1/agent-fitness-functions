@@ -205,7 +205,7 @@ var scaffoldableGeneralizedFunctionKeys = []string{
 // returned map when the caller actually selected it — an unselected
 // generalized function is omitted rather than pinned false here, so a
 // purely-classic selection returns exactly the historical five-key map;
-// renderScaffoldConfig widens it to all nine keys only once a generalized
+// renderGovernanceConfig widens it to all nine keys only once a generalized
 // function is present. Underscore spellings, unknown names, and an empty
 // selection are all rejected as usage errors naming the valid set; selecting
 // layer-sovereignty is rejected with a pointer at fitness-function-settings
@@ -253,22 +253,23 @@ func functionsFlagUsageError(bad string) error {
 }
 
 // layerSovereigntyRemedy is shared by the --functions rejection and the
-// interactive picker guard so both name the same way forward. ADR-0010 slice
-// S10 replaces the manual step with an interactive layer prompt inside
-// client onboard; until then the layers must be written by hand.
+// interactive picker guard so both name the same way forward. A flag-driven
+// run has no way to ask for layers, so it names the two that do: the onboard
+// wizard on a terminal, or a hand-written settings block.
 const layerSovereigntyRemedy = "it requires layer definitions: " +
-	"define fitness-function-settings.layer-sovereignty.layers in the config file, " +
-	"then re-run client onboard (interactive onboard will prompt for layers in a later slice)"
+	"run client onboard on a terminal and enable it there — the wizard prompts for the layers — " +
+	"or define fitness-function-settings.layer-sovereignty.layers in the config file by hand"
 
 func layerSovereigntyFlagUsageError() error {
 	return usageError{err: errors.New(
 		"layer-sovereignty cannot be scaffolded via --functions: " + layerSovereigntyRemedy)}
 }
 
-// rejectUnsettableSelection fails a picker selection that turned on a fitness
-// function onboard cannot finish configuring, before anything is written to
-// disk. layer-sovereignty is the only one today; S10 turns this rejection
-// into an interactive layer prompt.
+// rejectUnsettableSelection fails a selection that turned on a fitness
+// function whose settings the caller cannot supply, before anything is
+// written to disk. layer-sovereignty is the only one today. The onboard
+// wizard no longer needs this guard — it prompts for the layers — so it
+// covers the selections assembled without a terminal to prompt at.
 func rejectUnsettableSelection(selected map[string]bool) error {
 	if selected["layer-sovereignty"] {
 		return fmt.Errorf("layer-sovereignty cannot be enabled from the picker alone: %s", layerSovereigntyRemedy)

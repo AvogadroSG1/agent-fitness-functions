@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/govconfig"
@@ -25,6 +27,10 @@ const (
 // becomes valid — a closed stdin, a script piping noise — must fall back to
 // the default rather than spin, so onboarding can never hang on a prompt.
 const wizardPromptAttempts = 5
+
+// wizardLayerLimit bounds one pass of the layer loop for the same reason:
+// input that never ends the list must not spin forever.
+const wizardLayerLimit = 32
 
 // wizardFacts is everything the onboard wizard shows before prompting: the
 // repo's current governance (nil on first onboard) and the machine state
@@ -56,9 +62,10 @@ type wizardOutcome struct {
 
 // runOnboardWizard drives the interactive flow: current-state panel,
 // enforcement prompt (default = current mode on an update run), nine-function
-// picker seeded from the current config, then a diff+confirm gate. The
-// outcome always carries the choices that were made, confirmed or not, so a
-// caller can name what the user declined.
+// picker seeded from the current config, layer definitions for a newly
+// enabled layer-sovereignty, then a diff+confirm gate. The outcome always
+// carries the choices that were made, confirmed or not, so a caller can name
+// what the user declined.
 func runOnboardWizard(in io.Reader, out io.Writer, facts wizardFacts) (wizardOutcome, error) {
 	reader := bufio.NewReader(in)
 	renderWizardPanel(out, facts)
@@ -70,9 +77,149 @@ func runOnboardWizard(in io.Reader, out io.Writer, facts wizardFacts) (wizardOut
 	if err != nil {
 		return wizardOutcome{Enforcement: enforcement}, err
 	}
+	layers, err := resolveWizardLayers(reader, out, facts, enforcement, functions)
+	if err != nil {
+		return wizardOutcome{Enforcement: enforcement, Functions: functions}, err
+	}
 	renderWizardDiff(out, facts, enforcement, functions)
 	confirmed, err := confirmWizardChoices(reader, out)
-	return wizardOutcome{Enforcement: enforcement, Functions: functions, Confirmed: confirmed}, err
+	return wizardOutcome{Enforcement: enforcement, Functions: functions, Layers: layers, Confirmed: confirmed}, err
+}
+
+// resolveWizardLayers settles the layer-sovereignty definitions this run
+// carries. A repository that already defines layers keeps them verbatim — an
+// update run must never re-ask for settings it can read — and a run that
+// leaves the function off needs none at all. Only newly enabling it prompts.
+func resolveWizardLayers(reader *bufio.Reader, out io.Writer, facts wizardFacts, enforcement string, functions map[string]bool) ([]govconfig.LayerRule, error) {
+	if !functions["layer-sovereignty"] {
+		return nil, nil
+	}
+	if existing := currentLayerRules(facts); len(existing) > 0 {
+		return existing, nil
+	}
+	return promptWizardLayers(reader, out, enforcement, functions)
+}
+
+// currentLayerRules returns the layers already in force, as a copy: the
+// panel's facts describe what is on disk and no later step may write through
+// them.
+func currentLayerRules(facts wizardFacts) []govconfig.LayerRule {
+	if facts.Current == nil {
+		return nil
+	}
+	return slices.Clone(facts.Current.LayerRules())
+}
+
+// promptWizardLayers collects layer definitions until the developer enters an
+// empty name, then accepts them only if the config they would produce is one
+// the daemon would load. An empty set and a rejected set both re-open the
+// loop: enabling layer-sovereignty without usable layers is the failure this
+// prompt exists to prevent.
+func promptWizardLayers(reader *bufio.Reader, out io.Writer, enforcement string, functions map[string]bool) ([]govconfig.LayerRule, error) {
+	_, _ = fmt.Fprintln(out, "\nlayer-sovereignty needs at least one layer: a name, the paths that belong to it, and the patterns those paths must not contain.")
+	for attempt := 0; attempt < wizardPromptAttempts; attempt++ {
+		layers, err := readWizardLayers(reader, out)
+		if err != nil {
+			return nil, err
+		}
+		if err := validateWizardLayers(enforcement, functions, layers); err != nil {
+			_, _ = fmt.Fprintf(out, "  invalid layer definitions: %v\n", err)
+			continue
+		}
+		return layers, nil
+	}
+	return nil, fmt.Errorf("layer-sovereignty was selected but no usable layer was defined after %d attempts", wizardPromptAttempts)
+}
+
+// readWizardLayers reads one pass of the layer loop: a name, its paths, and
+// its forbidden patterns, repeated until an empty name ends the list.
+func readWizardLayers(reader *bufio.Reader, out io.Writer) ([]govconfig.LayerRule, error) {
+	layers := make([]govconfig.LayerRule, 0, 2)
+	for len(layers) < wizardLayerLimit {
+		name, err := promptWizardValue(reader, out, "\nLayer name (empty line when done): ")
+		if err != nil || name == "" {
+			return layers, err
+		}
+		layer, err := promptWizardLayer(reader, out, name)
+		if err != nil {
+			return nil, err
+		}
+		layers = append(layers, layer)
+	}
+	return layers, nil
+}
+
+// promptWizardLayer reads the two pattern lists that define one named layer.
+func promptWizardLayer(reader *bufio.Reader, out io.Writer, name string) (govconfig.LayerRule, error) {
+	paths, err := promptWizardPatterns(reader, out, fmt.Sprintf("  Paths in %s (comma-separated regexes): ", name))
+	if err != nil {
+		return govconfig.LayerRule{}, err
+	}
+	forbidden, err := promptWizardPatterns(reader, out, fmt.Sprintf("  Patterns forbidden in %s (comma-separated regexes): ", name))
+	if err != nil {
+		return govconfig.LayerRule{}, err
+	}
+	return govconfig.LayerRule{Name: name, Paths: paths, ForbiddenPatterns: forbidden}, nil
+}
+
+// promptWizardPatterns reads one comma-separated pattern list, re-prompting
+// the same field until every entry compiles. Rejecting a pattern here, where
+// the developer can retype it, is the whole point: the identical rejection
+// from the daemon arrives at commit time against a config already written.
+func promptWizardPatterns(reader *bufio.Reader, out io.Writer, prompt string) ([]string, error) {
+	for attempt := 0; attempt < wizardPromptAttempts; attempt++ {
+		line, err := promptWizardValue(reader, out, prompt)
+		if err != nil {
+			return nil, err
+		}
+		patterns, patternErr := compilablePatterns(line)
+		if patternErr == nil {
+			return patterns, nil
+		}
+		_, _ = fmt.Fprintf(out, "  %v\n", patternErr)
+	}
+	return nil, fmt.Errorf("no valid pattern entered after %d attempts", wizardPromptAttempts)
+}
+
+// compilablePatterns splits a comma-separated answer into patterns, failing
+// on the first one Go's regexp package rejects and on an answer that names no
+// pattern at all.
+func compilablePatterns(line string) ([]string, error) {
+	patterns := make([]string, 0, 2)
+	for _, field := range strings.Split(line, ",") {
+		pattern := strings.TrimSpace(field)
+		if pattern == "" {
+			continue
+		}
+		if _, err := regexp.Compile(pattern); err != nil {
+			return nil, fmt.Errorf("invalid pattern %q: %w", pattern, err)
+		}
+		patterns = append(patterns, pattern)
+	}
+	if len(patterns) == 0 {
+		return nil, errors.New("invalid entry: name at least one pattern")
+	}
+	return patterns, nil
+}
+
+// validateWizardLayers renders the config these answers would produce and
+// parses it exactly as the daemon would, so a rejection re-opens the prompt
+// instead of surfacing later as an unwritable or unloadable config.
+func validateWizardLayers(enforcement string, functions map[string]bool, layers []govconfig.LayerRule) error {
+	content, err := renderGovernanceConfig(enforcement, functions, layers, configExtras{})
+	if err != nil {
+		return err
+	}
+	_, err = govconfig.Parse(content)
+	return err
+}
+
+// promptWizardValue prints a prompt and reads one answer verbatim. Layer
+// names and regexes are case-sensitive, so this is the raw counterpart to
+// readWizardLine's normalized menu answers.
+func promptWizardValue(reader *bufio.Reader, out io.Writer, prompt string) (string, error) {
+	_, _ = fmt.Fprint(out, prompt)
+	return readWizardValue(reader)
 }
 
 // renderWizardPanel prints the current-state panel: what repository this is,
@@ -271,15 +418,22 @@ func confirmWizardChoices(reader *bufio.Reader, out io.Writer) (bool, error) {
 	return line == "y" || line == "yes", nil
 }
 
-// readWizardLine reads one answer, normalized to lower case. End of input is
-// an empty answer rather than an error: a developer closing stdin takes the
-// default and declines the confirmation, which writes nothing.
+// readWizardLine reads one menu answer, normalized to lower case, for the
+// prompts whose vocabulary is fixed (advisory/block, y/n).
 func readWizardLine(reader *bufio.Reader) (string, error) {
+	line, err := readWizardValue(reader)
+	return strings.ToLower(line), err
+}
+
+// readWizardValue reads one answer verbatim, trimmed. End of input is an
+// empty answer rather than an error: a developer closing stdin takes the
+// default and declines the confirmation, which writes nothing.
+func readWizardValue(reader *bufio.Reader) (string, error) {
 	line, err := reader.ReadString('\n')
 	if err != nil && !errors.Is(err, io.EOF) {
 		return "", err
 	}
-	return strings.ToLower(strings.TrimSpace(line)), nil
+	return strings.TrimSpace(line), nil
 }
 
 // unbufferedReader hands its consumer one byte per Read so a bufio.Scanner

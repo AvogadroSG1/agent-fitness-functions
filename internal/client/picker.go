@@ -154,12 +154,12 @@ func renderPickerOptions(out io.Writer, options []functionOption) {
 	}
 }
 
-// pickerSettingsNote flags a row the user can tick but cannot finish here:
-// enabling it also needs fitness-function-settings, which onboard rejects
-// today (rejectUnsettableSelection) and prompts for from ADR-0010 slice S10.
+// pickerSettingsNote flags a row that needs more than a tick: enabling it
+// also needs fitness-function-settings, which the wizard prompts for once the
+// checklist is confirmed.
 func pickerSettingsNote(option functionOption) string {
 	if option.requiresSettings {
-		return " [needs fitness-function-settings]"
+		return " [prompts for layer definitions]"
 	}
 	return ""
 }

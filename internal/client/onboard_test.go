@@ -422,9 +422,9 @@ func TestValidateEnforcement(t *testing.T) {
 
 func TestRenderScaffoldConfigFillsAllFiveFunctions(t *testing.T) {
 	for _, enforcement := range []string{"advisory", "block"} {
-		content, err := renderScaffoldConfig(enforcement, nil)
+		content, err := renderGovernanceConfig(enforcement, nil, nil, configExtras{})
 		if err != nil {
-			t.Fatalf("renderScaffoldConfig(%q): %v", enforcement, err)
+			t.Fatalf("renderGovernanceConfig(%q): %v", enforcement, err)
 		}
 		var doc scaffoldConfigDocument
 		if err := json.Unmarshal(content, &doc); err != nil {

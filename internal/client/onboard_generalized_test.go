@@ -13,9 +13,9 @@ import (
 // without layer definitions and must point the user at
 // fitness-function-settings.
 func TestRenderScaffoldConfigListsGeneralizedFunctionsDisabled(t *testing.T) {
-	content, err := renderScaffoldConfig("block", nil)
+	content, err := renderGovernanceConfig("block", nil, nil, configExtras{})
 	if err != nil {
-		t.Fatalf("renderScaffoldConfig: %v", err)
+		t.Fatalf("renderGovernanceConfig: %v", err)
 	}
 	var doc scaffoldConfigDocument
 	if err := json.Unmarshal(content, &doc); err != nil {
@@ -42,9 +42,9 @@ func TestParseFunctionsFlagAcceptsGeneralizedFunctions(t *testing.T) {
 			t.Fatalf("selected = %v, want %q enabled", selected, key)
 		}
 	}
-	content, err := renderScaffoldConfig("block", selected)
+	content, err := renderGovernanceConfig("block", selected, nil, configExtras{})
 	if err != nil {
-		t.Fatalf("renderScaffoldConfig: %v", err)
+		t.Fatalf("renderGovernanceConfig: %v", err)
 	}
 	var doc scaffoldConfigDocument
 	if err := json.Unmarshal(content, &doc); err != nil {
