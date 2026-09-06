@@ -1,12 +1,22 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"path/filepath"
+	"strings"
+	"time"
 )
+
+// identityProbeTimeout bounds one GET /health, matching probeDaemon's budget.
+// The caller's own http.Client timeout cannot be trusted for this: the CLI
+// client is configured for a validation round trip (tens of seconds), and one
+// hung health probe would then blow the polling budget of every loop built on
+// this call.
+const identityProbeTimeout = 250 * time.Millisecond
 
 // daemonIdentity is the client-side view of the daemon's GET /health identity
 // body (ADR-0010, S2). Legacy marks a daemon that answered 200 with no
@@ -31,7 +41,13 @@ type daemonExpectations struct {
 // probeDaemonIdentity fetches and parses GET /health. A 200 with an empty or
 // unparseable body is a legacy daemon, not an error.
 func probeDaemonIdentity(client *http.Client, addr string) (daemonIdentity, error) {
-	response, err := client.Get(healthURL(addr))
+	ctx, cancel := context.WithTimeout(context.Background(), identityProbeTimeout)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, daemonURL(addr, "/health"), nil)
+	if err != nil {
+		return daemonIdentity{}, err
+	}
+	response, err := client.Do(request)
 	if err != nil {
 		return daemonIdentity{}, err
 	}
@@ -50,12 +66,11 @@ func probeDaemonIdentity(client *http.Client, addr string) (daemonIdentity, erro
 	return identity, nil
 }
 
-func healthURL(addr string) string {
-	base := addr
-	for len(base) > 0 && base[len(base)-1] == '/' {
-		base = base[:len(base)-1]
-	}
-	return base + "/health"
+// daemonURL joins a daemon base address and an endpoint path. Every caller in
+// this package builds daemon URLs through here so a trailing slash on --addr
+// can never produce a double-slashed path on one endpoint and not another.
+func daemonURL(addr, path string) string {
+	return strings.TrimRight(addr, "/") + path
 }
 
 // daemonStaleness compares an observed identity against expectations, returning

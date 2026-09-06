@@ -1321,7 +1321,7 @@ func isHealthy(httpClient *http.Client, addr string) bool {
 func probeDaemon(httpClient *http.Client, addr string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	defer cancel()
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(addr, "/")+"/health", nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, daemonURL(addr, "/health"), nil)
 	if err != nil {
 		return err
 	}
