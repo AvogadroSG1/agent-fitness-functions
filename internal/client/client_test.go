@@ -474,6 +474,11 @@ func runGitClientTest(t *testing.T, repo string, args ...string) {
 // assertions passed — the same settings hooks/pre_commit_test.go pins.
 func disableGitBackgroundMaintenance(t *testing.T, repo string) {
 	t.Helper()
+	// A developer-machine trace2.eventtarget (e.g. the git-ai daemon) makes every
+	// git command feed an external process that then writes .git/ai/ into the
+	// repo asynchronously — racing t.TempDir() cleanup. The env var overrides
+	// the config for every git this test spawns.
+	t.Setenv("GIT_TRACE2_EVENT", "0")
 	for _, setting := range [][2]string{
 		{"maintenance.auto", "false"},
 		{"maintenance.autoDetach", "false"},

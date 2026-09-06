@@ -374,6 +374,9 @@ echo '{"status":"pass"}'
 func initGitRepo(t *testing.T) string {
 	t.Helper()
 	repo := t.TempDir()
+	// Neutralize any developer-machine trace2.eventtarget (e.g. the git-ai
+	// daemon), whose async .git/ai/ writes race t.TempDir() cleanup.
+	t.Setenv("GIT_TRACE2_EVENT", "0")
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "maintenance.auto", "false")
 	runGit(t, repo, "config", "maintenance.autoDetach", "false")
