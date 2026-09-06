@@ -1,0 +1,22 @@
+internal/history/paths_test.go
+  s_cf963430e803c8::t_325659f93fc4d7 1-74
+internal/history/event_test.go
+  s_cf963430e803c8::t_325659f93fc4d7 1-40,43-46,48-49
+  s_cf963430e803c8::t_e8d888b0ca39d9 41-42,47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c01229fd2cdb3bf605b442dcb1e3881135dbd953",
+  "prompts": {},
+  "sessions": {
+    "s_cf963430e803c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a076aa-0fc6-7d81-b3ef-65e1cc030235",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
