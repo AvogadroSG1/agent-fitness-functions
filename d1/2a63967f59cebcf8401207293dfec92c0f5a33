@@ -1,0 +1,30 @@
+internal/client/doctor_test.go
+  s_3d6c2c9a391830::t_fed5a7ab9422d1 230
+internal/client/failure.go
+  s_3d6c2c9a391830::t_9afb4d85db244a 83-88,96
+internal/client/doctor.go
+  s_3d6c2c9a391830::t_0b5fc401c95482 425
+Makefile
+  s_3d6c2c9a391830::t_50d68f359ce61c 21-30,64,68
+internal/client/daemon_log_test.go
+  s_3d6c2c9a391830::t_78282bf19b4209 92-93,106-107
+internal/client/client.go
+  s_3d6c2c9a391830::t_9e8215a1b60804 189-211,214-222,224-226,228,232,234-236,238-239,242-252,254,256,258,262-264,266-267,269,271
+  s_3d6c2c9a391830::t_60d527960f404d 1027-1030,1032-1043,1045
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "d12a63967f59cebcf8401207293dfec92c0f5a33",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
