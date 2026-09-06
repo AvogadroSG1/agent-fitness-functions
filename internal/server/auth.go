@@ -24,6 +24,18 @@ type HandlerOptions struct {
 	// DisableRegistration turns off POST /register (self-service repo
 	// onboarding) even when the route is wired, returning 403 for every call.
 	DisableRegistration bool
+	// Identity is reported by GET /health so clients can detect a stale
+	// daemon (binary revision, listen mode, or configs dir mismatch).
+	Identity Identity
+}
+
+// Identity describes the running daemon so /health callers can compare it
+// against their own expectations without authenticating first.
+type Identity struct {
+	BuildRevision string
+	BuildModified bool
+	ListenMode    string
+	ConfigsDir    string
 }
 
 type ServerTLSConfig struct {
