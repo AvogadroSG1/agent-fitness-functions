@@ -1,0 +1,25 @@
+internal/buildinfo/buildinfo.go
+  s_3d6c2c9a391830::t_d3dcfb061685d1 1-23
+internal/server/health_test.go
+  s_3d6c2c9a391830::t_5bdd389c0fbbca 1-85
+internal/buildinfo/buildinfo_test.go
+  s_3d6c2c9a391830::t_85e9549d6ad939 1-44
+internal/server/auth.go
+  s_3d6c2c9a391830::t_8bb8c73d3bb3c9 27-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "d6831c035284244e4849cd5fbc856f8c36de03bb",
+  "prompts": {},
+  "sessions": {
+    "s_3d6c2c9a391830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "101e74e0-6c86-4a34-b1d4-6d79db0ee0ca",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
