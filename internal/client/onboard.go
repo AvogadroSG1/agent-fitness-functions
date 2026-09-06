@@ -723,24 +723,12 @@ func acquireBindingsLock(path string) (func(), error) {
 		if !errors.Is(err, os.ErrExist) {
 			return func() {}, nil
 		}
-		reapStaleBindingsLock(lockDir)
+		reapStaleLockDir(lockDir, bindingsLockStaleAge)
 		if time.Now().After(deadline) {
 			return nil, fmt.Errorf("caller bindings lock %s held for over %s; remove it if no onboard is running", lockDir, bindingsLockWait)
 		}
 		time.Sleep(25 * time.Millisecond)
 	}
-}
-
-// reapStaleBindingsLock removes a lock directory whose age exceeds
-// bindingsLockStaleAge — a crashed writer's leftover, since live writers
-// hold the lock for milliseconds. Best-effort: a losing race here simply
-// means another waiter reaped it first.
-func reapStaleBindingsLock(lockDir string) {
-	info, err := os.Stat(lockDir)
-	if err != nil || time.Since(info.ModTime()) < bindingsLockStaleAge {
-		return
-	}
-	_ = os.Remove(lockDir)
 }
 
 func loadCallerBindings(path string) (map[string]any, error) {
