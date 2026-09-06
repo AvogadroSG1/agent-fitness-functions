@@ -1,0 +1,84 @@
+test/integration/history_isolation_test.go
+  s_cf963430e803c8::t_b12384782d85fc 1-9,30-50
+  s_cf963430e803c8::t_f36b00b1e247ad 10-11,13-29
+  s_cf963430e803c8::t_1f32a9b50ea72e 12
+cmd/agent-fitness-functions/history_isolation_test.go
+  s_cf963430e803c8::t_a8f0dd1ec690e9 1-21
+internal/client/historycapture.go
+  s_cf963430e803c8::t_1a49cdb56cabfb 1-64,66-143
+  s_cf963430e803c8::t_715a6bd3d53cde 65
+hooks/pre-commit.sh
+  s_cf963430e803c8::t_b316a12ee7b6de 6-11
+hooks/opencode_history_test.go
+  s_cf963430e803c8::t_a21a586b8f3720 1-11,15-18,22-37,41-44,48,56-59
+  s_cf963430e803c8::t_cedf30f161c972 12-14,19-21,38-40,45-47,49-55
+hooks/pre-tool-use.sh
+  s_cf963430e803c8::t_b316a12ee7b6de 5-9,154-157,170-173
+  s_cf963430e803c8::t_e61c771eabc0e0 134,136-137,176-177,189-190,196,209-210
+hooks/history_isolation_test.go
+  s_cf963430e803c8::t_a8f0dd1ec690e9 1-21
+hooks/history_metadata_test.go
+  s_cf963430e803c8::t_6d061f21139133 1-31,36-53,57-59,66-122
+  s_cf963430e803c8::t_48e921563600a0 54-56,64-65
+  s_cf963430e803c8::t_a21a586b8f3720 32,60
+  s_cf963430e803c8::t_cedf30f161c972 33-35,61-63
+internal/client/hookassets/pre-commit.sh
+  s_cf963430e803c8::t_cfd2187e517b9e 6-11
+internal/client/history_hook_labels_test.go
+  s_cf963430e803c8::t_cfd2187e517b9e 26,29-31,34-36,40-42
+  s_cf963430e803c8::t_6d061f21139133 1-25,27-28,32-33,37-39,43-45
+internal/client/hookassets/pre-push.sh
+  s_cf963430e803c8::t_cfd2187e517b9e 6-11
+  s_cf963430e803c8::t_e61c771eabc0e0 151-153,166
+hooks/twin_drift_test.go
+  s_cf963430e803c8::t_6d061f21139133 20
+internal/client/historycapture_supplemental_test.go
+  s_cf963430e803c8::t_715a6bd3d53cde 127,188,217-223
+  s_cf963430e803c8::t_b658e8eef1e158 25,30-33,37-40,52-54,59-61,63-65,67-69,75,78-81,83-88,100-107,110-112,114-119,129-131,135-139,142-145,147-159,161-167,172-177,180-182,189-192,194-195,197-207,212-216,235-240,244,246-251,254-259
+  s_cf963430e803c8::t_17852c03478741 224-228
+  s_cf963430e803c8::t_17d1ebf213ddc3 1-24,26-29,34-36,41-51,55-58,62,66,70-74,76-77,82,89-99,108-109,113,120-126,128,132-134,140-141,146,160,168-171,178-179,183-187,193,196,208-211,229-234,241-243,245,252-253,260
+internal/client/hookassets/opencode-plugin.js
+  s_cf963430e803c8::t_bcf7457f33f97b 33-34,50-56
+  s_cf963430e803c8::t_e61c771eabc0e0 9,12,18-23,31-32,35-41,60-64
+internal/client/portable_settings_test.go
+  s_cf963430e803c8::t_56988b46548ff3 57-60
+history_isolation_test.go
+  s_cf963430e803c8::t_e37f3d5756d343 4-5,10-11,14,20,23-25,27-29,33,45-46
+  s_cf963430e803c8::t_b12384782d85fc 1-3,6-9,12-13,37-44,47-57
+  s_cf963430e803c8::t_1f32a9b50ea72e 16
+  s_cf963430e803c8::t_cb2c8e7e96cccd 30-32
+  s_cf963430e803c8::t_f36b00b1e247ad 15,17-19,21-22,26,34-36
+internal/client/client.go
+  s_cf963430e803c8::t_b316a12ee7b6de 681,684,886-887
+  s_cf963430e803c8::t_1a49cdb56cabfb 193,219,262,269,277,280,1235-1241,1247,1253,1258,1263,1265-1266
+hooks/pre-push.sh
+  s_cf963430e803c8::t_b316a12ee7b6de 6-11
+  s_cf963430e803c8::t_e61c771eabc0e0 151-153,166
+hooks/opencode-plugin.js
+  s_cf963430e803c8::t_536c53be707944 9,12,18-23,31-32,35-41,60-64
+  s_cf963430e803c8::t_5ac94f0061a890 33-34,50-56
+  s_cf963430e803c8::t_cfd2187e517b9e 1-8,10-11,13-17,24-30,42-49,57-59,65-69
+internal/client/client_test.go
+  s_cf963430e803c8::t_6d061f21139133 444
+internal/client/history_isolation_test.go
+  s_cf963430e803c8::t_a8f0dd1ec690e9 1-21
+internal/client/hookassets/pre-tool-use.sh
+  s_cf963430e803c8::t_e61c771eabc0e0 134,136-137,176-177,189-190,196,209-210
+  s_cf963430e803c8::t_cfd2187e517b9e 5-9,154-157,170-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "2a7a829c2117c24a32d25216281f873cd0d5776c",
+  "prompts": {},
+  "sessions": {
+    "s_cf963430e803c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a076aa-0fc6-7d81-b3ef-65e1cc030235",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Peter O'Connor <poconnor@stackoverflow.com>"
+    }
+  }
+}
