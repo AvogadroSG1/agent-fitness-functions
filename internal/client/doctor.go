@@ -196,6 +196,7 @@ func runDoctorChecks(cfg doctorConfig) []checkResult {
 		checkBinary(),
 		checkPython3(),
 		checkPyYAML(),
+		checkCalmCLI(),
 		checkClientCertificate(cfg),
 		checkServerCABundle(cfg),
 		checkGovernanceRoot(cfg),
@@ -329,6 +330,33 @@ func checkPyYAML() checkResult {
 		}
 	}
 	return checkResult{name: "pyyaml", detail: "importable", passed: true}
+}
+
+func checkCalmCLI() checkResult {
+	path, err := exec.LookPath("calm")
+	if err != nil {
+		return checkResult{
+			name:        "calm cli",
+			detail:      "not found on PATH",
+			remediation: "npm install -g @finos/calm-cli@1.40.0",
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "calm", "--version").Output()
+	version := strings.TrimSpace(string(out))
+	if err != nil || version == "" {
+		return checkResult{
+			name:   "calm cli",
+			detail: path,
+			passed: true,
+		}
+	}
+	return checkResult{
+		name:   "calm cli",
+		detail: fmt.Sprintf("%s (%s)", path, version),
+		passed: true,
+	}
 }
 
 func checkClientCertificate(cfg doctorConfig) checkResult {
@@ -474,22 +502,67 @@ func checkGovernanceRoot(cfg doctorConfig) checkResult {
 	}
 }
 
-func checkRoslynAnalyzer(cfg doctorConfig) checkResult {
-	name := "roslyn analyzer"
+func isExecutableFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir() && info.Mode()&0o111 != 0
+}
+
+func resolveRoslynAnalyzerPath() (string, bool) {
 	roslynPath := analyzer.DefaultRoslynCLI()
-	if roslynPath != "" && roslynPath != "calm-roslyn-analyzer" {
-		if info, err := os.Stat(roslynPath); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
-			return checkResult{name: name, detail: roslynPath, passed: true}
+	if roslynPath != "" && roslynPath != "calm-roslyn-analyzer" && isExecutableFile(roslynPath) {
+		return roslynPath, true
+	}
+	for _, name := range []string{roslynPath, "calm-roslyn-analyzer", "CalmRoslynAnalyzer"} {
+		if name == "" {
+			continue
+		}
+		if path, err := exec.LookPath(name); err == nil {
+			return path, true
 		}
 	}
-	if path, err := exec.LookPath(roslynPath); err == nil {
+	return "", false
+}
+
+func shouldSkipDir(base string) bool {
+	return strings.HasPrefix(base, ".") || base == "node_modules" || base == "bin" || base == "obj" || base == "vendor"
+}
+
+func hasCSharpFiles(root string) bool {
+	if root == "" {
+		return false
+	}
+	found := false
+	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			if shouldSkipDir(filepath.Base(path)) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) == ".cs" {
+			found = true
+			return errors.New("found")
+		}
+		return nil
+	})
+	return found
+}
+
+func checkRoslynAnalyzer(cfg doctorConfig) checkResult {
+	name := "roslyn analyzer"
+	if path, ok := resolveRoslynAnalyzerPath(); ok {
 		return checkResult{name: name, detail: path, passed: true}
 	}
-	if path, err := exec.LookPath("calm-roslyn-analyzer"); err == nil {
-		return checkResult{name: name, detail: path, passed: true}
-	}
-	if path, err := exec.LookPath("CalmRoslynAnalyzer"); err == nil {
-		return checkResult{name: name, detail: path, passed: true}
+	if cfg.repoRoot != "" && !hasCSharpFiles(cfg.repoRoot) {
+		return checkResult{
+			name:        name,
+			detail:      "not installed (no C# files detected in repository; required only for C# governance)",
+			remediation: "run `agent-fitness-functions doctor --repair` (requires dotnet SDK) or set AGENT_FITNESS_FUNCTIONS_ROSLYN_PATH",
+			warning:     true,
+		}
 	}
 	return checkResult{
 		name:        name,

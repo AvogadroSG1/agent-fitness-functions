@@ -25,8 +25,11 @@ PY
 )
 bridge_addr="http://127.0.0.1:$free_port"
 
+configs_dir="$tmp_dir/configs"
+mkdir -p "$configs_dir/go-red-green"
+
 go build -o "$bridge_bin" "$repo_root/cmd/agent-fitness-functions"
-"$bridge_bin" server start --addr "127.0.0.1:$free_port" &
+"$bridge_bin" server start --listen-mode local-http --addr "127.0.0.1:$free_port" --configs-dir "$configs_dir" &
 bridge_pid=$!
 
 for _ in {1..40}; do
@@ -45,7 +48,7 @@ mkdir -p "$demo_repo/.calm" "$demo_repo/internal/demo"
 
 write_config() {
   local rule=$1
-  cat > "$demo_repo/.calm/config.json" <<JSON
+  cat > "$configs_dir/go-red-green/config.json" <<JSON
 {
   "enforcement-mode": "block",
   "fitness-functions": {
@@ -58,6 +61,7 @@ write_config() {
   }
 }
 JSON
+  cp "$configs_dir/go-red-green/config.json" "$demo_repo/.calm/config.json"
 }
 
 # Print "Actual: X | Target: ≤/≥ Y" from a client validate JSON response.
@@ -119,9 +123,9 @@ expect_block() {
 }
 
 echo "Testing: Go fitness functions"
-expect_block "cyclomatic-complexity" "fixtures/violations/go/cyclomatic-complexity.go" "fixtures/green/go/cyclomatic-complexity.go" "cyclomatic complexity"
-expect_block "interface-width" "fixtures/violations/go/interface-width.go" "fixtures/green/go/interface-width.go" "exposes"
-expect_block "logic-density" "fixtures/violations/go/logic-density.go" "fixtures/green/go/logic-density.go" "Logic Density Ratio"
-expect_block "dependency-discipline" "fixtures/violations/go/dependency-discipline.go" "fixtures/green/go/dependency-discipline.go" "Dependency Discipline ratio"
+expect_block "cyclomatic-complexity" "fixtures/violations/go/cyclomatic-complexity.go" "fixtures/green/go/cyclomatic-complexity.go" "cyclomatic-complexity"
+expect_block "interface-width" "fixtures/violations/go/interface-width.go" "fixtures/green/go/interface-width.go" "interface-width"
+expect_block "logic-density" "fixtures/violations/go/logic-density.go" "fixtures/green/go/logic-density.go" "logic-density"
+expect_block "dependency-discipline" "fixtures/violations/go/dependency-discipline.go" "fixtures/green/go/dependency-discipline.go" "dependency-discipline"
 
 echo "Go red-green smoke test passed"

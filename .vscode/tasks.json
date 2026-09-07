@@ -4,7 +4,7 @@
     {
       "label": "CALM: Check Current File",
       "type": "shell",
-      "command": "mkdir -p .calm && agent-fitness-functions client validate --file ${relativeFile} --repo ${workspaceFolder} --format sarif > .calm/results.sarif",
+      "command": "mkdir -p .calm && agent-fitness-functions client validate --file ${relativeFile} --repo ${workspaceFolderBasename} --format sarif > .calm/results.sarif",
       "group": "test",
       "presentation": {
         "reveal": "silent",

@@ -10,13 +10,23 @@ export AGENT_FITNESS_FUNCTIONS_HISTORY_TOOL=git
 export AGENT_FITNESS_FUNCTIONS_HISTORY_ACTION=pre-commit
 export AGENT_FITNESS_FUNCTIONS_HISTORY_SESSION_ID="${AGENT_FITNESS_FUNCTIONS_HISTORY_SESSION_ID:-}"
 agent_fitness_functions_bin=${AGENT_FITNESS_FUNCTIONS_BIN:-agent-fitness-functions}
-# The container/production server serves HTTPS with mandatory mTLS, so default to
-# an https loopback addr. In managed mode (no explicit client TLS material), the
+if ! command -v "$agent_fitness_functions_bin" >/dev/null 2>&1; then
+  if [[ "${AGENT_FITNESS_FUNCTIONS_ON_ERROR:-block}" == "advisory" ]]; then
+    echo "agent-fitness-functions binary not found on PATH. AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory: allowing commit. Run 'make install' to enable." >&2
+    exit 0
+  else
+    echo "agent-fitness-functions binary not found on PATH. Run 'make install' to enable pre-commit validation." >&2
+    exit 1
+  fi
+fi
+# The local daemon serves plain HTTP on loopback (ADR-0010); container/production
+# serves HTTPS with mTLS. Default to the local plain-HTTP loopback address.
+# In managed mode (no explicit client TLS material), the
 # AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR selector — if set — passes through untouched
 # to `client validate`, which resolves the machine governance root itself (ADR-0007:
 # hooks never resolve, pin, or pass client TLS material in managed mode).
 # Explicit AGENT_FITNESS_FUNCTIONS_CLIENT_* env vars win (12-factor precedence).
-addr=${AGENT_FITNESS_FUNCTIONS_ADDR:-https://127.0.0.1:7890}
+addr=${AGENT_FITNESS_FUNCTIONS_ADDR:-http://127.0.0.1:7890}
 managed_selector=${AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR:-}
 explicit_client_tls=0
 [[ -n "${AGENT_FITNESS_FUNCTIONS_CLIENT_CERT:-}${AGENT_FITNESS_FUNCTIONS_CLIENT_KEY:-}${AGENT_FITNESS_FUNCTIONS_CLIENT_CA:-}" ]] && explicit_client_tls=1
@@ -110,10 +120,10 @@ json_field() {
 on_error_mode=${AGENT_FITNESS_FUNCTIONS_ON_ERROR:-block}
 
 # is_infra_error reports whether a client failure is an infrastructure/setup problem
-# (client exit code 3, or a {"status":"error"} object) rather than a real violation.
+# (client exit code 3 or 127, or a {"status":"error"} object) rather than a real violation.
 is_infra_error() {
   local rc=$1 payload=$2
-  [[ "$rc" -eq 3 ]] && return 0
+  [[ "$rc" -eq 3 || "$rc" -eq 127 ]] && return 0
   printf '%s' "$payload" | grep -q '"status":"error"'
 }
 

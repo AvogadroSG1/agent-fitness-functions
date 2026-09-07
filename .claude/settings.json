@@ -16,7 +16,7 @@
       {
         "hooks": [
           {
-            "command": "AGENT_FITNESS_FUNCTIONS_ADDR=https://127.0.0.1:7890 AGENT_FITNESS_FUNCTIONS_REPO_NAME=agent-fitness-functions \"$(git rev-parse --show-toplevel)/hooks/pre-tool-use.sh\"",
+            "command": "AGENT_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:7890 AGENT_FITNESS_FUNCTIONS_REPO_NAME=agent-fitness-functions \"$(git rev-parse --show-toplevel)/hooks/pre-tool-use.sh\"",
             "type": "command"
           }
         ],

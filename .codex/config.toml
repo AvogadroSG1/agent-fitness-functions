@@ -6,3 +6,11 @@
     [mcp_servers.excalidraw.env]
       ENABLE_CANVAS_SYNC = "${ENABLE_CANVAS_SYNC}"
       EXPRESS_SERVER_URL = "${EXPRESS_SERVER_URL}"
+
+[mcp_servers.github]
+command = "docker"
+args = ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"]
+id = ""
+
+[mcp_servers.github.env]
+GITHUB_PERSONAL_ACCESS_TOKEN = "${GITHUB_PERSONAL_ACCESS_TOKEN}"

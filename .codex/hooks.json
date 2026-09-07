@@ -33,7 +33,7 @@
       {
         "hooks": [
           {
-            "command": "\"$(git rev-parse --git-path hooks/agent-fitness-functions-pre-tool-use)\"",
+            "command": "AGENT_FITNESS_FUNCTIONS_HISTORY_TOOL=codex \"$(git rev-parse --git-path hooks/agent-fitness-functions-pre-tool-use)\"",
             "type": "command"
           }
         ],

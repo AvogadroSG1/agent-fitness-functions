@@ -550,3 +550,62 @@ func TestCheckValidationPipelineFailure(t *testing.T) {
 		t.Fatalf("result remediation is empty, want actionable guidance")
 	}
 }
+
+func TestCheckCalmCLI(t *testing.T) {
+	result := checkCalmCLI()
+	if result.name != "calm cli" {
+		t.Fatalf("result name = %q, want 'calm cli'", result.name)
+	}
+	if !result.passed && result.remediation == "" {
+		t.Fatalf("missing remediation when calm cli is not passed: %+v", result)
+	}
+}
+
+func TestCheckRoslynAnalyzerWithoutCSharpFiles(t *testing.T) {
+	tempState := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempState)
+	t.Setenv("HOME", tempState)
+	t.Setenv("PATH", "")
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_ROSLYN_PATH", "")
+	t.Setenv("CALM_ROSLYN_ANALYZER_PATH", "")
+	t.Chdir(tempState)
+
+	repoRoot := t.TempDir() // empty directory with no .cs files
+	result := checkRoslynAnalyzer(doctorConfig{repoRoot: repoRoot})
+	if !result.warning {
+		t.Fatalf("checkRoslynAnalyzer warning = false, want true for non-C# repo: %+v", result)
+	}
+	if result.passed {
+		t.Fatalf("checkRoslynAnalyzer passed = true, want false (warning mode): %+v", result)
+	}
+	if !strings.Contains(result.detail, "no C# files detected") {
+		t.Fatalf("expected detail to mention no C# files, got %s", result.detail)
+	}
+}
+
+func TestCheckRoslynAnalyzerWithCSharpFiles(t *testing.T) {
+	tempState := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tempState)
+	t.Setenv("HOME", tempState)
+	t.Setenv("PATH", "")
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_ROSLYN_PATH", "")
+	t.Setenv("CALM_ROSLYN_ANALYZER_PATH", "")
+	t.Chdir(tempState)
+
+	repoRoot := t.TempDir()
+	csFile := filepath.Join(repoRoot, "Program.cs")
+	if err := os.WriteFile(csFile, []byte("class Program {}"), 0o644); err != nil {
+		t.Fatalf("write cs file: %v", err)
+	}
+
+	result := checkRoslynAnalyzer(doctorConfig{repoRoot: repoRoot})
+	if result.warning {
+		t.Fatalf("checkRoslynAnalyzer warning = true, want false for C# repo: %+v", result)
+	}
+	if result.passed {
+		t.Fatalf("checkRoslynAnalyzer passed = true, want false for missing analyzer in C# repo: %+v", result)
+	}
+	if !strings.Contains(result.detail, "not found or not executable") {
+		t.Fatalf("expected detail to mention not found, got %s", result.detail)
+	}
+}

@@ -12,7 +12,7 @@ usage() {
   echo "    --build    force a Docker image rebuild before starting" >&2
   echo "" >&2
   echo "  Environment:" >&2
-  echo "    AGENT_FITNESS_FUNCTIONS_SRC   path to the calm-poc repo (default: auto-detected)" >&2
+  echo "    AGENT_FITNESS_FUNCTIONS_SRC   path to the agent-fitness-functions repo (default: auto-detected)" >&2
   echo "    GIT_SHA    image tag suffix           (default: git short SHA)" >&2
   echo "    BUILD_DATE image build timestamp      (default: current UTC time)" >&2
   echo "" >&2
@@ -48,7 +48,7 @@ calm_src="${AGENT_FITNESS_FUNCTIONS_SRC:-$_self}"
 
 [[ -f "$calm_src/docker-compose.yml" ]] || {
   echo "error: docker-compose.yml not found at $calm_src" >&2
-  echo "  set AGENT_FITNESS_FUNCTIONS_SRC to the calm-poc repo root" >&2
+  echo "  set AGENT_FITNESS_FUNCTIONS_SRC to the agent-fitness-functions repo root" >&2
   exit 1
 }
 

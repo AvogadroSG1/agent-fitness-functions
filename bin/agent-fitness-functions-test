@@ -99,7 +99,7 @@ if [[ "$bridge" == */* ]]; then
 else
   command -v "$bridge" > /dev/null 2>&1 || {
     echo "error: agent-fitness-functions not found on PATH: $bridge" >&2
-    echo "  build it: agent-fitness-functions-serve (or: go build -o .tmp/agent-fitness-functions ./cmd/agent-fitness-functions && export AGENT_FITNESS_FUNCTIONS_BIN=.tmp/agent-fitness-functions)" >&2
+    echo "  build it: make install (or: go build -o ~/.local/bin/agent-fitness-functions ./cmd/agent-fitness-functions)" >&2
     exit 1
   }
 fi

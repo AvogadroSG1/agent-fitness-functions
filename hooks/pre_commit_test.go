@@ -363,8 +363,8 @@ echo '{"status":"pass"}'
 	}
 
 	got := readFile(t, logPath)
-	if !strings.Contains(got, "--addr https://127.0.0.1:7890") {
-		t.Errorf("missing https default addr:\n%s", got)
+	if !strings.Contains(got, "--addr http://127.0.0.1:7890") {
+		t.Errorf("missing http default addr:\n%s", got)
 	}
 	if strings.Contains(got, "--client-cert") {
 		t.Errorf("expected no --client-cert when certs absent:\n%s", got)

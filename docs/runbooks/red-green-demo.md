@@ -1,6 +1,5 @@
 > **Historical document.** This runbook was written for the PoC local-only architecture.
-> It describes running `agent-fitness-functions` built to `.tmp/agent-fitness-functions` on loopback.
-> For the current container governance model, see [CONTEXT.md](../../CONTEXT.md) and
+> For the current governance model, see [CONTEXT.md](../../CONTEXT.md) and
 > [README.md](../../README.md). Steps in this runbook remain valid for local sandbox
 > verification but must not be used as production deployment guidance.
 
@@ -16,7 +15,7 @@ This runbook validates that CALM fitness functions block known violations in blo
 - Install the git hook in each target repository: `agent-fitness-functions client install-hooks <repo>`
 - Run commits with `AGENT_FITNESS_FUNCTIONS_ADDR=http://localhost:7890 AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1`
 
-> **Local binary alternative (sandbox only):** Build the binary locally with `go build -o .tmp/agent-fitness-functions ./cmd/agent-fitness-functions` and start it with `.tmp/agent-fitness-functions server start --addr 127.0.0.1:7890`. Use `AGENT_FITNESS_FUNCTIONS_BIN=.tmp/agent-fitness-functions AGENT_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:7890` for commits. This path is only valid for developer sandbox iteration; it MUST NOT be used as the production path.
+> **Local binary alternative (sandbox only):** Build the binary locally with `make install` (or `go build -o ~/.local/bin/agent-fitness-functions ./cmd/agent-fitness-functions`) and start it with `agent-fitness-functions server start --listen-mode local-http --addr 127.0.0.1:7890 --configs-dir configs`. Use `AGENT_FITNESS_FUNCTIONS_ADDR=http://127.0.0.1:7890` for commits. This path is only valid for developer sandbox iteration; it MUST NOT be used as the production path.
 - Use per-demo `.calm/config.json` files that explicitly disable every non-target fitness function. Missing fitness-function keys default to enabled.
 
 The hook refuses non-loopback server addresses unless `AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=1` is set. The installer overwrites prior CALM-managed hooks and refuses unrelated existing hooks unless `AGENT_FITNESS_FUNCTIONS_HOOK_OVERWRITE=1` is set.
@@ -81,7 +80,7 @@ The smoke script runs Cyclomatic Complexity, Interface Width, Logic Density Rati
 
 ```bash
 for _ in {1..30}; do
-  result=$(.tmp/agent-fitness-functions client validate \
+  result=$(agent-fitness-functions client validate \
     --addr http://127.0.0.1:7890 \
     --repo <SlackStatus repo> \
     --file src/Demo/Warmup.cs \

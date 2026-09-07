@@ -1,5 +1,6 @@
 // agent-fitness-functions-opencode-plugin: managed by agent-fitness-functions client install-hooks
 import { spawnSync } from "child_process";
+import path from "path";
 
 export const AgentFitnessFunctionsPlugin = async () => {
   return {
@@ -32,21 +33,34 @@ export const AgentFitnessFunctionsPlugin = async () => {
         typeof input.sessionID === "string" ? input.sessionID : "";
       payload.session_id = sessionID;
 
+      const gitTopProc = spawnSync("git", ["rev-parse", "--show-toplevel"], {
+        encoding: "utf-8",
+      });
+      if (gitTopProc.status !== 0 || !gitTopProc.stdout.trim()) {
+        return;
+      }
+      const topLevel = gitTopProc.stdout.trim();
+
       const gitPathProc = spawnSync(
         "git",
         ["rev-parse", "--git-path", `hooks/${hookName}`],
         {
           encoding: "utf-8",
+          cwd: topLevel,
         },
       );
       if (gitPathProc.status !== 0 || !gitPathProc.stdout.trim()) {
         return;
       }
-      const hookPath = gitPathProc.stdout.trim();
+      const rawHookPath = gitPathProc.stdout.trim();
+      const hookPath = path.isAbsolute(rawHookPath)
+        ? rawHookPath
+        : path.resolve(topLevel, rawHookPath);
 
       const proc = spawnSync(hookPath, [], {
         input: JSON.stringify(payload),
         encoding: "utf-8",
+        cwd: topLevel,
         env: {
           ...process.env,
           AGENT_FITNESS_FUNCTIONS_HISTORY_SOURCE: "agent",
