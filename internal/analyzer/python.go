@@ -228,6 +228,9 @@ except ImportError:
         cc_visit = None
         analyze = None
 
+if cc_visit is None or analyze is None:
+    raise RuntimeError("radon package unavailable")
+
 def _try_modern_python_cc(path, source):
     import os, shutil, subprocess
     for candidate in ["python3.13", "python3.12", "python3"]:
