@@ -43,6 +43,7 @@ func sqlCompositionFindings(t *testing.T, source string) []Finding {
 
 func TestSQLCompositionAcceptsPsycopg2SafeComposition(t *testing.T) {
 	safe := `from psycopg2 import sql
+import psycopg2
 
 _TEMPLATE = sql.SQL("SELECT {col} FROM t")
 
@@ -51,6 +52,12 @@ def apply(cur, col):
         sql.SQL("SELECT {col} FROM raw.t").format(col=sql.Identifier(col))
     )
     cur.execute(_TEMPLATE.format(col=sql.Identifier(col)))
+    cur.executemany(
+        psycopg2.sql.SQL("INSERT INTO {table} VALUES (%s)").format(
+            table=psycopg2.sql.Identifier("events")
+        ),
+        [(col,)],
+    )
 `
 	if findings := sqlCompositionFindings(t, safe); len(findings) != 0 {
 		t.Fatalf("safe psycopg2 composition produced %d finding(s): %+v; want none", len(findings), findings)
