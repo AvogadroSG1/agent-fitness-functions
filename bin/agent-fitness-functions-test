@@ -10,7 +10,7 @@ usage() {
   echo "  AGENT_FITNESS_FUNCTIONS_CLIENT_CERT/KEY/CA, and AGENT_FITNESS_FUNCTIONS_REPO_NAME, then run the hook directly." >&2
   echo "  Outputs a per-function status table using the repo's configured enforcement mode." >&2
   echo "" >&2
-  echo "  Supported: go (.go), python (.py), csharp (.cs)" >&2
+  echo "  Supported: go (.go), python (.py), csharp (.cs), typescript (.ts, .tsx)" >&2
   echo "" >&2
   echo "  The server requires mutual TLS. By default (ADR-0007) this helper passes no" >&2
   echo "  TLS flags at all: 'client validate' resolves the machine-scoped governance" >&2
@@ -135,7 +135,8 @@ case "$file" in
   *.go) language="go" ;;
   *.py) language="python" ;;
   *.cs) language="csharp" ;;
-  *)    echo "error: unsupported file type (supported: .go .py .cs)" >&2; exit 1 ;;
+  *.ts|*.tsx) language="typescript" ;;
+  *)    echo "error: unsupported file type (supported: .go .py .cs .ts .tsx)" >&2; exit 1 ;;
 esac
 
 file_abs=$(cd "$(dirname "$file")" && pwd)/$(basename "$file")
