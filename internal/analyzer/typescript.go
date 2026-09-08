@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"regexp"
@@ -8,10 +9,12 @@ import (
 )
 
 var (
-	tsFunctionRE = regexp.MustCompile(`(?m)^[ \t]*(?:(?:export|default|async|public|private|protected|static|override|abstract|const|let|var)\s+)*(?:function\s+([A-Za-z_$][\w$]*)|([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>|([A-Za-z_$][\w$]*)\s*\([^;{}]*\)\s*\{)`)
-	tsImportRE   = regexp.MustCompile(`(?m)^\s*import\s+(?:(?:type\s+)?[^;]+?\s+from\s+)?["']([^"']+)["']`)
-	tsControlRE  = regexp.MustCompile(`\b(?:if|for|while|case|catch|&&|\|\||\?)\b|&&|\|\|`)
-	tsNameRE     = regexp.MustCompile(`[A-Za-z_$][\w$]*`)
+	tsFunctionRE     = regexp.MustCompile(`(?m)^[ \t]*(?:(?:export|default|async|public|private|protected|static|override|abstract|const|let|var)\s+)*(?:function\s+([A-Za-z_$][\w$]*)|([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)(?:\s*:\s*[^=\n]+)?\s*=>|([A-Za-z_$][\w$]*)\s*\([^;{}]*\)\s*\{)`)
+	tsImportRE       = regexp.MustCompile(`(?m)^\s*import\s+(?:(?:type\s+)?[^;]+?\s+from\s+)?["']([^"']+)["']`)
+	tsControlRE      = regexp.MustCompile(`\b(?:if|for|while|case|catch)\b|&&|\|\||\?`)
+	tsNameRE         = regexp.MustCompile(`[A-Za-z_$][\w$]*`)
+	tsImportClauseRE = regexp.MustCompile(`(?m)^\s*import\s+(.+?)\s+from\s+["']`)
+	tsTypeDeclRE     = regexp.MustCompile(`^\s*(?:(?:export|declare|abstract)\s+)*(?:interface|type|enum|namespace|module)\b`)
 )
 
 // AnalyzeTypeScriptFile computes the common fitness metrics for TypeScript and
@@ -62,15 +65,16 @@ func typeScriptFunctions(source, masked string) []FunctionMetric {
 			continue
 		}
 		start := match[0]
-		end := matchingBrace(masked, strings.Index(masked[start:], "{")+start)
+		signatureEnd := match[1]
+		end := functionEnd(masked, start, signatureEnd)
 		if end < start {
-			end = len(masked)
+			end = len(masked) - 1
 		}
 		startLine := lineNumber(source, start)
 		endLine := lineNumber(source, end)
 		body := masked[start:end]
 		complexity := 1 + len(tsControlRE.FindAllString(body, -1))
-		functions = append(functions, FunctionMetric{Name: name, CyclomaticComplexity: complexity, IsPublic: isTypeScriptPublic(masked[start : start+match[0]-match[0]+minInt(len(masked)-start, 100)]), LOC: endLine - startLine + 1})
+		functions = append(functions, FunctionMetric{Name: name, CyclomaticComplexity: complexity, IsPublic: isTypeScriptPublic(masked[start:signatureEnd]), LOC: endLine - startLine + 1})
 	}
 	return functions
 }
@@ -95,30 +99,123 @@ func typeScriptImports(source, masked string) ImportMetric {
 	unused := make([]string, 0)
 	for _, match := range matches {
 		module := path.Base(match[1])
-		statement := match[0]
-		parts := strings.Fields(strings.TrimPrefix(strings.TrimSpace(statement), "import"))
-		binding := ""
-		if len(parts) > 0 && parts[0] != "{" && parts[0] != "*" && parts[0] != "type" {
-			binding = strings.Trim(parts[0], "{},")
+		bindings := typeScriptImportBindings(match[0])
+		if len(bindings) == 0 {
+			used++ // side-effect imports have no local binding to audit
+			continue
 		}
-		if binding != "" && strings.Count(masked, binding) <= 1 {
-			unused = append(unused, module)
-		} else {
+		anyUsed := false
+		unusedBindings := make([]string, 0)
+		for _, binding := range bindings {
+			if countTypeScriptName(masked, binding) > 1 {
+				anyUsed = true
+			} else {
+				unusedBindings = append(unusedBindings, binding)
+			}
+		}
+		if anyUsed {
 			used++
+		}
+		if len(unusedBindings) > 0 {
+			if len(unusedBindings) == len(bindings) {
+				unused = append(unused, module)
+			} else {
+				unused = append(unused, fmt.Sprintf("%s (%s)", module, strings.Join(unusedBindings, ", ")))
+			}
 		}
 	}
 	return ImportMetric{Total: len(matches), Used: used, Unused: unused, DDC: ratio(used, len(matches))}
 }
 
+func typeScriptImportBindings(statement string) []string {
+	match := tsImportClauseRE.FindStringSubmatch(statement)
+	if len(match) < 2 {
+		return nil
+	}
+	clause := strings.TrimSpace(match[1])
+	clause = strings.TrimPrefix(clause, "type ")
+	bindings := make([]string, 0)
+	for _, part := range strings.Split(clause, ",") {
+		part = strings.TrimSpace(part)
+		if strings.HasPrefix(part, "{") {
+			part = strings.Trim(strings.TrimSpace(part), "{}")
+			for _, named := range strings.Split(part, ",") {
+				fields := strings.Fields(strings.TrimSpace(named))
+				if len(fields) > 0 {
+					binding := fields[len(fields)-1]
+					if binding != "type" {
+						bindings = append(bindings, binding)
+					}
+				}
+			}
+		} else if strings.HasPrefix(part, "*") {
+			fields := strings.Fields(part)
+			if len(fields) >= 3 {
+				bindings = append(bindings, fields[2])
+			}
+		} else if part != "type" && part != "" {
+			bindings = append(bindings, strings.Fields(part)[0])
+		}
+	}
+	return bindings
+}
+
+func countTypeScriptName(masked, name string) int {
+	count := 0
+	for _, match := range tsNameRE.FindAllStringIndex(masked, -1) {
+		if masked[match[0]:match[1]] == name {
+			count++
+		}
+	}
+	return count
+}
+
+func functionEnd(masked string, start, signatureEnd int) int {
+	arrow := strings.Index(masked[start:signatureEnd], "=>")
+	if arrow >= 0 {
+		arrow += start + 2
+		for arrow < len(masked) && (masked[arrow] == ' ' || masked[arrow] == '\t') {
+			arrow++
+		}
+		if arrow < len(masked) && masked[arrow] == '{' {
+			return matchingBrace(masked, arrow)
+		}
+		if end := strings.IndexByte(masked[arrow:], '\n'); end >= 0 {
+			if end == 0 {
+				return arrow
+			}
+			return arrow + end - 1
+		}
+		return len(masked) - 1
+	}
+	if brace := strings.Index(masked[signatureEnd:], "{"); brace >= 0 {
+		return matchingBrace(masked, signatureEnd+brace)
+	}
+	return signatureEnd
+}
+
 func typeScriptLineMetrics(source, masked string) (int, int) {
 	total, logic := 0, 0
+	inTypeDecl := false
 	for i, line := range strings.Split(source, "\n") {
 		if strings.TrimSpace(line) == "" || strings.TrimSpace(maskedLine(masked, i)) == "" {
 			continue
 		}
 		total++
 		trimmed := strings.TrimSpace(maskedLine(masked, i))
-		if !strings.HasPrefix(trimmed, "import") && !strings.HasPrefix(trimmed, "export interface") && trimmed != "{" && trimmed != "}" {
+		if inTypeDecl {
+			if strings.Contains(trimmed, "}") {
+				inTypeDecl = false
+			}
+			continue
+		}
+		if tsTypeDeclRE.MatchString(trimmed) {
+			if strings.Contains(trimmed, "{") && !strings.Contains(trimmed, "}") {
+				inTypeDecl = true
+			}
+			continue
+		}
+		if !strings.HasPrefix(trimmed, "import") && trimmed != "{" && trimmed != "}" && trimmed != "};" && trimmed != "}," {
 			logic++
 		}
 	}
@@ -181,7 +278,11 @@ func maskTypeScript(source string) string {
 			}
 			continue
 		}
-		if c == '\'' || c == '"' || c == '`' {
+		if c == '`' {
+			maskTemplateLiteral(source, &i, &b)
+			continue
+		}
+		if c == '\'' || c == '"' {
 			b.WriteByte(' ')
 			inString = c
 			continue
@@ -189,6 +290,48 @@ func maskTypeScript(source string) string {
 		b.WriteByte(c)
 	}
 	return b.String()
+}
+
+// maskTemplateLiteral preserves ${...} expressions while masking literal text.
+// The expression contents remain available to the lexical metric scanner.
+func maskTemplateLiteral(source string, index *int, output *strings.Builder) {
+	output.WriteByte(' ')
+	for *index = *index + 1; *index < len(source); *index++ {
+		c := source[*index]
+		if c == '\\' && *index+1 < len(source) {
+			output.WriteString("  ")
+			*index++
+			continue
+		}
+		if c == '`' {
+			output.WriteByte(' ')
+			return
+		}
+		if c == '$' && *index+1 < len(source) && source[*index+1] == '{' {
+			output.WriteString("${")
+			*index += 2
+			depth := 1
+			for *index < len(source) && depth > 0 {
+				if source[*index] == '{' {
+					depth++
+				}
+				if source[*index] == '}' {
+					depth--
+				}
+				if depth > 0 {
+					output.WriteByte(source[*index])
+				}
+				*index++
+			}
+			*index--
+			continue
+		}
+		if c == '\n' {
+			output.WriteByte('\n')
+		} else {
+			output.WriteByte(' ')
+		}
+	}
 }
 
 func maskedLine(masked string, index int) string {
@@ -199,6 +342,9 @@ func maskedLine(masked string, index int) string {
 	return lines[index]
 }
 func lineNumber(source string, offset int) int {
+	if offset < 0 {
+		offset = 0
+	}
 	return 1 + strings.Count(source[:minInt(offset, len(source))], "\n")
 }
 func matchingBrace(source string, start int) int {

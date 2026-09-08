@@ -684,6 +684,14 @@ func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
 			return analyzeWithCSharpProjectContext(ctx, request)
 		}), true
 	}
+	if language == "typescript" {
+		return AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
+			if err := ctx.Err(); err != nil {
+				return analyzer.AnalysisResult{}, err
+			}
+			return analyzer.AnalyzeTypeScriptFile(request.TempPath)
+		}), true
+	}
 	return nil, false
 }
 

@@ -79,6 +79,7 @@ language_for_file() {
     *.go) printf 'go' ;;
     *.py) printf 'python' ;;
     *.cs) printf 'csharp' ;;
+    *.ts|*.tsx) printf 'typescript' ;;
     *) return 1 ;;
   esac
 }

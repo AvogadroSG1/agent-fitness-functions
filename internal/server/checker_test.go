@@ -22,6 +22,25 @@ import (
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
+func TestCheckerSourceAnalyzerSupportsTypeScript(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "example.ts")
+	if err := os.WriteFile(file, []byte("export const run = (value: boolean): string => value ? \"yes\" : \"no\";\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	checker := Checker{}
+	sourceAnalyzer, ok := checker.sourceAnalyzer("typescript")
+	if !ok || sourceAnalyzer == nil {
+		t.Fatal("sourceAnalyzer(typescript) is unavailable")
+	}
+	result, err := sourceAnalyzer.Analyze(context.Background(), AnalysisRequest{Language: "typescript", TempPath: file, File: "example.ts"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Language != "typescript" || len(result.Functions) != 1 || result.Functions[0].CyclomaticComplexity != 2 {
+		t.Fatalf("result = %+v, want TypeScript function with ternary complexity", result)
+	}
+}
+
 func TestHandlerCheckRunsGoAnalyzerCALMAndBlocksCyclomaticComplexityViolation(t *testing.T) {
 	repo := "repo-one"
 	store := newTestConfigStore(t)
@@ -186,8 +205,8 @@ func TestHandlerCheckReturnsBadRequestForUnsupportedLanguage(t *testing.T) {
 
 	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
 		"repo": `+jsonString(repo)+`,
-		"file": "index.ts",
-		"language": "typescript",
+		"file": "main.rs",
+		"language": "rust",
 		"proposed_content": "const value = 1;\n"
 	}`))
 	if err != nil {
@@ -201,7 +220,7 @@ func TestHandlerCheckReturnsBadRequestForUnsupportedLanguage(t *testing.T) {
 	if response.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d body = %q, want 400", response.StatusCode, body)
 	}
-	if !strings.Contains(string(body), `unsupported language "typescript"`) {
+	if !strings.Contains(string(body), `unsupported language "rust"`) {
 		t.Fatalf("body = %q, want unsupported language message", body)
 	}
 }
