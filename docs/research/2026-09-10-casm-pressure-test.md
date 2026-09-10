@@ -551,7 +551,7 @@ intent plane than the cache is. And #24 sits at the far end of the longest
 chain; it should be the last acceptance test for CASM, not, as the catalog's
 prose suggests, an early one.
 
-## 8. Questions this leaves for Peter and Gregor
+## 8. Questions this leaves for Peter and gcasar
 
 1. **Placement authority.** Is the path-to-node map part of the declared CALM
    architecture (node metadata), part of `configs/<repo>/config.json`, or
