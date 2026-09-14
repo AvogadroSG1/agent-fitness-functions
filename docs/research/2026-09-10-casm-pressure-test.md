@@ -7,6 +7,10 @@ record. Its purpose is to sharpen the two documents in PR #39
 (`docs/plans/2026-09-08-shared-abstract-syntax-model.md` and
 `docs/research/shared-ast-static-analysis-landscape.md`) by testing them
 against the fitness functions the issue tracker says we want to build.
+Revised on 2026-09-14 to incorporate gcasar's review on PR #40: snapshot
+kinds defined per operation, standards metadata and evidence versions on
+every result, bounded claims for waypoint checks, evidence rules for the
+temporal ledger, and the first vertical slice in section 7.1.
 
 Vocabulary: **CASM** is the Central Abstract Syntax Model proposed in PR #39.
 **The catalog** is GitHub issues #18–#38 (beads `calm-poc-ck8` and the
@@ -34,9 +38,13 @@ structural, intent, temporal, and pattern-contract guardrails listed in
   and reused later, so the tracer bullet does not have to be rebuilt.
 - **PR #39's own evidence needs correcting.** The baseline it cites walked
   the Go module cache, and the Go peer-aggregation path it proposes to cache
-  does not execute under the ADR-0007 daemon. Both critiques survive on clean
-  evidence, and both point at the same undefined input: *where the daemon
-  gets the repository from*.
+  runs only by accident under the ADR-0007 daemon. Both critiques survive on
+  clean evidence, and both point at the same undefined input: *where the
+  daemon gets the repository from*.
+- **Contracts before the graph.** Every result needs a snapshot identity, a
+  policy version, an analyzer version, and the coverage it actually
+  achieved. Without those a verdict cannot be reproduced, and a clean result
+  cannot be told apart from an unevaluated one.
 - **Recommended direction:** keep CASM's snapshot, overlay, adapter, and
   fact design, but frame the product as *derive the actual CALM architecture
   from facts and validate it against the declared CALM architecture*. That
@@ -70,17 +78,22 @@ That is where a P90 of 3,837 comes from. On this machine the same run aborts
 on Go toolchain parser test data, which is why the PR's author saw a smaller,
 non-aborting subset.
 
-Consequence for CASM: **snapshot membership must be defined.** The
-acceptance criteria say what an overlay must not do but never say which files
-a snapshot contains. "Tracked and unignored files of the worktree, as Git
-sees them" is the only definition that survives `.tmp/`, `.venv/`, and
-`bin/obj/` alike.
+Consequence for CASM: **snapshot membership must be defined per
+operation.** The acceptance criteria say what an overlay must not do but
+never say which files a snapshot contains. A single rule such as "tracked
+and unignored files" is not enough: tracked files can match ignore rules,
+and a proposal can add an untracked file. The plan needs three explicit
+definitions: a *committed* snapshot (exactly the tree of one commit), a
+*staged* snapshot (the index, with additions, deletions, and renames), and a
+*speculative* snapshot (a committed or staged base plus a set of overlays).
+None of them ever includes `.tmp/`, `.venv/`, or `bin/obj/`, because none of
+them is built by walking the filesystem.
 
-### 1.2 The Go peer-aggregation path is dead code under ADR-0007
+### 1.2 The Go peer-aggregation path does not run under ADR-0007
 
 PR #39's first table row says "Go reparses context on each check" and the
-delivery plan caches it. The reparse exists in the source, but it does not
-run in the deployed configuration:
+delivery plan caches it. The reparse exists in the source, but in the
+deployed configuration it runs only by accident:
 
 - `Checker.Check` canonicalises `request.Repo` to the bare governance key
   (`loadConfig` returns `repoName`, e.g. `agent-fitness-functions`).
@@ -89,8 +102,11 @@ run in the deployed configuration:
   the **daemon process's working directory**.
 - `client onboard` starts the daemon with `exec.Command` and never sets a
   working directory, so the daemon inherits whatever directory the hook or
-  wizard happened to run in. `os.ReadDir` fails and the function returns the
-  proposed file alone (`if err != nil { return proposed, nil }`).
+  wizard happened to run in. Unless that directory happens to be the parent
+  of a checkout named after the governance key, `os.ReadDir` fails and the
+  function silently returns the proposed file alone (`if err != nil { return
+  proposed, nil }`). That is a correctness defect before it is a caching
+  problem: the verdict depends on where the daemon was started.
 
 Corroboration from the clean baseline: under package-name aggregation,
 `server` exposes 47 exported functions and `client` 25, both above the
@@ -121,9 +137,11 @@ P90s of the *baseline* results, which for Python and C# are per-file counts
 and for Go are per-package counts that, per 1.2, never apply at request
 time. PR #39 says a threshold "must be recalibrated per layer"; the
 calibration record does not yet say which layer each threshold belongs to.
-Any module-tier migration has to restate that before it can be turned on in
-`block` mode, or the first Go repository onboarded will block on its largest
-package.
+Repairing the aggregation is therefore a policy change, not a bug fix: it
+changes what the threshold measures. It needs a recalibration and a written
+explanation of the file, package, or component scope before it is enabled
+in `block` mode, or the first Go repository onboarded will block on its
+largest package.
 
 ## 2. What the catalog actually needs
 
@@ -305,9 +323,12 @@ the end of this document.
 ### 5.1 Fix the evidence and add the membership criterion
 
 Replace the baseline numbers in the plan with the clean-tree figures from
-section 1.1, keep the conclusion, and add an acceptance criterion: *a
-snapshot contains exactly the tracked, unignored files of the worktree; the
-walker never enters ignored directories.*
+section 1.1, keep the conclusion, and add an acceptance criterion per
+snapshot kind: *a committed snapshot is exactly one commit's tree; a staged
+snapshot is exactly the index, including additions, deletions, and renames;
+a speculative snapshot is one of those plus an explicit overlay set; no
+snapshot is built by walking the filesystem.* The `baseline` command should
+be held to the same rule.
 
 ### 5.2 Say where the repository comes from
 
@@ -324,6 +345,15 @@ shapes, and each needs a different answer:
 The plan should state this table and pick the local daemon as the first
 target, because it is the only place an overlay and a live index coexist
 without a new artifact pipeline.
+
+Two facts sharpen the CI row. No GitHub Actions workflow is tracked on
+`main` today, so the authoritative CI that `CONTEXT.md` calls the real
+enforcement layer does not yet exist as code; and that same CI evaluation
+is the backstop for the hook-bypass gap in #7. Project-level evaluation
+should be a distinct operation from the per-file hook path, run in CI
+against an exact snapshot and a versioned policy, and it must report
+*missing evidence* rather than a clean pass when required analysis is
+unavailable.
 
 ### 5.3 Do not invent identity; do not write every adapter
 
@@ -362,6 +392,19 @@ that division of ownership. The workable split is:
 That is the ArchUnit and SonarQube shape (fixed kinds, user parameters), and
 it keeps the option of a Datalog layer open without depending on it.
 
+Two more things belong here. First, a rule instance is a *standard* that
+people must be able to understand and change, so each needs an identity, an
+owner, a rationale, a version, an approval, an effective date, and the
+components it affects. That metadata is what `GET /context` in #19 should
+return first; it needs neither gradients nor the graph. Second, a CALM
+declaration is not enforcement: the CLI validating that a flow or a control
+is well-formed proves nothing about the code. Every declared item needs a
+named evaluator that connects it to evidence, and the evaluator's claim must
+be stated as narrowly as the evidence allows. For a nontechnical owner,
+authoring is a bounded workflow rather than a JSON file: pick a supported
+rule kind, explain its purpose, choose the affected components, preview a
+compliant and a non-compliant example, and approve a versioned change.
+
 ### 5.5 Two clocks, and staleness as a field
 
 The hook budget is 500 ms. Tier 3 (repository semantic) cannot run on that
@@ -390,10 +433,15 @@ actual proposed snapshot has nothing to remember.
 
 `fitness.Violation` has one `File` and one `Function`. #37 needs two
 locations, #24 needs a path, #32 needs a hop list, #21 needs scores. All are
-additive: `locations []Location`, `evidence`, `scores`. `internal/sarif`
-already models related locations, and LSP has related information. Land the
-contract first; it is what lets the gradient tracer bullet (#21) ship before
-any cache exists.
+additive: `locations []Location`, `evidence`, and `scores`, where `evidence`
+carries the snapshot, the policy version, the analyzer version, and the
+coverage actually achieved, including unresolved references. Without the
+versions a result cannot be reproduced; without coverage a clean result
+cannot be told apart from an unevaluated one, and the optimistic first C#
+pass during Roslyn warm-up (`calm-poc-a26`) is the existing instance of that
+ambiguity. `internal/sarif` already models related locations, and LSP has
+related information. Land the contract first; it is what lets the gradient
+tracer bullet (#21) ship before any cache exists.
 
 ### 5.8 Respect the CGO-free build
 
@@ -408,10 +456,14 @@ The plan should state this constraint next to the Tree-sitter comparison.
 Four issues are answered from history alone. Add a **git adapter** that emits
 commit, touches, author, and timestamp facts, and a **snapshot ledger** that
 persists per-module metrics and exported-surface hashes per commit. The
-ledger is small (one row per module per commit), lives beside validation
-history under the clone's common Git directory, and is the only way #28 and
-#33 can compare "then" with "now". ADR-0011's rule that observability never
-blocks validation applies unchanged.
+ledger is small (one row per module per commit) and can live beside
+validation history under the clone's common Git directory, but it must not
+inherit that history's delivery guarantees: ADR-0011 allows history events
+to be lost, and a temporal gate cannot treat a missing record as
+compliance. The ledger is therefore a cache that is recomputable from
+committed snapshots, a temporal rule reads only committed evidence, and when
+the evidence for a window is absent the outcome is *missing evidence*, never
+pass.
 
 ### 5.10 Keep the trust boundary honest for #20
 
@@ -421,7 +473,12 @@ achievable; it is achievable in CI and in the mTLS container. The trajectory
 log should be specified as *daemon-authored* (no agent write path) with
 tamper-resistance stated per deployment shape, and its schema should reuse
 the history event shape (`internal/history.Event` already carries session,
-tool, worktree, and branch).
+tool, worktree, and branch). The same honesty applies to the `agent_action`
+field #20 wants to derive: a later, lower score is an observed improvement
+in a proposal. It does not establish that the agent followed the advice,
+that the proposal was applied, or that the committed code changed; the
+repository's own vocabulary already separates a passing proposal from an
+applied fix.
 
 ## 6. The improved direction in one picture
 
@@ -514,6 +571,14 @@ skipping path with its hops. That is a Semgrep taint rule or a CodeQL path
 query with the outbox as the barrier, expressed once against facts rather
 than per language.
 
+The claim must stay that narrow. An outbox on every static path proves that
+the code is structured as declared; it does not prove atomicity, crash
+consistency, or exactly-once delivery. #23 and #24 should state the static
+claim as a structural property and pair it with integration or
+failure-injection evidence for the behavioural guarantee, and the evaluator
+must report unresolved calls as missing coverage rather than as the absence
+of a violation.
+
 ## 7. Sequencing implied by the dependencies
 
 This is not a delivery plan; it is the dependency order the analysis
@@ -550,6 +615,48 @@ work at all and unlock seven issues, which is a cheaper way to validate the
 intent plane than the cache is. And #24 sits at the far end of the longest
 chain; it should be the last acceptance test for CASM, not, as the catalog's
 prose suggests, an early one.
+
+### 7.1 The first vertical slice
+
+gcasar's review of this document proposes a foundation epic, *versioned
+declared and observed CALM architecture with deterministic conformance
+evidence*, with #37 as its first acceptance test and the AST-backed
+component visualization item (`calm-poc-ck8.1`) as its first consumer. Its
+first slice is smaller and sharper than steps 1 to 3 above and should
+replace them as the starting point:
+
+- one Go repository with explicitly declared components and allowed
+  dependency directions;
+- stable project and node identities and a reviewed source-to-node mapping,
+  where a language package is not automatically a CALM component;
+- exact commit or staged snapshots, including additions, deletions, and
+  renames;
+- observed import edges with source locations, and unresolved references
+  reported as visible evidence;
+- a declared-versus-observed graph showing violations with their policy
+  rationale;
+- #37 evaluated in CI against the same snapshot and policy, with identical
+  results on repeated evaluation and no clean pass when required analysis
+  is unavailable.
+
+The per-file hook path stays as it is; project evaluation is a distinct
+operation. The order the review suggests is standards and evidence
+contracts, then authoritative CI and snapshot correctness, then the graph
+plus #37, then broader detectors and richer authoring.
+
+### 7.2 Adjustments to the catalog
+
+| Issues | Adjustment |
+| --- | --- |
+| #7 | Split hook coverage from the remediation deadlock; authoritative CI is the enforcement backstop. |
+| #19, #21, #22 | Keep the small gradient slice; let standards and rationale context ship on their own. |
+| #20 | Rewrite the trust and attribution criteria; separate local diagnostic history from CI evidence. |
+| #25, #27, #37 | The first architecture checks, in the order #37, then authorized dependencies, then executable ADR constraints. |
+| #23, #24, #32 | Depend on defined flow entry points, edge semantics, and analysis coverage; structural evidence is not behavioural proof. |
+| #26, #28, #29, #33 | Group under versioned architecture and history. #33 can start from a reviewed public-interface baseline. #28's premise needs a challenge: growth behind a stable interface can be healthy encapsulation. |
+| #18, #30, #31, #34, #36 | Advisory first: similarity, vocabulary, and clusters do not establish duplicate intent or wrong responsibility. Split #30's pattern completeness from its semantic duplication. |
+| #35 | Report potentially affected dependents; do not claim every reachable dependent requires an edit. |
+| #38 | Lower priority until the standards and diagnostics it delivers are trustworthy. |
 
 ## 8. Questions this leaves for Peter and gcasar
 
@@ -722,4 +829,4 @@ public-surface analyzers (`PublicAPI.Shipped.txt`, ApiCompat, `apidiff`,
 JMove); and LCOM4. Treat those rows as pointers to check, not as verified
 claims.
 
-*Authored By Peter O'Connor with Assistance from Claude Code · 2026-09-10 · Pressure test of the shared abstract syntax model against the AFF catalog*
+*Authored By Peter O'Connor with Assistance from Claude Code · 2026-09-10 · Pressure test of the shared abstract syntax model against the AFF catalog · Revised 2026-09-14 after gcasar's review on PR #40*
