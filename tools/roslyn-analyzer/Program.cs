@@ -318,13 +318,18 @@ static async Task<int> RepositoryGraph(string repository)
     using var workspace = MSBuildWorkspace.Create();
     var solution = Directory.EnumerateFiles(repository, "*.sln", SearchOption.TopDirectoryOnly).OrderBy(x => x, StringComparer.Ordinal).FirstOrDefault();
     var projects = new List<Project>();
-    if (solution is not null) projects.AddRange((await workspace.OpenSolutionAsync(solution)).Projects);
+    var diagnostics = new List<GraphDiagnostic>();
+    if (solution is not null)
+    {
+        projects.AddRange((await workspace.OpenSolutionAsync(solution)).Projects);
+        diagnostics.AddRange(workspace.Diagnostics.Where(d => d.Kind == WorkspaceDiagnosticKind.Failure).Select(d => new GraphDiagnostic { Severity="error", Code="project-load", Message=d.Message }));
+    }
     else
     {
         foreach (var csproj in Directory.EnumerateFiles(repository, "*.csproj", SearchOption.AllDirectories).Where(IsSourcePath).OrderBy(x => x, StringComparer.Ordinal))
         {
             try { await workspace.OpenProjectAsync(csproj); }
-            catch (Exception ex) { Console.Error.WriteLine($"Roslyn project warning: {Path.GetFileName(csproj)}: {ex.Message}"); }
+            catch (Exception ex) { diagnostics.Add(new GraphDiagnostic { Severity="error", Code="project-load", Project=csproj, Message=ex.Message }); Console.Error.WriteLine($"Roslyn project warning: {Path.GetFileName(csproj)}: {ex.Message}"); }
         }
         projects.AddRange(workspace.CurrentSolution.Projects);
     }
@@ -332,7 +337,7 @@ static async Task<int> RepositoryGraph(string repository)
     var edges = new Dictionary<(string Source,string Destination,string Kind), GraphEdge>();
     foreach (var project in projects.OrderBy(p => p.FilePath, StringComparer.Ordinal))
     {
-        var compilation = await project.GetCompilationAsync(); if (compilation is null) continue;
+        var compilation = await project.GetCompilationAsync(); if (compilation is null) { diagnostics.Add(new GraphDiagnostic { Severity="error", Code="compilation", Project=project.FilePath ?? project.Name, Message="no compilation produced" }); continue; }
         foreach (var tree in compilation.SyntaxTrees.OrderBy(t => t.FilePath, StringComparer.Ordinal))
         {
             if (!IsSourcePath(tree.FilePath)) continue;
@@ -340,22 +345,23 @@ static async Task<int> RepositoryGraph(string repository)
             foreach (var type in root.DescendantNodes().OfType<BaseTypeDeclarationSyntax>())
             {
                 var symbol = model.GetDeclaredSymbol(type) as INamedTypeSymbol; if (symbol is null || !IsInRepository(symbol, repository)) continue;
-                var id = StableId(symbol); nodes.TryAdd(id, new GraphNode { Id=id, Name=symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat), Kind=Kind(symbol), Project=project.Name });
+                var id = StableId(symbol); var span=type.GetLocation().GetLineSpan(); var node=new GraphNode { Id=id, Name=symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat), Kind=Kind(symbol,type), Project=project.Name, CanonicalName=CanonicalName(symbol) }; node.Locations.Add(new GraphLocation { File=Relative(repository,tree.FilePath), Line=span.StartLinePosition.Line+1, Column=span.StartLinePosition.Character+1 }); if (nodes.TryGetValue(id,out var existing)) existing.Locations.AddRange(node.Locations); else nodes.Add(id,node);
             }
             foreach (var syntax in root.DescendantNodes().Where(n => n is IdentifierNameSyntax or ObjectCreationExpressionSyntax or BaseTypeSyntax))
             {
                 var target = model.GetSymbolInfo(syntax).Symbol ?? model.GetTypeInfo(syntax).Type; var source = ContainingType(model, syntax); if (target is null || source is null) continue;
-                var destination = target as INamedTypeSymbol ?? target.ContainingType; if (destination is null || !IsInRepository(destination, repository) || SymbolEqualityComparer.Default.Equals(source,destination)) continue;
+                var destination = target as INamedTypeSymbol ?? target.ContainingType; if (!IsInRepository(source, repository) || !nodes.ContainsKey(StableId(source)) || destination is null || !IsInRepository(destination, repository) || SymbolEqualityComparer.Default.Equals(source,destination)) continue;
                 var key=(StableId(source),StableId(destination),DependencyKind(syntax)); if (!edges.TryGetValue(key,out var edge)){edge=new GraphEdge{Source=key.Item1,Destination=key.Item2,Kind=key.Item3};edges[key]=edge;}
                 var span=syntax.GetLocation().GetLineSpan(); edge.Locations.Add(new GraphLocation{File=Path.GetRelativePath(repository,tree.FilePath),Line=span.StartLinePosition.Line+1,Column=span.StartLinePosition.Character+1});
             }
         }
     }
-    var result = new RepositoryGraph { Nodes=nodes.Values.OrderBy(n=>n.Id,StringComparer.Ordinal).ToList(), Edges=edges.Values.OrderBy(e=>e.Source,StringComparer.Ordinal).ThenBy(e=>e.Destination,StringComparer.Ordinal).ThenBy(e=>e.Kind,StringComparer.Ordinal).ToList() };
+    var result = new RepositoryGraph { SchemaVersion="1", Language="csharp", Nodes=nodes.Values.OrderBy(n=>n.Id,StringComparer.Ordinal).ToList(), Edges=edges.Values.OrderBy(e=>e.Source,StringComparer.Ordinal).ThenBy(e=>e.Destination,StringComparer.Ordinal).ThenBy(e=>e.Kind,StringComparer.Ordinal).ToList(), Analysis=new GraphAnalysis { Completeness=diagnostics.Count==0 ? "complete" : "incomplete", AnalyzedProjects=projects.Select(p=>p.Name).Distinct(StringComparer.Ordinal).OrderBy(x=>x,StringComparer.Ordinal).ToList(), SkippedProjects=new List<string>(), TargetFrameworks=new List<string>(), Diagnostics=diagnostics } };
     foreach (var edge in result.Edges) edge.Locations=edge.Locations.OrderBy(l=>l.File,StringComparer.Ordinal).ThenBy(l=>l.Line).ThenBy(l=>l.Column).GroupBy(l=>$"{l.File}:{l.Line}:{l.Column}").Select(g=>g.First()).ToList();
     Console.WriteLine(JsonSerializer.Serialize(result,new JsonSerializerOptions{PropertyNamingPolicy=JsonNamingPolicy.SnakeCaseLower,WriteIndented=true})); return 0;
 }
-static bool IsSourcePath(string? path) { if (string.IsNullOrEmpty(path)) return false; var full=Path.GetFullPath(path); if (full.Split(Path.DirectorySeparatorChar).Any(p=>p is "bin" or "obj" or ".git" or ".vs" or "packages")) return false; return full.EndsWith(".cs",StringComparison.OrdinalIgnoreCase) || full.EndsWith(".csproj",StringComparison.OrdinalIgnoreCase); }
+static bool IsSourcePath(string? path) { if (string.IsNullOrEmpty(path)) return false; var full=Path.GetFullPath(path); if (full.Split(Path.DirectorySeparatorChar).Any(p=>p is "bin" or "obj" or ".git" or ".vs" or "packages" or ".tmp")) return false; return full.EndsWith(".cs",StringComparison.OrdinalIgnoreCase) || full.EndsWith(".csproj",StringComparison.OrdinalIgnoreCase); }
+static string Relative(string repository,string? path) => string.IsNullOrEmpty(path) ? "" : Path.GetRelativePath(repository,path).Replace(Path.DirectorySeparatorChar,'/');
 static bool IsInRepository(ISymbol symbol,string repo) { var path=symbol.Locations.FirstOrDefault(l=>l.IsInSource)?.SourceTree?.FilePath; return path is not null && Path.GetFullPath(path).StartsWith(repo+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase) && IsSourcePath(path); }
 static INamedTypeSymbol? ContainingType(SemanticModel model, SyntaxNode node)
 {
@@ -367,14 +373,17 @@ static INamedTypeSymbol? ContainingType(SemanticModel model, SyntaxNode node)
         DelegateDeclarationSyntax del => model.GetDeclaredSymbol(del),
         _ => null,
     };
-    return declared?.ContainingType ?? model.GetEnclosingSymbol(node.SpanStart)?.ContainingType;
+    return declared ?? model.GetEnclosingSymbol(node.SpanStart)?.ContainingType;
 }
-static string Kind(INamedTypeSymbol symbol) => symbol.TypeKind.ToString().ToLowerInvariant() switch { "class"=>"class", "interface"=>"interface", "struct"=>"struct", "enum"=>"enum", "delegate"=>"delegate", _=>"type" };
-static string StableId(ISymbol symbol) => "csharp-"+Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes((symbol.ContainingAssembly?.Name??"")+"/"+symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))).ToLowerInvariant()[..16];
-static string DependencyKind(SyntaxNode node) => node switch { ObjectCreationExpressionSyntax=>"construction", BaseTypeSyntax=>"inheritance", IdentifierNameSyntax id when id.Parent is ParameterSyntax=>"parameter", _=>"member" };
+static string Kind(INamedTypeSymbol symbol, BaseTypeDeclarationSyntax syntax) => syntax switch { RecordDeclarationSyntax r when r.ClassOrStructKeyword.IsKind(SyntaxKind.StructKeyword)=>"record-struct", RecordDeclarationSyntax=>"record-class", _=>symbol.TypeKind.ToString().ToLowerInvariant() switch { "class"=>"class", "interface"=>"interface", "struct"=>"struct", "enum"=>"enum", "delegate"=>"delegate", _=>"type" } };
+static string CanonicalName(ISymbol symbol) => symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat).Replace("global::","");
+static string StableId(ISymbol symbol) { var text=(symbol.ContainingAssembly?.Name??"")+"\0"+CanonicalName(symbol); return "csharp-"+Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text))).ToLowerInvariant()[..24]; }
+static string DependencyKind(SyntaxNode node) => node switch { ObjectCreationExpressionSyntax=>"constructs", BaseTypeSyntax=>"inherits", IdentifierNameSyntax id when id.Parent is ParameterSyntax=>"parameter", _=>"field" };
 
-sealed class RepositoryGraph { public List<GraphNode> Nodes { get; set; } = []; public List<GraphEdge> Edges { get; set; } = []; }
-sealed class GraphNode { public string Id { get; set; } = ""; public string Name { get; set; } = ""; public string Kind { get; set; } = ""; public string Project { get; set; } = ""; }
+sealed class RepositoryGraph { public string SchemaVersion { get; set; } = "1"; public string Language { get; set; } = "csharp"; public List<GraphNode> Nodes { get; set; } = []; public List<GraphEdge> Edges { get; set; } = []; public GraphAnalysis Analysis { get; set; } = new(); }
+sealed class GraphAnalysis { public string Completeness { get; set; } = "complete"; public List<string> AnalyzedProjects { get; set; } = []; public List<string> SkippedProjects { get; set; } = []; public List<string> TargetFrameworks { get; set; } = []; public List<GraphDiagnostic> Diagnostics { get; set; } = []; }
+sealed class GraphDiagnostic { public string Severity { get; set; } = "error"; public string Code { get; set; } = ""; public string Message { get; set; } = ""; public string Project { get; set; } = ""; }
+sealed class GraphNode { public string Id { get; set; } = ""; public string Name { get; set; } = ""; public string Kind { get; set; } = ""; public string Project { get; set; } = ""; public string CanonicalName { get; set; } = ""; public List<GraphLocation> Locations { get; set; } = []; }
 sealed class GraphEdge { public string Source { get; set; } = ""; public string Destination { get; set; } = ""; public string Kind { get; set; } = ""; public List<GraphLocation> Locations { get; set; } = []; }
 sealed class GraphLocation { public string File { get; set; } = ""; public int Line { get; set; } public int Column { get; set; } }
 sealed record ImportEntry(string DisplayName, string NamespaceOrType, string Alias);

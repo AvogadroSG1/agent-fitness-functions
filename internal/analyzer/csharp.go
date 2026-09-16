@@ -26,6 +26,12 @@ func AnalyzeCSharpRepository(ctx context.Context, repo, cliPath string) (archite
 	if err := json.Unmarshal(output, &graph); err != nil {
 		return graph, fmt.Errorf("parsing Roslyn repository output: %w (stderr: %s)", err, strings.TrimSpace(stderr))
 	}
+	if err := architecture.ValidateGraph(graph); err != nil {
+		return graph, fmt.Errorf("invalid Roslyn repository graph: %w", err)
+	}
+	if graph.Analysis.Completeness != "complete" {
+		return graph, fmt.Errorf("Roslyn repository analysis is incomplete: %s", graph.Analysis.Diagnostics)
+	}
 	return graph, nil
 }
 
