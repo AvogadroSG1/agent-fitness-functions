@@ -329,4 +329,21 @@ validation never ran, and unavailable history does not change validation behavio
 See the [history operator reference](runbooks/onboard-new-repository.md#repository-validation-history)
 for filters, JSON, exit codes, diagnostics, and lifecycle details.
 
+## Generate a local C# architecture baseline
+
+Local C# onboarding runs a one-time observed architecture refresh after the
+daemon is ready. To refresh explicitly later, run:
+
+```bash
+agent-fitness-functions client architecture refresh --path /path/to/csharp-repository > architecture.json
+```
+
+The client reads the checkout and invokes Roslyn repository analysis. It builds
+and submits a CALM 1.2 document to the loopback daemon, then prints only the
+daemon's accepted document to stdout; diagnostics go to stderr. The daemon
+stores only the latest accepted document under the machine governance root.
+This is an observed local working-tree graph, not CI evidence or declared
+policy, and project-wide architecture enforcement is not enabled by this
+workflow. The API is intentionally unavailable in remote/mTLS mode.
+
 *Authored By Peter O'Connor with Assistance from Codex (gpt-6) · 2026-09-06 · Quickstart and repository validation history*

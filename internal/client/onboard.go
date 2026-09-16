@@ -544,13 +544,26 @@ func (o *onboarder) run() error {
 	} else {
 		steps = append(steps, o.registerRemote)
 	}
-	steps = append(steps, o.migrateLegacy, o.installHooks, o.startDaemon, o.awaitRegistration, o.runDoctor)
+	steps = append(steps, o.migrateLegacy, o.installHooks, o.startDaemon, o.awaitRegistration)
+	if o.localHTTP {
+		steps = append(steps, o.refreshArchitecture)
+	}
+	steps = append(steps, o.runDoctor)
 	for _, step := range steps {
 		if err := step(); err != nil {
 			return err
 		}
 	}
 	o.printManualRemainder()
+	return nil
+}
+
+func (o *onboarder) refreshArchitecture() error {
+	o.step("C# architecture baseline")
+	if err := RunArchitectureRefresh([]string{"--repo", o.repoName, "--addr", o.addr, "--path", o.repoRoot}, io.Discard, o.stderr, o.httpClient, o.starter); err != nil {
+		return fmt.Errorf("architecture analysis failed (fitness validation was not involved): %w", err)
+	}
+	o.detail("latest accepted architecture stored by the local daemon")
 	return nil
 }
 

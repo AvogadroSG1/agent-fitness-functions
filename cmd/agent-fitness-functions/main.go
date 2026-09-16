@@ -25,7 +25,7 @@ import (
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/server"
 )
 
-const usageLine = "usage: agent-fitness-functions <client validate|client install-hooks|client onboard|client functions|client history|client resolve-dev-cert-version|server start|baseline|doctor|uninstall|upgrade|rollback|runtime provision|runtime doctor>"
+const usageLine = "usage: agent-fitness-functions <client validate|client architecture refresh|client install-hooks|client onboard|client functions|client history|client resolve-dev-cert-version|server start|baseline|doctor|uninstall|upgrade|rollback|runtime provision|runtime doctor>"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -219,12 +219,18 @@ func runBaselineCommand(args []string, stdout, stderr io.Writer) int {
 
 func runClient(args []string, stdout, stderr io.Writer, httpClient *http.Client, starter func(client.DaemonStartConfig) error, historyRuntime ...*client.HistoryRuntime) int {
 	if len(args) == 0 {
-		_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions client <validate|install-hooks|onboard|functions|history|resolve-dev-cert-version>")
+		_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions client <validate|architecture refresh|install-hooks|onboard|functions|history|resolve-dev-cert-version>")
 		return 2
 	}
 	switch args[0] {
 	case "validate":
 		return clientExitCode(client.RunCheck(args[1:], stdout, httpClient, starter), stderr)
+	case "architecture":
+		if len(args) < 2 || args[1] != "refresh" {
+			_, _ = fmt.Fprintln(stderr, "usage: agent-fitness-functions client architecture refresh")
+			return 2
+		}
+		return clientExitCode(client.RunArchitectureRefresh(args[2:], stdout, stderr, httpClient, starter), stderr)
 	case "install-hooks":
 		return clientExitCode(client.RunInstallHooks(args[1:], stdout, stderr), stderr)
 	case "onboard":

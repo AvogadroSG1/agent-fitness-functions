@@ -31,7 +31,8 @@ type HandlerOptions struct {
 	// LocalHTTP marks the loopback plain-HTTP listen mode (ADR-0010): requests
 	// from loopback peers carry an implicit caller identity instead of a client
 	// certificate, and repo/admin authorization is satisfied for them.
-	LocalHTTP bool
+	LocalHTTP        bool
+	ArchitectureRoot string
 }
 
 // Identity describes the running daemon so /health callers can compare it

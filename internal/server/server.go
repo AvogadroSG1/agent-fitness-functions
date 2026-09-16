@@ -132,6 +132,7 @@ func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOpti
 	mux.HandleFunc("/register", withAuthenticatedCaller(registerHandler(checker, options), options))
 	mux.HandleFunc("/functions", withAuthenticatedCaller(functionsHandler(checker, options), options))
 	mux.HandleFunc("/shutdown", withAuthenticatedCaller(shutdownHandler(checker, options, cancelDeferred, shutdown), options))
+	mux.HandleFunc("/architecture", withAuthenticatedCaller(architectureHandler(options), options))
 	return mux
 }
 
@@ -408,6 +409,15 @@ func Serve(ctx context.Context, addr string) error {
 
 func ServeWithOptions(ctx context.Context, options ServeOptions) error {
 	applyServeDefaults(&options)
+	if options.HandlerOptions.ArchitectureRoot == "" {
+		root := options.ManagedRoot
+		if root == "" && options.ConfigDir != "" {
+			root = filepath.Dir(options.ConfigDir)
+		}
+		if root != "" {
+			options.HandlerOptions.ArchitectureRoot = filepath.Join(root, architectureDirName)
+		}
+	}
 	return serveWithOptions(ctx, options)
 }
 
