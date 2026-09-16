@@ -37,3 +37,32 @@ func TestValidateRejectsUnknownRelationship(t *testing.T) {
 		t.Fatal("expected unknown relationship to be rejected")
 	}
 }
+
+func TestBuildAggregatesFactsWithoutInventingFitness(t *testing.T) {
+	doc := Build(Graph{Language: "csharp", Nodes: []Node{{ID: "a", Name: "A", Kind: "class"}, {ID: "b", Name: "B", Kind: "interface"}}, Edges: []Edge{
+		{Source: "a", Destination: "b", Kind: "implements", Locations: []Location{{File: "z.cs", Line: 3}}},
+		{Source: "a", Destination: "b", Kind: "parameter", Locations: []Location{{File: "a.cs", Line: 2}}},
+	}})
+	if len(doc.Relationships) != 1 {
+		t.Fatalf("got %d relationships, want one aggregated relationship", len(doc.Relationships))
+	}
+	if _, ok := doc.Nodes[0].Metadata["fitness"]; ok {
+		t.Fatal("unmeasured fitness must not be serialized")
+	}
+	metadata := doc.Relationships[0].RelationshipType.Connects.Metadata
+	if metadata == nil || metadata["dependency-kinds"] == nil || metadata["evidence"] == nil {
+		t.Fatalf("dependency evidence missing from metadata: %#v", metadata)
+	}
+	first := doc.Relationships[0].UniqueID
+	withUnrelated := Build(Graph{Language: "csharp", Nodes: []Node{{ID: "a", Name: "A", Kind: "class"}, {ID: "b", Name: "B", Kind: "interface"}, {ID: "z", Name: "Z", Kind: "enum"}}, Edges: []Edge{{Source: "a", Destination: "b", Kind: "implements"}, {Source: "a", Destination: "b", Kind: "parameter"}, {Source: "z", Destination: "z", Kind: "field"}}})
+	if withUnrelated.Relationships[0].UniqueID != first {
+		t.Fatal("unrelated graph changes renamed an existing relationship")
+	}
+}
+
+func TestBuildAllowsIsolatedNodesWithEmptyRelationships(t *testing.T) {
+	doc := Build(Graph{Language: "csharp", Nodes: []Node{{ID: "a", Name: "A", Kind: "record-class"}}})
+	if doc.Relationships == nil || len(doc.Relationships) != 0 {
+		t.Fatalf("isolated graph relationships = %#v, want []", doc.Relationships)
+	}
+}
