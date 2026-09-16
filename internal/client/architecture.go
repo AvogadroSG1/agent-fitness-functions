@@ -10,7 +10,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
@@ -31,9 +33,9 @@ func RunArchitectureRefresh(args []string, stdout, stderr io.Writer, httpClient 
 	if len(fs.Args()) > 0 {
 		return usageError{err: errors.New("architecture refresh accepts no positional arguments")}
 	}
-	root := resolveRepoRoot(*pathFlag, "")
-	if root == "" {
-		return errors.New("could not locate repository checkout")
+	root, err := strictArchitectureRoot(*pathFlag)
+	if err != nil {
+		return err
 	}
 	repo := *repoFlag
 	if repo == "" {
@@ -73,9 +75,15 @@ func RunArchitectureRefresh(args []string, stdout, stderr io.Writer, httpClient 
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("uploading architecture baseline: %s: %s", resp.Status, body)
 	}
+	putETag := resp.Header.Get("ETag")
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
 	get, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return err
+	}
+	if putETag != "" {
+		get.Header.Set("If-Match", putETag)
 	}
 	accepted, err := endpoint.client.Do(get)
 	if err != nil {
@@ -85,6 +93,34 @@ func RunArchitectureRefresh(args []string, stdout, stderr io.Writer, httpClient 
 	if accepted.StatusCode/100 != 2 {
 		return fmt.Errorf("retrieving accepted architecture baseline: %s", accepted.Status)
 	}
-	_, err = io.Copy(stdout, accepted.Body)
+	raw, err := io.ReadAll(accepted.Body)
+	if err != nil {
+		return fmt.Errorf("reading accepted architecture baseline: %w", err)
+	}
+	if _, err := architecture.Validate(raw); err != nil {
+		return fmt.Errorf("daemon returned invalid accepted architecture: %w", err)
+	}
+	_, err = stdout.Write(raw)
 	return err
+}
+
+func strictArchitectureRoot(path string) (string, error) {
+	if path == "" {
+		return "", errors.New("architecture repository path is empty")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", fmt.Errorf("architecture repository path %q: %w", path, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("architecture repository path %q is not a directory", path)
+	}
+	root, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	if gitRoot, gitErr := gitOutput(root, "rev-parse", "--show-toplevel"); gitErr == nil && strings.TrimSpace(gitRoot) != "" {
+		return filepath.Clean(strings.TrimSpace(gitRoot)), nil
+	}
+	return "", fmt.Errorf("architecture path %q is not a Git checkout", path)
 }

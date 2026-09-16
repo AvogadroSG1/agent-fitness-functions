@@ -132,7 +132,7 @@ func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOpti
 	mux.HandleFunc("/register", withAuthenticatedCaller(registerHandler(checker, options), options))
 	mux.HandleFunc("/functions", withAuthenticatedCaller(functionsHandler(checker, options), options))
 	mux.HandleFunc("/shutdown", withAuthenticatedCaller(shutdownHandler(checker, options, cancelDeferred, shutdown), options))
-	mux.HandleFunc("/architecture", withAuthenticatedCaller(architectureHandler(options), options))
+	mux.HandleFunc("/architecture", withAuthenticatedCaller(architectureHandler(options, checker.ConfigStore), options))
 	return mux
 }
 

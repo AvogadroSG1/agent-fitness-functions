@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"os"
@@ -12,11 +14,8 @@ import (
 
 const architectureDirName = "architectures"
 
-func architectureHandler(options HandlerOptions) http.HandlerFunc {
+func architectureHandler(options HandlerOptions, configs *ConfigStore) http.HandlerFunc {
 	root := options.ArchitectureRoot
-	if root == "" {
-		root = filepath.Join(os.TempDir(), "agent-fitness-functions", architectureDirName)
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !options.LocalHTTP {
 			http.Error(w, "architecture API is supported only in local-http mode", http.StatusNotImplemented)
@@ -25,6 +24,24 @@ func architectureHandler(options HandlerOptions) http.HandlerFunc {
 		repo := r.URL.Query().Get("repo")
 		if repo == "" || strings.ContainsAny(repo, `/\\`) || repo == "." || repo == ".." {
 			http.Error(w, "architecture requires a valid repo", http.StatusBadRequest)
+			return
+		}
+		canonical, err := canonicalRepoName(repo)
+		if err != nil {
+			http.Error(w, "architecture requires a valid repo", http.StatusBadRequest)
+			return
+		}
+		if configs == nil {
+			http.Error(w, "architecture store is not configured", http.StatusInternalServerError)
+			return
+		}
+		if _, ok := configs.Lookup(canonical); !ok {
+			http.Error(w, "unknown repository", http.StatusNotFound)
+			return
+		}
+		repo = canonical
+		if root == "" {
+			http.Error(w, "architecture store is not configured", http.StatusInternalServerError)
 			return
 		}
 		path := filepath.Join(root, repo+".json")
@@ -40,6 +57,11 @@ func architectureHandler(options HandlerOptions) http.HandlerFunc {
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("ETag", architectureDigest(raw))
+			if match := r.Header.Get("If-Match"); match != "" && match != architectureDigest(raw) {
+				http.Error(w, "architecture baseline changed during refresh", http.StatusPreconditionFailed)
+				return
+			}
 			_, _ = w.Write(raw)
 		case http.MethodPut:
 			body, err := readArchitectureBody(w, r)
@@ -75,6 +97,7 @@ func architectureHandler(options HandlerOptions) http.HandlerFunc {
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("ETag", architectureDigest(body))
 			_, _ = w.Write(body)
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -87,8 +110,17 @@ func readArchitectureBody(w http.ResponseWriter, r *http.Request) ([]byte, error
 	defer limited.Close()
 	raw, err := io.ReadAll(limited)
 	if err != nil {
-		http.Error(w, "invalid architecture request", 400)
+		status := http.StatusBadRequest
+		if strings.Contains(err.Error(), "request body too large") {
+			status = http.StatusRequestEntityTooLarge
+		}
+		http.Error(w, "invalid architecture request", status)
 		return nil, err
 	}
 	return raw, nil
+}
+
+func architectureDigest(raw []byte) string {
+	sum := sha256.Sum256(raw)
+	return `"` + hex.EncodeToString(sum[:]) + `"`
 }
