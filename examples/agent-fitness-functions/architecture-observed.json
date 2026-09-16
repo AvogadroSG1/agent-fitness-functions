@@ -1,0 +1,581 @@
+{
+  "$schema": "https://calm.finos.org/release/1.2/meta/calm.json",
+  "nodes": [
+    {
+      "unique-id": "csharp-11500cb1499eb5376fb78b1a",
+      "node-type": "code-element",
+      "name": "RepositoryGraph",
+      "description": "Observed code element RepositoryGraph",
+      "metadata": {
+        "agent-fitness-functions": {
+          "c4-level": "code",
+          "canonical-name": "RepositoryGraph",
+          "language": "csharp",
+          "locations": [
+            {
+              "file": "tools/roslyn-analyzer/Program.cs",
+              "line": 383,
+              "column": 1
+            }
+          ],
+          "project": "CalmRoslynAnalyzer",
+          "symbol-kind": "class"
+        }
+      }
+    },
+    {
+      "unique-id": "csharp-11e4dbe224b8d1575e9d26f7",
+      "node-type": "code-element",
+      "name": "ImportEntry",
+      "description": "Observed code element ImportEntry",
+      "metadata": {
+        "agent-fitness-functions": {
+          "c4-level": "code",
+          "canonical-name": "ImportEntry",
+          "language": "csharp",
+          "locations": [
+            {
+              "file": "tools/roslyn-analyzer/Program.cs",
+              "line": 389,
+              "column": 1
+            }
+          ],
+          "project": "CalmRoslynAnalyzer",
+          "symbol-kind": "record-class"
+        }
+      }
+    },
+    {
+      "unique-id": "csharp-16afd45d8db0476410da6a40",
+      "node-type": "code-element",
+      "name": "FileMetric",
+      "description": "Observed code element FileMetric",
+      "metadata": {
+        "agent-fitness-functions": {
+          "c4-level": "code",
+          "canonical-name": "FileMetric",
+          "language": "csharp",
+          "locations": [
+            {
+              "file": "tools/roslyn-analyzer/Program.cs",
+              "line": 392,
+              "column": 1
+            }
+          ],
+          "project": "CalmRoslynAnalyzer",
+          "symbol-kind": "class"
+        }
+      }
+    },
+    {
+      "unique-id": "csharp-371968199517fc2de71b124c",
+      "node-type": "code-element",
+      "name": "GraphAnalysis",
+      "description": "Observed code element GraphAnalysis",
+      "metadata": {
+        "agent-fitness-functions": {
+          "c4-level": "code",
+          "canonical-name": "GraphAnalysis",
+          "language": "csharp",
+          "locations": [
+            {
+              "file": "tools/roslyn-analyzer/Program.cs",
+              "line": 384,
+              "column": 1
+            }
+          ],
+          "project": "CalmRoslynAnalyzer",
+          "symbol-kind": "class"
+        }
+      }
+    },
+    {
+      "unique-id": "csharp-55ae97a964edf7152dcfbf64",
+      "node-type": "code-element",
+      "name": "ImportMetric",
+      "description": "Observed code element ImportMetric",
+      "metadata": {
+        "agent-fitness-functions": {
+          "c4-level": "code",
+          "canonical-name": "ImportMetric",
+          "language": "csharp",
+          "locations": [
+            {
+              "file": "tools/roslyn-analyzer/Program.cs",
+              "line": 394,
+              "column": 1
+            }
+          ],
+          "project": "CalmRoslynAnalyzer",
+          "symbol-kind": "class"
+        }
+      }
+    },
+    {
+      "unique-id": "csharp-616945411c1018eb1cce74b9",
+      "node-type": "code-element",
+      "name": "GraphEdge",
+      "description": "Observed code element GraphEdge",
+      "metadata": {
+        "agent-fitness-functions": {
+          "c4-level": "code",
+          "canonical-name": "GraphEdge",
+          "language": "csharp",
+          "locations": [
+            {
+              "file": "tools/roslyn-analyzer/Program.cs",
+              "line": 387,
+              "column": 1
+            }
+          ],
+          "project": "CalmRoslynAnalyzer",
+          "symbol-kind": "class"
+        }
+      }
+    },
+    {
+      "unique-id": "csharp-6a39f3ebbd549dc3aa218282",
+      "node-type": "code-element",
+      "name": "ModuleMetric",
+      "description": "Observed code element ModuleMetric",
+      "metadata": {
+        "agent-fitness-functions": {
+          "c4-level": "code",
+          "canonical-name": "ModuleMetric",
+          "language": "csharp",
+          "locations": [
+            {
+              "file": "tools/roslyn-analyzer/Program.cs",
+              "line": 393,
+              "column": 1
+            }
+          ],
+          "project": "CalmRoslynAnalyzer",
+          "symbol-kind": "class"
+        }
+      }
+    },
+    {
+      "unique-id": "csharp-789af7aee550df228cb81860",
+      "node-type": "code-element",
+      "name": "AnalysisResult",
+      "description": "Observed code element AnalysisResult",
+      "metadata": {
+        "agent-fitness-functions": {
+          "c4-level": "code",
+          "canonical-name": "AnalysisResult",
+          "language": "csharp",
+          "locations": [
+            {
+              "file": "tools/roslyn-analyzer/Program.cs",
+              "line": 390,
+              "column": 1
+            }
+          ],
+          "project": "CalmRoslynAnalyzer",
+          "symbol-kind": "class"
+        }
+      }
+    },
+    {
+      "unique-id": "csharp-9df963318dace24240dac4e3",
+      "node-type": "code-element",
+      "name": "FunctionMetric",
+      "description": "Observed code element FunctionMetric",
+      "metadata": {
+        "agent-fitness-functions": {
+          "c4-level": "code",
+          "canonical-name": "FunctionMetric",
+          "language": "csharp",
+          "locations": [
+            {
+              "file": "tools/roslyn-analyzer/Program.cs",
+              "line": 391,
+              "column": 1
+            }
+          ],
+          "project": "CalmRoslynAnalyzer",
+          "symbol-kind": "class"
+        }
+      }
+    },
+    {
+      "unique-id": "csharp-b1725af7059efac0eec237da",
+      "node-type": "code-element",
+      "name": "GraphLocation",
+      "description": "Observed code element GraphLocation",
+      "metadata": {
+        "agent-fitness-functions": {
+          "c4-level": "code",
+          "canonical-name": "GraphLocation",
+          "language": "csharp",
+          "locations": [
+            {
+              "file": "tools/roslyn-analyzer/Program.cs",
+              "line": 388,
+              "column": 1
+            }
+          ],
+          "project": "CalmRoslynAnalyzer",
+          "symbol-kind": "class"
+        }
+      }
+    },
+    {
+      "unique-id": "csharp-b8d4fadba3f8da202ff6276a",
+      "node-type": "code-element",
+      "name": "GraphNode",
+      "description": "Observed code element GraphNode",
+      "metadata": {
+        "agent-fitness-functions": {
+          "c4-level": "code",
+          "canonical-name": "GraphNode",
+          "language": "csharp",
+          "locations": [
+            {
+              "file": "tools/roslyn-analyzer/Program.cs",
+              "line": 386,
+              "column": 1
+            }
+          ],
+          "project": "CalmRoslynAnalyzer",
+          "symbol-kind": "class"
+        }
+      }
+    },
+    {
+      "unique-id": "csharp-d1682605cb3240d3f948d084",
+      "node-type": "code-element",
+      "name": "GraphDiagnostic",
+      "description": "Observed code element GraphDiagnostic",
+      "metadata": {
+        "agent-fitness-functions": {
+          "c4-level": "code",
+          "canonical-name": "GraphDiagnostic",
+          "language": "csharp",
+          "locations": [
+            {
+              "file": "tools/roslyn-analyzer/Program.cs",
+              "line": 385,
+              "column": 1
+            }
+          ],
+          "project": "CalmRoslynAnalyzer",
+          "symbol-kind": "class"
+        }
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "unique-id": "relationship-b2714c65097e8da26f474a74",
+      "description": "Observed dependency",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "csharp-11500cb1499eb5376fb78b1a"
+          },
+          "destination": {
+            "node": "csharp-371968199517fc2de71b124c"
+          },
+          "metadata": {
+            "dependency-kinds": [
+              "field"
+            ],
+            "evidence": [
+              {
+                "kind": "field",
+                "locations": [
+                  {
+                    "file": "tools/roslyn-analyzer/Program.cs",
+                    "line": 383,
+                    "column": 235
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "unique-id": "relationship-c317b2543d59733863187721",
+      "description": "Observed dependency",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "csharp-11500cb1499eb5376fb78b1a"
+          },
+          "destination": {
+            "node": "csharp-616945411c1018eb1cce74b9"
+          },
+          "metadata": {
+            "dependency-kinds": [
+              "field"
+            ],
+            "evidence": [
+              {
+                "kind": "field",
+                "locations": [
+                  {
+                    "file": "tools/roslyn-analyzer/Program.cs",
+                    "line": 383,
+                    "column": 191
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "unique-id": "relationship-b01f6cd3eb06c0f81b2cb364",
+      "description": "Observed dependency",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "csharp-11500cb1499eb5376fb78b1a"
+          },
+          "destination": {
+            "node": "csharp-b8d4fadba3f8da202ff6276a"
+          },
+          "metadata": {
+            "dependency-kinds": [
+              "field"
+            ],
+            "evidence": [
+              {
+                "kind": "field",
+                "locations": [
+                  {
+                    "file": "tools/roslyn-analyzer/Program.cs",
+                    "line": 383,
+                    "column": 142
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "unique-id": "relationship-14cb6bf2d6d065930c4202e0",
+      "description": "Observed dependency",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "csharp-371968199517fc2de71b124c"
+          },
+          "destination": {
+            "node": "csharp-d1682605cb3240d3f948d084"
+          },
+          "metadata": {
+            "dependency-kinds": [
+              "field"
+            ],
+            "evidence": [
+              {
+                "kind": "field",
+                "locations": [
+                  {
+                    "file": "tools/roslyn-analyzer/Program.cs",
+                    "line": 384,
+                    "column": 267
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "unique-id": "relationship-b99d8aaa0b81ad557ad0db7d",
+      "description": "Observed dependency",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "csharp-616945411c1018eb1cce74b9"
+          },
+          "destination": {
+            "node": "csharp-b1725af7059efac0eec237da"
+          },
+          "metadata": {
+            "dependency-kinds": [
+              "field"
+            ],
+            "evidence": [
+              {
+                "kind": "field",
+                "locations": [
+                  {
+                    "file": "tools/roslyn-analyzer/Program.cs",
+                    "line": 387,
+                    "column": 164
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "unique-id": "relationship-c3a6b84d8920bc4c5a8e6215",
+      "description": "Observed dependency",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "csharp-789af7aee550df228cb81860"
+          },
+          "destination": {
+            "node": "csharp-16afd45d8db0476410da6a40"
+          },
+          "metadata": {
+            "dependency-kinds": [
+              "field"
+            ],
+            "evidence": [
+              {
+                "kind": "field",
+                "locations": [
+                  {
+                    "file": "tools/roslyn-analyzer/Program.cs",
+                    "line": 390,
+                    "column": 288
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "unique-id": "relationship-a060f37dee9acc945585acbb",
+      "description": "Observed dependency",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "csharp-789af7aee550df228cb81860"
+          },
+          "destination": {
+            "node": "csharp-55ae97a964edf7152dcfbf64"
+          },
+          "metadata": {
+            "dependency-kinds": [
+              "field"
+            ],
+            "evidence": [
+              {
+                "kind": "field",
+                "locations": [
+                  {
+                    "file": "tools/roslyn-analyzer/Program.cs",
+                    "line": 390,
+                    "column": 470
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "unique-id": "relationship-ea1cd4b6ff9ec6daf8563893",
+      "description": "Observed dependency",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "csharp-789af7aee550df228cb81860"
+          },
+          "destination": {
+            "node": "csharp-6a39f3ebbd549dc3aa218282"
+          },
+          "metadata": {
+            "dependency-kinds": [
+              "field"
+            ],
+            "evidence": [
+              {
+                "kind": "field",
+                "locations": [
+                  {
+                    "file": "tools/roslyn-analyzer/Program.cs",
+                    "line": 390,
+                    "column": 377
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "unique-id": "relationship-1a670085a758def94f828ab2",
+      "description": "Observed dependency",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "csharp-789af7aee550df228cb81860"
+          },
+          "destination": {
+            "node": "csharp-9df963318dace24240dac4e3"
+          },
+          "metadata": {
+            "dependency-kinds": [
+              "field"
+            ],
+            "evidence": [
+              {
+                "kind": "field",
+                "locations": [
+                  {
+                    "file": "tools/roslyn-analyzer/Program.cs",
+                    "line": 390,
+                    "column": 200
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "unique-id": "relationship-790bbdcf8422584c73e743fa",
+      "description": "Observed dependency",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "csharp-b8d4fadba3f8da202ff6276a"
+          },
+          "destination": {
+            "node": "csharp-b1725af7059efac0eec237da"
+          },
+          "metadata": {
+            "dependency-kinds": [
+              "field"
+            ],
+            "evidence": [
+              {
+                "kind": "field",
+                "locations": [
+                  {
+                    "file": "tools/roslyn-analyzer/Program.cs",
+                    "line": 386,
+                    "column": 243
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
