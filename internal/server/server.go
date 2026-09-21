@@ -4,21 +4,30 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/buildinfo"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
+
+// The browser is checked in as generated static production assets. Node.js is
+// only needed by contributors rebuilding the UI, never by the daemon.
+//
+//go:embed web/*
+var architectureBrowser embed.FS
 
 const (
 	maxValidationRequestBytes = 5 << 20
@@ -133,7 +142,64 @@ func NewHandlerWithOptions(checker Checker, shutdown func(), options HandlerOpti
 	mux.HandleFunc("/functions", withAuthenticatedCaller(functionsHandler(checker, options), options))
 	mux.HandleFunc("/shutdown", withAuthenticatedCaller(shutdownHandler(checker, options, cancelDeferred, shutdown), options))
 	mux.HandleFunc("/architecture", withAuthenticatedCaller(architectureHandler(options), options))
+	mux.HandleFunc("/architectures", withAuthenticatedCaller(architecturesHandler(options), options))
+	mux.HandleFunc("/assets/", withAuthenticatedCaller(func(w http.ResponseWriter, r *http.Request) { staticArchitectureAsset(options).ServeHTTP(w, r) }, options))
+	mux.HandleFunc("/", withAuthenticatedCaller(architectureBrowserHandler(options), options))
 	return mux
+}
+
+func architectureBrowserHandler(options HandlerOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		if !options.LocalHTTP {
+			http.NotFound(w, r)
+			return
+		}
+		data, err := architectureBrowser.ReadFile("web/index.html")
+		if err != nil {
+			http.Error(w, "architecture browser unavailable", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(data)
+	}
+}
+
+func staticArchitectureAsset(options HandlerOptions) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !options.LocalHTTP {
+			http.NotFound(w, r)
+			return
+		}
+		name := strings.TrimPrefix(r.URL.Path, "/assets/")
+		if name == "" || strings.Contains(name, "..") {
+			http.NotFound(w, r)
+			return
+		}
+		data, err := architectureBrowser.ReadFile("web/assets/" + name)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		if contentType := mime.TypeByExtension(filepath.Ext(name)); contentType != "" {
+			if !strings.Contains(contentType, ";") {
+				contentType += "; charset=utf-8"
+			}
+			w.Header().Set("Content-Type", contentType)
+		}
+		_, _ = w.Write(data)
+	})
 }
 
 func healthHandler(identity Identity, startedAt time.Time) http.HandlerFunc {

@@ -1,0 +1,11 @@
+{
+  "enforcement-mode": "advisory",
+  "enforcement-on-error": "block",
+  "fitness-functions": {
+    "cyclomatic-complexity": true,
+    "dependency-discipline": true,
+    "implementation-depth": true,
+    "interface-width": true,
+    "logic-density": true
+  }
+}

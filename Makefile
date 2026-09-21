@@ -29,7 +29,7 @@ else
 INSTALL_BIN ?= install -m 755
 endif
 
-.PHONY: all build build-all install uninstall test test-short fmt vet clean dev-certs help
+.PHONY: all build build-all architecture-ui-build install uninstall test test-short fmt vet clean dev-certs help
 
 all: build
 
@@ -39,6 +39,7 @@ help:
 	@echo "Targets:"
 	@echo "  build         Build $(BIN_NAME) into $(BIN_DIR)/ (default)"
 	@echo "  build-all     Build all binaries ($(BIN_NAME) and rename-verify)"
+	@echo "  architecture-ui-build  Build the React architecture browser assets"
 	@echo "  install       Build and install binaries and helpers into $(DESTDIR)$(BINDIR)"
 	@echo "  uninstall     Remove installed binaries and helpers from $(DESTDIR)$(BINDIR)"
 	@echo "  test          Run all tests"
@@ -60,6 +61,9 @@ build:
 
 build-all: build
 	CGO_ENABLED=$(CGO_ENABLED) $(GO) build $(GOFLAGS) -o $(BIN_DIR)/rename-verify $(CMD_DIR)/rename-verify
+
+architecture-ui-build:
+	cd internal/architectureui && npm run build
 
 install: build
 	@mkdir -p $(DESTDIR)$(BINDIR)

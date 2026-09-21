@@ -338,6 +338,30 @@ daemon is ready. To refresh explicitly later, run:
 agent-fitness-functions client architecture refresh --path /path/to/csharp-repository > architecture.json
 ```
 
+For a checkout with more than one solution, select the intended classic solution
+explicitly with `--solution path/to/application.sln`. Roslyn diagnostics and the
+accepted document are kept separate: a partial analysis is inspectable but cannot
+replace an accepted baseline unless `--allow-partial` is supplied deliberately.
+
+The analyzer prefers semantic type extraction. If the available .NET/MSBuild
+toolchain cannot load a solution (for example, an unsupported `.slnx` file or a
+blocked restore), it emits an explicit `project-reference` fallback containing
+the discovered `.csproj` projects and their `ProjectReference` edges. That graph
+is marked partial and includes the original diagnostic; it is useful for seeing
+solution structure, but must not be mistaken for a type-level dependency graph.
+
+### Browse stored architectures
+
+When the local daemon is running, open [http://127.0.0.1:7890/](http://127.0.0.1:7890/)
+to browse the latest accepted architecture for each governed repository. The browser
+is read-only: it loads `GET /architectures` and `GET /architecture?repo=...`, and
+keeps graph layout changes in memory. Refresh the page or use **Refresh** after an
+explicit architecture refresh. Baselines are stored as
+`architectures/<repo>.json` beneath the machine governance root. The browser is
+available only in local plain-HTTP mode; it does not fetch referenced URLs or expose
+the remote/mTLS daemon.
+```
+
 The client reads the checkout and invokes Roslyn repository analysis. It builds
 and submits a CALM 1.2 document to the loopback daemon, then prints only the
 daemon's accepted document to stdout; diagnostics go to stderr. The daemon

@@ -19,6 +19,14 @@ import (
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/installer"
 )
 
+func init() {
+	for _, assignment := range dotnetRootEnv() {
+		if key, value, ok := strings.Cut(assignment, "="); ok {
+			_ = os.Setenv(key, value)
+		}
+	}
+}
+
 type radonCCItem struct {
 	Type       string `json:"type"`
 	Name       string `json:"name"`
@@ -113,9 +121,38 @@ func tolerantRadonCC(file string, output []byte) ([]FunctionMetric, error) {
 		return functions, nil
 	}
 	if isRadonSourceError(err, "radon cc error") {
-		return []FunctionMetric{}, nil
+		return fallbackFunctionMetrics(file)
 	}
 	return nil, err
+}
+
+// fallbackFunctionMetrics keeps function-level evidence available when an
+// older radon release cannot parse newer Python syntax (for example `type`
+// aliases). It deliberately reports conservative complexity rather than
+// pretending to have radon's full control-flow analysis.
+func fallbackFunctionMetrics(file string) ([]FunctionMetric, error) {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+	var functions []FunctionMetric
+	for _, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+		name := ""
+		for _, prefix := range []string{"def ", "async def "} {
+			if strings.HasPrefix(trimmed, prefix) {
+				rest := strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
+				if end := strings.IndexAny(rest, "( :"); end > 0 {
+					name = rest[:end]
+				}
+				break
+			}
+		}
+		if name != "" {
+			functions = append(functions, FunctionMetric{Name: name, CyclomaticComplexity: 1, IsPublic: !strings.HasPrefix(name, "_"), LOC: 1})
+		}
+	}
+	return functions, nil
 }
 
 // tolerantRadonRaw falls back to counting the file directly when radon cannot
@@ -1491,6 +1528,7 @@ func runToolOutput(ctx context.Context, name string, args ...string) ([]byte, st
 	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	command := exec.CommandContext(runCtx, name, args...)
+	command.Env = append(os.Environ(), dotnetRootEnv()...)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	command.Stdout = &stdout
@@ -1504,6 +1542,32 @@ func runToolOutput(ctx context.Context, name string, args ...string) ([]byte, st
 		return nil, stderr.String(), fmt.Errorf("%w: %s", err, detail)
 	}
 	return stdout.Bytes(), stderr.String(), nil
+}
+
+// dotnetRootEnv makes framework-dependent Roslyn apphosts work when the
+// caller's PATH contains the dotnet shim but DOTNET_ROOT was not exported
+// (common in GUI-launched or sandboxed environments). It only adds a value
+// when the process did not already specify one.
+func dotnetRootEnv() []string {
+	if os.Getenv("DOTNET_ROOT") != "" || os.Getenv("DOTNET_ROOT_ARM64") != "" {
+		return nil
+	}
+	candidates := []string{}
+	if path, err := exec.LookPath("dotnet"); err == nil {
+		candidates = append(candidates, path)
+	}
+	candidates = append(candidates, "/opt/homebrew/bin/dotnet", "/usr/local/bin/dotnet", "/usr/bin/dotnet")
+	for _, candidate := range candidates {
+		real, err := filepath.EvalSymlinks(candidate)
+		if err != nil {
+			continue
+		}
+		root := filepath.Clean(filepath.Join(filepath.Dir(real), "..", "libexec"))
+		if _, err := os.Stat(filepath.Join(root, "host", "fxr")); err == nil {
+			return []string{"DOTNET_ROOT=" + root}
+		}
+	}
+	return nil
 }
 
 func trimOutput(output []byte) string {

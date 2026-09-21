@@ -380,6 +380,7 @@ public class Consumer
         return new Widget { Id = 1 };
     }
 }
+
 `
 	consumerPath := filepath.Join(dir, "Consumer.cs")
 	if err := os.WriteFile(consumerPath, []byte(consumerSrc), 0o644); err != nil {
@@ -399,6 +400,36 @@ public class Consumer
 	}
 	if result.Imports.DDC != 1.0 {
 		t.Fatalf("imports.ddc = %.3f, want 1.0", result.Imports.DDC)
+	}
+}
+
+func TestAnalyzeCSharpRepositoryFallsBackToProjectReferencesForUnsupportedSolution(t *testing.T) {
+	cli := buildRoslynAnalyzer(t)
+	repo := t.TempDir()
+	for _, project := range []string{"App", "Lib"} {
+		if err := os.MkdirAll(filepath.Join(repo, project), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(repo, "App", "App.csproj"), []byte(`<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup><ItemGroup><ProjectReference Include="../Lib/Lib.csproj" /></ItemGroup></Project>`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "Lib", "Lib.csproj"), []byte(`<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "example.slnx"), []byte(`<Solution />`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	graph, err := AnalyzeCSharpRepositoryWithSolution(context.Background(), repo, cli, "example.slnx")
+	if err != nil {
+		t.Fatalf("repository fallback returned error: %v", err)
+	}
+	if graph.Analysis["extraction_mode"] != "project-reference" {
+		t.Fatalf("extraction mode = %#v, want project-reference", graph.Analysis["extraction_mode"])
+	}
+	if len(graph.Nodes) != 2 || len(graph.Edges) != 1 || graph.Edges[0].Kind != "project-reference" {
+		t.Fatalf("fallback graph = %#v, want two projects and one project-reference", graph)
 	}
 }
 
