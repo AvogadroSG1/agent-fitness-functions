@@ -14,6 +14,31 @@ type RepositoryOptions struct {
 	RoslynPath string
 }
 
+// HasCSharpProject reports whether a repository contains an eligible authored
+// project. Tooling projects are deliberately excluded so onboarding a Go or
+// Python repository never requires Roslyn just because this repository vendors
+// the analyzer itself.
+func HasCSharpProject(root string) bool {
+	found := false
+	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if path != root && map[string]bool{".git": true, "bin": true, "obj": true, "tools": true, "node_modules": true, ".tmp": true}[entry.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(entry.Name(), ".csproj") {
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
+}
+
 // AnalyzeRepository analyzes all supported source files for one language.
 func AnalyzeRepository(ctx context.Context, root, language string, options RepositoryOptions) ([]AnalysisResult, error) {
 	if language == "python" {

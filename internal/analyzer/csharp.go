@@ -9,8 +9,31 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/architecture"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/installer"
 )
+
+// AnalyzeCSharpRepository invokes Roslyn's repository graph mode.
+func AnalyzeCSharpRepository(ctx context.Context, repo, cliPath string) (architecture.Graph, error) {
+	if cliPath == "" {
+		cliPath = defaultRoslynCLI()
+	}
+	output, stderr, err := runToolOutput(ctx, cliPath, "--repository", repo)
+	if err != nil {
+		return architecture.Graph{}, fmt.Errorf("running Roslyn repository analyzer: %w", err)
+	}
+	var graph architecture.Graph
+	if err := json.Unmarshal(output, &graph); err != nil {
+		return graph, fmt.Errorf("parsing Roslyn repository output: %w (stderr: %s)", err, strings.TrimSpace(stderr))
+	}
+	if err := architecture.ValidateGraph(graph); err != nil {
+		return graph, fmt.Errorf("invalid Roslyn repository graph: %w", err)
+	}
+	if graph.Analysis.Completeness != "complete" {
+		return graph, fmt.Errorf("Roslyn repository analysis is incomplete: %s", graph.Analysis.Diagnostics)
+	}
+	return graph, nil
+}
 
 // AnalyzeCSharpFile analyzes one C# file through the Roslyn analyzer CLI.
 func AnalyzeCSharpFile(ctx context.Context, file, cliPath string) (AnalysisResult, error) {

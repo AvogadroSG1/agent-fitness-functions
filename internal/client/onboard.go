@@ -13,6 +13,7 @@ import (
 	"io"
 	"maps"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/govconfig"
 )
 
@@ -544,7 +546,11 @@ func (o *onboarder) run() error {
 	} else {
 		steps = append(steps, o.registerRemote)
 	}
-	steps = append(steps, o.migrateLegacy, o.installHooks, o.startDaemon, o.awaitRegistration, o.runDoctor)
+	steps = append(steps, o.migrateLegacy, o.installHooks, o.startDaemon, o.awaitRegistration)
+	if o.localHTTP {
+		steps = append(steps, o.refreshArchitecture)
+	}
+	steps = append(steps, o.runDoctor)
 	for _, step := range steps {
 		if err := step(); err != nil {
 			return err
@@ -552,6 +558,36 @@ func (o *onboarder) run() error {
 	}
 	o.printManualRemainder()
 	return nil
+}
+
+func (o *onboarder) refreshArchitecture() error {
+	o.step("C# architecture baseline")
+	if !analyzer.HasCSharpProject(o.repoRoot) {
+		o.detail("skipped: no eligible C# project")
+		return nil
+	}
+	if o.baselineExists() {
+		o.detail("already present — use client architecture refresh to update")
+		return nil
+	}
+	if err := RunArchitectureRefresh([]string{"--repo", o.repoName, "--addr", o.addr, "--path", o.repoRoot}, io.Discard, o.stderr, o.httpClient, o.starter); err != nil {
+		return fmt.Errorf("architecture analysis failed (fitness validation was not involved): %w", err)
+	}
+	o.detail("latest accepted architecture stored by the local daemon")
+	return nil
+}
+
+func (o *onboarder) baselineExists() bool {
+	request, err := http.NewRequest(http.MethodGet, strings.TrimRight(o.addr, "/")+"/architecture?repo="+url.QueryEscape(o.repoName), nil)
+	if err != nil {
+		return false
+	}
+	response, err := o.httpClient.Do(request)
+	if err != nil {
+		return false
+	}
+	defer response.Body.Close()
+	return response.StatusCode == http.StatusOK
 }
 
 // migrateLegacy quarantines pre-ADR-0007 repo-local governance state so stale
