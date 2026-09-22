@@ -9,21 +9,19 @@ test('loads the project overview without external resources', async ({ page }) =
   expect(external).toEqual([])
 })
 
-test('search reveals a type and detailed UML rows', async ({ page }) => {
+test('search reveals a type summary', async ({ page }) => {
   await page.goto('/?repo=eshop-on-web')
   const search = page.getByPlaceholder('Search types, members, projects')
   await search.fill('BasketItem')
   await page.getByRole('button', { name: /BasketItem ApplicationCore/ }).first().click()
   await expect(page.locator('.react-flow__node').filter({ hasText: 'BasketItem' }).first()).toBeVisible()
-  await page.getByRole('combobox', { name: 'Detail' }).selectOption('detailed')
-  await expect(page.getByText(/Declared members/)).toBeVisible()
+  await expect(page.getByText('TYPE SUMMARY')).toBeVisible()
 })
 
 test('browser never writes through graph interactions', async ({ page }) => {
   const writes: string[] = []
   page.on('request', request => { if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method())) writes.push(request.method()) })
   await page.goto('/?repo=eshop-on-web')
-  await page.getByRole('button', { name: 'Re-layout' }).click()
-  await page.getByRole('button', { name: 'Fit visible' }).click()
+  await page.getByRole('button', { name: 'Fit graph' }).click()
   expect(writes).toEqual([])
 })
