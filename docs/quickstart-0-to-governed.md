@@ -259,9 +259,10 @@ After onboarding, `install-hooks` has registered two `PreToolUse` entries in
 `.claude/settings.json` (and the equivalents in `.codex/hooks.json` and the
 OpenCode plugin): a Bash git-guard (blocks bypass commands) and an `Edit|Write`
 content-validation hook. When the agent proposes an Edit or Write to a `.go`,
-`.py`, or `.cs` file, the hook reconstructs the proposed file content, sends it to
-the governance server via `client validate`, and acts on the verdict *before the
-write lands*:
+`.py`, or `.cs` file, or a Codex `apply_patch` touching such files (Codex routes
+`apply_patch` through the `Edit|Write` matcher), the hook reconstructs the full
+proposed content of each file, sends it to the governance server via
+`client validate`, and acts on the verdict *before the write lands*:
 
 | Verdict | What the agent sees |
 |---------|---------------------|

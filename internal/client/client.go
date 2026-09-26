@@ -661,8 +661,9 @@ func (installer hookInstaller) installGitGuard() error {
 
 // installAgentHook installs the Edit/Write content-validation hook — the flagship
 // affordance that validates a coding agent's proposed file content before it lands.
-// The script and its formatter dependency live beside the git-guard sidecar, and a
-// second PreToolUse entry (matcher Edit|Write) is registered in .claude/settings.json.
+// The script, its formatter dependency, and the apply_patch proposal helper live
+// beside the git-guard sidecar, and a second PreToolUse entry (matcher Edit|Write,
+// which Codex also routes apply_patch through) is registered in .claude/settings.json.
 func (installer hookInstaller) installAgentHook() error {
 	scriptPath, err := installer.gitHookPath(agentHookName)
 	if err != nil {
@@ -672,6 +673,9 @@ func (installer hookInstaller) installAgentHook() error {
 		return err
 	}
 	if err := installer.writeFormatter(filepath.Dir(scriptPath)); err != nil {
+		return err
+	}
+	if err := installer.writeApplyPatchHelper(filepath.Dir(scriptPath)); err != nil {
 		return err
 	}
 	if err := removeStalePredecessorArtifacts(filepath.Dir(scriptPath), agentHookNameHistory, agentHookName); err != nil {
@@ -966,6 +970,10 @@ func hookEntryCommand(rawEntry any) (string, bool) {
 
 func (installer hookInstaller) writeFormatter(hooksDir string) error {
 	return installer.writeEmbeddedFile("hookassets/format-violations.py", filepath.Join(hooksDir, "format-violations.py"), 0o755)
+}
+
+func (installer hookInstaller) writeApplyPatchHelper(hooksDir string) error {
+	return installer.writeEmbeddedFile("hookassets/apply-patch-proposals.py", filepath.Join(hooksDir, "apply-patch-proposals.py"), 0o755)
 }
 
 func (installer hookInstaller) writeEmbeddedExecutable(embeddedPath, targetPath string) error {

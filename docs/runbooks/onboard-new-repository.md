@@ -390,9 +390,9 @@ It installs and registers, with zero manual settings authoring:
 - `agent-fitness-functions-git-guard` at the git-resolved hooks path — blocks bypass commands
   (`--no-verify`, force-push, ff-only merges), registered as a Bash `PreToolUse` entry
   in `.claude/settings.json` and `.codex/hooks.json`, and intercepted by `.opencode/plugins/agent-fitness-functions.js`.
-- `agent-fitness-functions-pre-tool-use` (+ `format-violations.py`) at the git-resolved hooks path — the
+- `agent-fitness-functions-pre-tool-use` (+ `format-violations.py` and `apply-patch-proposals.py`) at the git-resolved hooks path — the
   agent Edit/Write content-validation hook, registered as an `Edit|Write` `PreToolUse`
-  entry in `.claude/settings.json` and `.codex/hooks.json`, and intercepted by `.opencode/plugins/agent-fitness-functions.js`.
+  entry in `.claude/settings.json` and `.codex/hooks.json` (Codex also routes its native `apply_patch` through this matcher; `apply-patch-proposals.py` rebuilds each touched file from the patch), and intercepted by `.opencode/plugins/agent-fitness-functions.js`.
 - `.opencode/plugins/agent-fitness-functions.js` — the native OpenCode plugin intercepting tool execution via `tool.execute.before`.
 
 Both `.claude/settings.json` and `.codex/hooks.json` entries are upserted idempotently, preserving non-product hooks (such as `PreCompact`). If the repo already has

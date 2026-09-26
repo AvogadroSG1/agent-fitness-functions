@@ -239,13 +239,14 @@ The CALM CLI returns exit code 0 on pass; non-zero with violation JSON on stdout
 Architecture governance integrates with AI agent harnesses via pre-tool-use hooks and plugins:
 
 - **Claude Code (`.claude/settings.json`):** Configured with `PreToolUse` entries for `Bash` (routing to `agent-fitness-functions-git-guard`) and `Edit|Write` (routing to `agent-fitness-functions-pre-tool-use`).
-- **OpenAI Codex (`.codex/hooks.json`):** Configured with `PreToolUse` entries mirroring Claude Code using portable `$(git rev-parse --git-path hooks/<name>)` resolution while preserving non-product sections like `PreCompact`.
+- **OpenAI Codex (`.codex/hooks.json`):** Configured with `PreToolUse` entries mirroring Claude Code using portable `$(git rev-parse --git-path hooks/<name>)` resolution while preserving non-product sections like `PreCompact`. Codex treats `Edit`/`Write` as matcher aliases for its native `apply_patch` tool, so the unchanged `Edit|Write` entry also receives `apply_patch` payloads. Re-running `install-hooks` replaces a marker-matched entry wholesale, restoring a hand-disabled matcher.
 - **OpenCode (`.opencode/plugins/agent-fitness-functions.js`):** Native ESM plugin registering `"tool.execute.before"` to intercept `bash`, `edit`, `write`, and `new_file` executions synchronously, throwing an `Error` on non-zero hook status to halt agent execution.
 
 Hook scripts (`pre-tool-use.sh` and `git-guard.sh`) normalize multi-harness payload schemas:
 - Supports wrappers `tool_input`, `args`, and top-level dictionaries.
 - Supports target path keys `file_path`, `filePath`, and `path`.
 - For `Write`/`new_file`, the proposed content is `content`. For `Edit`, the hook reconstructs the full proposed file by applying `old_string`/`oldString` → `new_string`/`newString` (respecting `replace_all`/`replaceAll`) to the current on-disk file content; it MUST NOT send the diff fragment as a whole source file.
+- For Codex `apply_patch` (`tool_name` `apply_patch`, patch text in `tool_input.command` or a bare-string `tool_input`), the installed `apply-patch-proposals.py` sidecar ports `codex-rs/apply-patch` (default `NormalizeToLf` mode) to rebuild the full final content of every file the patch touches, applying hunks in order against a virtual file state so later hunks see earlier ones and moves validate their destination. Each supported target is validated through the same dry-run `client validate` path; every target is checked even after one blocks, and the hook blocks if any does. Deleted files and unsupported types are not validated. A malformed patch, a missing sidecar, or any target (including move destinations and symlinks) whose canonical path leaves the repository fails closed with exit `2` before any file content is read. Shell-routed `apply_patch` heredocs through `exec_command` match `Bash`, not this hook (`aff-007`).
 - `PreToolUse` hooks MUST exit `2` to block tool calls; stderr is surfaced to the agent as the reason.
 
 ### 3.5 Git Pre-Commit Hook
