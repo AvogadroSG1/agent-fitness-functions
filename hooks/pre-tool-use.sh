@@ -128,12 +128,148 @@ report_infra_error() {
   } >&2
 }
 
+# run_client_validate runs one validation, leaving stdout in $result, stderr in
+# $validate_stderr and the exit code in $rc. Stderr is captured rather than
+# streamed because the retry decision below is made from it; the caller replays
+# it so no diagnostic is lost to the capture.
+run_client_validate() {
+  if result=$("$agent_fitness_functions_bin" "$@" 2>"$stderr_file"); then
+    rc=0
+  else
+    rc=$?
+  fi
+  validate_stderr=$(cat "$stderr_file")
+}
+
+# rejected_dry_run_flag reports whether this failure is a binary that predates
+# --dry-run refusing the flag. It matches the flag parser's own wording, so a
+# violation message that merely mentions a dry run can never be mistaken for it.
+rejected_dry_run_flag() {
+  [[ "$rc" -eq 2 ]] || return 1
+  printf '%s\n%s\n' "$validate_stderr" "$result" |
+    grep -qE '(not defined|unknown flag|unknown option|invalid flag)[:=]? *-{1,2}dry-run'
+}
+
+# validate_proposal validates one proposed file through `client validate` and
+# reports the verdict on stderr: it returns 0 when the proposal may land and 2
+# when it is blocked. It is always called in an `if` context, which suspends
+# errexit, so every failure inside it is handled explicitly.
+validate_proposal() {
+  local file=$1 language=$2 proposal_content_file=$3 status
+  local -a args
+  args=(client validate --file "$file" --repo "$repo_arg" --content-file "$proposal_content_file" --language "$language")
+  args+=(--addr "$addr")
+  # Pass mTLS client cert+key only as a pair (the client requires both together);
+  # omit when the files are absent so a plain-HTTP local server still works.
+  if [[ -f "$client_cert" && -f "$client_key" ]]; then
+    args+=(--client-cert "$client_cert" --client-key "$client_key")
+  fi
+  if [[ -f "$client_ca" ]]; then
+    args+=(--client-ca "$client_ca")
+  fi
+
+  # This hook validates a proposal that may never be written, so the check is a
+  # dry run: the daemon returns the verdict without recording it as an
+  # outstanding violation for the repository. The commit-time hooks validate
+  # content that will land, and deliberately do not pass this flag.
+  #
+  # A binary older than the flag rejects it as a usage error, and a hook that
+  # turned that skew into a failure would block every edit on the machine. So the
+  # validation is retried once without the flag: the old binary then records the
+  # verdict the way it always did, which still governs this edit, and the skew
+  # ends the next time the binary is installed.
+  run_client_validate "${args[@]}" --dry-run
+  if rejected_dry_run_flag; then
+    echo "agent-fitness-functions: this binary predates --dry-run; validating without it (re-install the binary so speculative edits stop being recorded)" >&2
+    run_client_validate "${args[@]}"
+  fi
+  if [[ -n "$validate_stderr" ]]; then
+    printf '%s\n' "$validate_stderr" >&2
+  fi
+  if [[ "$rc" -ne 0 ]]; then
+    if is_infra_error "$rc" "$result"; then
+      report_infra_error "$file" "$result"
+      if [[ "$on_error_mode" == "advisory" ]]; then
+        echo "  AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory: allowing this edit despite the setup failure" >&2
+        return 0
+      fi
+      return 2
+    fi
+    echo "agent-fitness-functions check failed for $file" >&2
+    printf '%s\n' "$result" >&2
+    return 2
+  fi
+
+  if ! status=$(printf '%s' "$result" | json_field status 2>/dev/null); then
+    echo "agent-fitness-functions check returned invalid JSON for $file" >&2
+    return 2
+  fi
+  case "$status" in
+    block)
+      printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
+        --mode "$status" --file "$file" >&2 || true
+      return 2
+      ;;
+    advisory)
+      printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
+        --mode "$status" --file "$file" >&2 || true
+      ;;
+    pass)
+      ;;
+    *)
+      echo "agent-fitness-functions check returned unknown status for $file: ${status:-<empty>}" >&2
+      return 2
+      ;;
+  esac
+  return 0
+}
+
+# validate_apply_patch handles a Codex apply_patch payload and never returns. The
+# sidecar helper rebuilds the full proposed content of every file the patch
+# touches; a malformed patch or a target outside the repository fails closed
+# before anything is validated. Every supported target is validated, even after
+# one blocks, so the agent sees every violation in one pass. The record stream
+# is read on fd 3 so `client validate` can never consume it from stdin.
+validate_apply_patch() {
+  local helper file proposal_content_file binary language blocked=0
+  helper="$(dirname "${BASH_SOURCE[0]}")/apply-patch-proposals.py"
+  if [[ ! -f "$helper" ]]; then
+    echo "agent-fitness-functions apply_patch support is not installed ($helper is missing); run 'agent-fitness-functions client install-hooks'" >&2
+    exit 2
+  fi
+  if ! python3 "$helper" "$payload_file" "$repo_prefix" "$work_dir" >"$proposals_file" 2>"$stderr_file"; then
+    echo "Invalid apply_patch payload: $(cat "$stderr_file")" >&2
+    exit 2
+  fi
+  while IFS= read -r -d '' -u 3 file && IFS= read -r -d '' -u 3 proposal_content_file && IFS= read -r -d '' -u 3 binary; do
+    if ! language=$(language_for_file "$file"); then
+      echo "Skipping agent-fitness-functions check for unsupported file type: $file" >&2
+      continue
+    fi
+    if [[ "$binary" == "1" ]]; then
+      echo "agent-fitness-functions check blocked binary content for supported source file: $file" >&2
+      blocked=1
+      continue
+    fi
+    if ! validate_proposal "$file" "$language" "$proposal_content_file"; then
+      blocked=1
+    fi
+  done 3<"$proposals_file"
+  if [[ "$blocked" -ne 0 ]]; then
+    exit 2
+  fi
+  exit 0
+}
+
 payload=$(cat)
 payload_file=$(mktemp)
 content_file=$(mktemp)
 stderr_file=$(mktemp)
+proposals_file=$(mktemp)
+work_dir=$(mktemp -d)
 cleanup() {
-  rm -f "$payload_file" "$content_file" "$stderr_file"
+  rm -f "$payload_file" "$content_file" "$stderr_file" "$proposals_file"
+  rm -rf "$work_dir"
 }
 trap cleanup EXIT
 printf '%s' "$payload" >"$payload_file"
@@ -147,19 +283,21 @@ try:
     with open(sys.argv[1], encoding="utf-8") as handle:
         payload = json.load(handle)
     if not isinstance(payload, dict):
+        payload = {}
+    metadata = {key: value if isinstance(value, str) else ""
+                for key, value in (("action", payload.get("tool_name")),
+                                   ("session_id", payload.get("session_id")))}
+    if payload.get("tool_name") == "apply_patch":
+        print(json.dumps({"kind": "apply_patch", **metadata}))
+        sys.exit(0)
+    tool_input = payload.get("tool_input") or payload.get("args") or payload
+    if not isinstance(tool_input, dict):
         tool_input = {}
-    else:
-        tool_input = payload.get("tool_input") or payload.get("args") or payload
-        if not isinstance(tool_input, dict):
-            tool_input = {}
     file_path = tool_input.get("file_path") or tool_input.get("filePath") or tool_input.get("path", "")
     if not file_path:
         print(json.dumps({"error": "missing file_path"}))
     else:
-        metadata = {key: value if isinstance(value, str) else ""
-                    for key, value in (("action", payload.get("tool_name")),
-                                       ("session_id", payload.get("session_id")))}
-        print(json.dumps({"file_path": file_path, **metadata}))
+        print(json.dumps({"kind": "file", "file_path": file_path, **metadata}))
 except Exception as exc:
     print(json.dumps({"error": f"invalid JSON payload: {exc}"}))
 PY
@@ -178,6 +316,10 @@ export AGENT_FITNESS_FUNCTIONS_HISTORY_ACTION="${history_action:-${AGENT_FITNESS
 export AGENT_FITNESS_FUNCTIONS_HISTORY_SESSION_ID="${history_session:-${AGENT_FITNESS_FUNCTIONS_HISTORY_SESSION_ID:-}}"
 
 repo_prefix=$(cd "$repo" && pwd -P)
+kind=$(printf '%s' "$parsed" | json_field kind)
+if [[ "$kind" == "apply_patch" ]]; then
+  validate_apply_patch
+fi
 absolute_file=$(
   python3 - "$repo_prefix" "$file_path" <<'PY'
 import os
@@ -272,89 +414,7 @@ if [[ "$binary" == "True" || "$binary" == "true" ]]; then
   exit 2
 fi
 
-args=(client validate --file "$file" --repo "$repo_arg" --content-file "$content_file" --language "$language")
-args+=(--addr "$addr")
-# Pass mTLS client cert+key only as a pair (the client requires both together);
-# omit when the files are absent so a plain-HTTP local server still works.
-if [[ -f "$client_cert" && -f "$client_key" ]]; then
-  args+=(--client-cert "$client_cert" --client-key "$client_key")
+if validate_proposal "$file" "$language" "$content_file"; then
+  exit 0
 fi
-if [[ -f "$client_ca" ]]; then
-  args+=(--client-ca "$client_ca")
-fi
-
-# run_client_validate runs one validation, leaving stdout in $result, stderr in
-# $validate_stderr and the exit code in $rc. Stderr is captured rather than
-# streamed because the retry decision below is made from it; the caller replays
-# it so no diagnostic is lost to the capture.
-run_client_validate() {
-  if result=$("$agent_fitness_functions_bin" "$@" 2>"$stderr_file"); then
-    rc=0
-  else
-    rc=$?
-  fi
-  validate_stderr=$(cat "$stderr_file")
-}
-
-# rejected_dry_run_flag reports whether this failure is a binary that predates
-# --dry-run refusing the flag. It matches the flag parser's own wording, so a
-# violation message that merely mentions a dry run can never be mistaken for it.
-rejected_dry_run_flag() {
-  [[ "$rc" -eq 2 ]] || return 1
-  printf '%s\n%s\n' "$validate_stderr" "$result" |
-    grep -qE '(not defined|unknown flag|unknown option|invalid flag)[:=]? *-{1,2}dry-run'
-}
-
-# This hook validates a proposal that may never be written, so the check is a
-# dry run: the daemon returns the verdict without recording it as an
-# outstanding violation for the repository. The commit-time hooks validate
-# content that will land, and deliberately do not pass this flag.
-#
-# A binary older than the flag rejects it as a usage error, and a hook that
-# turned that skew into a failure would block every edit on the machine. So the
-# validation is retried once without the flag: the old binary then records the
-# verdict the way it always did, which still governs this edit, and the skew
-# ends the next time the binary is installed.
-run_client_validate "${args[@]}" --dry-run
-if rejected_dry_run_flag; then
-  echo "agent-fitness-functions: this binary predates --dry-run; validating without it (re-install the binary so speculative edits stop being recorded)" >&2
-  run_client_validate "${args[@]}"
-fi
-if [[ -n "$validate_stderr" ]]; then
-  printf '%s\n' "$validate_stderr" >&2
-fi
-if [[ "$rc" -ne 0 ]]; then
-  if is_infra_error "$rc" "$result"; then
-    report_infra_error "$file" "$result"
-    if [[ "$on_error_mode" == "advisory" ]]; then
-      echo "  AGENT_FITNESS_FUNCTIONS_ON_ERROR=advisory: allowing this edit despite the setup failure" >&2
-      exit 0
-    fi
-    exit 2
-  fi
-  echo "agent-fitness-functions check failed for $file" >&2
-  printf '%s\n' "$result" >&2
-  exit 2
-fi
-
-if ! status=$(printf '%s' "$result" | json_field status 2>/dev/null); then
-  echo "agent-fitness-functions check returned invalid JSON for $file" >&2
-  exit 2
-fi
-case "$status" in
-  block)
-    printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
-      --mode "$status" --file "$file" >&2 || true
-    exit 2
-    ;;
-  advisory)
-    printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
-      --mode "$status" --file "$file" >&2 || true
-    ;;
-  pass)
-    ;;
-  *)
-    echo "agent-fitness-functions check returned unknown status for $file: ${status:-<empty>}" >&2
-    exit 2
-    ;;
-esac
+exit 2
