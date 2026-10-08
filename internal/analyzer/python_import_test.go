@@ -343,6 +343,47 @@ def f():
 def f(value: "lambda: Model"):
     return value
 `, 1, 1, 1, nil},
+		{"global-branch-candidates", `import json
+def f():
+    global json
+    if condition:
+        from x import json
+    else:
+        json = {}
+    return json.dumps({})
+`, 2, 1, 0.5, []string{"json"}},
+		{"nonlocal-branch-candidates", `def outer():
+    import json
+    def inner():
+        nonlocal json
+        if condition:
+            from x import json
+        else:
+            json = {}
+        return json.dumps({})
+    return inner
+`, 2, 1, 0.5, []string{"json"}},
+		{"nested-global-completed-enclosing-state", `import json
+def outer():
+    global json
+    from x import json
+    def inner():
+        global json
+        return json.dumps({})
+    return inner
+`, 2, 1, 0.5, []string{"json"}},
+		{"class-branch-includes-outer-candidate", `from x import Name
+class C:
+    if condition:
+        from y import Name
+    value = Name()
+`, 2, 2, 1, nil},
+		{"irrefutable-match-rebind", `import capture
+match value:
+    case capture:
+        pass
+result = capture
+`, 1, 0, 0, []string{"capture"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
