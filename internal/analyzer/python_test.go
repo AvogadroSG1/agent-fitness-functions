@@ -95,7 +95,7 @@ func TestPythonImportMetricCountsSingleLineParenthesizedImportUsage(t *testing.T
 def public_choice(value):
     return str(Path(value))
 `
-	imports := pythonImportMetric(source)
+	imports := pythonImportScan(t, source)
 	if imports.Total != 2 || imports.Used != 1 || len(imports.Unused) != 1 || imports.Unused[0] != "PurePath" {
 		t.Fatalf("imports = %+v, want Path used and PurePath unused", imports)
 	}
@@ -112,7 +112,7 @@ def public_choice(unused_module):
     json = {"shadowed": unused_module}
     return text
 `
-	imports := pythonImportMetric(source)
+	imports := pythonImportScan(t, source)
 	if imports.Total != 3 || imports.Used != 0 || imports.DDC != 0 {
 		t.Fatalf("imports = %+v, want no imports used", imports)
 	}
@@ -130,7 +130,7 @@ def parse(json):
 def dump(value):
     return json.dumps(value)
 `
-	imports := pythonImportMetric(source)
+	imports := pythonImportScan(t, source)
 	if imports.Total != 1 || imports.Used != 1 || len(imports.Unused) != 0 {
 		t.Fatalf("imports = %+v, want json used outside shadowing function scope", imports)
 	}
@@ -142,7 +142,7 @@ func TestPythonImportMetricTreatsComprehensionTargetsAsLocal(t *testing.T) {
 def build(items):
     return [unused_module for unused_module in items]
 `
-	imports := pythonImportMetric(source)
+	imports := pythonImportScan(t, source)
 	if imports.Total != 1 || imports.Used != 0 || len(imports.Unused) != 1 || imports.Unused[0] != "unused_module" {
 		t.Fatalf("imports = %+v, want comprehension target to shadow unused import", imports)
 	}
@@ -443,7 +443,7 @@ func TestAnalyzePythonFileWithRealRadonAPIFastPathWhenAvailable(t *testing.T) {
 	}
 }
 
-func TestAnalyzePythonFileWithRadonAPI_IncompatibleSyntaxGracefulFallback(t *testing.T) {
+func TestAnalyzePythonFileWithRadonAPI_IncompatibleSyntaxFailsAnalysis(t *testing.T) {
 	if _, err := exec.LookPath("radon"); err != nil {
 		t.Skip("radon not installed")
 	}
@@ -455,24 +455,11 @@ func TestAnalyzePythonFileWithRadonAPI_IncompatibleSyntaxGracefulFallback(t *tes
 		t.Fatalf("write source: %v", err)
 	}
 	result, err := analyzePythonFileWithRadonAPI(context.Background(), file, "radon")
-	if err != nil {
-		t.Fatalf("analyzePythonFileWithRadonAPI returned error: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "python findings error") {
+		t.Fatalf("result = %+v, error = %v; want python findings error", result, err)
 	}
-	if result.FileMetric.TotalLOC == 0 {
-		t.Errorf("expected non-zero TotalLOC, got %d", result.FileMetric.TotalLOC)
-	}
-	if len(result.Findings) == 0 {
-		t.Errorf("expected at least 1 diagnostic finding for AST parse error, got 0")
-	}
-	hasSyntaxWarning := false
-	for _, finding := range result.Findings {
-		if finding.Kind == "syntax-warning" || finding.Rule == "syntax-warning" {
-			hasSyntaxWarning = true
-			break
-		}
-	}
-	if !hasSyntaxWarning {
-		t.Errorf("expected syntax-warning finding, got findings: %+v", result.Findings)
+	if result.FileMetric != (FileMetric{}) || result.Imports.Total != 0 || result.Imports.Used != 0 || len(result.Imports.Unused) != 0 {
+		t.Fatalf("result = %+v, want no successful analysis", result)
 	}
 }
 
@@ -725,9 +712,10 @@ func TestPythonInterfaceMetricsMissingScan(t *testing.T) {
 		})
 	}
 	zeroModule := InterfaceMetric{Kind: "module", Line: 1}
+	zeroImports := &ImportMetric{}
 	for _, key := range []string{file, "rewritten.py"} {
 		scan, err := pythonFindingsFor(map[string]pythonFindingsItem{
-			key: {Interfaces: []InterfaceMetric{zeroModule}},
+			key: {Interfaces: []InterfaceMetric{zeroModule}, Imports: zeroImports},
 		}, file)
 		if err != nil || len(scan.Interfaces) != 1 || scan.Interfaces[0] != zeroModule {
 			t.Fatalf("zero-width module scan = %+v/%v, want preserved zero-width module", scan, err)
@@ -735,12 +723,13 @@ func TestPythonInterfaceMetricsMissingScan(t *testing.T) {
 	}
 
 	warning := pythonFindingsItem{
-		Findings: []Finding{{Rule: "syntax-warning", Kind: "syntax-warning", Line: 1}},
+		Findings:   []Finding{{Rule: "syntax-warning", Kind: "syntax-warning", Line: 1}},
+		Interfaces: []InterfaceMetric{{Kind: "module", Line: 1}},
+		Imports:    &ImportMetric{},
 	}
-	if got, err := pythonFindingsFor(map[string]pythonFindingsItem{file: warning}, file); err != nil {
-		t.Fatalf("syntax-warning scan returned error: %v", err)
-	} else if len(got.Findings) != 1 || len(got.Interfaces) != 0 {
-		t.Fatalf("syntax-warning scan = %+v, want warning without fabricated interfaces", got)
+	if got, err := pythonFindingsFor(map[string]pythonFindingsItem{file: warning}, file); err == nil ||
+		!strings.Contains(err.Error(), "python findings error for "+file) {
+		t.Fatalf("syntax-warning scan = %+v/%v, want warning failure", got, err)
 	}
 
 	radon, err := exec.LookPath("radon")
@@ -752,21 +741,8 @@ func TestPythonInterfaceMetricsMissingScan(t *testing.T) {
 		t.Fatalf("write syntax-warning source: %v", err)
 	}
 	result, err := analyzePythonFileWithRadonAPI(context.Background(), syntaxFile, radon)
-	if err != nil {
-		t.Fatalf("analyzePythonFileWithRadonAPI(syntax warning) returned error: %v", err)
-	}
-	if len(result.Interfaces) != 0 {
-		t.Fatalf("syntax-warning result interfaces = %+v, want none", result.Interfaces)
-	}
-	hasSyntaxWarning := false
-	for _, finding := range result.Findings {
-		if finding.Rule == "syntax-warning" || finding.Kind == "syntax-warning" {
-			hasSyntaxWarning = true
-			break
-		}
-	}
-	if !hasSyntaxWarning {
-		t.Fatalf("syntax-warning result findings = %+v, want syntax warning", result.Findings)
+	if err == nil || !strings.Contains(err.Error(), "python findings error") {
+		t.Fatalf("analyzePythonFileWithRadonAPI(syntax warning) result = %+v, error = %v; want failure", result, err)
 	}
 }
 
@@ -870,7 +846,7 @@ if [ "$1" != "-c" ]; then
   exit 2
 fi
 file="${@: -1}"
-printf '{"cc":{"%%s":[{"type":"F","name":"one","complexity":1,"lineno":1,"endline":2}]},"raw":{"%%s":{"loc":2,"lloc":1}},"findings":{"%%s":{"findings":[],"interfaces":[{"name":"","kind":"module","line":1,"public_methods":1}]}}}' "$file" "$file" "$file"
+printf '{"cc":{"%%s":[{"type":"F","name":"one","complexity":1,"lineno":1,"endline":2}]},"raw":{"%%s":{"loc":2,"lloc":1}},"findings":{"%%s":{"findings":[],"interfaces":[{"name":"","kind":"module","line":1,"public_methods":1}],"imports":{"total":0,"used":0,"unused":[],"ddc":1}}}}' "$file" "$file" "$file"
 `, logPath)
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake radon python: %v", err)

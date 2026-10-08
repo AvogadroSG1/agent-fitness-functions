@@ -857,6 +857,131 @@ func TestHandlerCheckBlocksDependencyDisciplineViolationWithUnusedImports(t *tes
 	}
 }
 
+const pythonDependencyUsedSource = `from __future__ import annotations
+from typing import TYPE_CHECKING, Any
+from pydantic import field_validator
+from dlt.pipeline.helpers import pipeline_drop
+from payloads import SENSITIVE_PAYLOAD
+from .adapters import Adapter
+from .errors import RetrievalRepositoryError as RetrievalRepositoryError
+
+if TYPE_CHECKING:
+    from .types import _State
+else:
+    from types_runtime import _State
+
+__all__ = ["Adapter"]
+
+@field_validator("start_date", mode="before")
+def normalize(value: Any, state: _State) -> str:
+    pipeline_drop(value, resources=["messages"], state_only=True)()
+    return f"provider failed {SENSITIVE_PAYLOAD}"
+`
+
+func pythonDependencyChecker(t *testing.T) *httptest.Server {
+	t.Helper()
+	radon, err := exec.LookPath("radon")
+	if err != nil {
+		t.Skip("radon unavailable")
+	}
+	store := newTestConfigStore(t)
+	writeRepoConfigWithErrorMode(t, store, "aff-6eo", EnforcementBlock, EnforcementOnErrorBlock, map[string]bool{"dependency-discipline": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
+		PatternPath: writeTestPattern(t),
+		Analyzers: map[string]SourceAnalyzer{
+			"python": AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
+				return analyzer.AnalyzePythonFile(ctx, request.TempPath, radon)
+			}),
+		},
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true, Output: `{"hasErrors":false}`}, nil
+		}),
+	}, nil))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestHandlerCheckPythonDependencyDiscipline(t *testing.T) {
+	server := pythonDependencyChecker(t)
+	const file = "src/sample.py"
+	used := postCheckForLanguage(t, server.URL, "aff-6eo", file, "python", pythonDependencyUsedSource)
+	if used.Status != fitness.StatusPass || len(used.Violations) != 0 {
+		t.Fatalf("all-used response = %+v, want pass without findings", used)
+	}
+	unusedSource := strings.Replace(pythonDependencyUsedSource, "from __future__ import annotations\n",
+		"from __future__ import annotations\nfrom pathlib import PurePath\nimport time as unused_time\nimport json as unused_json\n", 1)
+	blocked := postCheckForLanguage(t, server.URL, "aff-6eo", file, "python", unusedSource)
+	assertPythonDependencyViolation(t, blocked, file, 0.75, "PurePath, unused_time, unused_json")
+	// Preserve an unrelated file's wet findings when the replacement clears sample.py.
+	postCheckForLanguage(t, server.URL, "aff-6eo", "src/other.py", "python", unusedSource)
+	postCheckForLanguage(t, server.URL, "aff-6eo", file, "python", pythonDependencyUsedSource)
+	state := getState(t, server.URL, "aff-6eo")
+	if len(state.Violations) != 1 || state.Violations[0].File != "src/other.py" {
+		t.Fatalf("replacement state = %+v, want only other.py finding", state)
+	}
+	postCheckForLanguage(t, server.URL, "aff-6eo", "src/other.py", "python", pythonDependencyUsedSource)
+	for _, usedCount := range []int{8, 7} {
+		names := make([]string, 10)
+		for i := range names {
+			names[i] = fmt.Sprintf("n%d", i)
+		}
+		source := "from dependencies import " + strings.Join(names, ", ") + "\n(" + strings.Join(names[:usedCount], ", ") + ")\n"
+		result := postCheckForLanguage(t, server.URL, "aff-6eo", file, "python", source)
+		if usedCount == 8 {
+			if result.Status != fitness.StatusPass || len(result.Violations) != 0 {
+				t.Fatalf("boundary response = %+v, want pass at 0.8", result)
+			}
+		} else {
+			assertPythonDependencyViolation(t, result, file, 0.7, "n7, n8, n9")
+		}
+	}
+}
+
+func assertPythonDependencyViolation(t *testing.T, result fitness.ValidationResult, file string, value float64, unused string) {
+	t.Helper()
+	if result.Status != fitness.StatusBlock || len(result.Violations) != 1 {
+		t.Fatalf("response = %+v, want one dependency block", result)
+	}
+	v := result.Violations[0]
+	if v.FitnessFunction != "dependency_discipline" || v.File != file || v.CALMNode != "sample" || v.Value != value || v.Limit != 0.8 {
+		t.Fatalf("violation = %+v, want %s DDC %g/0.8", v, file, value)
+	}
+	start := strings.Index(v.Message, "Unused imports: [")
+	if start < 0 {
+		t.Fatalf("missing unused list: %q", v.Message)
+	}
+	got := strings.SplitN(v.Message[start+len("Unused imports: ["):], "]", 2)[0]
+	if got != unused {
+		t.Fatalf("unused = %q, want %q", got, unused)
+	}
+}
+
+func TestHandlerCheckPythonDependencyDisciplineUnavailableAST(t *testing.T) {
+	server := pythonDependencyChecker(t)
+	response, err := http.Post(server.URL+"/check", "application/json", strings.NewReader(`{
+		"repo": "aff-6eo",
+		"file": "src/broken.py",
+		"language": "python",
+		"proposed_content": "def broken(",
+		"dry_run": true
+	}`))
+	if err != nil {
+		t.Fatalf("POST /check: %v", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read response: %v", err)
+	}
+	if response.StatusCode != http.StatusServiceUnavailable || !strings.Contains(string(body), "running python analyzer") {
+		t.Fatalf("status = %d, body = %s, want Python analyzer infrastructure failure", response.StatusCode, body)
+	}
+	if state := getState(t, server.URL, "aff-6eo"); len(state.Violations) != 0 {
+		t.Fatalf("failed dry run persisted findings: %+v", state)
+	}
+}
+
 func TestHandlerCheckBlocksRealGoBoilerplateForLogicDensity(t *testing.T) {
 	repo := "repo-one"
 	store := newTestConfigStore(t)
