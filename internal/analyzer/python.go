@@ -876,22 +876,16 @@ class _ImportCollector(ast.NodeVisitor):
                 self._walk_expr(child, scope)
 
 
+def _import_candidates(value):
+    return value if isinstance(value, set) else {value}
+
+
 def _merge_import_states(left, right):
-    result = dict(left)
-    for name, value in right.items():
-        if name not in result:
-            result[name] = value
-        elif result[name] is _REMOVED:
-            if value is not _REMOVED:
-                result[name] = value
-        elif value is _REMOVED:
-            pass
-        elif result[name] is None:
-            if value is not None:
-                result[name] = value
-        elif value is not None:
-            result[name] = result[name] | value
-    return result
+    return {
+        name: _import_candidates(left.get(name, _REMOVED)) |
+              _import_candidates(right.get(name, _REMOVED))
+        for name in left.keys() | right.keys()
+    }
 
 
 class _ImportResolver:
@@ -919,25 +913,27 @@ class _ImportResolver:
         return {}
 
     def _lookup(self, scope, name):
-        target = self._target_scope(scope, name)
-        current = target
+        current = self._target_scope(scope, name)
         closure = scope.kind in ("class", "function", "lambda", "comprehension")
+        candidates = set()
         while current is not None:
             state = self.states.get(current, {})
-            if name in state and (state[name] is not _REMOVED or current.kind != "class"):
-                return state[name]
+            if name in state:
+                values = _import_candidates(state[name])
+                candidates.update(values - {_REMOVED})
+                if current.kind != "class" or _REMOVED not in values:
+                    return candidates
             if name in current.locals and current.kind in ("function", "lambda", "annotation"):
-                return None
+                return candidates
             current = current.parent
             if closure:
                 while current is not None and current.kind == "class":
                     current = current.parent
-        return None
+        return candidates
 
     def _load(self, scope, name):
-        value = self._lookup(scope, name)
-        if value is not None and value is not _REMOVED:
-            for index in value:
+        for index in self._lookup(scope, name):
+            if index is not None:
                 self.records[index].used = True
 
     def _write(self, scope, name, value):
@@ -948,6 +944,23 @@ class _ImportResolver:
     def _imports(self, node, index):
         record = self.collector.record_by_alias.get((node, index))
         return set() if record is None else {record}
+
+    def _snapshot(self):
+        return {scope: dict(state) for scope, state in self.states.items()}
+
+    def _restore(self, flow):
+        self.states = {scope: dict(state) for scope, state in flow.items()}
+
+    def _merge_flows(self, flows):
+        scopes = set().union(*(flow.keys() for flow in flows))
+        merged = {}
+        for scope in scopes:
+            states = [flow.get(scope, {}) for flow in flows]
+            state = states[0]
+            for other in states[1:]:
+                state = _merge_import_states(state, other)
+            merged[scope] = state
+        self.states = merged
 
     def _expr(self, node, scope, annotation=False):
         if node is None:
@@ -1031,10 +1044,7 @@ class _ImportResolver:
         if not all(isinstance(item, ast.Constant) and isinstance(item.value, str) for item in node.elts):
             return
         for item in node.elts:
-            value = self._lookup(scope, item.value)
-            if isinstance(value, set):
-                for index in value:
-                    self.records[index].used = True
+            self._load(scope, item.value)
 
     def _stmt_list(self, nodes, scope, state):
         self.states[scope] = state
@@ -1117,63 +1127,73 @@ class _ImportResolver:
                 for name in _target_names(target):
                     self._write(scope, name, _REMOVED)
             return self.states.get(scope, state)
-        if isinstance(node, (ast.If,)):
+        if isinstance(node, ast.If):
             self._expr(node.test, scope)
-            left = self._stmt_list(node.body, scope, dict(state))
-            right = self._stmt_list(node.orelse, scope, dict(state)) if node.orelse else dict(state)
-            return _merge_import_states(left, right)
-        if isinstance(node, (ast.For, ast.AsyncFor)):
-            self._expr(node.iter, scope)
-            body_state = dict(state)
-            self.states[scope] = body_state
-            self._target(scope, node.target)
-            body_state = self._stmt_list(node.body, scope, body_state)
-            completed = _merge_import_states(state, body_state)
-            else_state = self._stmt_list(node.orelse, scope, dict(completed)) if node.orelse else completed
-            return _merge_import_states(completed, else_state)
-        if isinstance(node, (ast.While,)):
-            self._expr(node.test, scope)
-            body_state = self._stmt_list(node.body, scope, dict(state))
-            completed = _merge_import_states(state, body_state)
-            else_state = self._stmt_list(node.orelse, scope, dict(completed)) if node.orelse else completed
-            return _merge_import_states(completed, else_state)
+            incoming = self._snapshot()
+            branches = []
+            for arm in (node.body, node.orelse):
+                self._restore(incoming)
+                self._stmt_list(arm, scope, self.states[scope])
+                branches.append(self._snapshot())
+            self._merge_flows(branches)
+            return self.states[scope]
+        if isinstance(node, (ast.For, ast.AsyncFor, ast.While)):
+            is_while = isinstance(node, ast.While)
+            self._expr(node.test if is_while else node.iter, scope)
+            incoming = self._snapshot()
+            if not is_while:
+                self._target(scope, node.target)
+            self._stmt_list(node.body, scope, self.states[scope])
+            body = self._snapshot()
+            self._merge_flows((incoming, body))
+            if is_while:
+                self._expr(node.test, scope)
+            self._stmt_list(node.orelse, scope, self.states[scope])
+            self._merge_flows((body, self._snapshot()))
+            return self.states[scope]
         if isinstance(node, (ast.Try, getattr(ast, "TryStar", ast.Try))):
-            body = self._stmt_list(node.body, scope, dict(state))
-            branches = [body]
+            incoming = self._snapshot()
+            self._stmt_list(node.body, scope, self.states[scope])
+            body = self._snapshot()
+            self._stmt_list(node.orelse, scope, self.states[scope])
+            branches = [incoming, self._snapshot()]
+            self._merge_flows((incoming, body))
+            handler_incoming = self._snapshot()
             for handler in node.handlers:
-                branch_state = _merge_import_states(state, body)
-                self.states[scope] = branch_state
+                self._restore(handler_incoming)
                 self._expr(handler.type, scope)
                 if handler.name:
                     self._write(scope, handler.name, None)
-                branch = self._stmt_list(handler.body, scope, branch_state)
+                self._stmt_list(handler.body, scope, self.states[scope])
                 if handler.name:
                     self._write(scope, handler.name, _REMOVED)
-                branches.append(branch)
-            if node.orelse:
-                branches.append(self._stmt_list(node.orelse, scope, dict(body)))
-            merged = dict(state)
-            for branch in branches:
-                merged = _merge_import_states(merged, branch)
-            if node.finalbody:
-                merged = self._stmt_list(node.finalbody, scope, merged)
-            return merged
+                branches.append(self._snapshot())
+            self._merge_flows(branches)
+            self._stmt_list(node.finalbody, scope, self.states[scope])
+            return self.states[scope]
         if isinstance(node, (ast.With, ast.AsyncWith)):
             for item in node.items:
                 self._expr(item.context_expr, scope)
                 if item.optional_vars:
                     self._target(scope, item.optional_vars)
             return self._stmt_list(node.body, scope, state)
-        if isinstance(node, (ast.Match,)):
+        if isinstance(node, ast.Match):
             self._expr(node.subject, scope)
-            merged = dict(state)
+            incoming = self._snapshot()
+            branches = []
+            exhaustive = False
             for case in node.cases:
-                branch_state = dict(state)
-                self.states[scope] = branch_state
+                self._restore(incoming)
                 self._pattern(case.pattern, scope)
                 self._expr(case.guard, scope)
-                merged = _merge_import_states(merged, self._stmt_list(case.body, scope, branch_state))
-            return merged
+                self._stmt_list(case.body, scope, self.states[scope])
+                branches.append(self._snapshot())
+                if case.guard is None and isinstance(case.pattern, ast.MatchAs) and case.pattern.pattern is None:
+                    exhaustive = True
+            if not exhaustive:
+                branches.append(incoming)
+            self._merge_flows(branches)
+            return self.states[scope]
         if isinstance(node, ast.Raise):
             self._expr(node.exc, scope)
             self._expr(node.cause, scope)
@@ -1241,29 +1261,26 @@ class _ImportResolver:
                 self._expr(child, result)
         return result
 
+    def _deferred_body(self, node, scope):
+        saved = self._snapshot()
+        state = self._initial(scope)
+        self.states[scope] = state
+        body = [node.body] if isinstance(node, ast.Lambda) else node.body
+        self._stmt_list(body, scope, state)
+        # Nested bodies see this completed environment, but their redirected
+        # writes must not affect the next sibling body.
+        nested, self.tasks = self.tasks, []
+        for child, child_scope, _ in nested:
+            self._deferred_body(child, child_scope)
+        completed = self.states[scope]
+        self._restore(saved)
+        self.states[scope] = completed
+
     def run(self):
-        module_state = self._stmt_list(self.collector.module.node.body if self.collector.module.node else [], self.collector.module, {})
-        position = 0
-        while position < len(self.tasks):
-            node, scope, parent = self.tasks[position]
-            position += 1
-            saved = {key: dict(value) for key, value in self.states.items()}
-            state = self._initial(scope)
-            self.states[scope] = state
-            if isinstance(node, ast.Lambda):
-                self._stmt_list([node.body], scope, state)
-            else:
-                self._stmt_list(node.body, scope, state)
-            child_state = self.states.get(scope, state)
-            for key in list(self.states):
-                if key is scope:
-                    continue
-                if key in saved:
-                    self.states[key] = saved[key]
-                else:
-                    del self.states[key]
-            self.states[scope] = child_state
-        return module_state
+        self._stmt_list(self.collector.module.node.body, self.collector.module, {})
+        bodies, self.tasks = self.tasks, []
+        for node, scope, _ in bodies:
+            self._deferred_body(node, scope)
 
 
 def _import_metric(tree):
@@ -1399,14 +1416,8 @@ func pythonFindingsFor(payload map[string]pythonFindingsItem, file string) (pyth
 	if item.Error != "" {
 		return pythonFindingsItem{}, fmt.Errorf("python findings error for %s: %s", file, item.Error)
 	}
-	for _, finding := range item.Findings {
-		if finding.Rule == "syntax-warning" {
-			detail := finding.Detail
-			if detail == "" {
-				detail = "AST scan unavailable"
-			}
-			return pythonFindingsItem{}, fmt.Errorf("python findings error for %s: %s", file, detail)
-		}
+	if detail := pythonSyntaxWarningDetail(item.Findings); detail != "" {
+		return pythonFindingsItem{}, fmt.Errorf("python findings error for %s: %s", file, detail)
 	}
 	if len(item.Interfaces) == 0 {
 		return pythonFindingsItem{}, fmt.Errorf("python findings error for %s: missing interface metrics", file)
@@ -1415,6 +1426,19 @@ func pythonFindingsFor(payload map[string]pythonFindingsItem, file string) (pyth
 		return pythonFindingsItem{}, fmt.Errorf("python findings error for %s: missing import metrics", file)
 	}
 	return item, nil
+}
+
+func pythonSyntaxWarningDetail(findings []Finding) string {
+	for _, finding := range findings {
+		if finding.Rule != "syntax-warning" {
+			continue
+		}
+		if finding.Detail == "" {
+			return "AST scan unavailable"
+		}
+		return finding.Detail
+	}
+	return ""
 }
 
 // findingsPythonCommand resolves the interpreter that runs the findings scan.
