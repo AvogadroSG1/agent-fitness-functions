@@ -95,6 +95,31 @@ func TestConvertIncludesSchemaVersion(t *testing.T) {
 	}
 }
 
+func TestConvertPreservesInterfaceIdentities(t *testing.T) {
+	resp := fitness.ValidationResult{
+		Status: fitness.StatusBlock,
+		Violations: []fitness.Violation{
+			{FitnessFunction: "interface_width", Interface: "_Outer._Repository", File: "/repo/retrieval.py", Value: 21, Limit: 20},
+			{FitnessFunction: "interface_width", Interface: "RepositoryB", File: "/repo/retrieval.py", Value: 22, Limit: 20},
+			{FitnessFunction: "cyclomatic_complexity", Function: "parse", File: "/repo/retrieval.py", Value: 10, Limit: 9},
+		},
+	}
+	out := marshalSARIF(t, sarif.Convert(resp, "/repo"))
+	results := out.Runs[0].Results
+	if len(results) != 3 || len(out.Runs[0].Tool.Driver.Rules) != 2 {
+		t.Fatalf("SARIF = %+v, want three findings with two declared rules", out)
+	}
+	for i, annotation := range []string{"(interface: _Outer._Repository)", "(interface: RepositoryB)", "(function: parse)"} {
+		r := results[i]
+		if !strings.Contains(r.Message.Text, annotation) || len(r.Locations) != 1 || r.Locations[0].PhysicalLocation.ArtifactLocation.URI != "retrieval.py" {
+			t.Errorf("result = %+v, want %q at retrieval.py", r, annotation)
+		}
+	}
+	if !strings.Contains(results[0].Message.Text, "value: 21.00") || !strings.Contains(results[1].Message.Text, "value: 22.00") {
+		t.Fatalf("scoped counts lost: %+v", results)
+	}
+}
+
 // sarifDoc mirrors the top-level SARIF structure for JSON unmarshalling in tests.
 type sarifDoc struct {
 	Schema  string     `json:"$schema"`
@@ -120,7 +145,10 @@ type sarifRule struct {
 }
 
 type sarifResult struct {
-	Level     string          `json:"level"`
+	Level   string `json:"level"`
+	Message struct {
+		Text string `json:"text"`
+	} `json:"message"`
 	Locations []sarifLocation `json:"locations"`
 }
 

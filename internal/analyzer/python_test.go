@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -475,6 +476,337 @@ func TestAnalyzePythonFileWithRadonAPI_IncompatibleSyntaxGracefulFallback(t *tes
 	}
 }
 
+func TestPythonInterfaceMetricsPaths(t *testing.T) {
+	radon, err := exec.LookPath("radon")
+	if err != nil {
+		t.Skip("radon not installed")
+	}
+	ctx := context.Background()
+	root := t.TempDir()
+	semanticFile := filepath.Join(root, "semantic.py")
+	semanticSource := `from typing import overload
+
+def module_sync():
+    return 1
+
+async def module_async():
+    return 2
+
+def _module_private():
+    return 3
+
+class _Outer:
+    def __init__(self):
+        self.value = 0
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, value):
+        self._value = value
+
+    @overload
+    def overloaded(self, value: int):
+        ...
+
+    @overload
+    def overloaded(self, value: str):
+        ...
+
+    def overloaded(self, value):
+        return value
+
+    @staticmethod
+    def static_op():
+        return 1
+
+    @classmethod
+    def class_op(cls):
+        return cls
+
+    def _private(self):
+        return None
+
+    class Inner:
+        def nested_op(self):
+            return 1
+
+    class _Inner:
+        def nested_private(self):
+            return 1
+    def factory(self):
+        def closure():
+            return 1
+
+        class _Worker:
+            def work(self):
+                return 1
+
+        return _Worker()
+
+class _Private:
+    def public(self):
+        return 1
+
+def make_local():
+    class Local:
+        def local(self):
+            return 1
+    return Local
+`
+	if err := os.WriteFile(semanticFile, []byte(semanticSource), 0o644); err != nil {
+		t.Fatalf("write semantic source: %v", err)
+	}
+
+	apiResult, err := analyzePythonFileWithRadonAPI(ctx, semanticFile, radon)
+	if err != nil {
+		t.Fatalf("analyzePythonFileWithRadonAPI returned error: %v", err)
+	}
+	cliResult, err := AnalyzePythonFile(ctx, semanticFile, radon)
+	if err != nil {
+		t.Fatalf("AnalyzePythonFile returned error: %v", err)
+	}
+	assertSameInterfaceMetrics(t, apiResult.Interfaces, cliResult.Interfaces)
+
+	wantInterfaces := []InterfaceMetric{
+		{Kind: "module", Line: 1, PublicMethods: 3},
+		{Name: "_Outer", Kind: "class", Line: 12, PublicMethods: 5},
+		{Name: "_Outer.Inner", Kind: "class", Line: 46, PublicMethods: 1},
+		{Name: "_Outer._Inner", Kind: "class", Line: 50, PublicMethods: 1},
+		{Name: "_Outer.factory.<locals>._Worker", Kind: "class", Line: 57, PublicMethods: 1},
+		{Name: "_Private", Kind: "class", Line: 63, PublicMethods: 1},
+		{Name: "make_local.<locals>.Local", Kind: "class", Line: 68, PublicMethods: 1},
+	}
+	if len(cliResult.Interfaces) != len(wantInterfaces) {
+		t.Fatalf("interfaces = %+v, want %+v", cliResult.Interfaces, wantInterfaces)
+	}
+	for i, want := range wantInterfaces {
+		if cliResult.Interfaces[i] != want {
+			t.Errorf("interface %d = %+v, want %+v", i, cliResult.Interfaces[i], want)
+		}
+	}
+
+	emptyFile := filepath.Join(root, "empty.py")
+	if err := os.WriteFile(emptyFile, nil, 0o644); err != nil {
+		t.Fatalf("write empty source: %v", err)
+	}
+	emptyResult, err := AnalyzePythonFile(ctx, emptyFile, radon)
+	if err != nil {
+		t.Fatalf("AnalyzePythonFile(empty) returned error: %v", err)
+	}
+	if len(emptyResult.Interfaces) != 1 ||
+		emptyResult.Interfaces[0].Kind != "module" ||
+		emptyResult.Interfaces[0].Name != "" ||
+		emptyResult.Interfaces[0].Line != 1 ||
+		emptyResult.Interfaces[0].PublicMethods != 0 {
+		t.Fatalf("empty interfaces = %+v, want one zero-width module record", emptyResult.Interfaces)
+	}
+
+	repeatedFile := filepath.Join(root, "repeated.py")
+	repeatedSource := `class Repeat:
+    def first(self):
+        return 1
+
+class Repeat:
+    def second(self):
+        return 2
+`
+	if err := os.WriteFile(repeatedFile, []byte(repeatedSource), 0o644); err != nil {
+		t.Fatalf("write repeated source: %v", err)
+	}
+	repeatedResult, err := AnalyzePythonFile(ctx, repeatedFile, radon)
+	if err != nil {
+		t.Fatalf("AnalyzePythonFile(repeated) returned error: %v", err)
+	}
+	repeated := interfaceMetricsNamed(repeatedResult.Interfaces, "Repeat")
+	if len(repeated) != 2 || repeated[0].Line != 1 || repeated[1].Line != 5 ||
+		repeated[0].PublicMethods != 1 || repeated[1].PublicMethods != 1 {
+		t.Fatalf("repeated class interfaces = %+v, want two distinct one-method declarations", repeated)
+	}
+
+	conditionalFile := filepath.Join(root, "conditional.py")
+	conditionalSource := `if enabled:
+    def module_op():
+        return 1
+else:
+    async def module_op():
+        return 2
+
+class Base:
+    def inherited(self):
+        return 1
+
+class Derived(Base):
+    callback = lambda: None
+    if enabled:
+        def own(self):
+            def closure():
+                return 1
+            return closure()
+    else:
+        async def own(self):
+            return 2
+
+Derived.assigned = module_op
+`
+	if err := os.WriteFile(conditionalFile, []byte(conditionalSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	conditionalResult, err := AnalyzePythonFile(ctx, conditionalFile, radon)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantConditional := []InterfaceMetric{
+		{Kind: "module", Line: 1, PublicMethods: 1},
+		{Name: "Base", Kind: "class", Line: 8, PublicMethods: 1},
+		{Name: "Derived", Kind: "class", Line: 12, PublicMethods: 1},
+	}
+	assertSameInterfaceMetrics(t, conditionalResult.Interfaces, wantConditional)
+	conditionalAPI, err := analyzePythonFileWithRadonAPI(ctx, conditionalFile, radon)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSameInterfaceMetrics(t, conditionalAPI.Interfaces, wantConditional)
+
+	leftDir := filepath.Join(root, "left")
+	rightDir := filepath.Join(root, "right")
+	if err := os.MkdirAll(leftDir, 0o755); err != nil {
+		t.Fatalf("make left directory: %v", err)
+	}
+	if err := os.MkdirAll(rightDir, 0o755); err != nil {
+		t.Fatalf("make right directory: %v", err)
+	}
+	leftFile := filepath.Join(leftDir, "shared.py")
+	rightFile := filepath.Join(rightDir, "shared.py")
+	if err := os.WriteFile(leftFile, []byte("class Twin:\n    def left(self):\n        return 1\n"), 0o644); err != nil {
+		t.Fatalf("write left shared source: %v", err)
+	}
+	if err := os.WriteFile(rightFile, []byte("class Twin:\n    def right_one(self):\n        return 1\n    def right_two(self):\n        return 2\n"), 0o644); err != nil {
+		t.Fatalf("write right shared source: %v", err)
+	}
+	repositoryResults, err := AnalyzePythonRepository(ctx, root, radon)
+	if err != nil {
+		t.Fatalf("AnalyzePythonRepository returned error: %v", err)
+	}
+	repositorySemantic := findResult(t, repositoryResults, semanticFile)
+	assertSameInterfaceMetrics(t, repositorySemantic.Interfaces, cliResult.Interfaces)
+	assertSameInterfaceMetrics(t, findResult(t, repositoryResults, conditionalFile).Interfaces, wantConditional)
+	leftResult := findResult(t, repositoryResults, leftFile)
+	rightResult := findResult(t, repositoryResults, rightFile)
+	leftTwin := interfaceMetricsNamed(leftResult.Interfaces, "Twin")
+	rightTwin := interfaceMetricsNamed(rightResult.Interfaces, "Twin")
+	if len(leftTwin) != 1 || leftTwin[0].PublicMethods != 1 {
+		t.Fatalf("left shared interfaces = %+v, want Twin width 1", leftResult.Interfaces)
+	}
+	if len(rightTwin) != 1 || rightTwin[0].PublicMethods != 2 {
+		t.Fatalf("right shared interfaces = %+v, want Twin width 2", rightResult.Interfaces)
+	}
+}
+
+func TestPythonInterfaceMetricsMissingScan(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "missing.py")
+	for name, payload := range map[string]map[string]pythonFindingsItem{
+		"absent-entry":     nil,
+		"absent-metrics":   {file: {}},
+		"empty-metrics":    {file: {Interfaces: []InterfaceMetric{}}},
+		"ordinary-finding": {file: {Findings: []Finding{{Rule: "temporal-purity", Line: 1}}}},
+		"unresolved-entry": {
+			"other.py":   {Interfaces: []InterfaceMetric{{Kind: "module", Line: 1}}},
+			"another.py": {Interfaces: []InterfaceMetric{{Kind: "module", Line: 1}}},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			missing, err := pythonFindingsFor(payload, file)
+			if err == nil || err.Error() != "python findings error for "+file+": missing interface metrics" {
+				t.Fatalf("missing scan result = %+v, error = %v, want missing interface metrics error", missing, err)
+			}
+		})
+	}
+	zeroModule := InterfaceMetric{Kind: "module", Line: 1}
+	for _, key := range []string{file, "rewritten.py"} {
+		scan, err := pythonFindingsFor(map[string]pythonFindingsItem{
+			key: {Interfaces: []InterfaceMetric{zeroModule}},
+		}, file)
+		if err != nil || len(scan.Interfaces) != 1 || scan.Interfaces[0] != zeroModule {
+			t.Fatalf("zero-width module scan = %+v/%v, want preserved zero-width module", scan, err)
+		}
+	}
+
+	warning := pythonFindingsItem{
+		Findings: []Finding{{Rule: "syntax-warning", Kind: "syntax-warning", Line: 1}},
+	}
+	if got, err := pythonFindingsFor(map[string]pythonFindingsItem{file: warning}, file); err != nil {
+		t.Fatalf("syntax-warning scan returned error: %v", err)
+	} else if len(got.Findings) != 1 || len(got.Interfaces) != 0 {
+		t.Fatalf("syntax-warning scan = %+v, want warning without fabricated interfaces", got)
+	}
+
+	radon, err := exec.LookPath("radon")
+	if err != nil {
+		t.Skip("radon not installed")
+	}
+	syntaxFile := filepath.Join(t.TempDir(), "syntax-warning.py")
+	if err := os.WriteFile(syntaxFile, []byte("def broken(\n    return 1\n"), 0o644); err != nil {
+		t.Fatalf("write syntax-warning source: %v", err)
+	}
+	result, err := analyzePythonFileWithRadonAPI(context.Background(), syntaxFile, radon)
+	if err != nil {
+		t.Fatalf("analyzePythonFileWithRadonAPI(syntax warning) returned error: %v", err)
+	}
+	if len(result.Interfaces) != 0 {
+		t.Fatalf("syntax-warning result interfaces = %+v, want none", result.Interfaces)
+	}
+	hasSyntaxWarning := false
+	for _, finding := range result.Findings {
+		if finding.Rule == "syntax-warning" || finding.Kind == "syntax-warning" {
+			hasSyntaxWarning = true
+			break
+		}
+	}
+	if !hasSyntaxWarning {
+		t.Fatalf("syntax-warning result findings = %+v, want syntax warning", result.Findings)
+	}
+}
+
+func assertSameInterfaceMetrics(t *testing.T, left, right []InterfaceMetric) {
+	t.Helper()
+	left = append([]InterfaceMetric(nil), left...)
+	right = append([]InterfaceMetric(nil), right...)
+	sort.Slice(left, func(i, j int) bool {
+		if left[i].Name != left[j].Name {
+			return left[i].Name < left[j].Name
+		}
+		return left[i].Line < left[j].Line
+	})
+	sort.Slice(right, func(i, j int) bool {
+		if right[i].Name != right[j].Name {
+			return right[i].Name < right[j].Name
+		}
+		return right[i].Line < right[j].Line
+	})
+	if len(left) != len(right) {
+		t.Fatalf("interface record lengths differ: API=%d CLI=%d", len(left), len(right))
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			t.Errorf("interface record %d differs: API=%+v CLI=%+v", index, left[index], right[index])
+		}
+	}
+}
+
+func interfaceMetricsNamed(metrics []InterfaceMetric, name string) []InterfaceMetric {
+	var records []InterfaceMetric
+	for _, metric := range metrics {
+		if metric.Name == name {
+			records = append(records, metric)
+		}
+	}
+	sort.Slice(records, func(i, j int) bool { return records[i].Line < records[j].Line })
+	return records
+}
+
 func fakeRadon(t *testing.T, dir string) string {
 	t.Helper()
 	name := "radon"
@@ -538,7 +870,7 @@ if [ "$1" != "-c" ]; then
   exit 2
 fi
 file="${@: -1}"
-printf '{"cc":{"%%s":[{"type":"F","name":"one","complexity":1,"lineno":1,"endline":2}]},"raw":{"%%s":{"loc":2,"lloc":1}}}' "$file" "$file"
+printf '{"cc":{"%%s":[{"type":"F","name":"one","complexity":1,"lineno":1,"endline":2}]},"raw":{"%%s":{"loc":2,"lloc":1}},"findings":{"%%s":{"findings":[],"interfaces":[{"name":"","kind":"module","line":1,"public_methods":1}]}}}' "$file" "$file" "$file"
 `, logPath)
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake radon python: %v", err)

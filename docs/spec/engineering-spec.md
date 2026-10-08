@@ -377,20 +377,44 @@ Based on John Ousterhout's cost-benefit framework from *A Philosophy of Software
 
 **Rule A — Interface Width Ceiling**
 
-Enforces a maximum number of public methods per CALM node. A module with many public methods imposes high cognitive cost on callers regardless of what it does internally.
+Enforces a maximum number of public operations on each independently declared
+interface represented by a CALM node. A module with many public operations imposes
+high cognitive cost on callers regardless of what it does internally.
+
+For successfully parsed Python, the analyzer emits one module interface and one
+interface for every class declaration, including protocols, private classes,
+nested classes, and classes declared inside functions. Each record counts only
+unique public function/async-function names declared directly in that lexical
+module or class scope; overloads and property accessors sharing a name count
+once. Constructors and underscore-prefixed names are private. Imported,
+inherited, dynamically assigned, and otherwise non-declared callables are not
+counted. Nested classes and nested functions do not inflate their containing
+interface; local-class names retain their lexical ``<locals>`` path. This is a
+declared-only metric: it intentionally does not resolve inherited operations or
+protocol implementations across files. A syntax-warning scan has no scoped
+records and retains the language analyzer's existing flat fallback.
 
 | Property | Value |
 |---|---|
-| Unit | Per-module (package / namespace / class) |
+| Unit | Per declared interface (module / package / namespace / class) |
 | Threshold | Calibrated in `patterns/governance.json`: ≤ 20 public methods. Initial planning value was ≤ 15. |
 | Operator | lte |
 
 **Violation:**
 > `Module 'X' exposes N public methods, exceeding the limit of T. Consolidate related operations or reduce the public surface area.`
 
+For a Python class or protocol, the diagnostic identifies that containing
+interface rather than attributing its operations to the module.
+
 **Rule B — Implementation Depth Floor**
 
 Enforces a minimum average implementation LOC per public method. For this PoC, implementation LOC is analyzer `logic_loc` divided by public method count so comments, imports, and structural scaffolding do not make a pass-through module look deep. Modules with very little logic per public method are likely pass-through facades with no real functionality.
+
+Rule B deliberately remains a flat module metric: its implementation-LOC
+denominator and public-method count are not replaced by the scoped interface
+records used by Rule A. A class can therefore affect the Rule A ceiling without
+changing Rule B's depth calculation, and the two rules remain independently
+actionable.
 
 | Property | Value |
 |---|---|

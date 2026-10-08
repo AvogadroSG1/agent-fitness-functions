@@ -332,6 +332,9 @@ func sortViolations(violations []fitness.Violation) {
 		if violations[i].Function != violations[j].Function {
 			return violations[i].Function < violations[j].Function
 		}
+		if violations[i].Interface != violations[j].Interface {
+			return violations[i].Interface < violations[j].Interface
+		}
 		return violations[i].FitnessFunction < violations[j].FitnessFunction
 	})
 }

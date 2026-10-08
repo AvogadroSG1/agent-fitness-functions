@@ -23,7 +23,7 @@
                     "maximum": 9
                   },
                   "interface-width": {
-                    "description": "Maximum public method count per CALM node",
+                    "description": "Maximum declared interface width within a CALM node",
                     "type": "number",
                     "maximum": 20
                   },

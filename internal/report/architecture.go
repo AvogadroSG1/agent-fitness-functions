@@ -26,10 +26,11 @@ type Node struct {
 
 // Metadata contains CALM metadata emitted by the CLI.
 type Metadata struct {
-	Fitness       Fitness                `json:"fitness"`
-	ModuleMetrics *analyzer.ModuleMetric `json:"module_metrics,omitempty"`
-	FileMetrics   *FileMetrics           `json:"file_metrics,omitempty"`
-	ImportMetrics *ImportMetrics         `json:"import_metrics,omitempty"`
+	Fitness       Fitness                    `json:"fitness"`
+	ModuleMetrics *analyzer.ModuleMetric     `json:"module_metrics,omitempty"`
+	FileMetrics   *FileMetrics               `json:"file_metrics,omitempty"`
+	ImportMetrics *ImportMetrics             `json:"import_metrics,omitempty"`
+	Interfaces    []analyzer.InterfaceMetric `json:"interfaces,omitempty"`
 }
 
 // Fitness contains concrete values for the governance fitness functions.
@@ -111,7 +112,7 @@ func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
 				Description: "Architecture fitness metrics for " + result.File + ".",
 				Metadata: Metadata{Fitness: Fitness{
 					CyclomaticComplexity:  float64(maxCyclomaticComplexity(result.Functions)),
-					InterfaceWidth:        float64(result.ModuleMetric.PublicMethods),
+					InterfaceWidth:        float64(analyzer.InterfaceWidth(result)),
 					ImplementationDepth:   result.ModuleMetric.AverageLOCPerPublicMethod,
 					LogicDensity:          result.FileMetric.LDR,
 					DependencyDiscipline:  result.Imports.DDC,
@@ -121,6 +122,7 @@ func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
 					DeterministicOrdering: float64(ruleCount(result.RuleCounts, "deterministic-ordering")),
 				},
 					ModuleMetrics: &result.ModuleMetric,
+					Interfaces:    result.Interfaces,
 					FileMetrics: &FileMetrics{
 						TotalLines: result.FileMetric.TotalLOC,
 						LogicLines: result.FileMetric.LogicLOC,

@@ -37,11 +37,14 @@ type ValidationResult struct {
 
 // Violation describes one architectural fitness function failure.
 type Violation struct {
-	FitnessFunction string  `json:"fitness_function"`
-	CALMNode        string  `json:"calm_node"`
-	File            string  `json:"file,omitempty"`
-	Function        string  `json:"function,omitempty"`
-	Value           float64 `json:"value"`
-	Limit           float64 `json:"limit"`
-	Message         string  `json:"message"`
+	FitnessFunction string `json:"fitness_function"`
+	CALMNode        string `json:"calm_node"`
+	File            string `json:"file,omitempty"`
+	Function        string `json:"function,omitempty"`
+	// Interface is the file-relative lexical class/protocol identity for
+	// interface-width diagnostics; module interfaces leave it empty.
+	Interface string  `json:"interface,omitempty"`
+	Value     float64 `json:"value"`
+	Limit     float64 `json:"limit"`
+	Message   string  `json:"message"`
 }

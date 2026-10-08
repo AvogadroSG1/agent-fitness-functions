@@ -64,7 +64,7 @@ func distributions(results []AnalysisResult) BaselineDistributions {
 	ddc := make([]float64, 0, len(results))
 	for _, result := range results {
 		result = EnsureModuleMetric(result)
-		publicMethods = append(publicMethods, result.ModuleMetric.PublicMethods)
+		publicMethods = append(publicMethods, InterfaceWidth(result))
 		if result.ModuleMetric.PublicMethods > 0 {
 			avgLOCPerPublic = append(avgLOCPerPublic, result.ModuleMetric.AverageLOCPerPublicMethod)
 		}
