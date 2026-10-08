@@ -58,6 +58,32 @@ def _run(stdin_data: str, extra_args: list[str] | None = None) -> tuple[str, str
     return result.stdout, result.stderr, result.returncode
 
 
+def test_subprocess_preserves_interface_locations() -> None:
+    import yaml
+
+    first = _viol("interface_width", 21, 20, "", "retrieval")
+    first["interface"] = "_Outer._Repository"
+    second = _viol("interface-width", 22, 20, "", "retrieval")
+    second["interface"] = "RepositoryB"
+    module = _viol("interface_width", 23, 20, "", "retrieval")
+    function = _viol("cyclomatic_complexity", 10, 9, "parse", "retrieval")
+    function["interface"] = "IgnoredForOtherRules"
+    stdout, stderr, code = _run(
+        json.dumps({"status": "block", "violations": [first, second, module, function]}),
+        ["--mode", "block", "--file", "retrieval.py"],
+    )
+    assert code == 0, stderr
+    output = yaml.safe_load(stdout)
+    assert output["calm_check"]["file"] == "retrieval.py"
+    entries = output["violations"]
+    assert [(entry["location"], entry["result"], entry["target"]) for entry in entries] == [
+        ("_Outer._Repository (retrieval)", 21, "<= 20"),
+        ("RepositoryB (retrieval)", 22, "<= 20"),
+        ("retrieval", 23, "<= 20"),
+        ("parse (retrieval)", 10, "<= 9"),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # format_value
 # ---------------------------------------------------------------------------

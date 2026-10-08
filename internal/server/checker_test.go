@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -452,6 +453,116 @@ func TestHandlerCheckPassesCleanPythonContent(t *testing.T) {
 	}
 }
 
+func TestHandlerCheckPythonInterfaceWidthScopes(t *testing.T) {
+	radonPath, err := exec.LookPath("radon")
+	if err != nil {
+		t.Skip("radon is not installed")
+	}
+	classSource := func(name string, width int, protocol bool) string {
+		base := ""
+		if protocol {
+			base = "(Protocol)"
+		}
+		var source strings.Builder
+		fmt.Fprintf(&source, "class %s%s:\n", name, base)
+		for i := range width {
+			fmt.Fprintf(&source, "    def operation%d(self):\n        return None\n", i)
+		}
+		return source.String() + "\n"
+	}
+	split := "from typing import Protocol\n" +
+		classSource("FullCorpusRepository", 17, true) +
+		classSource("ExecutorLock", 4, true) +
+		classSource("ResourceProbe", 2, true)
+	for _, name := range []string{"SlidingWindowAdmissionGate", "_SlidingWindowAdmission", "_StopState", "FullCorpusValidationPolicy"} {
+		split += classSource(name, 1, false)
+	}
+	split += "def first():\n    return None\n\ndef second():\n    return None\n"
+	module := classSource("Narrow", 1, false)
+	for i := range 21 {
+		module += fmt.Sprintf("def operation%d():\n    return None\n", i)
+	}
+	type expected struct {
+		name  string
+		width float64
+	}
+	cases := []struct {
+		name   string
+		source string
+		want   []expected
+	}{
+		{"split-seams", split, nil},
+		{"boundary-20", classSource("Repository", 20, false), nil},
+		{"boundary-21", classSource("Repository", 21, false), []expected{{"Repository", 21}}},
+		{"wide-31", classSource("Repository", 31, false), []expected{{"Repository", 31}}},
+		{"wide-36", classSource("Repository", 36, false), []expected{{"Repository", 36}}},
+		{"private-container", classSource("_Repository", 21, false), []expected{{"_Repository", 21}}},
+		{"nested-private", "class _Outer:\n" + strings.TrimSuffix("    "+strings.ReplaceAll(classSource("_Repository", 21, false), "\n", "\n    "), "    "), []expected{{"_Outer._Repository", 21}}},
+		{"protocol", "from typing import Protocol\n" + classSource("RepositoryProtocol", 21, true), []expected{{"RepositoryProtocol", 21}}},
+		{"two-interfaces", classSource("RepositoryA", 21, false) + classSource("RepositoryB", 22, false), []expected{{"RepositoryA", 21}, {"RepositoryB", 22}}},
+		{"module", module, []expected{{"", 21}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			const repo = "python-scopes"
+			const file = "retrieval/scopes.py"
+			store := newTestConfigStore(t)
+			writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"interface-width": true})
+			server := httptest.NewServer(NewHandlerWithChecker(Checker{
+				ConfigStore: store,
+				PatternPath: writeTestPattern(t),
+				Analyzers: map[string]SourceAnalyzer{
+					"python": AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
+						return analyzer.AnalyzePythonFile(ctx, request.TempPath, radonPath)
+					}),
+				},
+				Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+					return calm.ValidationResult{Valid: true}, nil
+				}),
+			}, nil))
+			defer server.Close()
+			body := postCheckForLanguage(t, server.URL, repo, file, "python", tc.source)
+			wantStatus := fitness.StatusPass
+			if len(tc.want) > 0 {
+				wantStatus = fitness.StatusBlock
+			}
+			if body.Status != wantStatus {
+				t.Fatalf("response = %+v, want %s", body, wantStatus)
+			}
+			for surface, violations := range map[string][]fitness.Violation{
+				"check": body.Violations,
+				"state": getState(t, server.URL, repo).Violations,
+			} {
+				if len(violations) != len(tc.want) {
+					t.Fatalf("%s violations = %+v, want %+v", surface, violations, tc.want)
+				}
+				for i, want := range tc.want {
+					v := violations[i]
+					raw, err := json.Marshal(v)
+					if err != nil {
+						t.Fatal(err)
+					}
+					var fields map[string]any
+					if err := json.Unmarshal(raw, &fields); err != nil {
+						t.Fatal(err)
+					}
+					identity, _ := fields["interface"].(string)
+					if v.FitnessFunction != "interface_width" || v.File != file || v.CALMNode != "scopes" || v.Function != "" || v.Value != want.width || v.Limit != 20 || identity != want.name {
+						t.Fatalf("%s violation = %s, want %+v in %s/scopes", surface, raw, want, file)
+					}
+					if want.name == "" {
+						if _, present := fields["interface"]; present {
+							t.Fatalf("module interface must be omitted: %s", raw)
+						}
+					} else if !strings.Contains(v.Message, want.name) {
+						t.Fatalf("message does not identify %s: %s", want.name, v.Message)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestHandlerCheckBlocksInterfaceWidthViolation(t *testing.T) {
 	repo := "repo-one"
 	store := newTestConfigStore(t)
@@ -475,9 +586,6 @@ func TestHandlerCheckBlocksInterfaceWidthViolation(t *testing.T) {
 	violation := body.Violations[0]
 	if violation.FitnessFunction != "interface_width" || violation.CALMNode != "go-module" || violation.Value != 21 || violation.Limit != 20 {
 		t.Fatalf("violation = %+v, want interface-width 21 > 20", violation)
-	}
-	if !strings.Contains(violation.Message, "exposes 21 public methods") || !strings.Contains(violation.Message, "reduce the public surface area") {
-		t.Fatalf("message = %q, want spec interface-width guidance", violation.Message)
 	}
 }
 

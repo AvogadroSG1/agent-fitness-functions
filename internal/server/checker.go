@@ -553,8 +553,40 @@ func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm
 
 func interfaceWidthViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []fitness.Violation {
 	rule, ok := pattern.FitnessFunctions["interface-width"]
+	if !ok || rule.Operator != "lte" {
+		return nil
+	}
+	if len(result.Interfaces) > 0 {
+		var violations []fitness.Violation
+		for _, record := range result.Interfaces {
+			if float64(record.PublicMethods) <= rule.Threshold {
+				continue
+			}
+			violation := fitness.Violation{
+				FitnessFunction: "interface_width",
+				CALMNode:        result.CALMNode,
+				File:            result.File,
+				Value:           float64(record.PublicMethods),
+				Limit:           rule.Threshold,
+			}
+			if record.Kind == "module" {
+				violation.Message = fmt.Sprintf(
+					"Module '%s' exposes %d public methods, exceeding the limit of %.0f. Consolidate related operations or reduce the public surface area.",
+					result.CALMNode, record.PublicMethods, rule.Threshold,
+				)
+			} else {
+				violation.Interface = record.Name
+				violation.Message = fmt.Sprintf(
+					"Interface '%s' in module '%s' (line %d) exposes %d public methods, exceeding the limit of %.0f. Consolidate related operations or reduce the public surface area.",
+					record.Name, result.CALMNode, record.Line, record.PublicMethods, rule.Threshold,
+				)
+			}
+			violations = append(violations, violation)
+		}
+		return violations
+	}
 	result = analyzer.EnsureModuleMetric(result)
-	if !ok || rule.Operator != "lte" || float64(result.ModuleMetric.PublicMethods) <= rule.Threshold {
+	if float64(result.ModuleMetric.PublicMethods) <= rule.Threshold {
 		return nil
 	}
 	return []fitness.Violation{{

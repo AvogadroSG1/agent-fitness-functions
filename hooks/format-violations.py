@@ -52,12 +52,12 @@ def _load_guidance() -> dict[str, dict[str, Any]]:
         "interface-width": {
             "operator": "<=",
             "meaning": (
-                "The module exposes too many public methods, creating a wide "
+                "The containing interface exposes too many public methods, creating a wide "
                 "surface area that is hard to understand, mock, and maintain."
             ),
             "remediation": [
-                "Split the module by cohesion — group related operations into "
-                "separate modules.",
+                "Split the containing interface by cohesion — group related operations into "
+                "separate interfaces.",
                 "Consolidate related operations behind a single higher-level method.",
                 "Consider whether some public methods should be internal.",
                 "Reduce the public surface area to what callers actually need.",
@@ -223,7 +223,8 @@ def _make_violation_entry(
         "result": format_value(value),
         "target": f"{operator} {format_value(limit)}",
     }
-    location = _resolve_location(function_name, calm_node)
+    target = (v.get("interface", "") or function_name) if fn == "interface-width" else function_name
+    location = _resolve_location(target, calm_node)
     if location:
         entry["location"] = location
     if fn_guidance.get("meaning"):

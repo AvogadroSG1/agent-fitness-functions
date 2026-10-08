@@ -87,7 +87,9 @@ func Convert(resp fitness.ValidationResult, repoRoot string) any {
 
 func toResult(v fitness.Violation, status fitness.Status, repoRoot string) result {
 	text := v.Message
-	if v.Function != "" {
+	if v.Interface != "" {
+		text = fmt.Sprintf("%s (interface: %s)", text, v.Interface)
+	} else if v.Function != "" {
 		text = fmt.Sprintf("%s (function: %s)", text, v.Function)
 	}
 	if v.Value != 0 || v.Limit != 0 {

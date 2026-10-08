@@ -22,6 +22,14 @@ This deliberately refines the Step 0 shorthand of setting thresholds at the 90th
 | SlackStatus | C# | 3 | 12 | 10 | 36 | 0.722 | 0.286 | 0.000 |
 | StackOverflow.Api.V3 | C# | 2 | 28 | 20 | 137 | 1.17 | 0.255 | 0.000 |
 
+The Python interface-width percentiles and exception counts in this document are
+historical flat public-operation counts. New Python `public_methods` samples are
+the widest declared module/class interface per file, under
+[engineering-spec.md §5.2 Rule A](spec/engineering-spec.md#52-deep-vs-shallow-two-rules); P90 is
+therefore the P90 of those per-file maxima. The historical tables, exceptions,
+and global ceiling of 20 are unchanged; this counting correction is not a
+threshold recalibration.
+
 ## Proposed Thresholds
 
 | Fitness Function | Operator | Threshold | Source |

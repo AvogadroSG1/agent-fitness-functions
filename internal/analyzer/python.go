@@ -197,10 +197,9 @@ var modernPythonCandidates = []string{"python3.13", "python3.12", "python3", "py
 type radonAPIOutput struct {
 	CC  map[string]json.RawMessage `json:"cc"`
 	Raw map[string]radonRawItem    `json:"raw"`
-	// Findings carries the ast findings scan that shares this subprocess, so
-	// the fast path costs one interpreter launch for metrics and findings
-	// together. A radon python stand-in that omits the section contributes no
-	// findings.
+	// Findings carries the single-AST findings and scoped-interface scan that
+	// shares this subprocess, so the fast path costs one interpreter launch for
+	// metrics and findings together.
 	Findings map[string]pythonFindingsItem `json:"findings"`
 }
 
@@ -307,7 +306,7 @@ if not raw_done:
     payload["raw"][path] = {"loc": loc, "lloc": lloc}
 
 try:
-    payload["findings"][path] = {"findings": scan_findings(source)}
+    payload["findings"][path] = scan_source(source)
 except Exception as exc:
     payload["findings"][path] = {
         "findings": [
@@ -344,11 +343,11 @@ func analyzePythonFileWithRadonAPI(ctx context.Context, file, radonPath string) 
 	if err := ctx.Err(); err != nil {
 		return AnalysisResult{}, err
 	}
-	findings, err := pythonFindingsFor(payload.Findings, file)
+	scan, err := pythonFindingsFor(payload.Findings, file)
 	if err != nil {
 		return AnalysisResult{}, err
 	}
-	return pythonAnalysisResult(file, pythonFunctions(ccPayload[file]), fileMetric, findings)
+	return pythonAnalysisResult(file, pythonFunctions(ccPayload[file]), fileMetric, scan)
 }
 
 // runRadonAPI launches the embedded radon API script and decodes its payload.
@@ -435,9 +434,9 @@ func interpreterFromShebang(shebang string) (string, []string, bool) {
 // pythonFindingsLibrary is the shared, I/O-free half of the embedded Python
 // findings scanner, prepended both to the standalone findings script and to
 // the radon API fast-path script so one detection implementation serves both.
-// Every scan returns a list of {"rule", "kind", "line", "detail"} objects, so
-// a new generalized fitness function is added by appending its scan to _SCANS
-// without reshaping the output.
+// Every scan returns an object containing findings and independently declared
+// interface metrics, so a new generalized fitness function is added by
+// appending its scan to _SCANS without reshaping the output.
 const pythonFindingsLibrary = `
 import ast
 
@@ -536,35 +535,110 @@ def _sql_composition(tree):
 _SCANS = (_temporal_purity, _sql_composition)
 
 
-def scan_findings(source):
+class _InterfaceVisitor(ast.NodeVisitor):
+    def __init__(self):
+        self.module = {
+            "name": "",
+            "kind": "module",
+            "line": 1,
+            "public_methods": 0,
+            "_operations": set(),
+        }
+        self.interfaces = [self.module]
+        self.path = []
+        self.class_stack = []
+        self.function_depth = 0
+
+    def _current_interface(self):
+        if self.class_stack:
+            interface = self.class_stack[-1]
+            if self.function_depth == interface["_function_depth"]:
+                return interface
+            return None
+        if self.function_depth == 0:
+            return self.module
+        return None
+
+    def _add_operation(self, name):
+        if not name.startswith("_"):
+            interface = self._current_interface()
+            if interface is not None:
+                interface["_operations"].add(name)
+
+    def _visit_function(self, node):
+        self._add_operation(node.name)
+        self.path.extend((node.name, "<locals>"))
+        self.function_depth += 1
+        self.generic_visit(node)
+        self.function_depth -= 1
+        del self.path[-2:]
+
+    def visit_FunctionDef(self, node):
+        self._visit_function(node)
+
+    def visit_AsyncFunctionDef(self, node):
+        self._visit_function(node)
+
+    def visit_ClassDef(self, node):
+        interface = {
+            "name": ".".join(self.path + [node.name]),
+            "kind": "class",
+            "line": node.lineno,
+            "public_methods": 0,
+            "_operations": set(),
+            "_function_depth": self.function_depth,
+        }
+        self.interfaces.append(interface)
+        self.path.append(node.name)
+        self.class_stack.append(interface)
+        self.generic_visit(node)
+        self.class_stack.pop()
+        self.path.pop()
+
+    def finish(self):
+        for interface in self.interfaces:
+            interface["public_methods"] = len(interface.pop("_operations"))
+            interface.pop("_function_depth", None)
+        return self.interfaces
+
+
+def scan_source(source):
     try:
         tree = ast.parse(source)
     except SyntaxError as exc:
         lineno = exc.lineno if exc.lineno is not None else 1
-        return [{
-            "rule": "syntax-warning",
-            "kind": "syntax-warning",
-            "line": lineno,
-            "detail": f"Syntax error during AST parsing: {exc}",
-        }]
+        return {
+            "findings": [{
+                "rule": "syntax-warning",
+                "kind": "syntax-warning",
+                "line": lineno,
+                "detail": f"Syntax error during AST parsing: {exc}",
+            }],
+            "interfaces": [],
+        }
     except Exception as exc:
-        return [{
-            "rule": "syntax-warning",
-            "kind": "syntax-warning",
-            "line": 1,
-            "detail": f"Syntax error during AST parsing: {exc}",
-        }]
+        return {
+            "findings": [{
+                "rule": "syntax-warning",
+                "kind": "syntax-warning",
+                "line": 1,
+                "detail": f"Syntax error during AST parsing: {exc}",
+            }],
+            "interfaces": [],
+        }
     found = []
     for scan in _SCANS:
         found.extend(scan(tree))
     found.sort(key=lambda item: (item["line"], item["kind"]))
-    return found
+    visitor = _InterfaceVisitor()
+    visitor.visit(tree)
+    return {"findings": found, "interfaces": visitor.finish()}
 `
 
 // pythonFindingsScript scans every path passed on the command line and prints
 // one JSON entry per analyzed path, mirroring radon's payload shape:
-// {"<path>": {"findings": [...]}} for a scanned file, {"<path>": {"error":
-// "..."}} for one that could not be read or parsed.
+// {"<path>": {"findings": [...], "interfaces": [...]}} for a scanned file,
+// with a syntax-warning finding and no interface records when scanning fails.
 const pythonFindingsScript = pythonFindingsLibrary + `
 import json
 import pathlib
@@ -573,7 +647,7 @@ import sys
 payload = {}
 for path in sys.argv[1:]:
     try:
-        payload[path] = {"findings": scan_findings(pathlib.Path(path).read_text(encoding="utf-8", errors="replace"))}
+        payload[path] = scan_source(pathlib.Path(path).read_text(encoding="utf-8", errors="replace"))
     except Exception as exc:
         payload[path] = {
             "findings": [
@@ -590,15 +664,16 @@ json.dump(payload, sys.stdout)
 
 // pythonFindingsItem is one analyzed path's findings-scan outcome.
 type pythonFindingsItem struct {
-	Error    string    `json:"error"`
-	Findings []Finding `json:"findings"`
+	Error      string            `json:"error"`
+	Findings   []Finding         `json:"findings"`
+	Interfaces []InterfaceMetric `json:"interfaces"`
 }
 
 // pythonFileFindings runs the findings scan for a single file.
-func pythonFileFindings(ctx context.Context, file, radonPath string) ([]Finding, error) {
+func pythonFileFindings(ctx context.Context, file, radonPath string) (pythonFindingsItem, error) {
 	payload, err := pythonFindingsPayload(ctx, radonPath, file)
 	if err != nil {
-		return nil, err
+		return pythonFindingsItem{}, err
 	}
 	return pythonFindingsFor(payload, file)
 }
@@ -625,25 +700,37 @@ func pythonFindingsPayload(ctx context.Context, radonPath string, files ...strin
 	return payload, nil
 }
 
-// pythonFindingsFor returns one file's findings from a scan payload keyed by
-// analyzed path. An entry carrying an error means that file could not be read
-// or parsed, which is an analysis error rather than an empty result — the same
-// way a radon analysis error surfaces. A payload with no entry for the file
-// contributes no findings.
-func pythonFindingsFor(payload map[string]pythonFindingsItem, file string) ([]Finding, error) {
+// pythonFindingsFor returns one file's findings and scoped interfaces from a
+// scan payload keyed by analyzed path. A single-entry payload retains the
+// existing path-independent lookup for interpreter wrappers that rewrite paths.
+func pythonFindingsFor(payload map[string]pythonFindingsItem, file string) (pythonFindingsItem, error) {
 	item, ok := payload[file]
 	if !ok && len(payload) == 1 {
 		for _, value := range payload {
 			item = value
+			ok = true
 		}
+	}
+	if !ok {
+		return pythonFindingsItem{}, fmt.Errorf("python findings error for %s: missing interface metrics", file)
 	}
 	if item.Error != "" {
 		if len(item.Findings) > 0 {
-			return item.Findings, nil
+			return item, nil
 		}
-		return nil, fmt.Errorf("python findings error for %s: %s", file, item.Error)
+		return pythonFindingsItem{}, fmt.Errorf("python findings error for %s: %s", file, item.Error)
 	}
-	return item.Findings, nil
+	hasSyntaxWarning := false
+	for _, finding := range item.Findings {
+		if finding.Rule == "syntax-warning" {
+			hasSyntaxWarning = true
+			break
+		}
+	}
+	if len(item.Interfaces) == 0 && !hasSyntaxWarning {
+		return pythonFindingsItem{}, fmt.Errorf("python findings error for %s: missing interface metrics", file)
+	}
+	return item, nil
 }
 
 // findingsPythonCommand resolves the interpreter that runs the findings scan.
@@ -865,20 +952,20 @@ func pythonRepositoryResult(
 	if rawItem.Error != "" {
 		return AnalysisResult{}, fmt.Errorf("radon raw error for %s: %s", file, rawItem.Error)
 	}
-	findings, err := pythonFindingsFor(findingsPayload, file)
+	scan, err := pythonFindingsFor(findingsPayload, file)
 	if err != nil {
 		return AnalysisResult{}, err
 	}
 	fileMetric := FileMetric{TotalLOC: rawItem.LOC, LogicLOC: rawItem.LLOC}
-	return pythonAnalysisResult(file, pythonFunctions(items), fileMetric, findings)
+	return pythonAnalysisResult(file, pythonFunctions(items), fileMetric, scan)
 }
 
 // pythonAnalysisResult assembles one analyzed Python file's result: it derives
 // the ratios the radon metrics do not carry, reads the source for import
-// metrics, and attaches the findings the caller scanned. Every Python analysis
-// path — radon CLI, radon API fast path, and repository batch — ends here, so
-// they cannot drift apart.
-func pythonAnalysisResult(file string, functions []FunctionMetric, fileMetric FileMetric, findings []Finding) (AnalysisResult, error) {
+// metrics, and attaches the findings and scoped interfaces the caller scanned.
+// Every Python analysis path — radon CLI, radon API fast path, and repository
+// batch — ends here, so they cannot drift apart.
+func pythonAnalysisResult(file string, functions []FunctionMetric, fileMetric FileMetric, scan pythonFindingsItem) (AnalysisResult, error) {
 	source, err := os.ReadFile(file)
 	if err != nil {
 		return AnalysisResult{}, err
@@ -893,7 +980,8 @@ func pythonAnalysisResult(file string, functions []FunctionMetric, fileMetric Fi
 		ModuleMetric: BuildModuleMetric(fileMetric, functions),
 		FileMetric:   fileMetric,
 		Imports:      pythonImportMetric(string(source)),
-		Findings:     findings,
+		Interfaces:   scan.Interfaces,
+		Findings:     scan.Findings,
 	}, nil
 }
 

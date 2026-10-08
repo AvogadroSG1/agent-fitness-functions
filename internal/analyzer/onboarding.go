@@ -193,8 +193,7 @@ func countCyclomaticViolations(results []AnalysisResult, threshold float64) int 
 func countInterfaceViolations(results []AnalysisResult, threshold float64) int {
 	count := 0
 	for _, result := range results {
-		result = EnsureModuleMetric(result)
-		if float64(result.ModuleMetric.PublicMethods) > threshold {
+		if float64(InterfaceWidth(result)) > threshold {
 			count++
 		}
 	}

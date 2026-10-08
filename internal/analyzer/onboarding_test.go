@@ -32,6 +32,57 @@ func greenResult() AnalysisResult {
 	}
 }
 
+func TestPythonInterfaceWidthProjection(t *testing.T) {
+	wide := AnalysisResult{
+		Language: "python",
+		File:     "wide.py",
+		ModuleMetric: ModuleMetric{
+			PublicMethods: 43, TotalLOC: 100, AverageLOCPerPublicMethod: 2,
+		},
+		Interfaces: []InterfaceMetric{
+			{Kind: "module", Line: 1},
+			{Name: "RepositoryA", Kind: "class", Line: 2, PublicMethods: 21},
+			{Name: "RepositoryB", Kind: "class", Line: 45, PublicMethods: 22},
+		},
+	}
+	split := AnalysisResult{
+		Language: "python",
+		File:     "split.py",
+		ModuleMetric: ModuleMetric{
+			PublicMethods: 23, TotalLOC: 100, AverageLOCPerPublicMethod: 3,
+		},
+		Interfaces: []InterfaceMetric{
+			{Kind: "module", Line: 1},
+			{Name: "Repository", Kind: "class", Line: 2, PublicMethods: 17},
+			{Name: "Lock", Kind: "class", Line: 37, PublicMethods: 4},
+			{Name: "Probe", Kind: "class", Line: 46, PublicMethods: 2},
+		},
+	}
+	if countInterfaceViolations([]AnalysisResult{wide}, 20) != 1 || countInterfaceViolations([]AnalysisResult{split}, 20) != 0 {
+		t.Fatal("interface violations must count affected files, not interfaces or flat sums")
+	}
+	results := []AnalysisResult{wide, split}
+	dist := distributions(results)
+	if len(dist.PublicMethods) != 2 || dist.PublicMethods[0] != 17 || dist.PublicMethods[1] != 22 {
+		t.Fatalf("width samples = %v, want [17 22]", dist.PublicMethods)
+	}
+	if len(dist.AverageLOCPerPublicMethod) != 2 || dist.AverageLOCPerPublicMethod[0] != 2 || dist.AverageLOCPerPublicMethod[1] != 3 || countDepthViolations(results, 2.5) != 1 {
+		t.Fatalf("flat depth projection changed: %+v", dist)
+	}
+	summary := SummarizeResults(results)
+	delta := interfaceDelta(results, summary, testRules())
+	if delta.ViolatingCount != 1 || delta.ViolationUnit != "files" {
+		t.Fatalf("delta = %+v, want one affected file", delta)
+	}
+	zero := AnalysisResult{
+		FileMetric: FileMetric{PublicMethods: 99},
+		Interfaces: []InterfaceMetric{{Kind: "module", Line: 1}},
+	}
+	if InterfaceWidth(zero) != 0 {
+		t.Fatal("a parsed zero-width interface must not fall back to flat counts")
+	}
+}
+
 func TestBuildOnboardingRecommendationBlockWhenNoViolations(t *testing.T) {
 	results := []AnalysisResult{greenResult()}
 

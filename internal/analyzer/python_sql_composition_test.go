@@ -28,12 +28,12 @@ func sqlCompositionFindings(t *testing.T, source string) []Finding {
 	if err := os.WriteFile(file, []byte(source), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	findings, err := pythonFileFindings(context.Background(), file, radonPath)
+	scan, err := pythonFileFindings(context.Background(), file, radonPath)
 	if err != nil {
 		t.Fatalf("pythonFileFindings: %v", err)
 	}
 	var sqlFindings []Finding
-	for _, finding := range findings {
+	for _, finding := range scan.Findings {
 		if finding.Rule == "sql-composition-safety" {
 			sqlFindings = append(sqlFindings, finding)
 		}

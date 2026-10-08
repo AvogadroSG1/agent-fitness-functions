@@ -10,6 +10,8 @@ type AnalysisResult struct {
 	ModuleMetric ModuleMetric     `json:"module_metrics"`
 	FileMetric   FileMetric       `json:"file_metrics"`
 	Imports      ImportMetric     `json:"import_metrics"`
+	// Interfaces contains independently declared module/class interfaces.
+	Interfaces []InterfaceMetric `json:"interfaces,omitempty"`
 	// RuleCounts holds counts of generalized fitness-function violations scored
 	// by the server checker, keyed by kebab-case function name (e.g.
 	// "layer-sovereignty"). Absent keys mean zero.
@@ -20,6 +22,30 @@ type AnalysisResult struct {
 	// into violations; an analyzer that detects nothing, or a language with no
 	// detections implemented, leaves this empty.
 	Findings []Finding `json:"findings,omitempty"`
+}
+
+// InterfaceMetric describes one independently declared module or class
+// interface in a source file.
+type InterfaceMetric struct {
+	Name          string `json:"name,omitempty"`
+	Kind          string `json:"kind"`
+	Line          int    `json:"line"`
+	PublicMethods int    `json:"public_methods"`
+}
+
+// InterfaceWidth returns the widest independently declared interface. Older
+// analyzer results without interface records retain their module metric.
+func InterfaceWidth(result AnalysisResult) int {
+	if len(result.Interfaces) > 0 {
+		width := 0
+		for _, metric := range result.Interfaces {
+			if metric.PublicMethods > width {
+				width = metric.PublicMethods
+			}
+		}
+		return width
+	}
+	return EnsureModuleMetric(result).ModuleMetric.PublicMethods
 }
 
 // Finding is one detected source location attributed to a generalized fitness
