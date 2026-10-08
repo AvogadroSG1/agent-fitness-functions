@@ -23,6 +23,99 @@ import (
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
 
+const goEmbedAssetSource = `// Package configs embeds static configuration assets.
+// Profiles are bundled with the executable.
+// Assets are read by the configuration layer.
+// Runtime overrides are handled by consumers.
+// This file declares assets; it executes no functions.
+package configs
+
+import "embed"
+
+//go:embed assets/*
+var FS embed.FS
+`
+
+func TestHandlerCheckGoEmbedLogicDensity(t *testing.T) {
+	repo := "repo-embed"
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, repo, EnforcementBlock, map[string]bool{"logic-density": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true}, nil
+		}),
+	}, nil))
+	defer server.Close()
+
+	body := postCheckForLanguage(t, server.URL, repo, "configs/embed.go", "go", goEmbedAssetSource)
+	if body.Status != fitness.StatusPass || len(body.Violations) != 0 {
+		t.Fatalf("pure embed response = %+v, want pass without findings", body)
+	}
+	for _, tc := range []struct {
+		name   string
+		source string
+		value  float64
+	}{
+		{"function", goEmbedAssetSource + "func load() string { return \"asset\" }\n", 0.2},
+		{"initializer", goEmbedAssetSource + "var derived, loadErr = FS.ReadFile(\"assets/config.json\")\n", 0.2},
+		{"ordinary declaration", strings.Repeat("// Ordinary declarations.\n", 5) + "package configs\nvar Empty int\n", 1.0 / 7},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := postCheckForLanguage(t, server.URL, repo, "configs/embed.go", "go", tc.source)
+			if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
+				t.Fatalf("response = %+v, want one density block", body)
+			}
+			v := body.Violations[0]
+			if v.FitnessFunction != "logic_density" || v.Value != tc.value || v.Limit != 0.255 || v.File != "configs/embed.go" || v.CALMNode != "configs" {
+				t.Fatalf("violation = %+v, want configs/embed.go density %g/0.255", v, tc.value)
+			}
+		})
+	}
+}
+
+func TestLogicDensityApplicabilityBoundary(t *testing.T) {
+	pattern, err := calm.LoadPattern(writeTestPattern(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name       string
+		language   string
+		kind       analyzer.SourceKind
+		value      float64
+		violations int
+	}{
+		{"floor", "go", "", 0.255, 0},
+		{"below", "go", "", 0.254, 1},
+		{"legacy", "go", "", 0.1, 1},
+		{"unknown", "go", "unknown", 0.1, 1},
+		{"non-go marker", "python", analyzer.SourceKindGoEmbedAssets, 0.1, 1},
+		{"go assets", "go", analyzer.SourceKindGoEmbedAssets, 1.0 / 9, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result := analyzer.AnalysisResult{
+				Language: tc.language, SourceKind: tc.kind, CALMNode: "configs", File: "configs/embed.go",
+				FileMetric: analyzer.FileMetric{TotalLOC: 1000, LDR: tc.value},
+			}
+			violations := fitnessViolations(result, pattern)
+			var density []fitness.Violation
+			for _, v := range violations {
+				if v.FitnessFunction == "logic_density" {
+					density = append(density, v)
+				}
+			}
+			if len(density) != tc.violations {
+				t.Fatalf("density findings = %+v, want %d", density, tc.violations)
+			}
+			if len(density) > 0 && (density[0].Value != tc.value || density[0].Limit != 0.255) {
+				t.Fatalf("density finding = %+v", density[0])
+			}
+		})
+	}
+}
+
 func TestHandlerCheckRunsGoAnalyzerCALMAndBlocksCyclomaticComplexityViolation(t *testing.T) {
 	repo := "repo-one"
 	store := newTestConfigStore(t)

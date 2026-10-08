@@ -83,6 +83,49 @@ func TestPythonInterfaceWidthProjection(t *testing.T) {
 	}
 }
 
+func TestBuildOnboardingRecommendationGoEmbedApplicability(t *testing.T) {
+	pure := analyzeDensitySource(t, densityGoEmbedSource)
+	executable := analyzeDensitySource(t, densityGoEmbedSource+"func load() string { return \"asset\" }\n")
+	mixed := BuildOnboardingRecommendation("repo-embed", []AnalysisResult{pure, executable}, testRules())
+	density := findDelta(t, mixed.Deltas, "logic-density")
+	if density.RepositoryValue != 0.2 || density.GlobalThreshold != 0.255 || density.ViolatingCount != 1 || !density.NeedsLooser || mixed.TotalViolations != 1 || mixed.EnforcementMode != "advisory" {
+		t.Fatalf("mixed recommendation = %+v, want only executable density violation", mixed)
+	}
+	for _, results := range [][]AnalysisResult{{pure}, nil} {
+		rec := BuildOnboardingRecommendation("repo-embed", results, testRules())
+		if rec.TotalViolations != 0 || rec.EnforcementMode != "block" {
+			t.Fatalf("asset/empty recommendation = %+v, want block without violations", rec)
+		}
+		for _, delta := range rec.Deltas {
+			if delta.FitnessFunction == "logic-density" {
+				t.Fatalf("density delta without applicable samples: %+v", delta)
+			}
+		}
+		if len(rec.Deltas) != 4 {
+			t.Fatalf("other recommendation rows changed: %+v", rec.Deltas)
+		}
+		path := t.TempDir() + "/config.json"
+		if err := WriteOnboardingConfig(path, rec.EnforcementMode); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var config map[string]json.RawMessage
+		if err := json.Unmarshal(data, &config); err != nil {
+			t.Fatal(err)
+		}
+		var enabled map[string]bool
+		if err := json.Unmarshal(config["fitness-functions"], &enabled); err != nil {
+			t.Fatal(err)
+		}
+		if !enabled["logic-density"] || len(config) != 3 {
+			t.Fatalf("asset recommendation changed governance instead of applicability: %s", data)
+		}
+	}
+}
+
 func TestBuildOnboardingRecommendationBlockWhenNoViolations(t *testing.T) {
 	results := []AnalysisResult{greenResult()}
 

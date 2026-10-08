@@ -84,11 +84,22 @@ func thresholdDeltas(results []AnalysisResult, summary BaselineSummary, rules ma
 		cyclomaticDelta(results, summary, rules),
 		interfaceDelta(results, summary, rules),
 		depthDelta(results, summary, rules),
-		densityDelta(results, summary, rules),
-		disciplineDelta(results, summary, rules),
 	}
+	if hasLogicDensitySamples(results) {
+		deltas = append(deltas, densityDelta(results, summary, rules))
+	}
+	deltas = append(deltas, disciplineDelta(results, summary, rules))
 	deltas = append(deltas, findingsDeltas(results, rules)...)
 	return deltas
+}
+
+func hasLogicDensitySamples(results []AnalysisResult) bool {
+	for _, result := range results {
+		if result.FileMetric.TotalLOC > 0 && LogicDensityApplicable(result) {
+			return true
+		}
+	}
+	return false
 }
 
 // findingsDeltas adds threshold-delta rows for the generalized fitness
@@ -214,7 +225,7 @@ func countDepthViolations(results []AnalysisResult, threshold float64) int {
 func countDensityViolations(results []AnalysisResult, threshold float64) int {
 	count := 0
 	for _, result := range results {
-		if result.FileMetric.TotalLOC > 0 && result.FileMetric.LDR < threshold {
+		if result.FileMetric.TotalLOC > 0 && LogicDensityApplicable(result) && result.FileMetric.LDR < threshold {
 			count++
 		}
 	}

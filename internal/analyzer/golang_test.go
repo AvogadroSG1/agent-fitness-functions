@@ -1,6 +1,8 @@
 package analyzer
 
 import (
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -238,6 +240,455 @@ func TestDiscoverGoFilesExcludesTestAndGeneratedFiles(t *testing.T) {
 
 	if len(files) != 2 {
 		t.Errorf("DiscoverGoFiles returned %d files, want 2 (main.go and util.go)", len(files))
+	}
+}
+
+func TestGoEmbedAssetClassification(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		want bool
+	}{
+		{
+			name: "exact nine-line source",
+			src: `// Package configs embeds static configuration assets.
+// Profiles are bundled with the executable.
+// Assets are read by the configuration layer.
+// Runtime overrides are handled by consumers.
+// This file declares assets; it executes no functions.
+package configs
+
+import "embed"
+
+//go:embed assets/*
+var FS embed.FS
+`,
+			want: true,
+		},
+		{
+			name: "repository embed source",
+			src:  "",
+			want: true,
+		},
+		{
+			name: "named alias",
+			src: `package configs
+import e "embed"
+//go:embed assets/*
+var FS e.FS
+`,
+			want: true,
+		},
+		{
+			name: "blank import string and bytes",
+			src: `package configs
+import _ "embed"
+//go:embed text
+var Text string
+//go:embed raw
+var Raw []byte
+//go:embed raw8
+var Raw8 []uint8
+`,
+			want: true,
+		},
+		{
+			name: "dot import FS",
+			src: `package configs
+import . "embed"
+//go:embed assets/*
+var Assets FS
+`,
+			want: true,
+		},
+		{
+			name: "parenthesized supported types",
+			src: `package configs
+import e "embed"
+//go:embed text
+var Text (string)
+//go:embed raw
+var Raw ([](byte))
+//go:embed raw8
+var Raw8 ([](uint8))
+//go:embed fs
+var FS (e.FS)
+`,
+			want: true,
+		},
+		{
+			name: "directives inside var group",
+			src: `package configs
+import _ "embed"
+var (
+	//go:embed one
+	One string
+
+	// ordinary comment
+	//go:embed two
+	Two []byte
+)
+`,
+			want: true,
+		},
+		{
+			name: "repeated directives and line comments",
+			src: `package configs
+import _ "embed"
+//go:embed first
+// an ordinary line comment
+
+//go:embed second
+var Files []byte
+`,
+			want: true,
+		},
+		{
+			name: "import only",
+			src: `package configs
+import _ "embed"
+`,
+		},
+		{
+			name: "no directive",
+			src: `package configs
+import _ "embed"
+var Asset string
+`,
+		},
+		{
+			name: "package only",
+			src:  "package configs\n",
+		},
+		{
+			name: "empty directive arguments",
+			src: `package configs
+import _ "embed"
+//go:embed
+var Asset string
+`,
+		},
+		{
+			name: "directive spelling has space",
+			src: `package configs
+import _ "embed"
+// go:embed asset
+var Asset string
+`,
+		},
+		{
+			name: "directive spelling has tab",
+			src:  "package configs\nimport _ \"embed\"\n//go:embed\tasset\nvar Asset string\n",
+		},
+		{
+			name: "directive prefix is not exact",
+			src: `package configs
+import _ "embed"
+//go:embedding asset
+var Asset string
+`,
+		},
+		{
+			name: "directive in block comment",
+			src: `package configs
+import _ "embed"
+/* //go:embed asset */
+var Asset string
+`,
+		},
+		{
+			name: "trailing on code",
+			src:  "package configs\nimport _ \"embed\"\nvar Prior string //go:embed prior\n//go:embed asset\nvar Asset string\n",
+		},
+		{
+			name: "directive belongs to previous declaration",
+			src: `package configs
+import _ "embed"
+//go:embed prior
+var Prior string
+var Asset string
+`,
+		},
+		{
+			name: "block before directive is harmless",
+			src: `package configs
+import _ "embed"
+/* documentation */
+//go:embed asset
+var Asset string
+`,
+			want: true,
+		},
+		{
+			name: "directive above whole var block",
+			src: `package configs
+import _ "embed"
+//go:embed all
+var (
+	First string
+	Second []byte
+)
+`,
+		},
+		{
+			name: "block comment barrier",
+			src: `package configs
+import _ "embed"
+//go:embed asset
+/* barrier */
+var Asset string
+`,
+		},
+		{
+			name: "function including gocyclo ignore",
+			src: `package configs
+import _ "embed"
+//go:embed asset
+var Asset string
+//gocyclo:ignore
+func init() {}
+`,
+		},
+		{
+			name: "method declaration",
+			src: `package configs
+import _ "embed"
+//go:embed asset
+var Asset string
+type Loader struct{}
+func (Loader) Load() {}
+`,
+		},
+		{
+			name: "function literal initializer",
+			src: `package configs
+import _ "embed"
+//go:embed asset
+var Asset = func() string { return "value" }
+`,
+		},
+		{
+			name: "call initializer",
+			src: `package configs
+import _ "embed"
+//go:embed asset
+var Asset = load()
+func load() string { return "value" }
+`,
+		},
+		{
+			name: "initializer",
+			src: `package configs
+import _ "embed"
+//go:embed asset
+var Asset = "value"
+`,
+		},
+		{
+			name: "extra import",
+			src: `package configs
+import (
+	_ "embed"
+	"fmt"
+)
+//go:embed asset
+var Asset string
+`,
+		},
+		{
+			name: "ordinary variable",
+			src: `package configs
+import _ "embed"
+//go:embed asset
+var Asset string
+var Count int
+`,
+		},
+		{
+			name: "const declaration",
+			src: `package configs
+import _ "embed"
+const Count = 1
+//go:embed asset
+var Asset string
+`,
+		},
+		{
+			name: "type declaration",
+			src: `package configs
+import _ "embed"
+type AssetType string
+//go:embed asset
+var Asset AssetType
+`,
+		},
+		{
+			name: "shadowed builtin type",
+			src: `package configs
+import _ "embed"
+type string = int
+//go:embed asset
+var Asset string
+`,
+		},
+		{
+			name: "shadowed dot-import FS",
+			src: `package configs
+import . "embed"
+type FS = int
+//go:embed asset
+var Asset FS
+`,
+		},
+		{
+			name: "unrelated package alias",
+			src: `package configs
+import embed "fmt"
+//go:embed asset
+var Asset embed.Stringer
+`,
+		},
+		{
+			name: "unsupported type",
+			src: `package configs
+import _ "embed"
+//go:embed asset
+var Asset int
+`,
+		},
+		{
+			name: "multiple variable names",
+			src: `package configs
+import _ "embed"
+//go:embed asset
+var First, Second string
+`,
+			want: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var file string
+			if test.name == "repository embed source" {
+				file = filepath.Join("..", "..", "patterns", "embed.go")
+			} else {
+				file = filepath.Join(t.TempDir(), "embed.go")
+				if err := os.WriteFile(file, []byte(test.src), 0o644); err != nil {
+					t.Fatalf("write source: %v", err)
+				}
+			}
+			result, err := AnalyzeGoFile(file)
+			if err != nil {
+				t.Fatalf("AnalyzeGoFile returned error: %v", err)
+			}
+			got := result.SourceKind == SourceKindGoEmbedAssets
+			if got != test.want {
+				t.Fatalf("source kind = %q, classified = %v, want %v", result.SourceKind, got, test.want)
+			}
+			if test.name == "exact nine-line source" {
+				if result.FileMetric.TotalLOC != 9 || result.FileMetric.LogicLOC != 1 ||
+					result.FileMetric.LDR != float64(1)/float64(9) {
+					t.Fatalf("metrics = %+v, want LOC 9/1 and LDR 1/9", result.FileMetric)
+				}
+				if len(result.Functions) != 0 || result.Imports.Total != 1 || result.Imports.Used != 1 {
+					t.Fatalf("functions/imports = %d/%+v, want no functions and one used import", len(result.Functions), result.Imports)
+				}
+			}
+		})
+	}
+}
+
+func TestGoEmbedClassificationErrorsAndJSONApplicability(t *testing.T) {
+	dir := t.TempDir()
+	malformed := filepath.Join(dir, "malformed.go")
+	if err := os.WriteFile(malformed, []byte("package configs\nvar"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := AnalyzeGoFile(malformed); err == nil {
+		t.Fatal("malformed source unexpectedly analyzed")
+	}
+	_, err := AnalyzeGoFile(filepath.Join(dir, "missing.go"))
+	if err == nil || !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing source error = %v, want not-exist error", err)
+	}
+
+	assetPath := filepath.Join(dir, "asset.go")
+	assetSource := `package configs
+import _ "embed"
+//go:embed asset
+var Asset []byte
+`
+	if err := os.WriteFile(assetPath, []byte(assetSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	asset, err := AnalyzeGoFile(assetPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(asset)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var roundTrip AnalysisResult
+	if err := json.Unmarshal(encoded, &roundTrip); err != nil {
+		t.Fatal(err)
+	}
+	if roundTrip.SourceKind != SourceKindGoEmbedAssets || LogicDensityApplicable(roundTrip) {
+		t.Fatalf("round trip source kind/applicability = %q/%v", roundTrip.SourceKind, LogicDensityApplicable(roundTrip))
+	}
+
+	var legacy AnalysisResult
+	if err := json.Unmarshal([]byte(`{"language":"go","file_metrics":{"total_loc":1,"logic_loc":1,"ldr":1}}`), &legacy); err != nil {
+		t.Fatal(err)
+	}
+	unknown := legacy
+	unknown.SourceKind = SourceKind("other")
+	nonGo := asset
+	nonGo.Language = "python"
+	for name, result := range map[string]AnalysisResult{
+		"legacy": legacy, "unknown": unknown, "non-go": nonGo,
+	} {
+		wire, err := json.Marshal(result)
+		if err != nil {
+			t.Fatalf("%s marshal: %v", name, err)
+		}
+		var decoded AnalysisResult
+		if err := json.Unmarshal(wire, &decoded); err != nil {
+			t.Fatalf("%s unmarshal: %v", name, err)
+		}
+		if !LogicDensityApplicable(decoded) {
+			t.Errorf("%s result incorrectly marked inapplicable after round trip: %+v", name, decoded)
+		}
+	}
+	marked := legacy
+	marked.Language = "go"
+	marked.SourceKind = SourceKindGoEmbedAssets
+	if LogicDensityApplicable(marked) {
+		t.Error("exact Go asset marker remained applicable")
+	}
+
+	peerPath := filepath.Join(dir, "peer.go")
+	peerSource := "package configs\nfunc load() string { return \"x\" }\n"
+	if err := os.WriteFile(peerPath, []byte(peerSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	peer, err := AnalyzeGoFile(peerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aggregated := AggregateModuleMetrics([]AnalysisResult{asset, peer})
+	if len(aggregated) != 2 {
+		t.Fatalf("aggregated result count = %d, want 2", len(aggregated))
+	}
+	if aggregated[0].SourceKind != asset.SourceKind || aggregated[0].FileMetric.LDR != asset.FileMetric.LDR {
+		t.Fatalf("asset aggregate lost source/raw density: before=%+v after=%+v", asset, aggregated[0])
+	}
+	if aggregated[1].SourceKind != peer.SourceKind || aggregated[1].FileMetric.LDR != peer.FileMetric.LDR {
+		t.Fatalf("peer aggregate changed source/raw density: before=%+v after=%+v", peer, aggregated[1])
+	}
+	if aggregated[0].ModuleMetric.TotalLOC != asset.FileMetric.TotalLOC+peer.FileMetric.TotalLOC {
+		t.Fatalf("aggregate module LOC = %d, want %d", aggregated[0].ModuleMetric.TotalLOC, asset.FileMetric.TotalLOC+peer.FileMetric.TotalLOC)
 	}
 }
 

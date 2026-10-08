@@ -68,7 +68,7 @@ func distributions(results []AnalysisResult) BaselineDistributions {
 		if result.ModuleMetric.PublicMethods > 0 {
 			avgLOCPerPublic = append(avgLOCPerPublic, result.ModuleMetric.AverageLOCPerPublicMethod)
 		}
-		if result.FileMetric.TotalLOC > 0 {
+		if result.FileMetric.TotalLOC > 0 && LogicDensityApplicable(result) {
 			ldr = append(ldr, result.FileMetric.LDR)
 		}
 		if result.Imports.Total > 0 {

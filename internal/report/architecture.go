@@ -35,11 +35,11 @@ type Metadata struct {
 
 // Fitness contains concrete values for the governance fitness functions.
 type Fitness struct {
-	CyclomaticComplexity float64 `json:"cyclomatic-complexity"`
-	InterfaceWidth       float64 `json:"interface-width"`
-	ImplementationDepth  float64 `json:"implementation-depth"`
-	LogicDensity         float64 `json:"logic-density"`
-	DependencyDiscipline float64 `json:"dependency-discipline"`
+	CyclomaticComplexity float64  `json:"cyclomatic-complexity"`
+	InterfaceWidth       float64  `json:"interface-width"`
+	ImplementationDepth  float64  `json:"implementation-depth"`
+	LogicDensity         *float64 `json:"logic-density,omitempty"`
+	DependencyDiscipline float64  `json:"dependency-discipline"`
 	// The generalized count functions omit zero values: the CALM CLI's
 	// pattern-has-no-empty-properties rule rejects zero-valued properties, so
 	// a clean count must be absent from the document rather than emitted as 0.
@@ -51,9 +51,10 @@ type Fitness struct {
 
 // FileMetrics contains file-level values used by AI Slop rules.
 type FileMetrics struct {
-	TotalLines int     `json:"total_lines"`
-	LogicLines int     `json:"logic_lines"`
-	LDR        float64 `json:"ldr"`
+	TotalLines int                 `json:"total_lines"`
+	LogicLines int                 `json:"logic_lines"`
+	LDR        float64             `json:"ldr"`
+	SourceKind analyzer.SourceKind `json:"source_kind,omitempty"`
 }
 
 // ImportMetrics contains dependency usage values used by DDC.
@@ -86,6 +87,15 @@ func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
 	result = analyzer.EnsureModuleMetric(result)
 	nodeID := calmID(result.CALMNode)
 	actorID := nodeID + "-actor"
+	var logicDensity *float64
+	if analyzer.LogicDensityApplicable(result) {
+		logicDensity = &result.FileMetric.LDR
+	}
+	sourceKind := analyzer.SourceKind("")
+	if !analyzer.LogicDensityApplicable(result) {
+		sourceKind = result.SourceKind
+	}
+	actorLogicDensity := float64(1)
 	return ArchitectureDocument{
 		Schema: "https://calm.finos.org/release/1.2/meta/calm.json",
 		Nodes: []Node{
@@ -98,7 +108,7 @@ func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
 					CyclomaticComplexity: 1,
 					InterfaceWidth:       1,
 					ImplementationDepth:  1,
-					LogicDensity:         1,
+					LogicDensity:         &actorLogicDensity,
 					DependencyDiscipline: 1,
 					// The generalized count metrics stay at their zero values and
 					// are omitted from the document, so the synthetic actor always
@@ -110,23 +120,25 @@ func BuildArchitecture(result analyzer.AnalysisResult) ArchitectureDocument {
 				NodeType:    "service",
 				Name:        result.CALMNode,
 				Description: "Architecture fitness metrics for " + result.File + ".",
-				Metadata: Metadata{Fitness: Fitness{
-					CyclomaticComplexity:  float64(maxCyclomaticComplexity(result.Functions)),
-					InterfaceWidth:        float64(analyzer.InterfaceWidth(result)),
-					ImplementationDepth:   result.ModuleMetric.AverageLOCPerPublicMethod,
-					LogicDensity:          result.FileMetric.LDR,
-					DependencyDiscipline:  result.Imports.DDC,
-					LayerSovereignty:      float64(ruleCount(result.RuleCounts, "layer-sovereignty")),
-					TemporalPurity:        float64(ruleCount(result.RuleCounts, "temporal-purity")),
-					SQLCompositionSafety:  float64(ruleCount(result.RuleCounts, "sql-composition-safety")),
-					DeterministicOrdering: float64(ruleCount(result.RuleCounts, "deterministic-ordering")),
-				},
+				Metadata: Metadata{
+					Fitness: Fitness{
+						CyclomaticComplexity:  float64(maxCyclomaticComplexity(result.Functions)),
+						InterfaceWidth:        float64(analyzer.InterfaceWidth(result)),
+						ImplementationDepth:   result.ModuleMetric.AverageLOCPerPublicMethod,
+						LogicDensity:          logicDensity,
+						DependencyDiscipline:  result.Imports.DDC,
+						LayerSovereignty:      float64(ruleCount(result.RuleCounts, "layer-sovereignty")),
+						TemporalPurity:        float64(ruleCount(result.RuleCounts, "temporal-purity")),
+						SQLCompositionSafety:  float64(ruleCount(result.RuleCounts, "sql-composition-safety")),
+						DeterministicOrdering: float64(ruleCount(result.RuleCounts, "deterministic-ordering")),
+					},
 					ModuleMetrics: &result.ModuleMetric,
 					Interfaces:    result.Interfaces,
 					FileMetrics: &FileMetrics{
 						TotalLines: result.FileMetric.TotalLOC,
 						LogicLines: result.FileMetric.LogicLOC,
 						LDR:        result.FileMetric.LDR,
+						SourceKind: sourceKind,
 					},
 					ImportMetrics: &ImportMetrics{
 						TotalImports: result.Imports.Total,

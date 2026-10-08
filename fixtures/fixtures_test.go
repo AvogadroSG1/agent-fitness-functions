@@ -138,10 +138,12 @@ func ensureRoslynAnalyzer(t *testing.T) string {
 // ruleCheckers mirrors the server's calibrated thresholds per fitness
 // function (a deliberate duplicate — see docs/threshold-calibration.md).
 var ruleCheckers = map[string]func(analyzer.AnalysisResult) bool{
-	"cyclomatic-complexity":  anyFunctionTooComplex,
-	"interface-width":        func(r analyzer.AnalysisResult) bool { return analyzer.InterfaceWidth(r) > 20 },
-	"implementation-depth":   implementationTooShallow,
-	"logic-density":          func(r analyzer.AnalysisResult) bool { return r.FileMetric.TotalLOC > 0 && r.FileMetric.LDR < 0.255 },
+	"cyclomatic-complexity": anyFunctionTooComplex,
+	"interface-width":       func(r analyzer.AnalysisResult) bool { return analyzer.InterfaceWidth(r) > 20 },
+	"implementation-depth":  implementationTooShallow,
+	"logic-density": func(r analyzer.AnalysisResult) bool {
+		return r.FileMetric.TotalLOC > 0 && analyzer.LogicDensityApplicable(r) && r.FileMetric.LDR < 0.255
+	},
 	"dependency-discipline":  func(r analyzer.AnalysisResult) bool { return r.Imports.Total > 0 && r.Imports.DDC < 0.8 },
 	"temporal-purity":        func(r analyzer.AnalysisResult) bool { return hasFinding(r, "temporal-purity") },
 	"sql-composition-safety": func(r analyzer.AnalysisResult) bool { return hasFinding(r, "sql-composition-safety") },
