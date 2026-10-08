@@ -5,8 +5,87 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
+
+const densityGoEmbedSource = `// Package configs embeds static configuration assets.
+// Profiles are bundled with the executable.
+// Assets are read by the configuration layer.
+// Runtime overrides are handled by consumers.
+// This file declares assets; it executes no functions.
+package configs
+
+import "embed"
+
+//go:embed assets/*
+var FS embed.FS
+`
+
+func analyzeDensitySource(t *testing.T, source string) AnalysisResult {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "embed.go")
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := AnalyzeGoFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+
+func TestLogicDensityBaselineApplicability(t *testing.T) {
+	pure := analyzeDensitySource(t, densityGoEmbedSource)
+	executable := analyzeDensitySource(t, densityGoEmbedSource+"func load() string { return \"asset\" }\n")
+	for _, tc := range []struct {
+		name    string
+		results []AnalysisResult
+		density []float64
+		p10     float64
+	}{
+		{"mixed", []AnalysisResult{pure, executable}, []float64{0.2}, 0.2},
+		{"pure", []AnalysisResult{pure}, []float64{}, 0},
+		{"empty", nil, []float64{}, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "baseline.json")
+			if err := WriteBaselineReport(path, "repo-embed", "go", tc.results); err != nil {
+				t.Fatal(err)
+			}
+			content, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var report BaselineReport
+			if err := json.Unmarshal(content, &report); err != nil {
+				t.Fatal(err)
+			}
+			if report.Summary.FileCount != len(tc.results) || len(report.Results) != len(tc.results) || report.Summary.P10LogicDensityRatio != tc.p10 || !reflect.DeepEqual(report.Distributions.LogicDensityRatio, tc.density) {
+				t.Fatalf("report = %+v, want %d files, density %v P10 %g", report, len(tc.results), tc.density, tc.p10)
+			}
+			if got := distributions(report.Results); !reflect.DeepEqual(got, report.Distributions) {
+				t.Fatalf("reloaded distributions = %+v, want %+v", got, report.Distributions)
+			}
+			for i, result := range report.Results {
+				want := tc.results[i]
+				if result.SourceKind != want.SourceKind || result.FileMetric != want.FileMetric || result.Imports.DDC != want.Imports.DDC {
+					t.Fatalf("raw result changed = %+v, want %+v", result, want)
+				}
+			}
+			// Asset classification affects density only: widths and imports still
+			// have one observation per analyzed file, functions remain executable.
+			if len(report.Distributions.PublicMethods) != len(tc.results) || len(report.Distributions.DependencyDiscipline) != len(tc.results) {
+				t.Fatalf("non-density observations changed: %+v", report.Distributions)
+			}
+			if tc.name == "mixed" {
+				if report.Results[0].FileMetric.TotalLOC != 9 || report.Results[0].FileMetric.LogicLOC != 1 || report.Results[0].FileMetric.LDR != 1.0/9 || report.Results[1].FileMetric.LDR != 0.2 || !reflect.DeepEqual(report.Distributions.CyclomaticComplexity, []int{1}) {
+					t.Fatalf("raw counts or complexity changed: %+v", report)
+				}
+			}
+		})
+	}
+}
 
 func TestCommittedBaselineReportsPreserveCALMNodeWireContract(t *testing.T) {
 	reports, err := filepath.Glob(filepath.Join("..", "..", "baseline-report-*.json"))

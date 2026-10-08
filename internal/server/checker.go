@@ -628,7 +628,7 @@ func implementationDepthViolations(result analyzer.AnalysisResult, pattern calm.
 
 func logicDensityViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []fitness.Violation {
 	rule, ok := pattern.FitnessFunctions["logic-density"]
-	if !ok || rule.Operator != "gte" || result.FileMetric.TotalLOC == 0 || result.FileMetric.LDR >= rule.Threshold {
+	if !ok || rule.Operator != "gte" || result.FileMetric.TotalLOC == 0 || !analyzer.LogicDensityApplicable(result) || result.FileMetric.LDR >= rule.Threshold {
 		return nil
 	}
 	return []fitness.Violation{{

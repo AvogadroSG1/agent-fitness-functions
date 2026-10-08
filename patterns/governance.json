@@ -67,9 +67,29 @@
                   "cyclomatic-complexity",
                   "interface-width",
                   "implementation-depth",
-                  "logic-density",
                   "dependency-discipline"
                 ]
+              }
+            },
+            "if": {
+              "type": "object",
+              "required": ["file_metrics"],
+              "properties": {
+                "file_metrics": {
+                  "type": "object",
+                  "required": ["source_kind"],
+                  "properties": {
+                    "source_kind": {"const": "go-embed-assets"}
+                  }
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "fitness": {
+                  "type": "object",
+                  "required": ["logic-density"]
+                }
               }
             },
             "required": [

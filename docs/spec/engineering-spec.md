@@ -440,6 +440,8 @@ $$LDR = \frac{\text{logic\_lines}}{\text{total\_lines}}$$
 - **Logic lines:** lines containing arithmetic, control flow, state mutation, or function calls.
 - **Excluded:** whitespace, comments, imports, type declarations, and structural scaffolding.
 - **Threshold:** LDR ≥ 0.255 (calibrated after baseline). A plummeting LDR in a large generated file signals hollow, boilerplate-heavy output.
+- **Go embed asset applicability:** a file importing only the standard-library `embed` package and declaring only individually directed, uninitialized asset variables (`string`, `[]byte`/`[]uint8`, or the resolved `embed.FS`) is not scored for density. Functions, initializers, ordinary variables, extra imports, type/const declarations, unsupported or shadowed types, and unrecognized or nonadjacent directives retain the same 0.255 floor. Other fitness functions still run.
+- **Representation and calibration:** classified results carry `source_kind: "go-embed-assets"` and retain raw LOC/LDR. CALM service fitness omits density only when `file_metrics.source_kind` has that exact marker; legacy and unknown classifications still require density, and any numeric density present still has the unchanged floor. Baseline density distributions and onboarding violation counts exclude these assets without removing their file results or other metrics. With no applicable density samples, the distribution is `[]`, P10 remains `0`, and onboarding omits the density recommendation row.
 
 **Violation:**
 > `File 'X' has a Logic Density Ratio of N (minimum: T). The file may contain excessive boilerplate relative to functional logic.`

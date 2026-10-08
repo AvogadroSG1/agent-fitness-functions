@@ -32,6 +32,37 @@ const bronzeLayerConfig = `{
 	}
 }`
 
+func TestHandlerCheckGoEmbedPreservesLayerSovereignty(t *testing.T) {
+	const config = `{
+		"enforcement-mode": "block",
+		"enforcement-on-error": "block",
+		"fitness-functions": {
+			"cyclomatic-complexity": false,
+			"interface-width": false,
+			"implementation-depth": false,
+			"dependency-discipline": false,
+			"logic-density": true,
+			"layer-sovereignty": true
+		},
+		"fitness-function-settings": {
+			"layer-sovereignty": {"layers": [{
+				"name": "bronze",
+				"paths": ["src/bronze/**"],
+				"forbidden-patterns": ["\\bsilver\\."]
+			}]}
+		}
+	}`
+	server := newContentScoringServer(t, "repo-embed-layers", config)
+	body := postCheckForLanguage(t, server.URL, "repo-embed-layers", "src/bronze/embed.go", "go", goEmbedAssetSource+"// silver.orders\n")
+	if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
+		t.Fatalf("response = %+v, want only layer-sovereignty block", body)
+	}
+	v := body.Violations[0]
+	if v.FitnessFunction != "layer_sovereignty" || v.Value != 1 || v.Limit != 0 || v.File != "src/bronze/embed.go" {
+		t.Fatalf("finding = %+v, want layer sovereignty 1/0", v)
+	}
+}
+
 func TestHandlerCheckBlocksLayerSovereigntyViolation(t *testing.T) {
 	repo := "repo-layers"
 	server := newContentScoringServer(t, repo, bronzeLayerConfig)

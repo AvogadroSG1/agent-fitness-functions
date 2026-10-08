@@ -1,11 +1,18 @@
 // Package analyzer defines source-code metric analyzers used by the CLI.
 package analyzer
 
+// SourceKind identifies a narrowly classified source declaration shape.
+type SourceKind string
+
+// SourceKindGoEmbedAssets denotes a Go file containing only embedded assets.
+const SourceKindGoEmbedAssets SourceKind = "go-embed-assets"
+
 // AnalysisResult contains normalized metrics from a language-specific analyzer.
 type AnalysisResult struct {
 	CALMNode     string           `json:"calm_node"`
 	Language     string           `json:"language"`
 	File         string           `json:"file"`
+	SourceKind   SourceKind       `json:"source_kind,omitempty"`
 	Functions    []FunctionMetric `json:"functions"`
 	ModuleMetric ModuleMetric     `json:"module_metrics"`
 	FileMetric   FileMetric       `json:"file_metrics"`
@@ -22,6 +29,12 @@ type AnalysisResult struct {
 	// into violations; an analyzer that detects nothing, or a language with no
 	// detections implemented, leaves this empty.
 	Findings []Finding `json:"findings,omitempty"`
+}
+
+// LogicDensityApplicable excludes only pure Go embed asset declarations.
+// Positive-LOC guards remain the responsibility of each metric consumer.
+func LogicDensityApplicable(result AnalysisResult) bool {
+	return result.Language != "go" || result.SourceKind != SourceKindGoEmbedAssets
 }
 
 // InterfaceMetric describes one independently declared module or class
