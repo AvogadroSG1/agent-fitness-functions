@@ -391,8 +391,8 @@ inherited, dynamically assigned, and otherwise non-declared callables are not
 counted. Nested classes and nested functions do not inflate their containing
 interface; local-class names retain their lexical ``<locals>`` path. This is a
 declared-only metric: it intentionally does not resolve inherited operations or
-protocol implementations across files. A syntax-warning scan has no scoped
-records and retains the language analyzer's existing flat fallback.
+protocol implementations across files. An unavailable Python AST scan produces an
+analyzer error, routed through `enforcement-on-error`, not a flat-interface fallback.
 
 | Property | Value |
 |---|---|
@@ -448,8 +448,27 @@ $$LDR = \frac{\text{logic\_lines}}{\text{total\_lines}}$$
 
 $$DDC = \frac{\text{used\_imports}}{\text{total\_imports}}$$
 
-- **Used import:** referenced at least once in the file body.
+- **Used import:** a dependency binding referenced by the language analyzer; Python rules below include annotation and explicit export uses.
 - **Threshold:** DDC ≥ 0.8 (calibrated after baseline). Agents commonly import libraries they do not use.
+
+Python computes DDC from the same parsed AST as its findings and scoped interfaces.
+It counts individual import aliases, excludes `__future__` directives and star
+imports, and reports unused local binding names in source order. A successfully
+parsed file with no countable imports has DDC 1.
+
+Loads in annotations (including direct quoted forward references), decorators,
+calls, and f-string expressions count; literal text, keyword labels, attribute
+names, and annotation metadata strings do not. Literal module `__all__` list/tuple
+assignments and additions, plus explicit same-name module re-exports, count as
+export intent. Lexical scopes, type parameters, local shadowing, and source-order
+rebinding prevent unrelated names from crediting imports. Branches conservatively
+merge candidate bindings, so a shared use credits both TYPE_CHECKING/runtime
+alternatives; deferred function bodies see completed enclosing bindings.
+
+Missing import metrics, AST errors, and syntax-warning-only scans fail analysis
+through the existing `enforcement-on-error` policy. They never manufacture a
+passing DDC score. The public import-metrics JSON shape and 0.8 threshold are
+unchanged; a ratio exactly equal to 0.8 passes.
 
 **Violation:**
 > `File 'X' has a Dependency Discipline ratio of N (minimum: T). Unused imports: [list].`

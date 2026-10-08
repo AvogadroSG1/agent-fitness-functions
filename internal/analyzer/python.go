@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/installer"
 )
@@ -314,9 +313,10 @@ except Exception as exc:
                 "rule": "syntax-warning",
                 "kind": "syntax-warning",
                 "line": 1,
-                "detail": f"Error during AST findings scan: {exc}",
+                "detail": f"AST scan failed: {exc}",
             }
-        ]
+        ],
+        "error": f"AST scan failed: {exc}",
     }
 json.dump(payload, sys.stdout)
 `
@@ -434,9 +434,8 @@ func interpreterFromShebang(shebang string) (string, []string, bool) {
 // pythonFindingsLibrary is the shared, I/O-free half of the embedded Python
 // findings scanner, prepended both to the standalone findings script and to
 // the radon API fast-path script so one detection implementation serves both.
-// Every scan returns an object containing findings and independently declared
-// interface metrics, so a new generalized fitness function is added by
-// appending its scan to _SCANS without reshaping the output.
+// Successful scans return findings, interfaces, and an imports object with
+// total/used/unused/ddc metrics; AST failures return an error and no metrics.
 const pythonFindingsLibrary = `
 import ast
 
@@ -602,6 +601,684 @@ class _InterfaceVisitor(ast.NodeVisitor):
         return self.interfaces
 
 
+class _ImportRecord:
+    def __init__(self, name, scope, lineno, col, index):
+        self.name = name
+        self.scope = scope
+        self.pos = (lineno, col, index)
+        self.used = False
+
+
+class _Scope:
+    def __init__(self, kind, parent):
+        self.kind = kind
+        self.parent = parent
+        self.locals = set()
+        self.global_names = set()
+        self.nonlocal_names = set()
+        self.node = None
+
+
+_REMOVED = object()
+def _target_names(node):
+    if isinstance(node, ast.Name):
+        return [node.id]
+    if isinstance(node, (ast.Tuple, ast.List)):
+        result = []
+        for elt in node.elts:
+            result.extend(_target_names(elt))
+        return result
+    if isinstance(node, ast.Starred):
+        return _target_names(node.value)
+    return []
+
+
+class _ImportCollector(ast.NodeVisitor):
+    def __init__(self, tree):
+        super().__init__()
+        self.module = _Scope("module", None)
+        self.module.node = tree
+        self.scope = self.module
+        self.scope_by_node = {}
+        self.records = []
+        self.record_by_alias = {}
+        self._walk_statements(tree.body, self.module)
+
+    def _target_scope(self, scope, name):
+        if name in scope.global_names:
+            return self.module
+        if name in scope.nonlocal_names:
+            parent = scope.parent
+            while parent is not None:
+                if parent.kind in ("function", "lambda") and name in parent.locals:
+                    return parent
+                parent = parent.parent
+            return scope
+        return scope
+
+    def _bind(self, scope, name):
+        self._target_scope(scope, name).locals.add(name)
+
+    def _walk_expr(self, node, scope):
+        if node is None:
+            return
+        old = self.scope
+        self.scope = scope
+        self.visit(node)
+        self.scope = old
+
+    def _walk_statements(self, nodes, scope):
+        old = self.scope
+        self.scope = scope
+        for node in nodes:
+            self.visit(node)
+        self.scope = old
+
+    def generic_visit(self, node):
+        if node is None:
+            return
+        scope = self.scope
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            self._bind(scope, node.name)
+            self._walk_expr_list(node.decorator_list, scope)
+            self._walk_arguments(node.args, scope)
+            self._walk_expr(node.returns, scope)
+            self._walk_type_params(node, scope)
+            child = _Scope("function", scope)
+            child.node = node
+            self.scope_by_node[node] = child
+            for arg in list(node.args.posonlyargs) + list(node.args.args) + list(node.args.kwonlyargs):
+                child.locals.add(arg.arg)
+            if node.args.vararg:
+                child.locals.add(node.args.vararg.arg)
+            if node.args.kwarg:
+                child.locals.add(node.args.kwarg.arg)
+            self._walk_statements(node.body, child)
+            return
+        if isinstance(node, ast.Lambda):
+            self._walk_arguments(node.args, scope)
+            child = _Scope("lambda", scope)
+            child.node = node
+            self.scope_by_node[node] = child
+            for arg in list(node.args.posonlyargs) + list(node.args.args) + list(node.args.kwonlyargs):
+                child.locals.add(arg.arg)
+            if node.args.vararg:
+                child.locals.add(node.args.vararg.arg)
+            if node.args.kwarg:
+                child.locals.add(node.args.kwarg.arg)
+            self._walk_expr(node.body, child)
+            return
+        if isinstance(node, ast.ClassDef):
+            self._bind(scope, node.name)
+            self._walk_expr_list(node.decorator_list, scope)
+            self._walk_expr_list(node.bases, scope)
+            for keyword in node.keywords:
+                self._walk_expr(keyword.value, scope)
+            self._walk_type_params(node, scope)
+            child = _Scope("class", scope)
+            child.node = node
+            self.scope_by_node[node] = child
+            self._walk_statements(node.body, child)
+            return
+        if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
+            generators = node.generators
+            if generators:
+                self._walk_expr(generators[0].iter, scope)
+            child = _Scope("comprehension", scope)
+            child.node = node
+            self.scope_by_node[node] = child
+            for generator in generators:
+                if generator is not generators[0]:
+                    self._walk_expr(generator.iter, child)
+                self._walk_expr(generator.target, child)
+                for name in _target_names(generator.target):
+                    child.locals.add(name)
+                self._walk_expr_list(generator.ifs, child)
+            if isinstance(node, ast.DictComp):
+                self._walk_expr(node.key, child)
+                self._walk_expr(node.value, child)
+            else:
+                self._walk_expr(node.elt, child)
+            return
+        if node.__class__.__name__ == "TypeAlias":
+            if isinstance(node.name, ast.Name):
+                self._bind(scope, node.name.id)
+            self._walk_type_params(node, scope)
+            self._walk_expr(node.value, scope)
+            return
+        if isinstance(node, ast.Import):
+            for index, alias in enumerate(node.names):
+                name = alias.asname or alias.name.split(".")[0]
+                self._bind(scope, name)
+                record = _ImportRecord(name, self._target_scope(scope, name),
+                                       node.lineno, node.col_offset, index)
+                self.record_by_alias[(node, index)] = len(self.records)
+                self.records.append(record)
+                if scope is self.module and alias.asname == alias.name:
+                    record.used = True
+            return
+        if isinstance(node, ast.ImportFrom):
+            if node.module == "__future__":
+                return
+            for index, alias in enumerate(node.names):
+                if alias.name == "*":
+                    continue
+                name = alias.asname or alias.name
+                self._bind(scope, name)
+                record = _ImportRecord(name, self._target_scope(scope, name),
+                                       node.lineno, node.col_offset, index)
+                self.record_by_alias[(node, index)] = len(self.records)
+                self.records.append(record)
+                if scope is self.module and alias.asname == alias.name:
+                    record.used = True
+            return
+        if isinstance(node, (ast.Global, ast.Nonlocal)):
+            target = scope.global_names if isinstance(node, ast.Global) else scope.nonlocal_names
+            target.update(node.names)
+            return
+        if isinstance(node, ast.Assign):
+            self._walk_expr(node.value, scope)
+            for target in node.targets:
+                for name in _target_names(target):
+                    self._bind(scope, name)
+                self._walk_expr(target, scope)
+            return
+        if isinstance(node, ast.AnnAssign):
+            self._walk_expr(node.annotation, scope)
+            self._walk_expr(node.value, scope)
+            if node.value is not None or scope.kind not in ("module", "class"):
+                for name in _target_names(node.target):
+                    self._bind(scope, name)
+            self._walk_expr(node.target, scope)
+            return
+        if isinstance(node, ast.Delete):
+            for target in node.targets:
+                for name in _target_names(target):
+                    self._bind(scope, name)
+            return
+        if isinstance(node, ast.AugAssign):
+            self._walk_expr(node.target, scope)
+            self._walk_expr(node.value, scope)
+            for name in _target_names(node.target):
+                self._bind(scope, name)
+            return
+        if isinstance(node, (ast.For, ast.AsyncFor)):
+            self._walk_expr(node.iter, scope)
+            for name in _target_names(node.target):
+                self._bind(scope, name)
+            self._walk_expr(node.target, scope)
+            self._walk_statements(node.body, scope)
+            self._walk_statements(node.orelse, scope)
+            return
+        if isinstance(node, (ast.With, ast.AsyncWith)):
+            for item in node.items:
+                self._walk_expr(item.context_expr, scope)
+                if item.optional_vars:
+                    for name in _target_names(item.optional_vars):
+                        self._bind(scope, name)
+                    self._walk_expr(item.optional_vars, scope)
+            self._walk_statements(node.body, scope)
+            return
+        if isinstance(node, ast.ExceptHandler):
+            self._walk_expr(node.type, scope)
+            if node.name:
+                self._bind(scope, node.name)
+            self._walk_statements(node.body, scope)
+            return
+        if isinstance(node, ast.NamedExpr):
+            self._walk_expr(node.value, scope)
+            target_scope = scope
+            while target_scope.kind == "comprehension":
+                target_scope = target_scope.parent
+            if isinstance(node.target, ast.Name):
+                self._bind(target_scope, node.target.id)
+            return
+        if isinstance(node, ast.Match):
+            self._walk_expr(node.subject, scope)
+            for case in node.cases:
+                self._walk_pattern(case.pattern, scope)
+                self._walk_expr(case.guard, scope)
+                self._walk_statements(case.body, scope)
+            return
+        if node.__class__.__name__ == "TypeAlias":
+            target = getattr(node, "name", None)
+            if isinstance(target, ast.Name):
+                self._bind(scope, target.id)
+            self._walk_type_params(node, scope)
+            self._walk_expr(getattr(node, "value", None), scope)
+            return
+        for child in ast.iter_child_nodes(node):
+            self.visit(child)
+
+    def _walk_pattern(self, node, scope):
+        if isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name:
+            self._bind(scope, node.name)
+        if isinstance(node, ast.MatchMapping) and node.rest:
+            self._bind(scope, node.rest)
+        for child in ast.iter_child_nodes(node):
+            self._walk_pattern(child, scope)
+
+    def _walk_expr_list(self, nodes, scope):
+        for node in nodes:
+            self._walk_expr(node, scope)
+
+    def _walk_arguments(self, args, scope):
+        self._walk_expr_list(args.defaults, scope)
+        self._walk_expr_list([item for item in args.kw_defaults if item], scope)
+        for arg in list(args.posonlyargs) + list(args.args) + list(args.kwonlyargs):
+            self._walk_expr(arg.annotation, scope)
+        self._walk_expr(args.vararg.annotation if args.vararg else None, scope)
+        self._walk_expr(args.kwarg.annotation if args.kwarg else None, scope)
+
+    def _walk_type_params(self, node, scope):
+        for param in getattr(node, "type_params", ()):
+            for child in ast.iter_child_nodes(param):
+                self._walk_expr(child, scope)
+
+
+def _merge_import_states(left, right):
+    result = dict(left)
+    for name, value in right.items():
+        if name not in result:
+            result[name] = value
+        elif result[name] is _REMOVED:
+            if value is not _REMOVED:
+                result[name] = value
+        elif value is _REMOVED:
+            pass
+        elif result[name] is None:
+            if value is not None:
+                result[name] = value
+        elif value is not None:
+            result[name] = result[name] | value
+    return result
+
+
+class _ImportResolver:
+    def __init__(self, collector):
+        self.collector = collector
+        self.records = collector.records
+        self.states = {}
+        self.tasks = []
+
+    def _target_scope(self, scope, name):
+        if name in scope.global_names:
+            return self.collector.module
+        if name in scope.nonlocal_names:
+            parent = scope.parent
+            while parent is not None:
+                if parent.kind in ("function", "lambda") and name in parent.locals:
+                    return parent
+                parent = parent.parent
+            return scope
+        return scope
+
+    def _initial(self, scope):
+        if scope.kind in ("function", "lambda", "comprehension"):
+            return {name: None for name in scope.locals}
+        return {}
+
+    def _lookup(self, scope, name):
+        target = self._target_scope(scope, name)
+        current = target
+        closure = scope.kind in ("class", "function", "lambda", "comprehension")
+        while current is not None:
+            state = self.states.get(current, {})
+            if name in state and (state[name] is not _REMOVED or current.kind != "class"):
+                return state[name]
+            if name in current.locals and current.kind in ("function", "lambda", "annotation"):
+                return None
+            current = current.parent
+            if closure:
+                while current is not None and current.kind == "class":
+                    current = current.parent
+        return None
+
+    def _load(self, scope, name):
+        value = self._lookup(scope, name)
+        if value is not None and value is not _REMOVED:
+            for index in value:
+                self.records[index].used = True
+
+    def _write(self, scope, name, value):
+        target = self._target_scope(scope, name)
+        state = self.states.setdefault(target, self._initial(target))
+        state[name] = value
+
+    def _imports(self, node, index):
+        record = self.collector.record_by_alias.get((node, index))
+        return set() if record is None else {record}
+
+    def _expr(self, node, scope, annotation=False):
+        if node is None:
+            return
+        if annotation and isinstance(node, ast.Constant) and isinstance(node.value, str):
+            try:
+                self._expr(ast.parse(node.value, mode="eval").body, scope)
+            except SyntaxError:
+                pass
+            return
+        if isinstance(node, ast.Lambda):
+            if node not in self.collector.scope_by_node:
+                self.collector._walk_expr(node, scope)
+            child = self.collector.scope_by_node[node]
+            child.parent = scope
+            self._arguments(node.args, scope)
+            self.tasks.append((node, child, scope))
+            return
+        if isinstance(node, ast.Name):
+            if isinstance(node.ctx, ast.Load):
+                self._load(scope, node.id)
+            return
+        if isinstance(node, ast.NamedExpr):
+            self._expr(node.value, scope)
+            if isinstance(node.target, ast.Name):
+                target_scope = scope
+                while target_scope.kind == "comprehension":
+                    target_scope = target_scope.parent
+                self._write(target_scope, node.target.id, None)
+            return
+        if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
+            self._comprehension(node, scope)
+            return
+        for child in ast.iter_child_nodes(node):
+            self._expr(child, scope)
+
+    def _annotation(self, node, scope):
+        self._expr(node, scope, annotation=True)
+
+    def _comprehension(self, node, scope):
+        generators = node.generators
+        if not generators:
+            return
+        self._expr(generators[0].iter, scope)
+        if node not in self.collector.scope_by_node:
+            self.collector._walk_expr(node, scope)
+        child = self.collector.scope_by_node[node]
+        child.parent = scope
+        state = self._initial(child)
+        self.states[child] = state
+        for generator in generators:
+            if generator is not generators[0]:
+                self._expr(generator.iter, child)
+            self._target(child, generator.target)
+            for condition in generator.ifs:
+                self._expr(condition, child)
+        if isinstance(node, ast.DictComp):
+            self._expr(node.key, child)
+            self._expr(node.value, child)
+        else:
+            self._expr(node.elt, child)
+
+    def _target(self, scope, node):
+        if isinstance(node, ast.Name):
+            self._write(scope, node.id, None)
+        elif isinstance(node, (ast.Attribute, ast.Subscript)):
+            self._expr(node.value, scope)
+            if isinstance(node, ast.Subscript):
+                self._expr(node.slice, scope)
+        elif isinstance(node, (ast.Tuple, ast.List)):
+            for child in node.elts:
+                self._target(scope, child)
+        elif isinstance(node, ast.Starred):
+            self._target(scope, node.value)
+
+    def _literal_exports(self, node, scope):
+        if scope is not self.collector.module:
+            return
+        if not isinstance(node, (ast.List, ast.Tuple)):
+            return
+        if not all(isinstance(item, ast.Constant) and isinstance(item.value, str) for item in node.elts):
+            return
+        for item in node.elts:
+            value = self._lookup(scope, item.value)
+            if isinstance(value, set):
+                for index in value:
+                    self.records[index].used = True
+
+    def _stmt_list(self, nodes, scope, state):
+        self.states[scope] = state
+        for node in nodes:
+            state = self._stmt(node, scope, state)
+            self.states[scope] = state
+        return state
+
+    def _stmt(self, node, scope, state):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+                return state
+            for index, alias in enumerate(node.names):
+                if alias.name == "*":
+                    continue
+                name = alias.asname or (alias.name if isinstance(node, ast.ImportFrom) else alias.name.split(".")[0])
+                ids = self._imports(node, index)
+                self._write(scope, name, ids)
+            return self.states.get(scope, state)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for decorator in node.decorator_list:
+                self._expr(decorator, scope)
+            type_scope = self._type_scope(node, scope)
+            self._arguments(node.args, scope, type_scope)
+            self._annotation(node.returns, type_scope)
+            if getattr(node, "type_params", ()):
+                self.collector.scope_by_node[node].parent = type_scope
+            self._write(scope, node.name, None)
+            self.tasks.append((node, self.collector.scope_by_node[node], scope))
+            return self.states.get(scope, state)
+        if isinstance(node, ast.ClassDef):
+            for decorator in node.decorator_list:
+                self._expr(decorator, scope)
+            type_scope = self._type_scope(node, scope)
+            for base in node.bases:
+                self._expr(base, type_scope)
+            for keyword in node.keywords:
+                self._expr(keyword.value, type_scope)
+            child = self.collector.scope_by_node[node]
+            if getattr(node, "type_params", ()):
+                child.parent = type_scope
+            self._stmt_list(node.body, child, self._initial(child))
+            self._write(scope, node.name, None)
+            return self.states.get(scope, state)
+        if node.__class__.__name__ == "TypeAlias":
+            type_scope = self._type_scope(node, scope)
+            self._expr(getattr(node, "value", None), type_scope)
+            target = getattr(node, "name", None)
+            if isinstance(target, ast.Name):
+                self._write(scope, target.id, None)
+            return self.states.get(scope, state)
+        if isinstance(node, ast.Assign):
+            self._expr(node.value, scope)
+            if any(isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets):
+                self._literal_exports(node.value, scope)
+            for target in node.targets:
+                self._target(scope, target)
+            return self.states.get(scope, state)
+        if isinstance(node, ast.AnnAssign):
+            self._annotation(node.annotation, scope)
+            if node.value is not None:
+                self._expr(node.value, scope)
+                if isinstance(node.target, ast.Name) and node.target.id == "__all__":
+                    self._literal_exports(node.value, scope)
+                self._target(scope, node.target)
+            return self.states.get(scope, state)
+        if isinstance(node, ast.AugAssign):
+            if isinstance(node.target, ast.Name):
+                self._load(scope, node.target.id)
+            else:
+                self._expr(node.target, scope)
+            self._expr(node.value, scope)
+            if isinstance(node.target, ast.Name) and node.target.id == "__all__" and isinstance(node.op, ast.Add):
+                self._literal_exports(node.value, scope)
+            self._target(scope, node.target)
+            return self.states.get(scope, state)
+        if isinstance(node, ast.Delete):
+            for target in node.targets:
+                self._expr(target, scope)
+                for name in _target_names(target):
+                    self._write(scope, name, _REMOVED)
+            return self.states.get(scope, state)
+        if isinstance(node, (ast.If,)):
+            self._expr(node.test, scope)
+            left = self._stmt_list(node.body, scope, dict(state))
+            right = self._stmt_list(node.orelse, scope, dict(state)) if node.orelse else dict(state)
+            return _merge_import_states(left, right)
+        if isinstance(node, (ast.For, ast.AsyncFor)):
+            self._expr(node.iter, scope)
+            body_state = dict(state)
+            self.states[scope] = body_state
+            self._target(scope, node.target)
+            body_state = self._stmt_list(node.body, scope, body_state)
+            completed = _merge_import_states(state, body_state)
+            else_state = self._stmt_list(node.orelse, scope, dict(completed)) if node.orelse else completed
+            return _merge_import_states(completed, else_state)
+        if isinstance(node, (ast.While,)):
+            self._expr(node.test, scope)
+            body_state = self._stmt_list(node.body, scope, dict(state))
+            completed = _merge_import_states(state, body_state)
+            else_state = self._stmt_list(node.orelse, scope, dict(completed)) if node.orelse else completed
+            return _merge_import_states(completed, else_state)
+        if isinstance(node, (ast.Try, getattr(ast, "TryStar", ast.Try))):
+            body = self._stmt_list(node.body, scope, dict(state))
+            branches = [body]
+            for handler in node.handlers:
+                branch_state = _merge_import_states(state, body)
+                self.states[scope] = branch_state
+                self._expr(handler.type, scope)
+                if handler.name:
+                    self._write(scope, handler.name, None)
+                branch = self._stmt_list(handler.body, scope, branch_state)
+                if handler.name:
+                    self._write(scope, handler.name, _REMOVED)
+                branches.append(branch)
+            if node.orelse:
+                branches.append(self._stmt_list(node.orelse, scope, dict(body)))
+            merged = dict(state)
+            for branch in branches:
+                merged = _merge_import_states(merged, branch)
+            if node.finalbody:
+                merged = self._stmt_list(node.finalbody, scope, merged)
+            return merged
+        if isinstance(node, (ast.With, ast.AsyncWith)):
+            for item in node.items:
+                self._expr(item.context_expr, scope)
+                if item.optional_vars:
+                    self._target(scope, item.optional_vars)
+            return self._stmt_list(node.body, scope, state)
+        if isinstance(node, (ast.Match,)):
+            self._expr(node.subject, scope)
+            merged = dict(state)
+            for case in node.cases:
+                branch_state = dict(state)
+                self.states[scope] = branch_state
+                self._pattern(case.pattern, scope)
+                self._expr(case.guard, scope)
+                merged = _merge_import_states(merged, self._stmt_list(case.body, scope, branch_state))
+            return merged
+        if isinstance(node, ast.Raise):
+            self._expr(node.exc, scope)
+            self._expr(node.cause, scope)
+            return state
+        if isinstance(node, (ast.Return, ast.Assert, ast.Expr, ast.Yield, ast.YieldFrom)):
+            self._expr(node.value if hasattr(node, "value") else None, scope)
+            if isinstance(node, ast.Assert):
+                self._expr(node.test, scope)
+                self._expr(node.msg, scope)
+            return state
+        self._expr(node, scope)
+        return self.states.get(scope, state)
+
+    def _pattern(self, node, scope):
+        if isinstance(node, ast.MatchValue):
+            self._expr(node.value, scope)
+            return
+        if isinstance(node, ast.MatchClass):
+            self._expr(node.cls, scope)
+            for child in node.patterns:
+                self._pattern(child, scope)
+            for child in node.kwd_patterns:
+                self._pattern(child, scope)
+            return
+        if isinstance(node, ast.MatchMapping):
+            for key in node.keys:
+                self._expr(key, scope)
+            for child in node.patterns:
+                self._pattern(child, scope)
+            if node.rest:
+                self._write(scope, node.rest, None)
+            return
+        if isinstance(node, ast.MatchStar):
+            if node.name:
+                self._write(scope, node.name, None)
+            return
+        if isinstance(node, ast.MatchAs) and node.name:
+            self._write(scope, node.name, None)
+        for child in ast.iter_child_nodes(node):
+            self._pattern(child, scope)
+
+    def _arguments(self, args, scope, annotation_scope=None):
+        for item in args.defaults:
+            self._expr(item, scope)
+        for item in args.kw_defaults:
+            self._expr(item, scope)
+        ann_scope = annotation_scope or scope
+        for arg in list(args.posonlyargs) + list(args.args) + list(args.kwonlyargs):
+            self._annotation(arg.annotation, ann_scope)
+        self._annotation(args.vararg.annotation if args.vararg else None, ann_scope)
+        self._annotation(args.kwarg.annotation if args.kwarg else None, ann_scope)
+
+    def _type_scope(self, node, parent):
+        params = getattr(node, "type_params", ())
+        if not params:
+            return parent
+        result = _Scope("annotation", parent)
+        self.states[result] = {}
+        for param in params:
+            name = getattr(param, "name", None)
+            if isinstance(name, str):
+                result.locals.add(name)
+        for param in params:
+            for child in ast.iter_child_nodes(param):
+                self._expr(child, result)
+        return result
+
+    def run(self):
+        module_state = self._stmt_list(self.collector.module.node.body if self.collector.module.node else [], self.collector.module, {})
+        position = 0
+        while position < len(self.tasks):
+            node, scope, parent = self.tasks[position]
+            position += 1
+            saved = {key: dict(value) for key, value in self.states.items()}
+            state = self._initial(scope)
+            self.states[scope] = state
+            if isinstance(node, ast.Lambda):
+                self._stmt_list([node.body], scope, state)
+            else:
+                self._stmt_list(node.body, scope, state)
+            child_state = self.states.get(scope, state)
+            for key in list(self.states):
+                if key is scope:
+                    continue
+                if key in saved:
+                    self.states[key] = saved[key]
+                else:
+                    del self.states[key]
+            self.states[scope] = child_state
+        return module_state
+
+
+def _import_metric(tree):
+    collector = _ImportCollector(tree)
+    collector.module.node = tree
+    resolver = _ImportResolver(collector)
+    resolver.run()
+    records = sorted(collector.records, key=lambda record: record.pos)
+    unused = [record.name for record in records if not record.used]
+    total = len(records)
+    used = total - len(unused)
+    return {"total": total, "used": used, "unused": unused,
+            "ddc": 1.0 if total == 0 else float(used) / total}
+
+
 def scan_source(source):
     try:
         tree = ast.parse(source)
@@ -615,6 +1292,7 @@ def scan_source(source):
                 "detail": f"Syntax error during AST parsing: {exc}",
             }],
             "interfaces": [],
+            "error": f"AST parsing failed: {exc}",
         }
     except Exception as exc:
         return {
@@ -625,6 +1303,7 @@ def scan_source(source):
                 "detail": f"Syntax error during AST parsing: {exc}",
             }],
             "interfaces": [],
+            "error": f"AST parsing failed: {exc}",
         }
     found = []
     for scan in _SCANS:
@@ -632,13 +1311,14 @@ def scan_source(source):
     found.sort(key=lambda item: (item["line"], item["kind"]))
     visitor = _InterfaceVisitor()
     visitor.visit(tree)
-    return {"findings": found, "interfaces": visitor.finish()}
+    imports = _import_metric(tree)
+    return {"findings": found, "interfaces": visitor.finish(), "imports": imports}
+
 `
 
 // pythonFindingsScript scans every path passed on the command line and prints
-// one JSON entry per analyzed path, mirroring radon's payload shape:
-// {"<path>": {"findings": [...], "interfaces": [...]}} for a scanned file,
-// with a syntax-warning finding and no interface records when scanning fails.
+// one JSON entry per analyzed path, including findings, interfaces, imports,
+// or an explicit AST error with unavailable metrics.
 const pythonFindingsScript = pythonFindingsLibrary + `
 import json
 import pathlib
@@ -655,9 +1335,10 @@ for path in sys.argv[1:]:
                     "rule": "syntax-warning",
                     "kind": "syntax-warning",
                     "line": 1,
-                    "detail": f"AST scan error: {exc}",
+                    "detail": f"AST scan failed: {exc}",
                 }
-            ]
+            ],
+            "error": f"AST scan failed: {exc}",
         }
 json.dump(payload, sys.stdout)
 `
@@ -667,6 +1348,7 @@ type pythonFindingsItem struct {
 	Error      string            `json:"error"`
 	Findings   []Finding         `json:"findings"`
 	Interfaces []InterfaceMetric `json:"interfaces"`
+	Imports    *ImportMetric     `json:"imports"`
 }
 
 // pythonFileFindings runs the findings scan for a single file.
@@ -715,20 +1397,22 @@ func pythonFindingsFor(payload map[string]pythonFindingsItem, file string) (pyth
 		return pythonFindingsItem{}, fmt.Errorf("python findings error for %s: missing interface metrics", file)
 	}
 	if item.Error != "" {
-		if len(item.Findings) > 0 {
-			return item, nil
-		}
 		return pythonFindingsItem{}, fmt.Errorf("python findings error for %s: %s", file, item.Error)
 	}
-	hasSyntaxWarning := false
 	for _, finding := range item.Findings {
 		if finding.Rule == "syntax-warning" {
-			hasSyntaxWarning = true
-			break
+			detail := finding.Detail
+			if detail == "" {
+				detail = "AST scan unavailable"
+			}
+			return pythonFindingsItem{}, fmt.Errorf("python findings error for %s: %s", file, detail)
 		}
 	}
-	if len(item.Interfaces) == 0 && !hasSyntaxWarning {
+	if len(item.Interfaces) == 0 {
 		return pythonFindingsItem{}, fmt.Errorf("python findings error for %s: missing interface metrics", file)
+	}
+	if item.Imports == nil {
+		return pythonFindingsItem{}, fmt.Errorf("python findings error for %s: missing import metrics", file)
 	}
 	return item, nil
 }
@@ -960,491 +1644,6 @@ func pythonRepositoryResult(
 	return pythonAnalysisResult(file, pythonFunctions(items), fileMetric, scan)
 }
 
-// pythonAnalysisResult assembles one analyzed Python file's result: it derives
-// the ratios the radon metrics do not carry, reads the source for import
-// metrics, and attaches the findings and scoped interfaces the caller scanned.
-// Every Python analysis path — radon CLI, radon API fast path, and repository
-// batch — ends here, so they cannot drift apart.
-func pythonAnalysisResult(file string, functions []FunctionMetric, fileMetric FileMetric, scan pythonFindingsItem) (AnalysisResult, error) {
-	source, err := os.ReadFile(file)
-	if err != nil {
-		return AnalysisResult{}, err
-	}
-	fileMetric.LDR = ratio(fileMetric.LogicLOC, fileMetric.TotalLOC)
-	fileMetric.PublicMethods = publicFunctionCount(functions)
-	return AnalysisResult{
-		CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
-		Language:     "python",
-		File:         file,
-		Functions:    functions,
-		ModuleMetric: BuildModuleMetric(fileMetric, functions),
-		FileMetric:   fileMetric,
-		Imports:      pythonImportMetric(string(source)),
-		Interfaces:   scan.Interfaces,
-		Findings:     scan.Findings,
-	}, nil
-}
-
-func pythonImportMetric(source string) ImportMetric {
-	names := pythonImportNames(source)
-	identifiers := pythonUsedIdentifiers(source)
-	used := 0
-	unused := make([]string, 0)
-	for _, name := range names {
-		if _, ok := identifiers[name]; ok {
-			used++
-			continue
-		}
-		unused = append(unused, name)
-	}
-	return ImportMetric{Total: len(names), Used: used, Unused: unused, DDC: ratio(used, len(names))}
-}
-
-// pythonUsedIdentifiers returns every identifier the module body reads. Locally
-// bound names — assignments, parameters, loop variables, aliases — are excluded
-// scope by scope, so only names that could be import uses remain.
-func pythonUsedIdentifiers(source string) map[string]struct{} {
-	body := stripPythonStringsAndComments(pythonImportBody(source))
-	used := make(map[string]struct{})
-	scopes := []pythonScope{{indent: -1, bound: make(map[string]struct{})}}
-	for _, line := range pythonTokenLines(body) {
-		scopes = popPythonScopes(scopes, line.indent)
-		bindings := pythonLineBindings(line.tokens)
-		collectPythonUses(used, line.tokens, bindings, pythonShadowedNames(scopes, bindings))
-		scopes = applyPythonBindings(scopes, line, bindings)
-	}
-	return used
-}
-
-// popPythonScopes drops every scope a line's indentation has closed.
-func popPythonScopes(scopes []pythonScope, indent int) []pythonScope {
-	for len(scopes) > 1 && indent <= scopes[len(scopes)-1].indent {
-		scopes = scopes[:len(scopes)-1]
-	}
-	return scopes
-}
-
-// pythonShadowedNames is the set of names a line's identifier uses must ignore:
-// everything bound by an enclosing scope plus everything this line binds.
-func pythonShadowedNames(scopes []pythonScope, bindings pythonBindings) map[string]struct{} {
-	shadowed := pythonVisibleBindings(scopes, bindings.lineBound)
-	for name := range bindings.outerBound {
-		shadowed[name] = struct{}{}
-	}
-	return shadowed
-}
-
-// collectPythonUses records the identifiers a line reads rather than binds.
-func collectPythonUses(
-	used map[string]struct{},
-	tokens []string,
-	bindings pythonBindings,
-	shadowed map[string]struct{},
-) {
-	for index, token := range tokens {
-		if !isPythonIdentifierToken(token) ||
-			pythonKeywords[token] ||
-			bindings.positions[index] {
-			continue
-		}
-		if _, ok := shadowed[token]; ok {
-			continue
-		}
-		used[token] = struct{}{}
-	}
-}
-
-// applyPythonBindings records a line's bindings in the innermost scope and
-// opens the scope a def or class line starts.
-func applyPythonBindings(scopes []pythonScope, line pythonTokenLine, bindings pythonBindings) []pythonScope {
-	bound := scopes[len(scopes)-1].bound
-	for name := range bindings.outerBound {
-		bound[name] = struct{}{}
-	}
-	for name := range bindings.lineBound {
-		bound[name] = struct{}{}
-	}
-	if bindings.startsScope {
-		scopes = append(scopes, pythonScope{indent: line.indent, bound: bindings.nextScopeBound})
-	}
-	return scopes
-}
-
-type pythonScope struct {
-	indent int
-	bound  map[string]struct{}
-}
-
-type pythonTokenLine struct {
-	indent int
-	tokens []string
-}
-
-type pythonBindings struct {
-	positions      map[int]bool
-	lineBound      map[string]struct{}
-	outerBound     map[string]struct{}
-	nextScopeBound map[string]struct{}
-	startsScope    bool
-}
-
-func pythonImportBody(source string) string {
-	bodyLines := make([]string, 0)
-	inImportBlock := false
-	for _, line := range strings.Split(source, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if inImportBlock {
-			if strings.Contains(trimmed, ")") {
-				inImportBlock = false
-			}
-			continue
-		}
-		if strings.HasPrefix(trimmed, "import ") || strings.HasPrefix(trimmed, "from ") {
-			if strings.HasSuffix(trimmed, "(") || (strings.Contains(trimmed, " import (") && !strings.Contains(trimmed, ")")) {
-				inImportBlock = true
-			}
-			continue
-		}
-		bodyLines = append(bodyLines, line)
-	}
-	return strings.Join(bodyLines, "\n")
-}
-
-// pythonStripper blanks out Python string literals and comments so the
-// identifier scan never mistakes their contents for code. Every replacement is
-// as long as what it replaces and newlines are preserved, so byte offsets and
-// line numbering survive the pass unchanged.
-type pythonStripper struct {
-	source   string
-	builder  strings.Builder
-	quote    byte
-	inString bool
-	triple   bool
-}
-
-func stripPythonStringsAndComments(source string) string {
-	stripper := pythonStripper{source: source}
-	for index := 0; index < len(source); index++ {
-		index = stripper.step(index)
-	}
-	return stripper.builder.String()
-}
-
-// step consumes the run of source starting at index and returns the last index
-// it consumed; the caller's loop advances past it.
-func (s *pythonStripper) step(index int) int {
-	if s.inString {
-		return s.stepInString(index)
-	}
-	switch s.source[index] {
-	case '#':
-		return s.stepComment(index)
-	case '\'', '"':
-		return s.stepStringStart(index)
-	}
-	s.builder.WriteByte(s.source[index])
-	return index
-}
-
-// stepInString blanks one byte of an open literal. A single-quoted literal also
-// ends at a newline, which is how an unterminated quote fails to swallow the
-// rest of the file.
-func (s *pythonStripper) stepInString(index int) int {
-	value := s.source[index]
-	if value == '\n' {
-		s.builder.WriteByte('\n')
-		if !s.triple {
-			s.inString = false
-		}
-		return index
-	}
-	if value == '\\' && !s.triple && index+1 < len(s.source) {
-		return s.stepEscape(index)
-	}
-	if value == s.quote {
-		return s.stepQuote(index)
-	}
-	s.builder.WriteByte(' ')
-	return index
-}
-
-// stepEscape blanks a backslash escape inside a single-quoted literal, keeping
-// a line continuation's newline so line numbering survives.
-func (s *pythonStripper) stepEscape(index int) int {
-	s.builder.WriteByte(' ')
-	index++
-	if s.source[index] == '\n' {
-		s.builder.WriteByte('\n')
-	} else {
-		s.builder.WriteByte(' ')
-	}
-	return index
-}
-
-// stepQuote handles a quote byte inside an open literal: a triple-quoted
-// literal closes only on its full closing triple, a single-quoted one here.
-func (s *pythonStripper) stepQuote(index int) int {
-	if !s.triple {
-		s.inString = false
-		s.builder.WriteByte(' ')
-		return index
-	}
-	if index+2 < len(s.source) && s.source[index+1] == s.quote && s.source[index+2] == s.quote {
-		s.builder.WriteString("   ")
-		s.inString = false
-		return index + 2
-	}
-	s.builder.WriteByte(' ')
-	return index
-}
-
-// stepComment blanks a comment through the end of its line, preserving the
-// newline that terminates it.
-func (s *pythonStripper) stepComment(index int) int {
-	for index < len(s.source) && s.source[index] != '\n' {
-		s.builder.WriteByte(' ')
-		index++
-	}
-	if index < len(s.source) {
-		s.builder.WriteByte('\n')
-	}
-	return index
-}
-
-// stepStringStart opens a literal, blanking its opening quote or triple quote.
-func (s *pythonStripper) stepStringStart(index int) int {
-	s.quote = s.source[index]
-	s.triple = index+2 < len(s.source) && s.source[index+1] == s.quote && s.source[index+2] == s.quote
-	s.inString = true
-	if !s.triple {
-		s.builder.WriteByte(' ')
-		return index
-	}
-	s.builder.WriteString("   ")
-	return index + 2
-}
-
-func pythonTokensByLine(source string) map[int][]string {
-	tokens := make(map[int][]string)
-	line := 0
-	for index := 0; index < len(source); {
-		value := rune(source[index])
-		if value == '\n' {
-			line++
-			index++
-			continue
-		}
-		if isPythonIdentifierStart(value) {
-			start := index
-			index++
-			for index < len(source) && isPythonIdentifierPart(rune(source[index])) {
-				index++
-			}
-			tokens[line] = append(tokens[line], source[start:index])
-			continue
-		}
-		if strings.ContainsRune("()[]{}.,:+-*/%=<>!", value) {
-			if index+1 < len(source) {
-				two := source[index : index+2]
-				if pythonTwoCharOperators[two] {
-					tokens[line] = append(tokens[line], two)
-					index += 2
-					continue
-				}
-			}
-			tokens[line] = append(tokens[line], string(value))
-		}
-		index++
-	}
-	return tokens
-}
-
-func pythonTokenLines(source string) []pythonTokenLine {
-	lines := strings.Split(source, "\n")
-	result := make([]pythonTokenLine, 0, len(lines))
-	for _, line := range lines {
-		tokens := pythonTokensByLine(line)[0]
-		if len(tokens) == 0 {
-			continue
-		}
-		result = append(result, pythonTokenLine{
-			indent: pythonIndent(line),
-			tokens: tokens,
-		})
-	}
-	return result
-}
-
-func pythonIndent(line string) int {
-	indent := 0
-	for _, value := range line {
-		switch value {
-		case ' ':
-			indent++
-		case '\t':
-			indent += 4
-		default:
-			return indent
-		}
-	}
-	return indent
-}
-
-func pythonLineBindings(tokens []string) pythonBindings {
-	bindings := pythonBindings{
-		positions:      make(map[int]bool),
-		lineBound:      make(map[string]struct{}),
-		outerBound:     make(map[string]struct{}),
-		nextScopeBound: make(map[string]struct{}),
-	}
-	for index, token := range tokens {
-		if token == "as" {
-			bindNextIdentifierAt(tokens, index+1, bindings.positions, bindings.lineBound)
-		}
-		if token == "for" {
-			bindBeforeTokenAt(tokens, index+1, "in", bindings.positions, bindings.lineBound)
-		}
-	}
-	if len(tokens) == 0 {
-		return bindings
-	}
-	switch tokens[0] {
-	case "def":
-		bindNextIdentifierAt(tokens, 1, bindings.positions, bindings.outerBound)
-		bindFunctionParametersAt(tokens, bindings.positions, bindings.nextScopeBound)
-		bindings.startsScope = true
-	case "class":
-		bindNextIdentifierAt(tokens, 1, bindings.positions, bindings.outerBound)
-		bindings.startsScope = true
-	default:
-		if assignment := firstPythonAssignment(tokens); assignment > 0 {
-			bindIdentifiersAt(tokens[:assignment], 0, bindings.positions, bindings.lineBound)
-		}
-	}
-	return bindings
-}
-
-func pythonVisibleBindings(scopes []pythonScope, extra map[string]struct{}) map[string]struct{} {
-	visible := make(map[string]struct{})
-	for _, scope := range scopes {
-		for name := range scope.bound {
-			visible[name] = struct{}{}
-		}
-	}
-	for name := range extra {
-		visible[name] = struct{}{}
-	}
-	return visible
-}
-
-func bindNextIdentifierAt(tokens []string, start int, positions map[int]bool, bound map[string]struct{}) {
-	for index := start; index < len(tokens); index++ {
-		if isPythonIdentifierToken(tokens[index]) && !pythonKeywords[tokens[index]] {
-			positions[index] = true
-			bound[tokens[index]] = struct{}{}
-			return
-		}
-	}
-}
-
-func bindFunctionParametersAt(tokens []string, positions map[int]bool, bound map[string]struct{}) {
-	depth := 0
-	inParams := false
-	for index, token := range tokens {
-		switch token {
-		case "(":
-			depth++
-			inParams = true
-		case ")":
-			depth--
-			if depth <= 0 {
-				return
-			}
-		default:
-			if inParams && depth == 1 && isPythonIdentifierToken(token) && !pythonKeywords[token] {
-				positions[index] = true
-				bound[token] = struct{}{}
-			}
-		}
-	}
-}
-
-func bindBeforeTokenAt(tokens []string, start int, stop string, positions map[int]bool, bound map[string]struct{}) {
-	for index := start; index < len(tokens); index++ {
-		if tokens[index] == stop {
-			bindIdentifiersAt(tokens[start:index], start, positions, bound)
-			return
-		}
-	}
-}
-
-func bindIdentifiersAt(tokens []string, offset int, positions map[int]bool, bound map[string]struct{}) {
-	for index, token := range tokens {
-		if !isPythonIdentifierToken(token) || pythonKeywords[token] {
-			continue
-		}
-		if index > 0 && tokens[index-1] == "." {
-			continue
-		}
-		positions[offset+index] = true
-		bound[token] = struct{}{}
-	}
-}
-
-func firstPythonAssignment(tokens []string) int {
-	for index, token := range tokens {
-		if pythonAssignmentOperators[token] {
-			return index
-		}
-	}
-	return -1
-}
-
-func isPythonIdentifierToken(token string) bool {
-	if token == "" {
-		return false
-	}
-	runes := []rune(token)
-	if !isPythonIdentifierStart(runes[0]) {
-		return false
-	}
-	for _, value := range runes[1:] {
-		if !isPythonIdentifierPart(value) {
-			return false
-		}
-	}
-	return true
-}
-
-func isPythonIdentifierStart(value rune) bool {
-	return value == '_' || unicode.IsLetter(value)
-}
-
-func isPythonIdentifierPart(value rune) bool {
-	return isPythonIdentifierStart(value) || unicode.IsDigit(value)
-}
-
-var pythonKeywords = map[string]bool{
-	"False": true, "None": true, "True": true, "and": true, "as": true,
-	"assert": true, "async": true, "await": true, "break": true, "class": true,
-	"continue": true, "def": true, "del": true, "elif": true, "else": true,
-	"except": true, "finally": true, "for": true, "from": true, "global": true,
-	"if": true, "import": true, "in": true, "is": true, "lambda": true,
-	"nonlocal": true, "not": true, "or": true, "pass": true, "raise": true,
-	"return": true, "try": true, "while": true, "with": true, "yield": true,
-}
-
-var pythonAssignmentOperators = map[string]bool{
-	"=": true, "+=": true, "-=": true, "*=": true, "/=": true,
-	"//=": true, "%=": true, "**=": true, ":=": true,
-}
-
-var pythonTwoCharOperators = map[string]bool{
-	"==": true, "!=": true, "<=": true, ">=": true, "+=": true,
-	"-=": true, "*=": true, "/=": true, "//": true, "%=": true,
-	"**": true, ":=": true,
-}
-
 func publicFunctionCount(functions []FunctionMetric) int {
 	count := 0
 	for _, fn := range functions {
@@ -1455,119 +1654,25 @@ func publicFunctionCount(functions []FunctionMetric) int {
 	return count
 }
 
-// pythonImportNames returns the local name every import statement in source
-// binds, following a parenthesized "from ... import (" list across lines.
-func pythonImportNames(source string) []string {
-	names := make([]string, 0)
-	collectingFrom := false
-	for _, line := range strings.Split(source, "\n") {
-		trimmed := stripPythonComment(strings.TrimSpace(line))
-		if trimmed == "" {
-			continue
-		}
-		var lineNames []string
-		if collectingFrom {
-			lineNames, collectingFrom = pythonImportBlockNames(trimmed)
-		} else {
-			lineNames, collectingFrom = pythonImportStatementNames(trimmed)
-		}
-		names = append(names, lineNames...)
+// pythonAnalysisResult assembles one analyzed Python file's result from the
+// shared scanner payload. Import metrics are required even for empty scans.
+func pythonAnalysisResult(file string, functions []FunctionMetric, fileMetric FileMetric, scan pythonFindingsItem) (AnalysisResult, error) {
+	if scan.Imports == nil {
+		return AnalysisResult{}, fmt.Errorf("python findings error for %s: missing import metrics", file)
 	}
-	return names
-}
-
-// pythonImportStatementNames reads one "import ..." or "from ... import ..."
-// statement, reporting whether a parenthesized list stays open on the lines
-// that follow. A line that is neither statement binds nothing.
-func pythonImportStatementNames(trimmed string) ([]string, bool) {
-	if strings.HasPrefix(trimmed, "import ") {
-		rest := strings.TrimSpace(strings.TrimPrefix(trimmed, "import "))
-		return parsePythonImportList("import", rest), false
-	}
-	if strings.HasPrefix(trimmed, "from ") {
-		return pythonFromImportNames(trimmed)
-	}
-	return nil, false
-}
-
-// pythonFromImportNames reads a "from ... import ..." line. A list opened with
-// "(" and not closed on the same line leaves the block open for the lines that
-// follow; a line with no " import " at all binds nothing.
-func pythonFromImportNames(trimmed string) ([]string, bool) {
-	importIndex := strings.Index(trimmed, " import ")
-	if importIndex < 0 {
-		return nil, false
-	}
-	rest := strings.TrimSpace(trimmed[importIndex+len(" import "):])
-	if rest == "(" {
-		return nil, true
-	}
-	if !strings.HasPrefix(rest, "(") {
-		return parsePythonImportList("from", rest), false
-	}
-	rest = strings.TrimPrefix(rest, "(")
-	if !strings.Contains(rest, ")") {
-		return parsePythonImportList("from", rest), true
-	}
-	return parsePythonImportList("from", strings.Split(rest, ")")[0]), false
-}
-
-// pythonImportBlockNames reads one continuation line of an open parenthesized
-// import list, reporting whether the block is still open afterwards.
-func pythonImportBlockNames(trimmed string) ([]string, bool) {
-	if strings.HasPrefix(trimmed, ")") {
-		return nil, false
-	}
-	if !strings.Contains(trimmed, ")") {
-		return parsePythonImportList("from", trimmed), true
-	}
-	closed := strings.TrimSpace(strings.TrimSuffix(strings.Split(trimmed, ")")[0], ","))
-	return parsePythonImportList("from", closed), false
-}
-
-// parsePythonImportList splits a comma-separated import clause list into the
-// names it binds. kind is "import" or "from" and decides whether a dotted
-// module path contributes its root package name.
-func parsePythonImportList(kind, list string) []string {
-	list = strings.TrimSpace(strings.Trim(list, "()"))
-	names := make([]string, 0)
-	for _, part := range strings.Split(list, ",") {
-		if name, ok := pythonImportName(kind, part); ok {
-			names = append(names, name)
-		}
-	}
-	return names
-}
-
-// pythonImportName resolves the name one clause binds: its alias when it has
-// one, and for a plain "import a.b.c" the root package that lands in scope.
-func pythonImportName(kind, part string) (string, bool) {
-	part = stripPythonComment(strings.TrimSpace(part))
-	if pythonBindsNoName(part) {
-		return "", false
-	}
-	fields := strings.Fields(part)
-	name := fields[0]
-	if len(fields) >= 3 && fields[len(fields)-2] == "as" {
-		return fields[len(fields)-1], true
-	}
-	if dot := strings.Index(name, "."); dot >= 0 && kind == "import" {
-		name = name[:dot]
-	}
-	return name, true
-}
-
-// pythonBindsNoName reports whether an import clause binds nothing: an empty
-// clause, a star import, or a stray parenthesis left by the list split.
-func pythonBindsNoName(part string) bool {
-	return part == "" || part == "*" || part == "(" || part == ")"
-}
-
-func stripPythonComment(value string) string {
-	if index := strings.Index(value, "#"); index >= 0 {
-		return strings.TrimSpace(value[:index])
-	}
-	return value
+	fileMetric.LDR = ratio(fileMetric.LogicLOC, fileMetric.TotalLOC)
+	fileMetric.PublicMethods = publicFunctionCount(functions)
+	return AnalysisResult{
+		CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
+		Language:     "python",
+		File:         file,
+		Functions:    functions,
+		ModuleMetric: BuildModuleMetric(fileMetric, functions),
+		FileMetric:   fileMetric,
+		Imports:      *scan.Imports,
+		Interfaces:   scan.Interfaces,
+		Findings:     scan.Findings,
+	}, nil
 }
 
 func runTool(ctx context.Context, name string, args ...string) ([]byte, error) {
