@@ -35,6 +35,7 @@ func TestViolationAndGreenFixturesAreCalibrated(t *testing.T) {
 		{name: "python interface red", path: "violations/python/interface_width.py", language: "python", rule: "interface-width", red: true},
 		{name: "python interface green", path: "green/python/interface_width.py", language: "python", rule: "interface-width"},
 		{name: "python ldr red", path: "violations/python/logic_density.py", language: "python", rule: "logic-density", red: true},
+		{name: "python export facade ldr red", path: "violations/python/export_facade.py", language: "python", rule: "logic-density", red: true},
 		{name: "python ldr green", path: "green/python/logic_density.py", language: "python", rule: "logic-density"},
 		{name: "python ddc red", path: "violations/python/dependency_discipline.py", language: "python", rule: "dependency-discipline", red: true},
 		{name: "python ddc green", path: "green/python/dependency_discipline.py", language: "python", rule: "dependency-discipline"},

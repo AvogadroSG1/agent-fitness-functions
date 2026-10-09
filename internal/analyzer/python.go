@@ -1296,6 +1296,51 @@ def _import_metric(tree):
             "ddc": 1.0 if total == 0 else float(used) / total}
 
 
+def _python_export_facade(tree):
+    body = tree.body
+    index = 0
+    if (body and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)):
+        index += 1
+    while (index < len(body) and isinstance(body[index], ast.ImportFrom)
+           and body[index].level == 0 and body[index].module == "__future__"):
+        if any(alias.asname is not None or alias.name == "*" for alias in body[index].names):
+            return False
+        index += 1
+    bindings = set()
+    import_count = 0
+    while index < len(body) and isinstance(body[index], (ast.Import, ast.ImportFrom)):
+        node = body[index]
+        if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == "__future__":
+            return False
+        for alias in node.names:
+            if alias.name == "*":
+                return False
+            binding = alias.asname or (alias.name.split(".")[0] if isinstance(node, ast.Import) else alias.name)
+            if binding == "__all__" or binding in bindings:
+                return False
+            bindings.add(binding)
+        import_count += 1
+        index += 1
+    if import_count == 0 or index != len(body) - 1:
+        return False
+    exports = body[index]
+    if (not isinstance(exports, ast.Assign) or len(exports.targets) != 1
+            or not isinstance(exports.targets[0], ast.Name)
+            or exports.targets[0].id != "__all__"
+            or not isinstance(exports.value, (ast.List, ast.Tuple))
+            or not exports.value.elts):
+        return False
+    names = set()
+    for item in exports.value.elts:
+        if (not isinstance(item, ast.Constant) or not isinstance(item.value, str)
+                or not item.value.isidentifier() or item.value in names):
+            return False
+        names.add(item.value)
+    return bindings == names
+
+
 def scan_source(source):
     try:
         tree = ast.parse(source)
@@ -1329,7 +1374,10 @@ def scan_source(source):
     visitor = _InterfaceVisitor()
     visitor.visit(tree)
     imports = _import_metric(tree)
-    return {"findings": found, "interfaces": visitor.finish(), "imports": imports}
+    payload = {"findings": found, "interfaces": visitor.finish(), "imports": imports}
+    if _python_export_facade(tree):
+        payload["source_kind"] = "python-export-facade"
+    return payload
 
 `
 
@@ -1366,6 +1414,7 @@ type pythonFindingsItem struct {
 	Findings   []Finding         `json:"findings"`
 	Interfaces []InterfaceMetric `json:"interfaces"`
 	Imports    *ImportMetric     `json:"imports"`
+	SourceKind SourceKind        `json:"source_kind,omitempty"`
 }
 
 // pythonFileFindings runs the findings scan for a single file.
@@ -1690,6 +1739,7 @@ func pythonAnalysisResult(file string, functions []FunctionMetric, fileMetric Fi
 		CALMNode:     strings.TrimSuffix(filepath.Base(file), filepath.Ext(file)),
 		Language:     "python",
 		File:         file,
+		SourceKind:   scan.SourceKind,
 		Functions:    functions,
 		ModuleMetric: BuildModuleMetric(fileMetric, functions),
 		FileMetric:   fileMetric,

@@ -84,6 +84,75 @@ def test_subprocess_preserves_interface_locations() -> None:
     ]
 
 
+@pytest.mark.parametrize("status,mode_label", [("block", "blocking"), ("advisory", "advisory")])
+def test_subprocess_python_export_facade_guidance(status: str, mode_label: str) -> None:
+    import yaml
+
+    file = "data-pipeline/src/observatory_pipeline/retrieval/adapters/__init__.py"
+    violation = {
+        "fitness_function": "logic_density",
+        "file": file,
+        "calm_node": "__init__",
+        "value": 4 / 21,
+        "limit": 0.255,
+        "source_kind": "python-export-facade",
+        "message": "Explicit Python export facade; raw density floor still applies.",
+    }
+    stdout, stderr, code = _run(
+        json.dumps({"status": status, "violations": [violation]}),
+        ["--mode", status, "--file", file],
+    )
+    assert code == 0, stderr
+    output = yaml.safe_load(stdout)
+    assert output["calm_check"]["status"] == status
+    entry = output["violations"][0]
+    assert entry["mode"] == mode_label
+    assert entry["source_kind"] == "python-export-facade"
+    assert entry["result"] == 0.19
+    assert entry["target"] == ">= 0.255"
+    assert entry["location"] == "__init__"
+    assert "declarative API surface" in entry["meaning"]
+    advice = " ".join(entry["remediation"])
+    assert "Preserve required public exports" in advice
+    assert "keep implementations in their adapter modules" in advice
+    assert "Do not add fake logic" in advice
+    assert "move business logic into the facade" in advice
+    assert "remove exports solely to raise density" in advice
+    assert "governance policy owner" in advice
+    assert "do not change thresholds, enforcement, or add a consumer waiver" in advice
+    for generic in ("Remove unused or dead code", "Move configuration and constants",
+                    "Reduce scaffolding", "should be refactored"):
+        assert generic not in advice
+    if status == "advisory":
+        assert "blocking" not in stdout
+
+
+@pytest.mark.parametrize(
+    "fn,marker",
+    [("logic_density", None), ("logic-density", "unknown"),
+     ("dependency_discipline", "python-export-facade")],
+)
+def test_subprocess_unclassified_findings_keep_ordinary_guidance(fn: str, marker: str | None) -> None:
+    import yaml
+
+    violation = _viol(fn, 4 / 21, 0.255, "", "__init__")
+    if marker is not None:
+        violation["source_kind"] = marker
+    stdout, stderr, code = _run(
+        json.dumps({"status": "block", "violations": [violation]}),
+        ["--mode", "block", "--file", "pkg/__init__.py"],
+    )
+    assert code == 0, stderr
+    entry = yaml.safe_load(stdout)["violations"][0]
+    assert "source_kind" not in entry
+    advice = " ".join(entry["remediation"])
+    assert "governance policy owner" not in advice
+    if fn.replace("_", "-") == "logic-density":
+        assert "Remove unused or dead code" in advice
+    else:
+        assert "Remove all unused imports" in advice
+
+
 # ---------------------------------------------------------------------------
 # format_value
 # ---------------------------------------------------------------------------

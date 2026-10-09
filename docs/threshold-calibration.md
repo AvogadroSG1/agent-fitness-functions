@@ -30,6 +30,15 @@ therefore the P90 of those per-file maxima. The historical tables, exceptions,
 and global ceiling of 20 are unchanged; this counting correction is not a
 threshold recalibration.
 
+Go interface-width samples now distinguish the package-function interface from
+each named receiver type's exported-method interface, including matching receivers
+across package peers. The historical flat public-operation percentiles above are
+unchanged; new width samples use the widest individual interface. The global
+ceiling remains 20, and flat operation totals still serve implementation depth.
+This avoids combining unrelated receiver APIs into one artificial package width;
+an individual receiver above 20 remains a violation. See
+[engineering-spec.md §5.2](spec/engineering-spec.md#52-deep-vs-shallow-two-rules).
+
 ## Proposed Thresholds
 
 | Fitness Function | Operator | Threshold | Source |
@@ -39,6 +48,32 @@ threshold recalibration.
 | Implementation Depth | `gte` | 0.722 | Minimum repository P10 from SlackStatus |
 | Logic Density | `gte` | 0.255 | Minimum repository P10 from StackOverflow.Api.V3 |
 | Dependency Discipline | `gte` | 0.8 | Step 5.3 PoC threshold |
+
+### Python Export Facades Remain Density Samples
+
+The AST marker `source_kind: "python-export-facade"` is diagnostic-only. It
+recognizes an optional initial docstring and unaliased future directives, followed
+by ordinary imports and one final literal, non-empty `__all__` list/tuple whose
+unique identifier names exactly match the unique imported bindings. It does not
+infer cross-file consumption or exempt a filename; executable forwarding wrappers
+and other shapes remain ordinary density findings. See
+[engineering-spec.md §5.3](spec/engineering-spec.md#53-ai-slop--ldr--ddc)
+for the complete recognition rules and export-aware hook guidance.
+
+Python still uses Radon `lloc / loc`, with no fabricated executable-logic credit
+for imports or literal exports. The six-export reproduction in
+`fixtures/violations/python/export_facade.py` retains
+`4/21 = 0.19047619047619047 < 0.255` and remains blocking. A literal public export
+surface is not executable forwarding scaffolding; this ratio alone cannot
+establish dead code or justify deleting required exports.
+
+Density sampling, baseline/onboarding inclusion, historical percentiles, and the
+global `0.255` floor are unchanged. The analyzer and density-violation marker
+changes interpretation, not CALM applicability, enforcement, configs, exceptions,
+consumer snapshots, or outstanding-violation state. Facade applicability remains
+an unresolved governance policy decision. Preserve exports and implementations in
+their adapter modules; do not pad consumers, relocate business logic, waive the
+finding, switch to advisory, or relax thresholds to resolve it.
 
 ## Generalized Fitness Functions Are Not Calibrated
 

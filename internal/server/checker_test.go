@@ -93,6 +93,10 @@ func TestLogicDensityApplicabilityBoundary(t *testing.T) {
 		{"unknown", "go", "unknown", 0.1, 1},
 		{"non-go marker", "python", analyzer.SourceKindGoEmbedAssets, 0.1, 1},
 		{"go assets", "go", analyzer.SourceKindGoEmbedAssets, 1.0 / 9, 0},
+		{"python facade below", "python", analyzer.SourceKindPythonExportFacade, 4.0 / 21, 1},
+		{"python facade floor", "python", analyzer.SourceKindPythonExportFacade, 0.255, 0},
+		{"python unknown", "python", "unknown", 0.1, 1},
+		{"go facade marker", "go", analyzer.SourceKindPythonExportFacade, 0.1, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			result := analyzer.AnalysisResult{
@@ -111,6 +115,16 @@ func TestLogicDensityApplicabilityBoundary(t *testing.T) {
 			}
 			if len(density) > 0 && (density[0].Value != tc.value || density[0].Limit != 0.255) {
 				t.Fatalf("density finding = %+v", density[0])
+			}
+			if len(density) > 0 {
+				facade := tc.language == "python" && tc.kind == analyzer.SourceKindPythonExportFacade
+				wantKind := ""
+				if facade {
+					wantKind = string(analyzer.SourceKindPythonExportFacade)
+				}
+				if density[0].SourceKind != wantKind || strings.Contains(density[0].Message, "explicit Python export facade") != facade {
+					t.Fatalf("density classification = %+v, facade = %v", density[0], facade)
+				}
 			}
 		})
 	}
@@ -993,6 +1007,59 @@ func pythonDependencyChecker(t *testing.T) *httptest.Server {
 	}, nil))
 	t.Cleanup(server.Close)
 	return server
+}
+
+func TestHandlerCheckPythonExportFacadeLogicDensity(t *testing.T) {
+	radon, err := exec.LookPath("radon")
+	if err != nil {
+		t.Skip("radon unavailable")
+	}
+	store := newTestConfigStore(t)
+	writeRepoConfigWithErrorMode(t, store, "aff-6tx", EnforcementBlock, EnforcementOnErrorBlock, map[string]bool{"logic-density": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
+		PatternPath: writeTestPattern(t),
+		Analyzers: map[string]SourceAnalyzer{
+			"python": AnalyzerFunc(func(ctx context.Context, request AnalysisRequest) (analyzer.AnalysisResult, error) {
+				return analyzer.AnalyzePythonFile(ctx, request.TempPath, radon)
+			}),
+		},
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true, Output: `{"hasErrors":false}`}, nil
+		}),
+	}, nil))
+	t.Cleanup(server.Close)
+	source, err := os.ReadFile("../../fixtures/violations/python/export_facade.py")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const file = "data-pipeline/src/observatory_pipeline/retrieval/adapters/__init__.py"
+	for _, tc := range []struct {
+		name   string
+		source string
+		kind   string
+	}{
+		{"facade", string(source), string(analyzer.SourceKindPythonExportFacade)},
+		{"forwarding", strings.Repeat("# Padding comment\n", 20) + string(source) + "def build_adapter():\n    return VertexEmbeddingAdapter()\n", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := postCheckForLanguage(t, server.URL, "aff-6tx", file, "python", tc.source)
+			if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
+				t.Fatalf("response = %+v, want one density block", body)
+			}
+			v := body.Violations[0]
+			if v.FitnessFunction != "logic_density" || v.File != file || v.CALMNode != "__init__" ||
+				v.Limit != 0.255 || v.Value >= v.Limit || v.SourceKind != tc.kind {
+				t.Fatalf("violation = %+v", v)
+			}
+			if tc.kind != "" && v.Value != 4.0/21 {
+				t.Fatalf("facade density = %g, want 4/21", v.Value)
+			}
+			if strings.Contains(v.Message, "explicit Python export facade") != (tc.kind != "") {
+				t.Fatalf("wrong facade interpretation: %+v", v)
+			}
+		})
+	}
 }
 
 func TestHandlerCheckPythonDependencyDiscipline(t *testing.T) {
@@ -3116,5 +3183,51 @@ func TestHandlerCheckCSharpWarmupFailureAllowsSubsequentRetry(t *testing.T) {
 	body2, _ := io.ReadAll(resp2.Body)
 	if resp2.StatusCode != http.StatusOK {
 		t.Fatalf("resp2 status = %d, body = %q; want 200 OK after warmup failure cleared", resp2.StatusCode, body2)
+	}
+}
+
+func TestHandlerCheckGoIndependentReceiverInterfaces(t *testing.T) {
+	repoPath := filepath.Join(t.TempDir(), "aff-f6a")
+	if err := os.Mkdir(repoPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var peers strings.Builder
+	peers.WriteString("package gate\ntype First struct{}\ntype Second struct{}\n")
+	for i := 1; i <= 20; i++ {
+		fmt.Fprintf(&peers, "func (First) Method%d() {}\nfunc (*Second) Method%d() {}\n", i, i)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, "peers.go"), []byte(peers.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The proposed target replaces this operation rather than adding to it.
+	if err := os.WriteFile(filepath.Join(repoPath, "target.go"), []byte("package gate\nfunc (First) Replaced() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var proposed strings.Builder
+	proposed.WriteString("package gate\n")
+	for i := 1; i <= 20; i++ {
+		fmt.Fprintf(&proposed, "func Operation%d() {}\n", i)
+	}
+	store := newTestConfigStore(t)
+	writeRepoConfigWithErrorMode(t, store, "aff-f6a", EnforcementBlock, EnforcementOnErrorBlock, map[string]bool{"interface-width": true})
+	server := httptest.NewServer(NewHandlerWithChecker(Checker{
+		ConfigStore: store,
+		PatternPath: writeTestPattern(t),
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true}, nil
+		}),
+	}, nil))
+	t.Cleanup(server.Close)
+	body := postCheckForLanguage(t, server.URL, repoPath, "target.go", "go", proposed.String())
+	if body.Status != fitness.StatusPass || len(body.Violations) != 0 {
+		t.Fatalf("independent interfaces at floor = %+v, want pass", body)
+	}
+	body = postCheckForLanguage(t, server.URL, repoPath, "target.go", "go", proposed.String()+"func (*First) Method21() {}\n")
+	if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
+		t.Fatalf("oversized receiver response = %+v, want one block", body)
+	}
+	v := body.Violations[0]
+	if v.FitnessFunction != "interface_width" || v.Interface != "First" || v.Value != 21 || v.Limit != 20 || v.File != "target.go" {
+		t.Fatalf("receiver finding = %+v", v)
 	}
 }

@@ -394,6 +394,16 @@ declared-only metric: it intentionally does not resolve inherited operations or
 protocol implementations across files. An unavailable Python AST scan produces an
 analyzer error, routed through `enforcement-on-error`, not a flat-interface fallback.
 
+Go represents exported package functions as one module interface and exported
+methods as one interface per named receiver type. Pointer/value and generic
+receiver spellings share that type's identity; methods on different receiver types
+do not inflate the package function interface or each other. When a proposed file
+has Go package context, peer files contribute to the matching package/receiver
+interfaces and the proposed source replaces the original file. Each individual
+interface retains the ceiling of 20. Flat public-operation counts and module
+metrics remain available for implementation depth; this scoping is not a
+threshold relaxation.
+
 | Property | Value |
 |---|---|
 | Unit | Per declared interface (module / package / namespace / class) |
@@ -431,7 +441,7 @@ Rules A and B fire independently. A module may pass one and fail the other.
 
 ### 5.3 AI Slop — LDR + DDC
 
-Two complementary metrics that detect hollow or undisciplined AI-generated code. Both are deterministic, fast, and cross-language.
+Two complementary metrics for detecting hollow or undisciplined AI-generated code. Both are deterministic, fast, and cross-language; density alone does not establish that a declarative public API is obsolete.
 
 **Logic Density Ratio (LDR)**
 
@@ -445,6 +455,63 @@ $$LDR = \frac{\text{logic\_lines}}{\text{total\_lines}}$$
 
 **Violation:**
 > `File 'X' has a Logic Density Ratio of N (minimum: T). The file may contain excessive boilerplate relative to functional logic.`
+
+**Explicit Python export facades (diagnostic-only classification)**
+
+Python continues to compute raw density as Radon `lloc / loc`. Imports and literal
+export declarations receive no fabricated executable-logic credit. Literal exports
+define a public API, not executable forwarding wrappers; a low LLOC/LOC ratio alone
+cannot establish their obsolescence.
+
+The existing AST pass recognizes only this ordered module shape:
+
+1. An optional initial string docstring.
+2. Zero or more unaliased, non-star `from __future__ import ...` directives.
+3. One or more ordinary `import` or `from ... import ...` statements.
+4. Exactly one final plain assignment with the sole name target `__all__`, whose
+   value is a non-empty literal list or tuple of unique string identifiers.
+
+Ordinary imported bindings must equal the export set exactly. A binding is the
+alias when present, otherwise the imported name for a `from` import or the first
+module-name segment for an ordinary import. Relative imports and aliases are
+allowed; duplicate bindings, extra imports, unbound exports, star imports, and
+bindings named `__all__` are not. There is no filename restriction or fixed export
+count. Functions (including async functions), classes, forwarding wrappers,
+control flow or conditional imports, other assignments or expressions, noninitial
+string expressions, annotated/augmented/chained `__all__` assignments, computed
+exports, and missing/empty exports remain unclassified. Recognition is static
+export intent, not evidence of cross-file consumption or dead code. A rejected
+shape retains ordinary scoring; parse/read/subprocess failures retain analyzer
+errors, not successful facade results. DDC's broader literal-export handling,
+including annotated and augmented declarations, is unchanged.
+
+Recognized analyzer results carry `source_kind: "python-export-facade"`. Only a
+Python density violation carries that same optional marker and explains that the
+raw density floor still applies and needs an explicit governance policy decision.
+The hook report exposes the classification and substitutes export-aware advice:
+preserve required public exports, keep implementations in adapter modules, avoid
+fake logic or business-logic relocation, and refer the finding to the governance
+policy owner. Missing/unknown markers and markers on other functions retain
+ordinary advice. Block/advisory status and enforcement are unchanged.
+
+The repository-owned reproduction
+`fixtures/violations/python/export_facade.py` preserves the reported Observatory
+`data-pipeline/src/observatory_pipeline/retrieval/adapters/__init__.py` shape:
+six exports, 21 total lines, four Radon logical lines, and
+`4/21 = 0.19047619047619047 < 0.255`. Its retained names are
+`EXECUTOR_ADVISORY_LOCK_KEY`, `PostgresRetrievalRepository`,
+`RetrievalRepositoryError`, `VertexEmbeddingAdapter`, `VertexEmbeddingConfig`,
+and `VertexEmbeddingError`. The fixture remains blocking at `0.255`; baseline and
+onboarding density samples remain included. CALM still emits numeric Python
+`fitness.logic-density`; its `file_metrics.source_kind` exception projection
+remains reserved for inapplicable Go embed assets.
+
+Any change to facade density applicability is an unresolved governance policy
+decision, not part of this implementation. Consumer padding, removing required
+exports, relocating business logic, automatic exemptions, advisory switches,
+consumer waivers, and threshold relaxation are not repairs. This diagnostic
+change does not make Observatory pass governance or change its outstanding ledger.
+
 
 **Dependency Discipline Check (DDC)**
 
@@ -776,6 +843,15 @@ Per-repository configuration. Declares enforcement mode, daemon connection, and 
 ```
 
 `ringstation` uses `"enforcement-mode": "advisory"`. Fitness functions are toggled per-repository per-step — only cyclomatic complexity is enabled at Step 1.
+
+`exclude-patterns` uses filepath glob syntax. Patterns containing a path separator
+match the repository-relative file path; patterns without separators match the
+basename, including inside nested directories. A single `*` does not cross
+directory boundaries, and malformed patterns do not match. For example,
+`fixtures/violations/python/*.py` excludes the configured red fixture directory,
+not a production file with the same basename elsewhere. This implements the
+existing repository-owned test-fixture exclusion; it does not exempt Python export
+facades in consumer repositories.
 
 ---
 

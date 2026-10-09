@@ -24,6 +24,21 @@ _MODE_LABELS: dict[str, str] = {
     "advisory": "advisory",
 }
 
+_PYTHON_EXPORT_FACADE_GUIDANCE: dict[str, Any] = {
+    "operator": ">=",
+    "meaning": (
+        "Explicit Python exports are a declarative API surface; low raw density "
+        "does not by itself identify dead code or forwarding scaffolding. "
+        "The unchanged density policy still applies to this file."
+    ),
+    "remediation": [
+        "Preserve required public exports and keep implementations in their adapter modules.",
+        "Do not add fake logic, move business logic into the facade, or remove exports solely to raise density.",
+        "Refer this finding to the governance policy owner for an explicit facade policy decision; "
+        "do not change thresholds, enforcement, or add a consumer waiver.",
+    ],
+}
+
 
 def _load_guidance() -> dict[str, dict[str, Any]]:
     """Return per-fitness-function guidance.
@@ -196,6 +211,24 @@ def _warn_missing_guidance(fn: str) -> None:
     )
 
 
+def _violation_guidance(
+    fn: str,
+    v: dict[str, Any],
+    guidance: dict[str, dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Select diagnostic guidance and its explicit source-shape annotation."""
+    if fn == "logic-density" and v.get("source_kind") == "python-export-facade":
+        return _PYTHON_EXPORT_FACADE_GUIDANCE, {"source_kind": "python-export-facade"}
+    return guidance.get(fn, {}), {}
+
+
+def _violation_location(fn: str, v: dict[str, Any]) -> str:
+    """Resolve the containing interface or function without changing metric scope."""
+    function_name = v.get("function", "") or ""
+    target = (v.get("interface", "") or function_name) if fn == "interface-width" else function_name
+    return _resolve_location(target, v.get("calm_node", "") or "")
+
+
 def _make_violation_entry(
     v: dict[str, Any],
     guidance: dict[str, dict[str, Any]],
@@ -203,14 +236,12 @@ def _make_violation_entry(
 ) -> dict[str, Any]:
     """Build one violation entry dict. Raises on malformed input (caller catches)."""
     fn = _normalise_fn_key(v.get("fitness_function", "") or "")
+    fn_guidance, source_fields = _violation_guidance(fn, v, guidance)
     value = v.get("value", 0)
     limit = v.get("limit", 0)
     # Validate that value and limit are numeric — raises TypeError for object() or None
     float(value)  # type: ignore[arg-type]
     float(limit)  # type: ignore[arg-type]
-    function_name = v.get("function", "") or ""
-    calm_node = v.get("calm_node", "") or ""
-    fn_guidance = guidance.get(fn, {})
     operator = fn_guidance.get("operator", "<=")
 
     if not fn_guidance:
@@ -223,8 +254,8 @@ def _make_violation_entry(
         "result": format_value(value),
         "target": f"{operator} {format_value(limit)}",
     }
-    target = (v.get("interface", "") or function_name) if fn == "interface-width" else function_name
-    location = _resolve_location(target, calm_node)
+    entry.update(source_fields)
+    location = _violation_location(fn, v)
     if location:
         entry["location"] = location
     if fn_guidance.get("meaning"):

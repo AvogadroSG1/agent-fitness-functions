@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -87,6 +88,130 @@ func privatePassThrough() string {
 	}
 	if result.Imports.Total != 2 || result.Imports.Used != 2 {
 		t.Fatalf("imports = %+v, want 2/2 used", result.Imports)
+	}
+}
+
+func TestAnalyzeGoFileScopesInterfaceMetricsByReceiver(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "interfaces.go")
+	source := `package sample
+
+type Box[T any] struct{}
+type hidden struct{}
+
+func ExportedPackage() {}
+
+func (b Box[T]) Get() {}
+func (b *Box[T]) Put() {}
+func (h hidden) Open() {}
+func (h *hidden) Close() {}
+`
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	result, err := AnalyzeGoFile(path)
+	if err != nil {
+		t.Fatalf("AnalyzeGoFile returned error: %v", err)
+	}
+	if result.FileMetric.PublicMethods != 5 {
+		t.Fatalf("file public methods = %d, want 5", result.FileMetric.PublicMethods)
+	}
+	if len(result.Interfaces) != 3 {
+		t.Fatalf("interfaces = %+v, want module, Box, and hidden", result.Interfaces)
+	}
+	if result.Interfaces[0] != (InterfaceMetric{Kind: "module", Line: 1, PublicMethods: 1}) {
+		t.Fatalf("module interface = %+v, want one package function", result.Interfaces[0])
+	}
+	want := map[string]int{"Box": 2, "hidden": 2}
+	for _, metric := range result.Interfaces[1:] {
+		if metric.Kind != "class" {
+			t.Errorf("receiver %q kind = %q, want class", metric.Name, metric.Kind)
+		}
+		if metric.PublicMethods != want[metric.Name] {
+			t.Errorf("receiver %q width = %d, want %d", metric.Name, metric.PublicMethods, want[metric.Name])
+		}
+		delete(want, metric.Name)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing receiver interfaces: %v", want)
+	}
+}
+
+func TestAggregateGoInterfaceMetricsAcrossFiles(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, source string) AnalysisResult {
+		t.Helper()
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		result, err := AnalyzeGoFile(path)
+		if err != nil {
+			t.Fatalf("AnalyzeGoFile(%s): %v", name, err)
+		}
+		return result
+	}
+	results := AggregateModuleMetrics([]AnalysisResult{
+		write("left.go", `package sample
+
+type State struct{}
+
+func PackageA() {}
+func (s State) Start() {}
+`),
+		write("right.go", `package sample
+
+func PackageB() {}
+func (s *State) Stop() {}
+`),
+	})
+	if len(results) != 2 {
+		t.Fatalf("aggregated result count = %d, want 2", len(results))
+	}
+	for _, result := range results {
+		if len(result.Interfaces) != 2 {
+			t.Fatalf("interfaces for %s = %+v, want module and State", result.File, result.Interfaces)
+		}
+		if result.Interfaces[0].Kind != "module" || result.Interfaces[0].PublicMethods != 2 {
+			t.Errorf("module interface for %s = %+v, want width 2", result.File, result.Interfaces[0])
+		}
+		if result.Interfaces[1].Name != "State" || result.Interfaces[1].PublicMethods != 2 {
+			t.Errorf("State interface for %s = %+v, want width 2", result.File, result.Interfaces[1])
+		}
+	}
+}
+
+func TestGoInterfaceWidthUsesIndependentSurfaces(t *testing.T) {
+	buildSource := func(receiverMethods int) string {
+		source := "package sample\n\ntype State struct{}\n\n"
+		for index := range 11 {
+			source += "func Package" + strconv.Itoa(index) + "() {}\n"
+		}
+		for index := range receiverMethods {
+			source += "func (s State) Method" + strconv.Itoa(index) + "() {}\n"
+		}
+		return source
+	}
+	analyze := func(source string) AnalysisResult {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "width.go")
+		if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+			t.Fatalf("write width source: %v", err)
+		}
+		result, err := AnalyzeGoFile(path)
+		if err != nil {
+			t.Fatalf("AnalyzeGoFile: %v", err)
+		}
+		return result
+	}
+
+	split := analyze(buildSource(10))
+	if InterfaceWidth(split) != 11 {
+		t.Fatalf("split interface width = %d, want module width 11 rather than combined 21", InterfaceWidth(split))
+	}
+	wide := analyze(buildSource(21))
+	if InterfaceWidth(wide) != 21 {
+		t.Fatalf("wide receiver interface width = %d, want 21", InterfaceWidth(wide))
 	}
 }
 

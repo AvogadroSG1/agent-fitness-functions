@@ -7,6 +7,9 @@ type SourceKind string
 // SourceKindGoEmbedAssets denotes a Go file containing only embedded assets.
 const SourceKindGoEmbedAssets SourceKind = "go-embed-assets"
 
+// SourceKindPythonExportFacade denotes an explicit, import-only Python API facade.
+const SourceKindPythonExportFacade SourceKind = "python-export-facade"
+
 // AnalysisResult contains normalized metrics from a language-specific analyzer.
 type AnalysisResult struct {
 	CALMNode     string           `json:"calm_node"`
@@ -121,12 +124,12 @@ func BuildModuleMetric(fileMetric FileMetric, functions []FunctionMetric) Module
 		PublicMethods:             fileMetric.PublicMethods,
 		TotalLOC:                  fileMetric.TotalLOC,
 		PrivateLOC:                privateLOC,
-		AverageLOCPerPublicMethod: AverageLOCPerPublicMethod(fileMetric),
+		AverageLOCPerPublicMethod: averageLOCPerPublicMethod(fileMetric),
 	}
 }
 
-// AverageLOCPerPublicMethod returns the implementation-depth metric.
-func AverageLOCPerPublicMethod(metric FileMetric) float64 {
+// averageLOCPerPublicMethod returns the implementation-depth metric.
+func averageLOCPerPublicMethod(metric FileMetric) float64 {
 	if metric.PublicMethods == 0 {
 		return 1
 	}
@@ -144,11 +147,42 @@ func EnsureModuleMetric(result AnalysisResult) AnalysisResult {
 	return result
 }
 
+type goInterfaceKey struct {
+	kind string
+	name string
+}
+
+type goInterfaceAggregate struct {
+	metrics []InterfaceMetric
+	indexes map[goInterfaceKey]int
+}
+
+func (a *goInterfaceAggregate) add(metrics []InterfaceMetric) {
+	if a.indexes == nil {
+		a.indexes = make(map[goInterfaceKey]int, len(metrics))
+	}
+	for i := range metrics {
+		metric := &metrics[i]
+		key := goInterfaceKey{kind: metric.Kind, name: metric.Name}
+		index, exists := a.indexes[key]
+		if exists {
+			a.metrics[index].PublicMethods += metric.PublicMethods
+			continue
+		}
+		a.indexes[key] = len(a.metrics)
+		a.metrics = append(a.metrics, *metric)
+	}
+}
+
 // AggregateModuleMetrics applies CALM-node-level module metrics to file results.
+// Go interface records are merged by kind and receiver identity so a package
+// split across files is scored by each independently declared surface. Python
+// interfaces remain file-scoped.
 func AggregateModuleMetrics(results []AnalysisResult) []AnalysisResult {
 	type aggregate struct {
 		fileMetric FileMetric
 		functions  []FunctionMetric
+		interfaces goInterfaceAggregate
 	}
 	aggregates := make(map[string]aggregate)
 	for _, result := range results {
@@ -157,12 +191,18 @@ func AggregateModuleMetrics(results []AnalysisResult) []AnalysisResult {
 		current.fileMetric.LogicLOC += result.FileMetric.LogicLOC
 		current.fileMetric.PublicMethods += result.FileMetric.PublicMethods
 		current.functions = append(current.functions, result.Functions...)
+		if result.Language == "go" && len(result.Interfaces) > 0 {
+			current.interfaces.add(result.Interfaces)
+		}
 		aggregates[result.CALMNode] = current
 	}
 	aggregated := make([]AnalysisResult, len(results))
 	for index, result := range results {
 		current := aggregates[result.CALMNode]
 		result.ModuleMetric = BuildModuleMetric(current.fileMetric, current.functions)
+		if result.Language == "go" && len(current.interfaces.metrics) > 0 {
+			result.Interfaces = current.interfaces.metrics
+		}
 		aggregated[index] = result
 	}
 	return aggregated

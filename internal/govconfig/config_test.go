@@ -77,6 +77,49 @@ func TestConfigIsExcludedMatchesPythonTestFile(t *testing.T) {
 	}
 }
 
+func TestConfigIsExcludedMatchesConfiguredPathOnly(t *testing.T) {
+	t.Parallel()
+
+	config := Config{ExcludePatterns: []string{"fixtures/violations/python/*.py"}}
+	tests := []struct {
+		name string
+		file string
+		want bool
+	}{
+		{
+			name: "configured fixture",
+			file: "fixtures/violations/python/export_facade.py",
+			want: true,
+		},
+		{
+			name: "same basename outside configured directory",
+			file: "internal/server/export_facade.py",
+			want: false,
+		},
+		{
+			name: "nested directory does not match single star",
+			file: "fixtures/violations/python/nested/export_facade.py",
+			want: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := config.IsExcluded(test.file); got != test.want {
+				t.Errorf("IsExcluded(%q) = %v, want %v", test.file, got, test.want)
+			}
+		})
+	}
+}
+
+func TestConfigIsExcludedMalformedPatternDoesNotMatch(t *testing.T) {
+	t.Parallel()
+
+	config := Config{ExcludePatterns: []string{"fixtures/violations/python/[*.py"}}
+	if config.IsExcluded("fixtures/violations/python/export_facade.py") {
+		t.Error("IsExcluded() = true for malformed pattern, want false")
+	}
+}
+
 func TestConfigIsExcludedDoesNotMatchProductionFile(t *testing.T) {
 	t.Parallel()
 
