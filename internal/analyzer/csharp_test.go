@@ -9,26 +9,16 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/roslyntest"
 )
 
 func TestRoslynAnalyzerStdoutUsesCALMNodeWireKey(t *testing.T) {
-	if _, err := exec.LookPath("dotnet"); err != nil {
-		t.Skip("dotnet not installed")
-	}
+	cli := buildRoslynAnalyzer(t)
 	dir := t.TempDir()
 	sourcePath := filepath.Join(dir, "Example.cs")
 	if err := os.WriteFile(sourcePath, []byte("namespace Sample.App; public class Example {}"), 0o644); err != nil {
 		t.Fatalf("write source: %v", err)
-	}
-	repoRoot := filepath.Clean(filepath.Join("..", ".."))
-	project := filepath.Join(repoRoot, "tools", "roslyn-analyzer", "CalmRoslynAnalyzer.csproj")
-	build := exec.Command("dotnet", "build", "-c", "Release", project)
-	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("dotnet build failed: %v\n%s", err, output)
-	}
-	cli := filepath.Join(repoRoot, "tools", "roslyn-analyzer", "bin", "Release", "net8.0", "CalmRoslynAnalyzer")
-	if runtime.GOOS == "windows" {
-		cli += ".exe"
 	}
 	output, err := exec.Command(cli, sourcePath).Output()
 	if err != nil {
@@ -252,21 +242,11 @@ func buildRoslynAnalyzer(t *testing.T) string {
 	if _, err := exec.LookPath("dotnet"); err != nil {
 		t.Skip("dotnet not installed")
 	}
-	repoRoot := filepath.Clean(filepath.Join("..", ".."))
-	project := filepath.Join(repoRoot, "tools", "roslyn-analyzer", "CalmRoslynAnalyzer.csproj")
-	exe := filepath.Join(repoRoot, "tools", "roslyn-analyzer", "bin", "Release", "net8.0", "CalmRoslynAnalyzer")
-	if runtime.GOOS == "windows" {
-		exe += ".exe"
-	}
-	if info, err := os.Stat(exe); err == nil && !info.IsDir() {
-		return exe
-	}
-	command := exec.Command("dotnet", "build", "-c", "Release", project)
-	output, err := command.CombinedOutput()
+	path, err := roslyntest.Build(filepath.Join("..", ".."))
 	if err != nil {
-		t.Fatalf("dotnet build failed: %v\n%s", err, output)
+		t.Fatalf("build Roslyn analyzer: %v", err)
 	}
-	return exe
+	return path
 }
 
 func fakeRoslyn(t *testing.T, dir string) string {

@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -9,9 +10,92 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/client"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
 )
+
+func TestInstalledPreCommitLocalRepoNameUsesIndex(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	for _, name := range []string{
+		"AGENT_FITNESS_FUNCTIONS_HOOK_APPEND",
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR",
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT",
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_KEY",
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CA",
+		"AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE",
+	} {
+		t.Setenv(name, "")
+	}
+	fitnessBin := buildFitnessBin(t)
+	for _, fixture := range []struct {
+		name, staged string
+	}{
+		{"unicode", "package staged\n// λ\n"},
+		{"empty", ""},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			repo := initGitRepo(t)
+			runGit(t, repo, "config", "user.name", "Hook Fixture")
+			runGit(t, repo, "config", "user.email", "hook-fixture@example.invalid")
+			const file = "dir with spaces/example.go"
+			writeFile(t, filepath.Join(repo, file), fixture.staged)
+			runGit(t, repo, "add", file)
+			const worktree = "package worktree\n"
+			writeFile(t, filepath.Join(repo, file), worktree)
+			if err := client.RunInstallHooks([]string{repo}, io.Discard, io.Discard); err != nil {
+				t.Fatalf("install hooks: %v", err)
+			}
+			requests := make(chan fitness.ValidationRequest, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/health":
+					w.WriteHeader(http.StatusOK)
+				case "/check":
+					var request fitness.ValidationRequest
+					if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+						t.Errorf("decode check request: %v", err)
+						http.Error(w, "invalid request", http.StatusBadRequest)
+						return
+					}
+					requests <- request
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = io.WriteString(w, `{"status":"pass","violations":[]}`)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_BIN", fitnessBin)
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_ADDR", server.URL)
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_REPO_NAME", "logical-governance-key")
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_ON_ERROR", "block")
+			command := exec.Command("git", "commit", "-m", "indexed fixture")
+			command.Dir = repo
+			output, err := command.CombinedOutput()
+			if err != nil {
+				t.Fatalf("commit failed: %v\n%s", err, output)
+			}
+			t.Logf("commit output:\n%s", output)
+			select {
+			case request := <-requests:
+				if request.Repo != "logical-governance-key" || request.File != file || request.ProposedContent != fixture.staged || request.DryRun {
+					t.Fatalf("indexed request = %+v, want repo logical-governance-key, file %q, content %q, wet", request, file, fixture.staged)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("installed hook did not send a check request")
+			}
+			if got := readFile(t, filepath.Join(repo, file)); got != worktree {
+				t.Fatalf("worktree = %q, want %q", got, worktree)
+			}
+			if _, err := os.Lstat(filepath.Join(repo, "logical-governance-key")); !os.IsNotExist(err) {
+				t.Fatalf("logical-name child exists or cannot be inspected: %v", err)
+			}
+		})
+	}
+}
 
 func TestPreCommitBlocksStagedViolations(t *testing.T) {
 	repo := initGitRepo(t)

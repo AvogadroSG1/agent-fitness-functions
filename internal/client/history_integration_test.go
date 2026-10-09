@@ -401,10 +401,15 @@ func historyStagedScenario(t *testing.T, f *historyProcessFixture) {
 	f.write(filepath.Join(f.repo, "example.go"), staged)
 	f.git(f.repo, "add", "example.go")
 	f.write(filepath.Join(f.repo, "example.go"), "package unstaged\n")
-	// Execute the repository's actual hook with the actual product binary.
-	cmd := exec.Command("bash", filepath.Join(f.root, "hooks/pre-commit.sh"))
+	if err := RunInstallHooks([]string{f.repo}, io.Discard, io.Discard); err != nil {
+		t.Fatalf("install hooks: %v", err)
+	}
+	cmd := exec.Command("bash", filepath.Join(f.repo, ".git/hooks/pre-commit"))
 	cmd.Dir = f.repo
-	cmd.Env = append(f.env, "AGENT_FITNESS_FUNCTIONS_BIN="+f.binary, "AGENT_FITNESS_FUNCTIONS_ADDR="+server.URL)
+	cmd.Env = append(f.env, "AGENT_FITNESS_FUNCTIONS_BIN="+f.binary, "AGENT_FITNESS_FUNCTIONS_ADDR="+server.URL,
+		"AGENT_FITNESS_FUNCTIONS_REPO_NAME=logical-governance-key", "AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE=",
+		"AGENT_FITNESS_FUNCTIONS_ON_ERROR=block", "AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR=",
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT=", "AGENT_FITNESS_FUNCTIONS_CLIENT_KEY=", "AGENT_FITNESS_FUNCTIONS_CLIENT_CA=")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("pre-commit: %v\n%s", err, out)
 	}
@@ -413,11 +418,17 @@ func historyStagedScenario(t *testing.T, f *historyProcessFixture) {
 	record := f.show(f.repo, f.page(f.repo).Records[0].EventID)
 	var request struct {
 		ProposedContent string `json:"proposed_content"`
+		Repo            string `json:"repo"`
 	}
 	if err := json.Unmarshal(record.RequestJSON, &request); err != nil {
 		t.Fatal(err)
 	}
-	if request.ProposedContent != staged || !bytes.Equal(record.RequestJSON, compactHistoryJSON(t, sent)) || record.Source != "git" || record.Action == nil || *record.Action != "pre-commit" || record.DryRun {
+	worktree, err := filepath.EvalSymlinks(f.repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if request.ProposedContent != staged || request.Repo != "logical-governance-key" || record.Repository != "logical-governance-key" || record.Worktree != worktree ||
+		!bytes.Equal(record.RequestJSON, compactHistoryJSON(t, sent)) || record.Source != "git" || record.Action == nil || *record.Action != "pre-commit" || record.DryRun {
 		t.Fatalf("staged capture changed: %+v content=%q", record.Event, request.ProposedContent)
 	}
 }

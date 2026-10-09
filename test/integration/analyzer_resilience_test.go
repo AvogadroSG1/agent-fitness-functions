@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/calm"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/client"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/roslyntest"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/server"
 )
 
@@ -33,20 +33,11 @@ func ensureDefaultRoslynAnalyzer(t *testing.T) {
 	if _, err := exec.LookPath("dotnet"); err != nil {
 		t.Skip("dotnet not installed")
 	}
-	repoRoot := filepath.Clean(filepath.Join("..", ".."))
-	exe := filepath.Join(repoRoot, "tools", "roslyn-analyzer", "bin", "Release", "net8.0", "CalmRoslynAnalyzer")
-	if runtime.GOOS == "windows" {
-		exe += ".exe"
-	}
-	if info, err := os.Stat(exe); err == nil && !info.IsDir() {
-		return
-	}
-	project := filepath.Join(repoRoot, "tools", "roslyn-analyzer", "CalmRoslynAnalyzer.csproj")
-	command := exec.Command("dotnet", "build", "-c", "Release", project)
-	output, err := command.CombinedOutput()
+	path, err := roslyntest.Build("../..")
 	if err != nil {
-		t.Fatalf("dotnet build failed: %v\n%s", err, output)
+		t.Fatalf("build Roslyn analyzer: %v", err)
 	}
+	t.Setenv("AGENT_FITNESS_FUNCTIONS_ROSLYN_PATH", path)
 }
 
 func setupTestConfig(t *testing.T, repo string, mode server.EnforcementMode, onError server.ErrorEnforcementMode, fitnessFuncs map[string]bool) (*server.ConfigStore, string) {

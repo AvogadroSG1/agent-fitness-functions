@@ -15,9 +15,19 @@ operator reference for both local and production onboarding.
 - Go 1.25 or newer for the `agent-fitness-functions` binary (minimum-toolchain verification uses Go 1.25.14)
 - FINOS CALM CLI 1.40.0 via `npm install -g @finos/calm-cli@1.40.0`
 - `radon` 6.0.1 on `PATH`, or pass `--radon <path>`, for Python baseline analysis
+  Python type-alias fixtures require radon to run under Python 3.12+; use a
+  compatible virtual environment rather than an older interpreter's radon.
 - .NET 8 SDK for `tools/roslyn-analyzer`; `agent-fitness-functions baseline --language csharp` builds the local analyzer automatically when `--roslyn <path>` is omitted
 - `pyyaml` 6+ for hook violation formatting: `python3 -m pip install -r hooks/requirements.txt`
 - Docker with BuildKit for validating the container image; the image packages the Go server, FINOS CALM CLI 1.40.0, Python `radon==6.0.1`, and the self-contained .NET 8 Roslyn analyzer.
+
+C# tests require a .NET SDK 8+ and the real `Microsoft.NETCore.App` 8.x runtime.
+They build once per test process into private temporary `bin`/`obj` artifacts and
+remove them at package teardown; baseline, managed repair, doctor, and release
+packaging tests use copied source projects. Run `go test ./...` with default
+package parallelism and the
+repo-local Go caches described in `AGENTS.md`; no source-tree Roslyn prebuild or
+`GOFLAGS=-p=1` is required.
 
 ## Container Image
 
@@ -154,6 +164,13 @@ export AGENT_FITNESS_FUNCTIONS_REPO_NAME=graft
 ```
 
 When `AGENT_FITNESS_FUNCTIONS_ADDR` points at a remote server, `hooks/pre-commit.sh` sends staged content through a temporary content file and uses `AGENT_FITNESS_FUNCTIONS_REPO_NAME` or the working-tree basename as the logical `--repo` value.
+
+The same logical override works with the local loopback daemon: pre-commit reads
+the real repository's index into a temporary content file, independently of the
+governance name. No matching child directory or symlink is needed, and unstaged
+worktree bytes are never substituted (including for an empty indexed file).
+Without a local override, pre-commit retains its physical-path `--repo` and
+`--staged` behavior.
 
 ## Baseline Analysis
 

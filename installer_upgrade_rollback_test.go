@@ -17,7 +17,7 @@ import (
 // one worktree, and returns the archive and checksums paths.
 func buildPackage(t *testing.T, outputDir, version string) (archivePath, checksumsPath string) {
 	t.Helper()
-	output, err := runInstallerCommand(t, nil, "bash", filepath.Join("scripts", "package-release.sh"), "--output", outputDir, "--version", version)
+	output, err := runInstallerCommand(t, nil, "bash", privateReleaseScript(t), "--output", outputDir, "--version", version)
 	if err != nil {
 		t.Fatalf("package-release.sh --version %s failed: %v\n%s", version, err, output)
 	}

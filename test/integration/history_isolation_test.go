@@ -1,10 +1,13 @@
 package integration_test
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/roslyntest"
 )
 
 // Public client calls MUST NOT inherit the developer's history endpoint.
@@ -23,6 +26,10 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	code := m.Run()
+	if err := roslyntest.Cleanup(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		code = 1
+	}
 	_ = os.RemoveAll(dir)
 	os.Exit(code)
 }
