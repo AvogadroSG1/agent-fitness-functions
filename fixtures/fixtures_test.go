@@ -3,13 +3,13 @@ package fixtures
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/roslyntest"
 )
 
 type fixtureCase struct {
@@ -91,8 +91,6 @@ func assertAnalysisResultCALMNodeWireContract(t *testing.T, result analyzer.Anal
 func analyzeFixture(t *testing.T, language, relativePath string) analyzer.AnalysisResult {
 	t.Helper()
 	path := filepath.Join(relativePath)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	switch language {
 	case "go":
 		result, err := analyzer.AnalyzeGoFile(path)
@@ -104,6 +102,8 @@ func analyzeFixture(t *testing.T, language, relativePath string) analyzer.Analys
 		if _, err := exec.LookPath("radon"); err != nil {
 			t.Skipf("radon is not installed: %v", err)
 		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 		result, err := analyzer.AnalyzePythonFile(ctx, path, "")
 		if err != nil {
 			t.Fatalf("analyze Python fixture %s: %v", path, err)
@@ -111,6 +111,8 @@ func analyzeFixture(t *testing.T, language, relativePath string) analyzer.Analys
 		return result
 	case "csharp":
 		roslyn := ensureRoslynAnalyzer(t)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 		result, err := analyzer.AnalyzeCSharpFile(ctx, path, roslyn)
 		if err != nil {
 			t.Fatalf("analyze C# fixture %s: %v", path, err)
@@ -124,13 +126,9 @@ func analyzeFixture(t *testing.T, language, relativePath string) analyzer.Analys
 
 func ensureRoslynAnalyzer(t *testing.T) string {
 	t.Helper()
-	path := filepath.Join("..", "tools", "roslyn-analyzer", "bin", "Release", "net8.0", "CalmRoslynAnalyzer")
-	if info, err := os.Stat(path); err == nil && info.Mode()&0o111 != 0 {
-		return path
-	}
-	command := exec.Command("dotnet", "build", "-c", "Release", filepath.Join("..", "tools", "roslyn-analyzer", "CalmRoslynAnalyzer.csproj"))
-	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("build Roslyn analyzer: %v\n%s", err, output)
+	path, err := roslyntest.Build("..")
+	if err != nil {
+		t.Fatalf("build Roslyn analyzer: %v", err)
 	}
 	return path
 }

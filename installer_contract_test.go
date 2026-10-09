@@ -28,7 +28,7 @@ func TestPackageReleaseProducesChecksummedArchive(t *testing.T) {
 		t.Fatalf("packaging entrypoint scripts/package-release.sh missing: %v", err)
 	}
 	outputDir := t.TempDir()
-	output, err := runInstallerCommand(t, nil, "bash", filepath.Join("scripts", "package-release.sh"), "--output", outputDir)
+	output, err := runInstallerCommand(t, nil, "bash", privateReleaseScript(t), "--output", outputDir)
 	if err != nil {
 		t.Fatalf("package-release.sh failed: %v\n%s", err, output)
 	}
@@ -84,7 +84,7 @@ func TestInstallScriptBootstrapsIsolatedStateRootAndLifecycle(t *testing.T) {
 	}
 
 	packageDir := t.TempDir()
-	if output, err := runInstallerCommand(t, nil, "bash", filepath.Join("scripts", "package-release.sh"), "--output", packageDir); err != nil {
+	if output, err := runInstallerCommand(t, nil, "bash", privateReleaseScript(t), "--output", packageDir); err != nil {
 		t.Fatalf("package-release.sh failed: %v\n%s", err, output)
 	}
 	entries, err := os.ReadDir(packageDir)

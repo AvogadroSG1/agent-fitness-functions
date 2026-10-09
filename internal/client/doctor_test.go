@@ -16,6 +16,7 @@ import (
 
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/roslyntest"
 )
 
 type clientRoundTripFunc func(*http.Request) (*http.Response, error)
@@ -460,6 +461,15 @@ func TestDoctorRepairRoslynAnalyzer(t *testing.T) {
 	if _, err := exec.LookPath("dotnet"); err != nil {
 		t.Skip("dotnet not installed")
 	}
+	repoRoot, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatalf("resolve repository root: %v", err)
+	}
+	fixtureRoot := t.TempDir()
+	if err := roslyntest.CopyProject(repoRoot, filepath.Join(fixtureRoot, "tools", "roslyn-analyzer")); err != nil {
+		t.Fatalf("copy Roslyn project: %v", err)
+	}
+	t.Chdir(fixtureRoot)
 	tempState := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", tempState)
 	t.Setenv("AGENT_FITNESS_FUNCTIONS_ROSLYN_PATH", "")

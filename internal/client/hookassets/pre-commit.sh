@@ -162,7 +162,7 @@ while IFS= read -r -d '' file; do
 
   args=(client validate --file "$file" --repo "$repo_arg" --language "$language")
   content_file=""
-  if [[ "$remote_mode" -eq 1 ]]; then
+  if [[ "$remote_mode" -eq 1 || -n "$repo_name" ]]; then
     content_file=$(mktemp)
     tmp_files+=("$content_file")
     if ! git -C "$repo" show ":$file" >"$content_file"; then

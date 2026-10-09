@@ -17,7 +17,7 @@ import (
 func buildRelease(t *testing.T) (archivePath, checksumsPath string) {
 	t.Helper()
 	packageDir := t.TempDir()
-	command := exec.Command("bash", filepath.Join("scripts", "package-release.sh"), "--output", packageDir)
+	command := exec.Command("bash", privateReleaseScript(t), "--output", packageDir)
 	command.Env = append(os.Environ(), "DOTNET_ROOT="+os.Getenv("HOME")+"/.dotnet")
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("package-release.sh: %v\n%s", err, output)

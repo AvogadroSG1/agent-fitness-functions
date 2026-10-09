@@ -19,16 +19,17 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/analyzer"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/client"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/devcerts"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/fitness"
+	"github.com/AvogadroSG1/agent-fitness-functions/internal/roslyntest"
 	"github.com/AvogadroSG1/agent-fitness-functions/internal/server"
 )
 
@@ -1012,18 +1013,29 @@ func TestRunBaselineBuildsLocalRoslynWhenPathOmitted(t *testing.T) {
 	if _, err := exec.LookPath("dotnet"); err != nil {
 		t.Skip("dotnet not installed")
 	}
-	roslynExecutable := filepath.Clean(filepath.Join("..", "..", "tools", "roslyn-analyzer", "bin", "Debug", "net8.0", "CalmRoslynAnalyzer"))
-	if runtime.GOOS == "windows" {
-		roslynExecutable += ".exe"
+
+	originalRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatalf("resolve repository root: %v", err)
 	}
-	restoreRoslyn := temporarilyMoveFile(t, roslynExecutable)
-	defer restoreRoslyn()
+	fixtureRoot := t.TempDir()
+	goMod, err := os.ReadFile(filepath.Join(originalRoot, "go.mod"))
+	if err != nil {
+		t.Fatalf("read source go.mod: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(fixtureRoot, "go.mod"), goMod, 0o644); err != nil {
+		t.Fatalf("write fixture go.mod: %v", err)
+	}
+	if err := roslyntest.CopyProject(originalRoot, filepath.Join(fixtureRoot, "tools", "roslyn-analyzer")); err != nil {
+		t.Fatalf("copy Roslyn project: %v", err)
+	}
 
 	repo := t.TempDir()
 	if err := os.WriteFile(filepath.Join(repo, "Example.cs"), []byte("public class Example { public void Run() {} }"), 0o644); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}
 	output := filepath.Join(t.TempDir(), "baseline.json")
+	t.Chdir(fixtureRoot)
 
 	var stderr bytes.Buffer
 	code := run([]string{"baseline", "--repo", repo, "--language", "csharp", "--output", output, "--name", "sample-csharp"}, &bytes.Buffer{}, &stderr)
@@ -1034,27 +1046,22 @@ func TestRunBaselineBuildsLocalRoslynWhenPathOmitted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read baseline: %v", err)
 	}
-	if !strings.Contains(string(content), `"language": "csharp"`) {
-		t.Fatalf("baseline report = %s, want csharp report", content)
+	var report analyzer.BaselineReport
+	if err := json.Unmarshal(content, &report); err != nil {
+		t.Fatalf("decode baseline report: %v", err)
 	}
-}
-
-func temporarilyMoveFile(t *testing.T, path string) func() {
-	t.Helper()
-	backup := path + ".testbak"
-	if err := os.Rename(path, backup); err != nil {
-		if os.IsNotExist(err) {
-			return func() {}
-		}
-		t.Fatalf("move %s aside: %v", path, err)
+	if report.Language != "csharp" {
+		t.Fatalf("baseline language = %q, want csharp", report.Language)
 	}
-	return func() {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			t.Fatalf("remove rebuilt %s: %v", path, err)
-		}
-		if err := os.Rename(backup, path); err != nil {
-			t.Fatalf("restore %s: %v", path, err)
-		}
+	if len(report.Results) != 1 {
+		t.Fatalf("baseline analyzed %d files, want 1", len(report.Results))
+	}
+	if len(report.Results[0].Functions) != 1 {
+		t.Fatalf("baseline analyzed %d functions, want 1", len(report.Results[0].Functions))
+	}
+	function := report.Results[0].Functions[0]
+	if function.Name != "Run" || !function.IsPublic || function.CyclomaticComplexity != 1 {
+		t.Fatalf("baseline function = %+v, want public Run with complexity 1", function)
 	}
 }
 
