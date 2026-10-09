@@ -631,7 +631,7 @@ func logicDensityViolations(result analyzer.AnalysisResult, pattern calm.Pattern
 	if !ok || rule.Operator != "gte" || result.FileMetric.TotalLOC == 0 || !analyzer.LogicDensityApplicable(result) || result.FileMetric.LDR >= rule.Threshold {
 		return nil
 	}
-	return []fitness.Violation{{
+	violation := fitness.Violation{
 		FitnessFunction: "logic_density",
 		CALMNode:        result.CALMNode,
 		File:            result.File,
@@ -643,7 +643,17 @@ func logicDensityViolations(result analyzer.AnalysisResult, pattern calm.Pattern
 			result.FileMetric.LDR,
 			rule.Threshold,
 		),
-	}}
+	}
+	if result.Language == "python" && result.SourceKind == analyzer.SourceKindPythonExportFacade {
+		violation.SourceKind = string(analyzer.SourceKindPythonExportFacade)
+		violation.Message = fmt.Sprintf(
+			"File %q has a Logic Density Ratio of %.3f (minimum: %.3f). This file declares an explicit Python export facade, not executable forwarding logic. The raw density floor still applies; resolving this finding requires an explicit governance policy decision. Preserve required public exports; do not add fake logic or move business logic into the facade.",
+			result.File,
+			result.FileMetric.LDR,
+			rule.Threshold,
+		)
+	}
+	return []fitness.Violation{violation}
 }
 
 func dependencyDisciplineViolations(result analyzer.AnalysisResult, pattern calm.Pattern) []fitness.Violation {

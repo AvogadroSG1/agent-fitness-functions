@@ -139,6 +139,37 @@ fi
 	}
 }
 
+func TestPreCommitPythonExportFacadeStillBlocks(t *testing.T) {
+	repo := initGitRepo(t)
+	writeFile(t, filepath.Join(repo, "pkg", "__init__.py"), "from .adapter import Public\n__all__ = [\"Public\"]\n")
+	runGit(t, repo, "add", "pkg/__init__.py")
+	fakeBin := fakeFitnessBin(t, `#!/usr/bin/env bash
+printf '%s\n' '{"status":"block","violations":[{"fitness_function":"logic_density","file":"pkg/__init__.py","calm_node":"__init__","value":0.19047619047619047,"limit":0.255,"source_kind":"python-export-facade","message":"Explicit Python export facade; raw density floor still applies."}]}'
+`)
+	command := exec.Command("bash", hookScriptPath(t))
+	command.Dir = repo
+	command.Env = append(os.Environ(),
+		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"AGENT_FITNESS_FUNCTIONS_BIN="+filepath.Join(fakeBin, "agent-fitness-functions"),
+	)
+	output, err := command.CombinedOutput()
+	exit, ok := err.(*exec.ExitError)
+	if !ok || exit.ExitCode() != 1 {
+		t.Fatalf("hook error = %v, want exit 1; output=%s", err, output)
+	}
+	text := string(output)
+	for _, want := range []string{"status: block", "mode: blocking", "python-export-facade", "0.255", "governance policy owner", "Preserve required public exports", "Do not add fake logic"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("hook output missing %q:\n%s", want, text)
+		}
+	}
+	for _, generic := range []string{"Remove unused or dead code", "Move configuration and constants", "Reduce scaffolding", "should be refactored"} {
+		if strings.Contains(text, generic) {
+			t.Fatalf("hook output contains generic advice %q:\n%s", generic, text)
+		}
+	}
+}
+
 func TestPreCommitAllowsAdvisoryStagedViolations(t *testing.T) {
 	repo := initGitRepo(t)
 	writeFile(t, filepath.Join(repo, "warn.py"), "print('ok')\n")

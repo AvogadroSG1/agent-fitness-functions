@@ -29,6 +29,7 @@ func AnalyzeGoFile(file string) (AnalysisResult, error) {
 
 	functions := make([]FunctionMetric, 0)
 	publicMethods := 0
+	var interfaces goInterfaceCollector
 	stats := gocyclo.AnalyzeASTFile(parsed, fileSet, nil)
 	statsByLine := make(map[int]gocyclo.Stat, len(stats))
 	for _, stat := range stats {
@@ -40,8 +41,10 @@ func AnalyzeGoFile(file string) (AnalysisResult, error) {
 			continue
 		}
 		name := fn.Name.Name
-		if ast.IsExported(name) {
+		isPublic := ast.IsExported(name)
+		if isPublic {
 			publicMethods++
+			interfaces.add(fn, fileSet)
 		}
 		stat, ok := statsByLine[fileSet.Position(fn.Pos()).Line]
 		if !ok {
@@ -50,10 +53,12 @@ func AnalyzeGoFile(file string) (AnalysisResult, error) {
 		functions = append(functions, FunctionMetric{
 			Name:                 name,
 			CyclomaticComplexity: stat.Complexity,
-			IsPublic:             ast.IsExported(name),
+			IsPublic:             isPublic,
 			LOC:                  nodeLOC(fileSet, fn),
 		})
 	}
+
+	interfaceMetrics := buildGoInterfaceMetrics(interfaces.packageFunctions, interfaces.receivers, fileSet.Position(parsed.Package).Line)
 
 	totalLOC, logicLOC := lineMetrics(string(source))
 	fileMetric := FileMetric{
@@ -75,8 +80,89 @@ func AnalyzeGoFile(file string) (AnalysisResult, error) {
 		Functions:    functions,
 		ModuleMetric: BuildModuleMetric(fileMetric, functions),
 		FileMetric:   fileMetric,
+		Interfaces:   interfaceMetrics,
 		Imports:      importMetric,
 	}, nil
+}
+
+// goReceiverMetric accumulates exported operations for one receiver base type.
+type goReceiverMetric struct {
+	name        string
+	line        int
+	methodNames map[string]struct{}
+}
+
+// goInterfaceCollector groups exported package functions and receiver methods
+// during the existing declaration pass.
+type goInterfaceCollector struct {
+	packageFunctions int
+	receivers        []goReceiverMetric
+	receiverIndexes  map[string]int
+}
+
+// add records one exported operation; callers already checked its visibility.
+func (c *goInterfaceCollector) add(fn *ast.FuncDecl, fileSet *token.FileSet) {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		c.packageFunctions++
+		return
+	}
+	name := goReceiverName(fn.Recv.List[0].Type)
+	if name == "" {
+		return
+	}
+	index, exists := c.receiverIndexes[name]
+	if !exists {
+		if c.receiverIndexes == nil {
+			c.receiverIndexes = make(map[string]int)
+		}
+		index = len(c.receivers)
+		c.receiverIndexes[name] = index
+		c.receivers = append(c.receivers, goReceiverMetric{
+			name:        name,
+			line:        fileSet.Position(fn.Pos()).Line,
+			methodNames: make(map[string]struct{}),
+		})
+	}
+	c.receivers[index].methodNames[fn.Name.Name] = struct{}{}
+}
+
+func buildGoInterfaceMetrics(packageFunctions int, receivers []goReceiverMetric, packageLine int) []InterfaceMetric {
+	if packageFunctions == 0 && len(receivers) == 0 {
+		return nil
+	}
+	interfaces := make([]InterfaceMetric, 0, len(receivers)+1)
+	interfaces = append(interfaces, InterfaceMetric{
+		Kind:          "module",
+		Line:          packageLine,
+		PublicMethods: packageFunctions,
+	})
+	for i := range receivers {
+		receiver := &receivers[i]
+		interfaces = append(interfaces, InterfaceMetric{
+			Name:          receiver.name,
+			Kind:          "class",
+			Line:          receiver.line,
+			PublicMethods: len(receiver.methodNames),
+		})
+	}
+	return interfaces
+}
+
+func goReceiverName(expr ast.Expr) string {
+	switch expr := expr.(type) {
+	case *ast.Ident:
+		return expr.Name
+	case *ast.StarExpr:
+		return goReceiverName(expr.X)
+	case *ast.IndexExpr:
+		return goReceiverName(expr.X)
+	case *ast.IndexListExpr:
+		return goReceiverName(expr.X)
+	case *ast.ParenExpr:
+		return goReceiverName(expr.X)
+	default:
+		return ""
+	}
 }
 
 type goEmbedImport struct {
@@ -268,64 +354,66 @@ func nodeLOC(fileSet *token.FileSet, node ast.Node) int {
 }
 
 func lineMetrics(source string) (int, int) {
-	lines := strings.Split(source, "\n")
 	total := 0
 	logic := 0
-	inBlockComment := false
-	inImportBlock := false
-	for _, line := range lines {
+	var state goLineState
+	for line := range strings.SplitSeq(source, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
 		}
 		total++
-		if inImportBlock {
-			if trimmed == ")" {
-				inImportBlock = false
-			}
-			continue
+		if state.isLogic(trimmed) {
+			logic++
 		}
-		if inBlockComment {
-			if strings.Contains(trimmed, "*/") {
-				inBlockComment = false
-			}
-			continue
-		}
-		if strings.HasPrefix(trimmed, "/*") {
-			if !strings.Contains(trimmed, "*/") {
-				inBlockComment = true
-			}
-			continue
-		}
-		if trimmed == "import (" {
-			inImportBlock = true
-			continue
-		}
-		if strings.HasPrefix(trimmed, "//") ||
-			strings.HasPrefix(trimmed, "package ") ||
-			strings.HasPrefix(trimmed, "import ") ||
-			strings.HasPrefix(trimmed, "type ") ||
-			trimmed == ")" ||
-			trimmed == "{" ||
-			trimmed == "}" {
-			continue
-		}
-		logic++
 	}
 	return total, logic
+}
+
+type goLineState struct {
+	inBlockComment bool
+	inImportBlock  bool
+}
+
+func (s *goLineState) isLogic(line string) bool {
+	if s.inImportBlock {
+		s.inImportBlock = line != ")"
+		return false
+	}
+	if s.inBlockComment {
+		s.inBlockComment = !strings.Contains(line, "*/")
+		return false
+	}
+	if strings.HasPrefix(line, "/*") {
+		s.inBlockComment = !strings.Contains(line, "*/")
+		return false
+	}
+	if line == "import (" {
+		s.inImportBlock = true
+		return false
+	}
+	return !isGoStructuralLine(line)
+}
+
+func isGoStructuralLine(line string) bool {
+	return strings.HasPrefix(line, "//") ||
+		strings.HasPrefix(line, "package ") ||
+		strings.HasPrefix(line, "import ") ||
+		strings.HasPrefix(line, "type ") ||
+		line == ")" || line == "{" || line == "}"
+}
+
+func goImportName(spec *ast.ImportSpec) string {
+	if spec.Name != nil && spec.Name.Name != "" {
+		return spec.Name.Name
+	}
+	return path.Base(strings.Trim(spec.Path.Value, `"`))
 }
 
 func goImportMetric(file *ast.File) ImportMetric {
 	names := make([]string, 0, len(file.Imports))
 	for _, spec := range file.Imports {
-		name := ""
-		if spec.Name != nil {
-			name = spec.Name.Name
-		}
-		if name == "" {
-			name = path.Base(strings.Trim(spec.Path.Value, `"`))
-		}
-		names = append(names, name)
+		names = append(names, goImportName(spec))
 	}
 	usedNames := map[string]bool{}
 	ast.Inspect(file, func(node ast.Node) bool {

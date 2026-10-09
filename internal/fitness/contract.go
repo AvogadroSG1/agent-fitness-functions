@@ -41,6 +41,7 @@ type Violation struct {
 	CALMNode        string `json:"calm_node"`
 	File            string `json:"file,omitempty"`
 	Function        string `json:"function,omitempty"`
+	SourceKind      string `json:"source_kind,omitempty"`
 	// Interface is the file-relative lexical class/protocol identity for
 	// interface-width diagnostics; module interfaces leave it empty.
 	Interface string  `json:"interface,omitempty"`

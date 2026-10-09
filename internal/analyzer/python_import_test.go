@@ -140,6 +140,153 @@ func TestPythonImportMetricPaths(t *testing.T) {
 	assertResult("repository blocking", findResult(t, repository, blockingFile), wantBlocking)
 }
 
+func TestPythonExportFacadeSemantics(t *testing.T) {
+	if _, _, ok := findingsPythonCommand(""); !ok {
+		t.Skip("Python interpreter unavailable")
+	}
+	fixture, err := os.ReadFile("../../fixtures/violations/python/export_facade.py")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const facade = "from .adapters import Public\n__all__ = [\"Public\"]\n"
+	tests := []struct {
+		name   string
+		source string
+		want   bool
+	}{
+		{"fixture", string(fixture), true},
+		{"one-binding", facade, true},
+		{"tuple", "from .adapters import Public\n__all__ = (\"Public\",)\n", true},
+		{"relative-alias", "from ..adapters import Public as Alias\n__all__ = [\"Alias\"]\n", true},
+		{"module-imports", "import xml.etree, json as js\n__all__ = [\"xml\", \"js\"]\n", true},
+		{"docstring-future", "\"\"\"API.\"\"\"\nfrom __future__ import annotations\nfrom __future__ import division\n" + facade, true},
+		{"no-docstring-future", "from __future__ import annotations\n" + facade, true},
+		{"missing-exports", "from x import Public\n", false},
+		{"empty-exports", "from x import Public\n__all__ = []\n", false},
+		{"dynamic-exports", "from x import Public\n__all__ = list([\"Public\"])\n", false},
+		{"nonstring-export", "from x import Public\n__all__ = [1]\n", false},
+		{"invalid-identifier", "from x import Public\n__all__ = [\"not-an-identifier\"]\n", false},
+		{"annotated-exports", "from x import Public\n__all__: list[str] = [\"Public\"]\n", false},
+		{"augmented-exports", facade + "__all__ += [\"Public\"]\n", false},
+		{"chained-exports", "from x import Public\nother = __all__ = [\"Public\"]\n", false},
+		{"extra-import", "import json\n" + facade, false},
+		{"unbound-export", "from x import Public\n__all__ = [\"Other\"]\n", false},
+		{"duplicate-binding", "from x import Public\n" + facade, false},
+		{"duplicate-module-binding", "import xml.etree, xml.dom\n__all__ = [\"xml\"]\n", false},
+		{"duplicate-export", "from x import Public\n__all__ = [\"Public\", \"Public\"]\n", false},
+		{"star-import", "from x import *\n__all__ = [\"Public\"]\n", false},
+		{"imported-all", "from x import __all__\n__all__ = [\"__all__\"]\n", false},
+		{"aliased-all", "from x import Public as __all__\n__all__ = [\"__all__\"]\n", false},
+		{"aliased-future", "from __future__ import annotations as ann\n" + facade, false},
+		{"star-future", "from __future__ import *\n" + facade, false},
+		{"late-future", "from x import Public\nfrom __future__ import annotations\n__all__ = [\"Public\"]\n", false},
+		{"noninitial-string", "from x import Public\n\"API\"\n__all__ = [\"Public\"]\n", false},
+		{"second-docstring", "\"API\"\n\"Other\"\n" + facade, false},
+		{"function", facade + "def build_adapter():\n    return Public()\n", false},
+		{"async-function", facade + "async def build_adapter():\n    return Public()\n", false},
+		{"class", facade + "class Adapter:\n    pass\n", false},
+		{"control-flow", "if True:\n    from x import Public\n__all__ = [\"Public\"]\n", false},
+		{"expression", facade + "Public()\n", false},
+		{"assignment", "value = 1\n" + facade, false},
+		{"exports-before-import", "__all__ = [\"Public\"]\nfrom x import Public\n", false},
+		{"no-imports", "__all__ = [\"Public\"]\n", false},
+		{"empty-module", "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			file := filepath.Join(t.TempDir(), "facade.py")
+			if err := os.WriteFile(file, []byte(tc.source), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			scan, err := pythonFileFindings(context.Background(), file, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := SourceKind("")
+			if tc.want {
+				want = SourceKindPythonExportFacade
+			}
+			if scan.SourceKind != want {
+				t.Fatalf("source kind = %q, want %q", scan.SourceKind, want)
+			}
+		})
+	}
+}
+
+func TestPythonExportFacadePaths(t *testing.T) {
+	radon, err := exec.LookPath("radon")
+	if err != nil {
+		t.Skip("radon not installed")
+	}
+	source, err := os.ReadFile("../../fixtures/violations/python/export_facade.py")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	file := filepath.Join(root, "exports.py")
+	if err := os.WriteFile(file, source, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	assertResult := func(t *testing.T, result AnalysisResult) {
+		t.Helper()
+		if result.SourceKind != "python-export-facade" || !LogicDensityApplicable(result) {
+			t.Fatalf("source kind = %q, applicable = %v", result.SourceKind, LogicDensityApplicable(result))
+		}
+		if result.FileMetric.TotalLOC != 21 || result.FileMetric.LogicLOC != 4 || result.FileMetric.LDR != 4.0/21 {
+			t.Fatalf("file metrics = %+v", result.FileMetric)
+		}
+		assertImportMetric(t, result.Imports, 6, 6, 1)
+		dist := distributions([]AnalysisResult{result})
+		if len(dist.LogicDensityRatio) != 1 || dist.LogicDensityRatio[0] != 4.0/21 {
+			t.Fatalf("density samples = %v", dist.LogicDensityRatio)
+		}
+		rec := BuildOnboardingRecommendation("aff-6tx", []AnalysisResult{result}, testRules())
+		delta := findDelta(t, rec.Deltas, "logic-density")
+		if delta.RepositoryValue != 4.0/21 || delta.GlobalThreshold != 0.255 || delta.ViolatingCount != 1 {
+			t.Fatalf("density delta = %+v", delta)
+		}
+	}
+	t.Run("API", func(t *testing.T) {
+		result, err := analyzePythonFileWithRadonAPI(ctx, file, radon)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertResult(t, result)
+	})
+	t.Run("CLI", func(t *testing.T) {
+		result, err := AnalyzePythonFile(ctx, file, radon)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertResult(t, result)
+	})
+	t.Run("repository", func(t *testing.T) {
+		results, err := AnalyzePythonRepository(ctx, root, radon)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertResult(t, findResult(t, results, file))
+	})
+	t.Run("malformed", func(t *testing.T) {
+		if err := os.WriteFile(file, []byte("from x import Public\n__all__ = [\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		for label, analyze := range map[string]func() (AnalysisResult, error){
+			"API": func() (AnalysisResult, error) { return analyzePythonFileWithRadonAPI(ctx, file, radon) },
+			"CLI": func() (AnalysisResult, error) { return AnalyzePythonFile(ctx, file, radon) },
+		} {
+			result, err := analyze()
+			if err == nil || result.SourceKind != "" {
+				t.Fatalf("%s malformed result = %+v, error = %v", label, result, err)
+			}
+		}
+		if _, err := AnalyzePythonRepository(ctx, root, radon); err == nil {
+			t.Fatal("repository accepted malformed source")
+		}
+	})
+}
+
 func TestPythonImportMetricSemantics(t *testing.T) {
 	tests := []struct {
 		name   string

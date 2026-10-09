@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -126,11 +127,19 @@ func (c Config) Enabled(name string) bool {
 }
 
 // IsExcluded reports whether file matches any configured exclude pattern.
-// Patterns are matched against the base name only.
+// Patterns containing a path separator match the repository-relative path;
+// patterns without one retain basename matching.
 func (c Config) IsExcluded(file string) bool {
 	base := filepath.Base(file)
+	path := filepath.FromSlash(file)
 	for _, pattern := range c.ExcludePatterns {
-		matched, err := filepath.Match(pattern, base)
+		target := base
+		matchPattern := pattern
+		if strings.Contains(pattern, "/") || strings.ContainsRune(pattern, filepath.Separator) {
+			target = path
+			matchPattern = filepath.FromSlash(pattern)
+		}
+		matched, err := filepath.Match(matchPattern, target)
 		if err == nil && matched {
 			return true
 		}
