@@ -100,7 +100,8 @@ public class Consumer
 	}
 
 	req := AnalysisRequest{
-		Repo:     repoRoot,
+		Repo:     "logical-repo",
+		RepoPath: repoRoot,
 		File:     "Consumer.cs",
 		Language: "csharp",
 		TempPath: filepath.Join(repoRoot, "Consumer.cs"),
@@ -118,5 +119,56 @@ public class Consumer
 	}
 	if result.Imports.DDC != 1.0 {
 		t.Fatalf("imports.ddc = %.3f, want 1.0", result.Imports.DDC)
+	}
+}
+
+func TestCheckerLocalHTTPPreservesAuthorizedPhysicalRepoForCSharpDDC(t *testing.T) {
+	ensureDefaultRoslynAnalyzer(t)
+
+	workspace := t.TempDir()
+	repoRoot := filepath.Join(workspace, "repo-one")
+	if err := os.MkdirAll(repoRoot, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, "MyApp.csproj"), []byte(`<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+</Project>`), 0o644); err != nil {
+		t.Fatalf("write csproj: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, "Types.cs"), []byte(`namespace MyApp.Domain;
+public class Widget { }
+public class WidgetBase<T> { }`), 0o644); err != nil {
+		t.Fatalf("write Types.cs: %v", err)
+	}
+
+	store := newTestConfigStore(t)
+	writeRepoConfig(t, store, "repo-one", EnforcementBlock, map[string]bool{
+		"dependency-discipline": true,
+		"logic-density":         false,
+	})
+	server := httptest.NewServer(NewHandlerWithOptions(Checker{
+		ConfigStore:   store,
+		PatternPath:   writeTestPattern(t),
+		BlockOnWarmup: true,
+		Validator: validatorFunc(func(context.Context, string, string) (calm.ValidationResult, error) {
+			return calm.ValidationResult{Valid: true, Output: `{"hasErrors":false}`}, nil
+		}),
+	}, nil, HandlerOptions{RequireAuthentication: true, LocalHTTP: true}))
+	defer server.Close()
+
+	source := `using MyApp.Domain;
+
+namespace MyApp.App;
+
+public class Consumer : WidgetBase<Widget>
+{
+    public Widget Get() => new();
+}
+`
+	body := postCheckForLanguage(t, server.URL, repoRoot, "Consumer.cs", "csharp", source)
+	if body.Status != fitness.StatusPass || body.Warming || len(body.Violations) != 0 {
+		t.Fatalf("response = %+v, want a synchronous pass with project-local generic import used", body)
 	}
 }

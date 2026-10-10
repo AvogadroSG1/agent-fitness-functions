@@ -33,7 +33,7 @@ func AnalyzeRepository(ctx context.Context, root, language string, options Repos
 			result, err = AnalyzePythonFile(ctx, file, options.RadonPath)
 		case "csharp":
 			csprojPath, _ := FindNearestCsproj(file, root)
-			result, err = AnalyzeCSharpFileWithProject(ctx, file, csprojPath, options.RoslynPath)
+			result, err = AnalyzeCSharpFileWithProjectSource(ctx, file, file, csprojPath, options.RoslynPath)
 		default:
 			return nil, fmt.Errorf("unsupported language %q", language)
 		}

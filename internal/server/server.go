@@ -164,11 +164,17 @@ func checkHandler(checker Checker, options HandlerOptions) http.HandlerFunc {
 		if !ok {
 			return
 		}
+		originalRepo := request.Repo
 		if options.RequireAuthentication {
 			authorizedRepo, err := authorizeRepoAccess(options, checker.ConfigStore, caller, request.Repo)
 			if err != nil {
 				writeAuthorizationError(w, err)
 				return
+			}
+			if options.LocalHTTP {
+				if physicalRepo := localPhysicalRepoPath(originalRepo, authorizedRepo); physicalRepo != "" {
+					r = r.WithContext(withPhysicalRepoPath(r.Context(), physicalRepo))
+				}
 			}
 			request.Repo = authorizedRepo
 		}

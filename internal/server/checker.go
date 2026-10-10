@@ -27,7 +27,11 @@ type Validator interface {
 
 // AnalysisRequest describes one temporary source analysis job.
 type AnalysisRequest struct {
-	Repo     string
+	// Repo is the canonical governance key used for config, state, and ledger operations.
+	Repo string
+	// RepoPath is the validated physical worktree root, when the request supplied
+	// an absolute repository path. Content-only logical requests leave it empty.
+	RepoPath string
 	File     string
 	Language string
 	TempPath string
@@ -261,8 +265,13 @@ func (c *Checker) analyzeSource(ctx context.Context, request fitness.ValidationR
 		defer cancel()
 	}
 
+	repoPath := physicalRepoPathFromContext(analyzeCtx)
+	if repoPath == "" {
+		repoPath = physicalRepoPath(request.Repo)
+	}
 	result, err := sourceAnalyzer.Analyze(analyzeCtx, AnalysisRequest{
 		Repo:     repo,
+		RepoPath: repoPath,
 		File:     request.File,
 		Language: request.Language,
 		TempPath: sourcePath,
@@ -277,6 +286,40 @@ func (c *Checker) analyzeSource(ctx context.Context, request fitness.ValidationR
 		return analyzer.AnalysisResult{}, infrastructureError("check canceled after analysis", err)
 	}
 	return result, nil
+}
+
+func physicalRepoPath(repo string) string {
+	if !filepath.IsAbs(repo) {
+		return ""
+	}
+	info, err := os.Stat(repo)
+	if err != nil || !info.IsDir() {
+		return ""
+	}
+	return filepath.Clean(repo)
+}
+
+type physicalRepoContextKey struct{}
+
+func withPhysicalRepoPath(ctx context.Context, repoPath string) context.Context {
+	return context.WithValue(ctx, physicalRepoContextKey{}, repoPath)
+}
+
+func physicalRepoPathFromContext(ctx context.Context) string {
+	repoPath, _ := ctx.Value(physicalRepoContextKey{}).(string)
+	return repoPath
+}
+
+func localPhysicalRepoPath(repo, canonical string) string {
+	repoPath := physicalRepoPath(repo)
+	if repoPath == "" {
+		return ""
+	}
+	repoName, err := canonicalRepoName(repoPath)
+	if err != nil || repoName != canonical {
+		return ""
+	}
+	return repoPath
 }
 
 func classifyAnalysisError(err error, language string) error {
@@ -696,12 +739,16 @@ func analyzeWithCSharpProjectContext(ctx context.Context, request AnalysisReques
 	if err := ctx.Err(); err != nil {
 		return analyzer.AnalysisResult{}, err
 	}
-	logicalPath := filepath.Join(request.Repo, request.File)
-	csprojPath, err := analyzer.FindNearestCsproj(logicalPath, request.Repo)
+	repoPath := request.RepoPath
+	if repoPath == "" {
+		return analyzer.AnalyzeCSharpFile(ctx, request.TempPath, "")
+	}
+	logicalPath := filepath.Join(repoPath, request.File)
+	csprojPath, err := analyzer.FindNearestCsproj(logicalPath, repoPath)
 	if err != nil {
 		return analyzer.AnalyzeCSharpFile(ctx, request.TempPath, "")
 	}
-	return analyzer.AnalyzeCSharpFileWithProject(ctx, request.TempPath, csprojPath, "")
+	return analyzer.AnalyzeCSharpFileWithProjectSource(ctx, request.TempPath, logicalPath, csprojPath, "")
 }
 
 func (c Checker) sourceAnalyzer(language string) (SourceAnalyzer, bool) {
@@ -740,7 +787,11 @@ func analyzeGoWithModuleContext(ctx context.Context, request AnalysisRequest) (a
 	if err := ctx.Err(); err != nil {
 		return analyzer.AnalysisResult{}, err
 	}
-	logicalPath := filepath.Join(request.Repo, request.File)
+	repoPath := request.RepoPath
+	if repoPath == "" {
+		return proposed, nil
+	}
+	logicalPath := filepath.Join(repoPath, request.File)
 	peers, err := collectPeerGoFiles(filepath.Dir(logicalPath), logicalPath)
 	if err != nil {
 		return proposed, nil

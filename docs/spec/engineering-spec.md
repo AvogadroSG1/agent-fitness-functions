@@ -534,6 +534,14 @@ rebinding prevent unrelated names from crediting imports. Branches conservativel
 merge candidate bindings, so a shared use credits both TYPE_CHECKING/runtime
 alternatives; deferred function bodies see completed enclosing bindings.
 
+C# computes DDC from Roslyn semantic bindings rather than identifier spelling.
+Generic type and method names, aliases, attributes, and extension-method calls
+credit an import only when the corresponding syntax resolves in the compilation;
+unresolved names do not. For a proposed file analyzed with project context, the
+proposed syntax tree replaces the project's original document at its logical path,
+so the project is not compiled with duplicate target declarations. These
+resolution rules do not change the DDC threshold or public import-metrics shape.
+
 Missing import metrics, AST errors, and syntax-warning-only scans fail analysis
 through the existing `enforcement-on-error` policy. They never manufacture a
 passing DDC score. The public import-metrics JSON shape and 0.8 threshold are
