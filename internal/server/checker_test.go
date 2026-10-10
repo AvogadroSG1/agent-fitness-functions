@@ -771,7 +771,7 @@ func TestHandlerCheckAggregatesRealGoPackageForInterfaceWidth(t *testing.T) {
 	}, nil))
 	defer server.Close()
 
-	body := postCheckForLanguage(t, server.URL, repo, "internal/wide/proposed.go", "go", goExportedFunctionsSource("Proposed", 1))
+	body := postCheckForLanguage(t, server.URL, repoDir, "internal/wide/proposed.go", "go", goExportedFunctionsSource("Proposed", 1))
 	if body.Status != fitness.StatusBlock || len(body.Violations) != 1 {
 		t.Fatalf("response = %+v, want aggregate package interface-width block", body)
 	}
@@ -2779,6 +2779,7 @@ func TestAnalyzeGoWithModuleContextExcludesTestFiles(t *testing.T) {
 	}
 	request := AnalysisRequest{
 		Repo:     dir,
+		RepoPath: dir,
 		File:     "server.go",
 		Language: "go",
 		TempPath: filepath.Join(dir, "server.go"),

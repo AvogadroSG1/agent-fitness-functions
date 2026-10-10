@@ -6,14 +6,19 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.MSBuild;
 
-// Args: <file.cs> [--project <foo.csproj>]
+// Args: <file.cs> [--project <foo.csproj>] [--project-file <original-file.cs>]
 string? projectPath = null;
+string? projectFilePath = null;
 string? file = null;
 for (var i = 0; i < args.Length; i++)
 {
     if (args[i] == "--project" && i + 1 < args.Length)
     {
         projectPath = args[++i];
+    }
+    else if (args[i] == "--project-file" && i + 1 < args.Length)
+    {
+        projectFilePath = args[++i];
     }
     else if (!args[i].StartsWith("--", StringComparison.Ordinal))
     {
@@ -22,7 +27,7 @@ for (var i = 0; i < args.Length; i++)
 }
 if (file is null)
 {
-    Console.Error.WriteLine("usage: calm-roslyn-analyzer <file.cs> [--project <foo.csproj>]");
+    Console.Error.WriteLine("usage: calm-roslyn-analyzer <file.cs> [--project <foo.csproj>] [--project-file <original-file.cs>]");
     return 2;
 }
 
@@ -31,7 +36,7 @@ SyntaxTree tree;
 SemanticModel semanticModel;
 if (projectPath is not null)
 {
-    (semanticModel, tree) = await ProjectSemanticModel(source, file, projectPath);
+    (semanticModel, tree) = await ProjectSemanticModel(source, file, projectPath, projectFilePath);
 }
 else
 {
@@ -100,7 +105,11 @@ var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
 Console.WriteLine(json);
 return 0;
 
-static async Task<(SemanticModel Model, SyntaxTree Tree)> ProjectSemanticModel(string source, string filePath, string projectPath)
+static async Task<(SemanticModel Model, SyntaxTree Tree)> ProjectSemanticModel(
+    string source,
+    string filePath,
+    string projectPath,
+    string? projectFilePath)
 {
     if (!MSBuildLocator.IsRegistered)
         MSBuildLocator.RegisterDefaults();
@@ -124,13 +133,14 @@ static async Task<(SemanticModel Model, SyntaxTree Tree)> ProjectSemanticModel(s
         return (PlatformSemanticModel(tree), tree);
     }
     // Build a new compilation that shares the project's references and all other source files
-    // but substitutes our freshly-parsed tree for the target file. This ensures:
-    // (a) the semantic model can resolve project-local types from sibling files, and
-    // (b) our tree is part of the compilation and GetSemanticModel succeeds.
-    var normalizedFile = Path.GetFullPath(filePath);
+    // but substitutes our freshly-parsed tree for the project's original target file. The
+    // project-file path is required for proposed temp files; otherwise the original and
+    // proposed declarations would both participate in binding.
+    var targetFilePath = projectFilePath ?? filePath;
+    var normalizedTarget = Path.GetFullPath(targetFilePath);
     var otherTrees = compilation.SyntaxTrees
         .Where(t => !string.Equals(
-            Path.GetFullPath(t.FilePath ?? ""), normalizedFile, StringComparison.OrdinalIgnoreCase))
+            Path.GetFullPath(t.FilePath ?? ""), normalizedTarget, StringComparison.OrdinalIgnoreCase))
         .ToList();
     var projectCompilation = CSharpCompilation.Create(
         compilation.AssemblyName ?? "CalmRoslynAnalysis",
@@ -251,12 +261,12 @@ static ImportMetric ImportMetric(IReadOnlyCollection<UsingDirectiveSyntax> using
             Alias: u.Alias?.Name.Identifier.ValueText ?? ""))
         .Where(import => import.DisplayName.Length > 0)
         .ToList();
-    var identifiers = root.DescendantNodes()
-        .OfType<IdentifierNameSyntax>()
-        .Where(identifier => !usingDirectives.Any(usingDirective => usingDirective.Span.Contains(identifier.SpanStart)))
+    var simpleNames = root.DescendantNodes()
+        .OfType<SimpleNameSyntax>()
+        .Where(name => !usingDirectives.Any(usingDirective => usingDirective.Span.Contains(name.SpanStart)))
         .ToList();
     var usedImports = imports
-        .Where(import => IsImportUsed(import, identifiers, semanticModel))
+        .Where(import => IsImportUsed(import, simpleNames, semanticModel))
         .ToHashSet();
     var unused = imports
         .Where(import => !usedImports.Contains(import))
@@ -271,15 +281,22 @@ static ImportMetric ImportMetric(IReadOnlyCollection<UsingDirectiveSyntax> using
     };
 }
 
-static bool IsImportUsed(ImportEntry import, IReadOnlyCollection<IdentifierNameSyntax> identifiers, SemanticModel semanticModel)
+static bool IsImportUsed(
+    ImportEntry import,
+    IReadOnlyCollection<SimpleNameSyntax> simpleNames,
+    SemanticModel semanticModel)
 {
     if (import.Alias.Length > 0)
     {
-        return identifiers.Any(identifier => identifier.Identifier.ValueText == import.Alias);
+        return simpleNames.Any(name =>
+            name.Identifier.ValueText == import.Alias &&
+            semanticModel.GetAliasInfo(name) is IAliasSymbol alias &&
+            alias.Name == import.Alias);
     }
-    return identifiers.Any(identifier =>
+
+    return simpleNames.Any(name =>
     {
-        var symbol = semanticModel.GetSymbolInfo(identifier).Symbol;
+        var symbol = semanticModel.GetSymbolInfo(name).Symbol;
         var containingNamespace = symbol?.ContainingNamespace?.ToDisplayString() ?? "";
         return containingNamespace == import.NamespaceOrType ||
             containingNamespace.StartsWith(import.NamespaceOrType + ".", StringComparison.Ordinal);

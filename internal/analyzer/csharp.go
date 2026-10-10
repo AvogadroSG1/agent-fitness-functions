@@ -38,16 +38,21 @@ func AnalyzeCSharpFile(ctx context.Context, file, cliPath string) (AnalysisResul
 	return result, nil
 }
 
-// AnalyzeCSharpFileWithProject analyzes one C# file with project context loaded from csprojPath.
-// When csprojPath is empty it falls back to AnalyzeCSharpFile.
-func AnalyzeCSharpFileWithProject(ctx context.Context, file, csprojPath, cliPath string) (AnalysisResult, error) {
+// AnalyzeCSharpFileWithProjectSource analyzes proposed source from file while
+// binding it as the project document at projectSourcePath. This keeps a
+// temporary proposal from compiling alongside the original project document.
+func AnalyzeCSharpFileWithProjectSource(ctx context.Context, file, projectSourcePath, csprojPath, cliPath string) (AnalysisResult, error) {
 	if csprojPath == "" {
 		return AnalyzeCSharpFile(ctx, file, cliPath)
 	}
 	if cliPath == "" {
 		cliPath = defaultRoslynCLI()
 	}
-	output, stderr, err := runToolOutput(ctx, cliPath, file, "--project", csprojPath)
+	args := []string{file, "--project", csprojPath}
+	if projectSourcePath != "" {
+		args = append(args, "--project-file", projectSourcePath)
+	}
+	output, stderr, err := runToolOutput(ctx, cliPath, args...)
 	if err != nil {
 		return AnalysisResult{}, fmt.Errorf("running Roslyn analyzer: %w", err)
 	}

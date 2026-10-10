@@ -152,6 +152,83 @@ public class Example
 	}
 }
 
+func TestAnalyzeCSharpFileCountsGenericNamesAndRetainsUnusedNamespaces(t *testing.T) {
+	cli := buildRoslynAnalyzer(t)
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "Example.cs")
+	source := `using System.Collections.Generic;
+using System.Text;
+
+namespace Sample.App;
+
+public class Example : List<string>
+{
+    private readonly Dictionary<string, int> _lookup = new();
+
+    public IReadOnlyList<string> Values()
+    {
+        return new List<string>(_lookup.Keys);
+    }
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	result, err := AnalyzeCSharpFile(context.Background(), sourcePath, cli)
+	if err != nil {
+		t.Fatalf("AnalyzeCSharpFile returned error: %v", err)
+	}
+	if result.Imports.Total != 2 || result.Imports.Used != 1 {
+		t.Fatalf("imports = %+v, want one used generic namespace and one unused namespace", result.Imports)
+	}
+	if result.Imports.DDC != 0.5 {
+		t.Fatalf("imports.ddc = %.3f, want 0.5", result.Imports.DDC)
+	}
+	if len(result.Imports.Unused) != 1 || result.Imports.Unused[0] != "Text" {
+		t.Fatalf("imports.unused = %v, want [Text]", result.Imports.Unused)
+	}
+}
+
+func TestAnalyzeCSharpFileResolvesAliasAttributeAndExtensionUsage(t *testing.T) {
+	cli := buildRoslynAnalyzer(t)
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "Example.cs")
+	source := `using Collections = System.Collections.Generic;
+using System;
+using System.Linq;
+using System.Text;
+
+namespace Sample.App;
+
+[Obsolete]
+public class Example : Collections.List<string>
+{
+    public bool HasText(Collections.IEnumerable<string> values)
+    {
+        return values.Any(value => value.Length > 0);
+    }
+}
+`
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	result, err := AnalyzeCSharpFile(context.Background(), sourcePath, cli)
+	if err != nil {
+		t.Fatalf("AnalyzeCSharpFile returned error: %v", err)
+	}
+	if result.Imports.Total != 4 || result.Imports.Used != 3 {
+		t.Fatalf("imports = %+v, want alias, attribute, and extension imports used", result.Imports)
+	}
+	if result.Imports.DDC != 0.75 {
+		t.Fatalf("imports.ddc = %.3f, want 0.75", result.Imports.DDC)
+	}
+	if len(result.Imports.Unused) != 1 || result.Imports.Unused[0] != "Text" {
+		t.Fatalf("imports.unused = %v, want [Text]", result.Imports.Unused)
+	}
+}
+
 func TestAnalyzeCSharpFileReturnsRoslynFailures(t *testing.T) {
 	dir := t.TempDir()
 	sourcePath := filepath.Join(dir, "Example.cs")
@@ -366,9 +443,9 @@ public class Consumer
 		t.Fatalf("write Consumer.cs: %v", err)
 	}
 
-	result, err := AnalyzeCSharpFileWithProject(context.Background(), consumerPath, csprojPath, cli)
+	result, err := AnalyzeCSharpFileWithProjectSource(context.Background(), consumerPath, consumerPath, csprojPath, cli)
 	if err != nil {
-		t.Fatalf("AnalyzeCSharpFileWithProject returned error: %v", err)
+		t.Fatalf("AnalyzeCSharpFileWithProjectSource returned error: %v", err)
 	}
 
 	if result.Imports.Total != 2 {
@@ -379,6 +456,60 @@ public class Consumer
 	}
 	if result.Imports.DDC != 1.0 {
 		t.Fatalf("imports.ddc = %.3f, want 1.0", result.Imports.DDC)
+	}
+}
+
+func TestAnalyzeCSharpFileWithProjectSourceReplacesOriginalDocument(t *testing.T) {
+	cli := buildRoslynAnalyzer(t)
+
+	dir := t.TempDir()
+	csprojPath := filepath.Join(dir, "MyApp.csproj")
+	if err := os.WriteFile(csprojPath, []byte(`<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+</Project>`), 0o644); err != nil {
+		t.Fatalf("write csproj: %v", err)
+	}
+
+	typesPath := filepath.Join(dir, "Types.cs")
+	if err := os.WriteFile(typesPath, []byte(`namespace MyApp.Domain;
+public class Widget { }`), 0o644); err != nil {
+		t.Fatalf("write Types.cs: %v", err)
+	}
+
+	originalPath := filepath.Join(dir, "Consumer.cs")
+	if err := os.WriteFile(originalPath, []byte(`namespace MyApp.App;
+public class Consumer { }`), 0o644); err != nil {
+		t.Fatalf("write original Consumer.cs: %v", err)
+	}
+
+	proposedPath := filepath.Join(t.TempDir(), "Consumer.cs")
+	proposedSource := `using MyApp.Domain;
+
+namespace MyApp.App;
+
+public class Consumer
+{
+    public Widget Get() => new();
+}
+`
+	if err := os.WriteFile(proposedPath, []byte(proposedSource), 0o644); err != nil {
+		t.Fatalf("write proposed Consumer.cs: %v", err)
+	}
+
+	result, err := AnalyzeCSharpFileWithProjectSource(
+		context.Background(),
+		proposedPath,
+		originalPath,
+		csprojPath,
+		cli,
+	)
+	if err != nil {
+		t.Fatalf("AnalyzeCSharpFileWithProjectSource returned error: %v", err)
+	}
+	if result.Imports.Total != 1 || result.Imports.Used != 1 || result.Imports.DDC != 1.0 {
+		t.Fatalf("imports = %+v, want the proposed document's project-local namespace used", result.Imports)
 	}
 }
 
