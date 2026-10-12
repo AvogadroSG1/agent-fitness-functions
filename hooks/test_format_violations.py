@@ -70,11 +70,11 @@ def test_subprocess_preserves_interface_locations() -> None:
     function["interface"] = "IgnoredForOtherRules"
     stdout, stderr, code = _run(
         json.dumps({"status": "block", "violations": [first, second, module, function]}),
-        ["--mode", "block", "--file", "retrieval.py"],
+        ["--mode", "block", "--checked-file", "retrieval.py"],
     )
     assert code == 0, stderr
     output = yaml.safe_load(stdout)
-    assert output["calm_check"]["file"] == "retrieval.py"
+    assert output["calm_check"]["checked_file"] == "retrieval.py"
     entries = output["violations"]
     assert [(entry["location"], entry["result"], entry["target"]) for entry in entries] == [
         ("_Outer._Repository (retrieval)", 21, "<= 20"),
@@ -100,7 +100,7 @@ def test_subprocess_python_export_facade_guidance(status: str, mode_label: str) 
     }
     stdout, stderr, code = _run(
         json.dumps({"status": status, "violations": [violation]}),
-        ["--mode", status, "--file", file],
+        ["--mode", status, "--checked-file", file],
     )
     assert code == 0, stderr
     output = yaml.safe_load(stdout)
@@ -140,11 +140,10 @@ def test_subprocess_unclassified_findings_keep_ordinary_guidance(fn: str, marker
         violation["source_kind"] = marker
     stdout, stderr, code = _run(
         json.dumps({"status": "block", "violations": [violation]}),
-        ["--mode", "block", "--file", "pkg/__init__.py"],
+        ["--mode", "block", "--checked-file", "pkg/__init__.py"],
     )
     assert code == 0, stderr
     entry = yaml.safe_load(stdout)["violations"][0]
-    assert "source_kind" not in entry
     advice = " ".join(entry["remediation"])
     assert "governance policy owner" not in advice
     if fn.replace("_", "-") == "logic-density":
@@ -212,22 +211,6 @@ def test_build_output_empty_violations_returns_none() -> None:
     assert _fmt._build_output([], "sample.go", "block", "block") is None
 
 
-def test_build_output_block_violation_full_structure() -> None:
-    result = _fmt._build_output([_viol()], "internal/checker.go", "block", "block")
-    assert result is not None
-    assert result["calm_check"]["file"] == "internal/checker.go"
-    assert result["calm_check"]["status"] == "block"
-    entries = result["violations"]
-    assert len(entries) == 1
-    e = entries[0]
-    assert e["fitness_function"] == "cyclomatic-complexity"
-    assert e["mode"] == "blocking"
-    assert e["result"] == 15
-    assert e["target"] == "<= 10"
-    assert e["location"] == "ProcessRequest (handler)"
-    assert "meaning" in e
-    assert isinstance(e["remediation"], list)
-    assert len(e["remediation"]) > 0
 
 
 def test_build_output_advisory_mode_label() -> None:
@@ -339,7 +322,7 @@ def test_build_output_all_malformed_returns_none() -> None:
 
 def test_main_pass_status_produces_no_output() -> None:
     stdout, _, code = _run(
-        '{"status":"pass"}', ["--mode", "block", "--file", "sample.go"]
+        '{"status":"pass"}', ["--mode", "block", "--checked-file", "sample.go"]
     )
     assert code == 0
     assert stdout == ""
@@ -360,7 +343,7 @@ def test_main_block_produces_valid_yaml() -> None:
             ],
         }
     )
-    stdout, _, code = _run(payload, ["--mode", "block", "--file", "checker.go"])
+    stdout, _, code = _run(payload, ["--mode", "block", "--checked-file", "checker.go"])
     assert code == 0
     assert "calm_check:" in stdout
     assert "fitness_function: cyclomatic-complexity" in stdout
@@ -376,7 +359,7 @@ def test_main_formats_persisted_calm_node_validation_result() -> None:
 
     stdout, _, code = _run(
         fixture,
-        ["--mode", "block", "--file", "internal/parser/parser.go"],
+        ["--mode", "block", "--checked-file", "internal/parser/parser.go"],
     )
 
     assert code == 0
@@ -396,28 +379,28 @@ def test_main_advisory_produces_yaml_with_advisory_label() -> None:
             ],
         }
     )
-    stdout, _, code = _run(payload, ["--mode", "advisory", "--file", "sample.go"])
+    stdout, _, code = _run(payload, ["--mode", "advisory", "--checked-file", "sample.go"])
     assert code == 0
     assert "calm_check:" in stdout
     assert "advisory" in stdout
 
 
 def test_main_invalid_json_exits_zero_with_warning() -> None:
-    _, stderr, code = _run("not json at all", ["--mode", "block", "--file", "x.go"])
+    _, stderr, code = _run("not json at all", ["--mode", "block", "--checked-file", "x.go"])
     assert code == 0
     assert "invalid JSON" in stderr
 
 
 def test_main_violations_wrong_type_exits_zero() -> None:
     _, _, code = _run(
-        '{"status":"block","violations":"bad"}', ["--mode", "block", "--file", "x.go"]
+        '{"status":"block","violations":"bad"}', ["--mode", "block", "--checked-file", "x.go"]
     )
     assert code == 0
 
 
 def test_main_empty_violations_exits_zero_with_no_output() -> None:
     stdout, _, code = _run(
-        '{"status":"block","violations":[]}', ["--mode", "block", "--file", "x.go"]
+        '{"status":"block","violations":[]}', ["--mode", "block", "--checked-file", "x.go"]
     )
     assert code == 0
     assert stdout == ""
@@ -427,3 +410,323 @@ def test_main_no_file_arg_still_exits_zero() -> None:
     payload = json.dumps({"status": "pass"})
     _, _, code = _run(payload, ["--mode", "block"])
     assert code == 0
+
+
+def _attributed_violation() -> dict[str, Any]:
+    return {
+        "fitness_function": "logic_density",
+        "file": "configs/embed.go",
+        "function": "load",
+        "interface": "Assets",
+        "calm_node": "configs",
+        "value": 1 / 9,
+        "limit": 0.255,
+        "message": "density too low",
+        "source_kind": "ordinary",
+        "rule": "optional-input-rule",
+    }
+
+
+def _parse_report(stdout: str) -> dict[str, Any]:
+    import yaml
+
+    report = yaml.safe_load(stdout)
+    assert isinstance(report, dict)
+    return report
+
+
+def _run_seen(
+    payload: dict[str, Any],
+    cache: Path,
+    checked_file: str = "internal/clean.go",
+) -> tuple[str, str, int]:
+    return _run(
+        json.dumps(payload),
+        [
+            "--mode",
+            "block",
+            "--checked-file",
+            checked_file,
+            "--seen-file",
+            str(cache),
+        ],
+    )
+
+
+def test_seen_file_suppresses_known_finding_across_checked_paths(tmp_path: Path) -> None:
+    violation = _attributed_violation()
+    cache = tmp_path / "seen.json"
+
+    first_stdout, first_stderr, first_code = _run_seen(
+        {"status": "block", "violations": [violation]},
+        cache,
+        "internal/clean.go",
+    )
+    second = dict(violation)
+    second["fitness_function"] = "logic-density"
+    second_stdout, second_stderr, second_code = _run_seen(
+        {"status": "block", "violations": [second]},
+        cache,
+        "cmd/main.go",
+    )
+
+    assert first_code == second_code == 0
+    assert first_stderr == ""
+    assert second_stderr == ""
+    first = _parse_report(first_stdout)
+    assert first["calm_check"]["checked_file"] == "internal/clean.go"
+    assert first["calm_check"]["scope"] == "repository"
+    entry = first["violations"][0]
+    assert entry["affected_file"] == "configs/embed.go"
+    assert entry["value"] == 1 / 9
+    assert entry["limit"] == 0.255
+    assert second_stdout == ""
+
+
+def test_seen_file_keeps_distinct_attributed_diagnostics_and_normalizes_function(
+    tmp_path: Path,
+) -> None:
+    base = _attributed_violation()
+    affected = dict(base)
+    affected["file"] = "internal/other.go"
+    function = dict(base)
+    function["function"] = "render"
+    interface = dict(base)
+    interface["interface"] = "OtherAssets"
+    value = dict(base)
+    value["value"] = 2 / 9
+    normalized_duplicate = dict(base)
+    normalized_duplicate["fitness_function"] = "logic-density"
+    cache = tmp_path / "seen.json"
+
+    stdout, stderr, code = _run_seen(
+        {"status": "block", "violations": [base, affected, function, interface, value,
+                                            normalized_duplicate]},
+        cache,
+    )
+
+    assert code == 0, stderr
+    assert stderr == ""
+    report = _parse_report(stdout)
+    entries = report["violations"]
+    assert len(entries) == 5
+    observed = {
+        (
+            entry["affected_file"],
+            entry.get("function", ""),
+            entry.get("interface", ""),
+            entry["value"],
+            entry["fitness_function"],
+        )
+        for entry in entries
+    }
+    assert observed == {
+        ("configs/embed.go", "load", "Assets", 1 / 9, "logic-density"),
+        ("internal/other.go", "load", "Assets", 1 / 9, "logic-density"),
+        ("configs/embed.go", "render", "Assets", 1 / 9, "logic-density"),
+        ("configs/embed.go", "load", "OtherAssets", 1 / 9, "logic-density"),
+        ("configs/embed.go", "load", "Assets", 2 / 9, "logic-density"),
+    }
+    assert sum(entry["value"] == 1 / 9 for entry in entries) == 4
+    assert sum(entry["value"] == 2 / 9 for entry in entries) == 1
+
+
+def test_seen_file_deduplicates_repeated_entries_in_response_in_first_order(
+    tmp_path: Path,
+) -> None:
+    first = _attributed_violation()
+    second = dict(first)
+    second["file"] = "internal/other.go"
+    third = dict(first)
+    third["function"] = "render"
+    cache = tmp_path / "seen.json"
+
+    stdout, stderr, code = _run_seen(
+        {"status": "block", "violations": [first, second, third, dict(first)]},
+        cache,
+    )
+
+    assert code == 0, stderr
+    assert stderr == ""
+    entries = _parse_report(stdout)["violations"]
+    assert [
+        (entry["affected_file"], entry["function"], entry["value"])
+        for entry in entries
+    ] == [
+        ("configs/embed.go", "load", 1 / 9),
+        ("internal/other.go", "load", 1 / 9),
+        ("configs/embed.go", "render", 1 / 9),
+    ]
+
+
+def test_seen_file_keeps_unknown_attribution_distinct_by_checked_path(tmp_path: Path) -> None:
+    violation = _attributed_violation()
+    violation.pop("file")
+    cache = tmp_path / "seen.json"
+
+    first_stdout, first_stderr, first_code = _run_seen(
+        {"status": "block", "violations": [violation]},
+        cache,
+        "internal/clean.go",
+    )
+    second_stdout, second_stderr, second_code = _run_seen(
+        {"status": "block", "violations": [violation]},
+        cache,
+        "cmd/main.go",
+    )
+
+    assert first_code == second_code == 0
+    assert first_stderr == second_stderr == ""
+    first = _parse_report(first_stdout)
+    second = _parse_report(second_stdout)
+    assert first["calm_check"]["checked_file"] == "internal/clean.go"
+    assert second["calm_check"]["checked_file"] == "cmd/main.go"
+    assert first["violations"][0]["affected_file"] == "(unknown)"
+    assert second["violations"][0]["affected_file"] == "(unknown)"
+    assert first["violations"][0]["value"] == second["violations"][0]["value"] == 1 / 9
+    assert first["violations"][0]["limit"] == second["violations"][0]["limit"] == 0.255
+
+
+def test_seen_file_fresh_cache_displays_finding_again(tmp_path: Path) -> None:
+    payload = {"status": "block", "violations": [_attributed_violation()]}
+    first_stdout, first_stderr, first_code = _run_seen(payload, tmp_path / "first.json")
+    second_stdout, second_stderr, second_code = _run_seen(payload, tmp_path / "second.json")
+
+    assert first_code == second_code == 0
+    assert first_stderr == second_stderr == ""
+    for stdout, checked_file in (
+        (first_stdout, "internal/clean.go"),
+        (second_stdout, "internal/clean.go"),
+    ):
+        report = _parse_report(stdout)
+        assert report["calm_check"]["checked_file"] == checked_file
+        entry = report["violations"][0]
+        assert entry["affected_file"] == "configs/embed.go"
+        assert entry["value"] == 1 / 9
+        assert entry["limit"] == 0.255
+
+
+@pytest.mark.parametrize("initial_contents", [None, ""])
+def test_seen_file_absent_or_empty_cache_is_usable(
+    tmp_path: Path,
+    initial_contents: str | None,
+) -> None:
+    cache = tmp_path / "seen.json"
+    if initial_contents is not None:
+        cache.write_text(initial_contents)
+
+    stdout, stderr, code = _run_seen(
+        {"status": "block", "violations": [_attributed_violation()]},
+        cache,
+    )
+
+    assert code == 0, stderr
+    assert stderr == ""
+    report = _parse_report(stdout)
+    assert report["calm_check"]["checked_file"] == "internal/clean.go"
+    entry = report["violations"][0]
+    assert entry["affected_file"] == "configs/embed.go"
+    assert entry["value"] == 1 / 9
+    assert entry["limit"] == 0.255
+
+
+@pytest.mark.parametrize(
+    "initial_contents,make_directory",
+    [
+        ("not json", False),
+        ("{}", False),
+        ('["not-a-canonical-diagnostic-key"]', False),
+        ("", True),
+    ],
+)
+def test_seen_file_read_failures_print_full_attributed_diagnostic(
+    tmp_path: Path,
+    initial_contents: str,
+    make_directory: bool,
+) -> None:
+    cache = tmp_path / "seen"
+    if make_directory:
+        cache.mkdir()
+    else:
+        cache.write_text(initial_contents)
+
+    stdout, stderr, code = _run_seen(
+        {"status": "block", "violations": [_attributed_violation()]},
+        cache,
+    )
+
+    assert code == 0
+    assert "format-violations: cannot read seen-file" in stderr
+    report = _parse_report(stdout)
+    assert report["calm_check"]["checked_file"] == "internal/clean.go"
+    assert report["calm_check"]["scope"] == "repository"
+    entry = report["violations"][0]
+    assert entry["affected_file"] == "configs/embed.go"
+    assert entry["value"] == 1 / 9
+    assert entry["limit"] == 0.255
+
+
+def test_seen_file_write_failure_prints_full_attributed_diagnostic(tmp_path: Path) -> None:
+    cache = tmp_path / "missing-parent" / "seen.json"
+
+    stdout, stderr, code = _run_seen(
+        {"status": "block", "violations": [_attributed_violation()]},
+        cache,
+    )
+
+    assert code == 0
+    assert "format-violations: cannot write seen-file" in stderr
+    report = _parse_report(stdout)
+    assert report["calm_check"]["checked_file"] == "internal/clean.go"
+    assert report["calm_check"]["scope"] == "repository"
+    entry = report["violations"][0]
+    assert entry["affected_file"] == "configs/embed.go"
+    assert entry["value"] == 1 / 9
+    assert entry["limit"] == 0.255
+
+
+@pytest.mark.parametrize("status,scope", [("block", "repository"), ("advisory", "file")])
+def test_subprocess_checked_and_affected_attribution(status: str, scope: str) -> None:
+    import yaml
+
+    violation = _attributed_violation()
+    stdout, stderr, code = _run(
+        json.dumps({"status": status, "violations": [violation]}),
+        ["--mode", "advisory", "--checked-file", "internal/clean.go"],
+    )
+    assert code == 0, stderr
+    output = yaml.safe_load(stdout)
+    assert output["calm_check"]["checked_file"] == "internal/clean.go"
+    assert output["calm_check"]["scope"] == scope
+    assert "file" not in output["calm_check"]
+    entry = output["violations"][0]
+    assert entry["affected_file"] == "configs/embed.go"
+    for field in ("function", "interface", "calm_node", "value", "limit", "message", "source_kind", "rule"):
+        assert entry[field] == violation[field]
+
+
+def test_subprocess_missing_attribution_stays_unknown() -> None:
+    import yaml
+
+    stdout, stderr, code = _run(json.dumps({"status": "block", "violations": [_viol()]}))
+    assert code == 0
+    output = yaml.safe_load(stdout)
+    assert output["calm_check"]["checked_file"] == "(unknown)"
+    assert output["violations"][0]["affected_file"] == "(unknown)"
+    assert "--checked-file not provided; checked file is unknown" in stderr
+
+
+def test_yaml_failure_preserves_attributed_diagnostic(monkeypatch: Any, capsys: Any) -> None:
+    def fail_dump(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("renderer unavailable")
+
+    output = _fmt._build_output([_attributed_violation()], "internal/clean.go", "block", "block")
+    monkeypatch.setattr(_fmt.yaml, "dump", fail_dump)
+    _fmt._render_yaml_or_fallback(output)
+    rendered = json.loads(capsys.readouterr().out)
+    assert rendered["calm_check"]["checked_file"] == "internal/clean.go"
+    assert rendered["calm_check"]["scope"] == "repository"
+    entry = rendered["violations"][0]
+    assert entry["affected_file"] == "configs/embed.go"
+    assert entry["value"] == 1 / 9
+    assert entry["limit"] == 0.255

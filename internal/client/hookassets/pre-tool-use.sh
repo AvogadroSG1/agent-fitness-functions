@@ -207,12 +207,12 @@ validate_proposal() {
   case "$status" in
     block)
       printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
-        --mode "$status" --file "$file" >&2 || true
+        --mode "$status" --checked-file "$file" >&2 || true
       return 2
       ;;
     advisory)
       printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
-        --mode "$status" --file "$file" >&2 || true
+        --mode "$status" --checked-file "$file" >&2 || true
       ;;
     pass)
       ;;

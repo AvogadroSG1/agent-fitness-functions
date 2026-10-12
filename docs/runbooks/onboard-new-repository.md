@@ -407,6 +407,23 @@ absolute paths. `doctor` verifies the resolved script actually exists on disk, s
 fresh clone that has the entries but not the scripts fails honestly instead of
 false-passing.
 
+Hook diagnostics distinguish `calm_check.checked_file` (the submitted proposal)
+from each violation's `affected_file` (the file that actually failed). A block
+response has `calm_check.scope: repository` because it includes outstanding
+repository findings; an advisory response has scope `file`. Missing attribution
+is shown as `"(unknown)"`, never replaced by the checked path. Rounded
+`result`/`target` remain human-readable; raw `value`/`limit`, function, interface,
+CALM node, message, and any source-kind marker retain the server's evidence.
+If YAML rendering fails, the formatter prints the complete diagnostic as JSON.
+
+Within one pre-commit run, identical findings are displayed once using a temporary
+cache removed on exit. Every staged supported file is still validated wet, even
+after a block or when its response adds no displayed finding. Cache failures may
+repeat diagnostics but do not change verdicts. Any block keeps the commit blocked:
+when a repair clears the last outstanding findings after an earlier check blocked,
+the first attempt can still fail; repeat the unchanged commit once state is clear.
+Pre-push and pre-tool-use do not share this commit-run display cache.
+
 ### Portable vs per-machine artifacts
 
 Onboarding produces two kinds of artifacts. Committing the portable ones is safe and

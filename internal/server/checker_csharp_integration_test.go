@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -170,5 +171,23 @@ public class Consumer : WidgetBase<Widget>
 	body := postCheckForLanguage(t, server.URL, repoRoot, "Consumer.cs", "csharp", source)
 	if body.Status != fitness.StatusPass || body.Warming || len(body.Violations) != 0 {
 		t.Fatalf("response = %+v, want a synchronous pass with project-local generic import used", body)
+	}
+	dirty := postCheckForLanguage(t, server.URL, repoRoot, "Consumer.cs", "csharp", "using System.Text;\n"+source)
+	if dirty.Status != fitness.StatusBlock || dirty.Warming || len(dirty.Violations) != 1 {
+		t.Fatalf("dirty response = %+v, want one synchronous unused-import blocker", dirty)
+	}
+	finding := dirty.Violations[0]
+	if finding.FitnessFunction != "dependency_discipline" || finding.File != "Consumer.cs" || finding.Value != 0.5 || finding.Limit != 0.8 {
+		t.Fatalf("finding = %+v, want Consumer.cs dependency discipline 0.5/0.8", finding)
+	}
+	if !strings.Contains(finding.Message, "Text") || strings.Contains(finding.Message, "Domain") {
+		t.Fatalf("message = %q, want unused Text only, not the used generic namespace", finding.Message)
+	}
+	clean := postCheckForLanguage(t, server.URL, repoRoot, "Consumer.cs", "csharp", source)
+	if clean.Status != fitness.StatusPass || clean.Warming || len(clean.Violations) != 0 {
+		t.Fatalf("clean response = %+v, want synchronous pass clearing the wet finding", clean)
+	}
+	if violations := waitForStateViolations(t, server.URL, "repo-one", 0); len(violations) != 0 {
+		t.Fatalf("state = %+v, want the Consumer.cs finding cleared", violations)
 	}
 }
