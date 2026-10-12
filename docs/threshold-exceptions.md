@@ -21,6 +21,100 @@ Generated from baseline reports on 2026-05-18. These existing results exceed or 
 | SlackStatus | csharp | 2 | 1 | 6 | 6 | 45 |
 | StackOverflow.Api.V3 | csharp | 23 | 31 | 7 | 31 | 205 |
 
+## Immutable imported behavioral contracts — blocking policy hold (aff-80k)
+
+This is an explicitly human-approved policy hold, not an executable exception
+registry. On 2026-10-12 the human direction was: “I agree with keeping blocking
+and making our notice more actionable.” That direction authorizes retaining
+genuine findings under existing enforcement while protecting imported contract
+bytes and behavior. It does not authorize snapshot migration, accepted
+deviations, exclusions, metric changes, ledger resets, hook bypasses, or
+Observatory commit authorization.
+
+The independently inspected evidence identities are:
+
+- Repository: `observatory`.
+- Historical commit: `84f0cc1241962dd1f8e386bd5f72eb505a26ccfb`.
+- Durable path:
+  `data-pipeline/tests/test_durable_embedding_attempt_claims.py`.
+- Protected durable SHA256:
+  `8f4469496673eb01e052c82820ff3c6eccd7eb0fd34a53b501305b5188ec8a08`.
+- Durable current-checkout SHA256 observed during planning:
+  `4aaf0b205acc844dd06c1464beb53318299c33378db745387cb680da761c1e61`.
+  It does not match the protected artifact. Do not restore that file, adopt
+  its digest as a new baseline, or assert that its reorganization was approved.
+- Separately protected V12 path:
+  `data-pipeline/tests/integration/test_retrieval_v12_lexical_fallback.py`;
+  SHA256
+  `7cf02389f203e7125a4e39ed1748d4c7a9a9d8e0e2c9ec7a4a59821c78438360`
+  matches both the historical commit and the inspected checkout. No V12
+  findings are supplied by aff-80k; this section does not invent any or fold
+  V12 into the durable-suite disposition.
+- `data-pipeline/pyproject.toml:164–181` in the inspected Observatory checkout
+  still requires V12 byte identity and durable byte identity apart from the
+  approved ADR renumber. Its type-checker overrides are not AFF governance
+  permissions.
+
+All rows below refer to the durable path and
+`calm_node: test_durable_embedding_claims`. Every disposition is **retained
+blocking policy hold; no waiver**. The reported values and limits are
+report-time measurements. The assertion-excluded Radon column is diagnostic
+only.
+
+| Fitness function | Function/surface | Reported value | Limit | Diagnostic-only assertion-excluded Radon score |
+|---|---|---:|---:|---:|
+| `interface_width` | module | 94 | 20 | not applicable |
+| `cyclomatic_complexity` | `_exercise_absent_pointer_publication_race` | 14 | 9 | 3 |
+| `cyclomatic_complexity` | `_require_claim` | 18 | 9 | 18 |
+| `cyclomatic_complexity` | `embed_documents` | 13 | 9 | 13 |
+| `cyclomatic_complexity` | `test_determinate_failure_affects_only_its_own_claim` | 13 | 9 | 1 |
+| `cyclomatic_complexity` | `test_failed_or_stale_requires_explicit_resume_and_increments_generation` | 11 | 9 | 1 |
+| `cyclomatic_complexity` | `test_loader_success_returns_exact_1200_row_immutable_capture` | 11 | 9 | 1 |
+| `cyclomatic_complexity` | `test_persistence_failures_reread_durable_ready_failed_running_counts` | 10 | 9 | 2 |
+| `cyclomatic_complexity` | `test_sql_claim_initial_pending_is_executable_and_commits_before_provider` | 12 | 9 | 1 |
+| `cyclomatic_complexity` | `test_sql_failure_persistence_requires_running_claim_contract` | 11 | 9 | 3 |
+| `cyclomatic_complexity` | `test_sql_success_persistence_requires_exact_running_claim_identity` | 10 | 9 | 3 |
+| `cyclomatic_complexity` | `test_undeclared_provider_exception_is_indeterminate_and_never_replayed` | 16 | 9 | 1 |
+
+The 11 complexity scores are genuine under AFF's assertion-inclusive Radon
+definition. Radon 6.0.1 adds one for an `assert`; that is not necessarily an
+explicit source-level conditional branch. The comparison column was obtained
+read-only from the historical blob using `cc_visit(source, no_assert=True)`.
+It is diagnostic only, not an AFF score or a new definition of
+“control-flow-only” complexity. Nine functions fall to 1–3, but
+`ClaimRepository._require_claim` and `ClaimAwareProvider.embed_documents`
+remain 18 and 13. Ignoring assertions would not resolve the whole conflict.
+
+Width 94 is the historical flat-module measurement. Current AFF Python width
+is per declared lexical interface, as documented in engineering-spec §5.2 and
+implemented by `_InterfaceVisitor` / `InterfaceWidth`. An auxiliary AST
+inventory of the original blob found 66 direct public module function names
+and a largest class surface of 12; this is not an end-to-end AFF verdict. Do
+not report 94 as a freshly reproduced current scoped width or claim that the
+scope correction makes the original suite pass.
+
+The issue's 651 retained case identities and 1460 unit / 344 PostgreSQL
+passing results are report-time evidence, not new executions. This record
+does not edit, remove, rename, weaken, or reorganize those cases, and does
+not import the old suite into AFF's permanent fixture population merely to
+demonstrate wording.
+
+The tracked `configs/observatory/config.json` is advisory/advisory, while the
+issue reports a blocking hook under its active governance deployment. This
+section does not deploy or rewrite that config. A blocking policy hold is a
+human disposition, not a new runtime status or an instruction to change
+advisory routing. Any deployed block remains blocking; this record never
+overrides the deployed verdict.
+
+`Observatory-nemz` and `Observatory-z37t` identify downstream history.
+`Observatory-z37t` was observed closed without a documented policy-resolution
+reason; this record does not reopen, edit, or interpret that closure as
+approval.
+
+See the operator procedure in
+[Immutable imported behavioral contracts](runbooks/onboard-new-repository.md#immutable-imported-behavioral-contracts).
+
+
 ## Generalized Fitness Functions — Detection Scope and Known Gaps
 
 The four generalized functions (`layer-sovereignty`, `temporal-purity`,

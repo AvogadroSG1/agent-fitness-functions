@@ -40,6 +40,12 @@ _PYTHON_EXPORT_FACADE_GUIDANCE: dict[str, Any] = {
     ],
 }
 
+_IMMUTABLE_CONTRACT_REMEDIATION: tuple[str, ...] = (
+    "If this is an immutable imported behavioral contract, do not refactor the snapshot for metric compliance; retain the verdict and escalate to the governance policy owner.",
+    "Attach repository/path, import provenance and expected/current SHA256, affected function/interface, raw value/limit, analyzer/build identity, and behavioral-case preservation evidence. Follow the operator reference: docs/runbooks/onboard-new-repository.md#immutable-imported-behavioral-contracts.",
+    "Do not change thresholds or enforcement, exclude the file, bypass hooks, reset outstanding findings, or claim commit readiness.",
+)
+
 
 def _load_guidance() -> dict[str, dict[str, Any]]:
     """Return per-fitness-function guidance.
@@ -53,16 +59,15 @@ def _load_guidance() -> dict[str, dict[str, Any]]:
         "cyclomatic-complexity": {
             "operator": "<=",
             "meaning": (
-                "Too many conditional branches make this function hard to test, "
-                "review, and reason about. Each branch is an independent execution "
-                "path through the function."
+                "Cyclomatic complexity reflects analyzer-counted decision points, not simply "
+                "the number of source-level conditional branches. Python/Radon counts assert "
+                "statements, so straight-line outcome checks can increase the score. The "
+                "configured complexity ceiling still applies."
             ),
             "remediation": [
-                "Extract each conditional branch into a named helper function.",
-                "Replace complex boolean conditions with named predicates "
-                "(e.g. is_expired instead of time.Now().After(x)).",
-                "Use early returns (guard clauses) to flatten nested if/else chains.",
-                "Aim for each function to do one thing — one reason to change.",
+                "For mutable code, simplify decision logic or extract cohesive behavior while preserving outcomes and checks.",
+                "Do not remove assertions or replace them with if/raise merely to lower the metric.",
+                *_IMMUTABLE_CONTRACT_REMEDIATION,
             ],
         },
         "interface-width": {
@@ -72,11 +77,8 @@ def _load_guidance() -> dict[str, dict[str, Any]]:
                 "surface area that is hard to understand, mock, and maintain."
             ),
             "remediation": [
-                "Split the containing interface by cohesion — group related operations into "
-                "separate interfaces.",
-                "Consolidate related operations behind a single higher-level method.",
-                "Consider whether some public methods should be internal.",
-                "Reduce the public surface area to what callers actually need.",
+                "For mutable code, split the containing interface by cohesion or reduce unnecessary public operations while preserving required callers.",
+                *_IMMUTABLE_CONTRACT_REMEDIATION,
             ],
         },
         "implementation-depth": {

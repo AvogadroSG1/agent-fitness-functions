@@ -570,6 +570,10 @@ func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm
 		return nil
 	}
 	violations := make([]fitness.Violation, 0)
+	assertionNote := ""
+	if result.Language == "python" {
+		assertionNote = " Python/Radon includes assert statements in this score."
+	}
 	for _, function := range result.Functions {
 		value := float64(function.CyclomaticComplexity)
 		if value <= rule.Threshold {
@@ -583,11 +587,12 @@ func cyclomaticComplexityViolations(result analyzer.AnalysisResult, pattern calm
 			Value:           value,
 			Limit:           rule.Threshold,
 			Message: fmt.Sprintf(
-				"Function %q in module %q has cyclomatic complexity %d, exceeding the limit of %.0f. Extract conditional branches into separate functions.",
+				"Function %q in module %q has cyclomatic complexity %d, exceeding the limit of %.0f. The score reflects analyzer-counted decision points, not a count of source-level conditional branches.%s For mutable code, simplify decision logic or extract cohesive behavior without weakening checks. For an immutable imported contract, preserve the snapshot and refer this finding to the governance policy owner; the verdict remains unchanged.",
 				function.Name,
 				result.CALMNode,
 				function.CyclomaticComplexity,
 				rule.Threshold,
+				assertionNote,
 			),
 		})
 	}
@@ -614,13 +619,13 @@ func interfaceWidthViolations(result analyzer.AnalysisResult, pattern calm.Patte
 			}
 			if record.Kind == "module" {
 				violation.Message = fmt.Sprintf(
-					"Module '%s' exposes %d public methods, exceeding the limit of %.0f. Consolidate related operations or reduce the public surface area.",
+					"Module '%s' exposes %d public methods, exceeding the limit of %.0f. For mutable code, split the containing interface by cohesion or reduce unnecessary public operations. For an immutable imported contract, preserve the snapshot and refer this finding to the governance policy owner; the verdict remains unchanged.",
 					result.CALMNode, record.PublicMethods, rule.Threshold,
 				)
 			} else {
 				violation.Interface = record.Name
 				violation.Message = fmt.Sprintf(
-					"Interface '%s' in module '%s' (line %d) exposes %d public methods, exceeding the limit of %.0f. Consolidate related operations or reduce the public surface area.",
+					"Interface '%s' in module '%s' (line %d) exposes %d public methods, exceeding the limit of %.0f. For mutable code, split the containing interface by cohesion or reduce unnecessary public operations. For an immutable imported contract, preserve the snapshot and refer this finding to the governance policy owner; the verdict remains unchanged.",
 					record.Name, result.CALMNode, record.Line, record.PublicMethods, rule.Threshold,
 				)
 			}
@@ -639,7 +644,7 @@ func interfaceWidthViolations(result analyzer.AnalysisResult, pattern calm.Patte
 		Value:           float64(result.ModuleMetric.PublicMethods),
 		Limit:           rule.Threshold,
 		Message: fmt.Sprintf(
-			"Module '%s' exposes %d public methods, exceeding the limit of %.0f. Consolidate related operations or reduce the public surface area.",
+			"Module '%s' exposes %d public methods, exceeding the limit of %.0f. For mutable code, split the containing interface by cohesion or reduce unnecessary public operations. For an immutable imported contract, preserve the snapshot and refer this finding to the governance policy owner; the verdict remains unchanged.",
 			result.CALMNode,
 			result.ModuleMetric.PublicMethods,
 			rule.Threshold,

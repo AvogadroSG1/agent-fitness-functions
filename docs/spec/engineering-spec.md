@@ -169,7 +169,7 @@ The commit-path hooks (`pre-commit`, `pre-push`) are deliberately **not** dry ru
       "function": "Parse",
       "value": 14,
       "limit": 10,
-      "message": "Function 'Parse' has cyclomatic complexity 14, exceeding the limit of 10. Extract conditional branches into separate functions."
+      "message": "Function \"Parse\" in module \"internal/parser\" has cyclomatic complexity 14, exceeding the limit of 10. The score reflects analyzer-counted decision points, not a count of source-level conditional branches. For mutable code, simplify decision logic or extract cohesive behavior without weakening checks. For an immutable imported contract, preserve the snapshot and refer this finding to the governance policy owner; the verdict remains unchanged."
     }
   ]
 }
@@ -344,7 +344,11 @@ Each test repository MUST contain a `.calm/config.json` at its root. See Section
 
 ### 5.1 Cyclomatic Complexity
 
-**What it measures:** The number of linearly independent paths through a function — a proxy for logical complexity and testability.
+**What it measures:** Analyzer-counted decision points, a proxy for logical
+complexity and testability rather than a literal count of source-level
+conditional branches. Python/Radon 6.0.1 includes `assert` statements in this
+score, so straight-line outcome checks can increase it without adding an
+explicit source-level conditional.
 
 **Unit of analysis:** Per-function. Violations aggregate to the CALM node (module) in the architecture document.
 
@@ -367,7 +371,7 @@ Each test repository MUST contain a `.calm/config.json` at its root. See Section
 **Tooling:** `radon cc -j` (Python), `gocyclo` library (Go), Roslyn analyzer (C#).
 
 **Violation message:**
-> `Function 'X' in module 'Y' has cyclomatic complexity N, exceeding the limit of T. Extract conditional branches into separate functions.`
+> `Function "X" in module "Y" has cyclomatic complexity N, exceeding the limit of T. The score reflects analyzer-counted decision points, not a count of source-level conditional branches. For mutable code, simplify decision logic or extract cohesive behavior without weakening checks. For an immutable imported contract, preserve the snapshot and refer this finding to the governance policy owner; the verdict remains unchanged.`
 
 ---
 
@@ -415,6 +419,15 @@ threshold relaxation.
 
 For a Python class or protocol, the diagnostic identifies that containing
 interface rather than attributing its operations to the module.
+
+For immutable imported behavioral contracts, do not refactor the snapshot for
+metric compliance. Preserve its bytes and behavior, assemble the provenance,
+hash, raw finding, analyzer/build, and retained behavioral-case evidence packet,
+and refer it to the governance policy owner using the
+[immutable imported behavioral contracts procedure](../runbooks/onboard-new-repository.md#immutable-imported-behavioral-contracts).
+This preserves the deployed verdict and outstanding findings; it is not a
+threshold change, exclusion, hook bypass, ledger reset, or commit-readiness
+authorization.
 
 **Rule B — Implementation Depth Floor**
 
