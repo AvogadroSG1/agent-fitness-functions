@@ -155,6 +155,14 @@ handle_infra_error() {
   fi
 }
 
+seen_args=()
+if seen_file=$(mktemp); then
+  tmp_files+=("$seen_file")
+  seen_args=(--seen-file "$seen_file")
+else
+  echo "agent-fitness-functions: could not create diagnostic cache; continuing without deduplication" >&2
+fi
+
 while IFS= read -r -d '' file; do
   if ! language=$(language_for_file "$file"); then
     continue
@@ -207,12 +215,12 @@ while IFS= read -r -d '' file; do
   case "$status" in
     block)
       printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
-        --mode "$status" --file "$file" >&2 || true
+        --mode "$status" --checked-file "$file" ${seen_args[@]+"${seen_args[@]}"} >&2 || true
       blocked=1
       ;;
     advisory)
       printf '%s' "$result" | python3 "$(dirname "${BASH_SOURCE[0]}")/format-violations.py" \
-        --mode "$status" --file "$file" >&2 || true
+        --mode "$status" --checked-file "$file" ${seen_args[@]+"${seen_args[@]}"} >&2 || true
       ;;
     pass)
       ;;

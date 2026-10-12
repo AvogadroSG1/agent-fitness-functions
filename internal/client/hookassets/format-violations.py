@@ -3,7 +3,7 @@
 
 Usage:
   agent-fitness-functions client validate ... | python3 hooks/format-violations.py \
-      --mode <block|advisory> --file <relative/path>
+      --mode <block|advisory> --checked-file <relative/path>
 """
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import argparse
 import json
 import sys
 from typing import Any
+from pathlib import Path
 
 try:
     import yaml
@@ -253,8 +254,14 @@ def _make_violation_entry(
         "mode": mode_label,
         "result": format_value(value),
         "target": f"{operator} {format_value(limit)}",
+        "affected_file": v.get("file") or "(unknown)",
+        "value": value,
+        "limit": limit,
     }
     entry.update(source_fields)
+    for field in ("function", "interface", "calm_node", "message", "source_kind", "rule"):
+        if field in v:
+            entry[field] = v[field]
     location = _violation_location(fn, v)
     if location:
         entry["location"] = location
@@ -285,7 +292,7 @@ def _try_make_violation_entry(
 
 def _build_output(
     violations: list[dict[str, Any]],
-    file: str,
+    checked_file: str,
     mode: str,
     status: str,
 ) -> dict[str, Any] | None:
@@ -293,7 +300,7 @@ def _build_output(
 
     Returns None when there are no processable violations.
     Key order is intentional — agent reads top to bottom:
-    context (file, status) before action items (violations).
+    context (checked file, scope, status) before action items (violations).
     """
     if not violations:
         return None
@@ -311,7 +318,8 @@ def _build_output(
 
     return {
         "calm_check": {
-            "file": file or "(unknown)",
+            "checked_file": checked_file or "(unknown)",
+            "scope": "repository" if status == "block" else "file",
             "status": status,
         },
         "violations": entries,
@@ -341,19 +349,24 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Enforcement mode (block or advisory)",
     )
     parser.add_argument(
-        "--file",
+        "--checked-file",
         default=None,
         type=str,
-        help="Relative source file path for the YAML header",
+        help="Relative source file path that triggered validation",
+    )
+    parser.add_argument(
+        "--seen-file",
+        default=None,
+        help="Temporary diagnostic cache for this commit run",
     )
     return parser
 
 
-def _warn_if_file_missing(file_arg: str | None) -> None:
-    """Log a warning when --file was not supplied."""
-    if not file_arg:
+def _warn_if_checked_file_missing(checked_file_arg: str | None) -> None:
+    """Log a warning when --checked-file was not supplied."""
+    if not checked_file_arg:
         print(
-            "format-violations: --file not provided; file path will be empty",
+            "format-violations: --checked-file not provided; checked file is unknown",
             file=sys.stderr,
         )
 
@@ -388,20 +401,13 @@ def _extract_status_and_violations(
     return status, violations_raw
 
 
-def _print_plain_fallback(status: str, violations_raw: list[Any]) -> None:
-    """Degraded fallback: plain-text summary so the hook does not block."""
-    print("calm_check:", file=sys.stdout)
-    print(f"  status: {status}", file=sys.stdout)
-    print("  violations:", file=sys.stdout)
-    for v in violations_raw:
-        fn = v.get("fitness_function", "unknown") if isinstance(v, dict) else "unknown"
-        print(f"    - {fn}", file=sys.stdout)
+def _print_plain_fallback(output: dict[str, Any]) -> None:
+    """Retain the complete diagnostic when YAML rendering fails."""
+    print(json.dumps(output, indent=2, ensure_ascii=False))
 
 
-def _render_yaml_or_fallback(
-    output: dict[str, Any], violations_raw: list[Any], status: str
-) -> None:
-    """Print the YAML report, falling back to plain text if yaml.dump fails."""
+def _render_yaml_or_fallback(output: dict[str, Any]) -> None:
+    """Print the YAML report, falling back to structured JSON if yaml.dump fails."""
     try:
         # sort_keys=False: preserve insertion order — agent reads top to bottom
         result = yaml.dump(
@@ -413,12 +419,72 @@ def _render_yaml_or_fallback(
         print(result)
         sys.stdout.flush()
     except Exception as exc:  # noqa: BLE001
-        _print_plain_fallback(status, violations_raw)
+        _print_plain_fallback(output)
         print(
-            f"format-violations: yaml.dump failed ({exc}); used plain-text fallback",
+            f"format-violations: yaml.dump failed ({exc}); used JSON fallback",
             file=sys.stderr,
         )
         sys.stdout.flush()
+
+
+def _diagnostic_key(entry: dict[str, Any], status: str, checked_file: str) -> str:
+    """Identify the raw finding, not its rounded display or triggering file."""
+    components = [
+        status, entry["fitness_function"], entry["affected_file"],
+        *(entry.get(field, "") for field in (
+            "function", "interface", "calm_node", "rule", "value", "limit",
+            "source_kind", "message",
+        )),
+    ]
+    if entry["affected_file"] == "(unknown)":
+        components.append(checked_file)
+    return json.dumps(components, ensure_ascii=False, separators=(",", ":"))
+
+
+def _read_seen(path: str) -> set[str] | None:
+    """A damaged cache must never suppress a diagnostic."""
+    try:
+        try:
+            text = Path(path).read_text()
+        except FileNotFoundError:
+            return set()
+        if not text.strip():
+            return set()
+        keys = json.loads(text)
+        if not isinstance(keys, list):
+            raise ValueError("expected a JSON array")
+        for key in keys:
+            if not isinstance(key, str):
+                raise ValueError("expected JSON-string keys")
+            components = json.loads(key)
+            if not isinstance(components, list) or len(components) not in (11, 12):
+                raise ValueError("invalid diagnostic key")
+        return set(keys)
+    except (OSError, ValueError) as exc:
+        print(f"format-violations: cannot read seen-file {path!r}: {exc}", file=sys.stderr)
+        return None
+
+
+def _write_seen(path: str, keys: set[str]) -> None:
+    """Persist only after rendering; write failures permit repeats, not loss."""
+    try:
+        Path(path).write_text(json.dumps(sorted(keys), ensure_ascii=False))
+    except OSError as exc:
+        print(f"format-violations: cannot write seen-file {path!r}: {exc}", file=sys.stderr)
+
+
+def _filter_unseen(output: dict[str, Any], seen: set[str]) -> set[str]:
+    """Keep first encounters in response order and return newly displayed keys."""
+    new_keys: set[str] = set()
+    entries = []
+    context = output["calm_check"]
+    for entry in output["violations"]:
+        key = _diagnostic_key(entry, context["status"], context["checked_file"])
+        if key not in seen and key not in new_keys:
+            entries.append(entry)
+            new_keys.add(key)
+    output["violations"] = entries
+    return new_keys
 
 
 def main() -> None:
@@ -427,7 +493,7 @@ def main() -> None:
 
     parser = _build_arg_parser()
     args = parser.parse_args()
-    _warn_if_file_missing(args.file)
+    _warn_if_checked_file_missing(args.checked_file)
 
     payload = _read_payload()
 
@@ -439,14 +505,21 @@ def main() -> None:
 
         output = _build_output(
             violations=violations_raw,
-            file=args.file or "",
+            checked_file=args.checked_file or "",
             mode=args.mode,
             status=status,
         )
         if output is None:
             sys.exit(0)
 
-        _render_yaml_or_fallback(output, violations_raw, status)
+        seen = _read_seen(args.seen_file) if args.seen_file else None
+        new_keys = _filter_unseen(output, seen) if seen is not None else set()
+        if not output["violations"]:
+            return
+        _render_yaml_or_fallback(output)
+        sys.stdout.flush()
+        if seen is not None:
+            _write_seen(args.seen_file, seen | new_keys)
 
     except Exception as exc:  # noqa: BLE001
         print(f"format-violations: unexpected error: {exc}", file=sys.stderr)

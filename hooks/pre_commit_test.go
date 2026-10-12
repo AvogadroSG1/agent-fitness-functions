@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -92,6 +93,152 @@ func TestInstalledPreCommitLocalRepoNameUsesIndex(t *testing.T) {
 			}
 			if _, err := os.Lstat(filepath.Join(repo, "logical-governance-key")); !os.IsNotExist(err) {
 				t.Fatalf("logical-name child exists or cannot be inspected: %v", err)
+			}
+		})
+	}
+}
+
+func TestInstalledPreCommitDeduplicatesRepositoryViolations(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	for _, name := range []string{
+		"AGENT_FITNESS_FUNCTIONS_HOOK_APPEND",
+		"AGENT_FITNESS_FUNCTIONS_DEV_CERT_DIR",
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CERT",
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_KEY",
+		"AGENT_FITNESS_FUNCTIONS_CLIENT_CA",
+		"AGENT_FITNESS_FUNCTIONS_ALLOW_REMOTE",
+	} {
+		t.Setenv(name, "")
+	}
+
+	fitnessBin := buildFitnessBin(t)
+	for _, affectedFiles := range [][]string{
+		{"configs/embed.go"},
+		{"configs/embed.go", "internal/other.go"},
+	} {
+		t.Run(strings.Join(affectedFiles, "+"), func(t *testing.T) {
+			repo := initGitRepo(t)
+			runGit(t, repo, "config", "user.name", "Hook Fixture")
+			runGit(t, repo, "config", "user.email", "hook-fixture@example.invalid")
+			const stagedContent = "package proof\nfunc Value() int { return 1 }\n"
+			staged := map[string]string{
+				"cmd/proof/main.go":       stagedContent,
+				"internal/alpha/clean.go": stagedContent,
+				"internal/beta/clean.go":  stagedContent,
+			}
+			for file, content := range staged {
+				writeFile(t, filepath.Join(repo, file), content)
+				runGit(t, repo, "add", file)
+			}
+
+			violation := func(file, function, calmNode, sourceKind string) fitness.Violation {
+				return fitness.Violation{
+					FitnessFunction: "logic_density",
+					File:            file,
+					Function:        function,
+					CALMNode:        calmNode,
+					SourceKind:      sourceKind,
+					Value:           1.0 / 9.0,
+					Limit:           0.255,
+					Message:         "logic density is below the configured minimum",
+				}
+			}
+			findings := make([]fitness.Violation, 0, len(affectedFiles))
+			for _, file := range affectedFiles {
+				findings = append(findings, violation(file, "", "configs", ""))
+			}
+			responses := []fitness.ValidationResult{
+				{Status: fitness.StatusBlock, Violations: findings},
+				{Status: fitness.StatusBlock, Violations: findings},
+				{Status: fitness.StatusPass},
+			}
+			requests := make(chan fitness.ValidationRequest, 16)
+			var requestMu sync.Mutex
+			requestIndex := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/health":
+					w.WriteHeader(http.StatusOK)
+				case "/check":
+					var request fitness.ValidationRequest
+					if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+						t.Errorf("decode check request: %v", err)
+						http.Error(w, "invalid request", http.StatusBadRequest)
+						return
+					}
+					requests <- request
+					requestMu.Lock()
+					index := requestIndex
+					requestIndex++
+					requestMu.Unlock()
+					if index >= len(responses) {
+						http.Error(w, "unexpected extra check request", http.StatusInternalServerError)
+						return
+					}
+					w.Header().Set("Content-Type", "application/json")
+					if err := json.NewEncoder(w).Encode(responses[index]); err != nil {
+						t.Errorf("encode check response: %v", err)
+					}
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+			if err := client.RunInstallHooks([]string{repo}, io.Discard, io.Discard); err != nil {
+				t.Fatalf("install hooks: %v", err)
+			}
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_BIN", fitnessBin)
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_ADDR", server.URL)
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_REPO_NAME", "dedup-fixture")
+			t.Setenv("AGENT_FITNESS_FUNCTIONS_ON_ERROR", "block")
+
+			command := exec.Command("git", "commit", "-m", "deduplicated repository findings")
+			command.Dir = repo
+			output, err := command.CombinedOutput()
+			exit, ok := err.(*exec.ExitError)
+			if !ok || exit.ExitCode() != 1 {
+				t.Fatalf("commit error = %v, want exit 1; output=%s", err, output)
+			}
+
+			received := make([]fitness.ValidationRequest, 0, len(staged))
+			for {
+				select {
+				case request := <-requests:
+					received = append(received, request)
+				default:
+					goto drained
+				}
+			}
+		drained:
+			if len(received) != len(staged) {
+				t.Fatalf("received %d validation requests, want %d", len(received), len(staged))
+			}
+			for _, request := range received {
+				want, ok := staged[request.File]
+				if !ok {
+					t.Fatalf("unexpected checked file %q in request %+v", request.File, request)
+				}
+				if request.Repo != "dedup-fixture" || request.Language != "go" {
+					t.Errorf("request for %s = repo %q, language %q; want dedup-fixture/go", request.File, request.Repo, request.Language)
+				}
+				if request.ProposedContent != want {
+					t.Errorf("proposal for %s = %q, want %q", request.File, request.ProposedContent, want)
+				}
+				if request.DryRun {
+					t.Errorf("request for %s was dry-run, want wet validation", request.File)
+				}
+				delete(staged, request.File)
+			}
+			if len(staged) != 0 {
+				t.Fatalf("missing validation requests for %v", staged)
+			}
+
+			text := string(output)
+			for _, affected := range affectedFiles {
+				if count := strings.Count(text, affected); count != 1 {
+					t.Fatalf("output contains affected file %q %d times, want once:\n%s", affected, count, text)
+				}
 			}
 		})
 	}
