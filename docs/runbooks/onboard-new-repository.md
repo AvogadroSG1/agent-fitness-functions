@@ -424,6 +424,35 @@ when a repair clears the last outstanding findings after an earlier check blocke
 the first attempt can still fail; repeat the unchanged commit once state is clear.
 Pre-push and pre-tool-use do not share this commit-run display cache.
 
+### Immutable imported behavioral contracts
+
+For the audited blocking policy hold, see
+[Immutable imported behavioral contracts — blocking policy hold (aff-80k)](../threshold-exceptions.md#immutable-imported-behavioral-contracts--blocking-policy-hold-aff-80k).
+The following procedure makes a notice actionable without weakening enforcement:
+
+1. Determine mutability from the import or snapshot authority, not filenames,
+   test status, or an agent's assertion that the file is protected.
+2. If the artifact is immutable, preserve the artifact, assertions, test-double
+   seams, imports, and case identities. Do not perform metric-only refactors,
+   remove assertions, or rewrite `assert` as `if`/`raise`.
+3. Assemble an evidence packet containing the repository and affected path;
+   import origin/revision and governing preservation rule; expected and current
+   SHA256; the raw finding's fitness key, CALM node, function or interface,
+   value, limit, and message; AFF build/analyzer identity; and retained
+   behavioral-case/test evidence. Label unavailable identity or missing
+   evidence as unknown. Never substitute the checked proposal path for the
+   affected path.
+4. Refer the packet to the repository's human governance policy owner.
+   Acknowledgment does not waive a finding. Retain the deployed verdict and
+   outstanding findings: no threshold change, advisory/off switch, file
+   exclusion, hook bypass, ledger reset, or commit-readiness claim is
+   authorized.
+5. A digest mismatch, missing original artifact, or unsupported replacement
+   provenance is a separate evidence conflict. Keep the hold, record expected
+   versus observed facts, and request human provenance resolution. Do not
+   repair bytes or accept a new baseline automatically. Later applicability
+   changes require their own explicit approval, not this decision.
+
 ### Portable vs per-machine artifacts
 
 Onboarding produces two kinds of artifacts. Committing the portable ones is safe and
