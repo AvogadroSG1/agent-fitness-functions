@@ -389,11 +389,23 @@ It installs and registers, with zero manual settings authoring:
 - `pre-push` hook at the git-resolved hooks path (via `git rev-parse --git-path hooks/pre-push`) — push-time hook.
 - `agent-fitness-functions-git-guard` at the git-resolved hooks path — blocks bypass commands
   (`--no-verify`, force-push, ff-only merges), registered as a Bash `PreToolUse` entry
-  in `.claude/settings.json` and `.codex/hooks.json`, and intercepted by `.opencode/plugins/agent-fitness-functions.js`.
+  in `.claude/settings.json` and `.codex/hooks.json`, and intercepted by the OpenCode,
+  Pi, and OMP integrations.
 - `agent-fitness-functions-pre-tool-use` (+ `format-violations.py` and `apply-patch-proposals.py`) at the git-resolved hooks path — the
-  agent Edit/Write content-validation hook, registered as an `Edit|Write` `PreToolUse`
-  entry in `.claude/settings.json` and `.codex/hooks.json` (Codex also routes its native `apply_patch` through this matcher; `apply-patch-proposals.py` rebuilds each touched file from the patch), and intercepted by `.opencode/plugins/agent-fitness-functions.js`.
-- `.opencode/plugins/agent-fitness-functions.js` — the native OpenCode plugin intercepting tool execution via `tool.execute.before`.
+  Claude/Codex `Edit|Write` content-validation hook, registered as an `Edit|Write`
+  `PreToolUse` entry in `.claude/settings.json` and `.codex/hooks.json` (Codex also
+  routes its native `apply_patch` through this matcher; `apply-patch-proposals.py`
+  rebuilds each touched file from the patch), and dispatched by the OpenCode plugin.
+- `.opencode/plugins/agent-fitness-functions.js` — the OpenCode plugin intercepting
+  tool execution via `tool.execute.before`.
+- `.pi/extensions/agent-fitness-functions/index.ts` and its
+  `native-checker.mjs` helper — the Pi native extension intercepting `edit`, `write`,
+  and `bash` tool calls.
+- `.omp/extensions/agent-fitness-functions/index.ts` and its
+  `native-checker.mjs` helper — the OMP native extension intercepting `edit`, `write`,
+  and `bash` tool calls. OMP is forced into strict literal replace mode with fuzzy
+  matching disabled; unsupported patch-style edits are blocked rather than validated
+  against an ambiguous proposal.
 
 Both `.claude/settings.json` and `.codex/hooks.json` entries are upserted idempotently, preserving non-product hooks (such as `PreCompact`). If the repo already has
 unrelated Git hooks the installer refuses to overwrite them; set
@@ -851,8 +863,9 @@ hides a missing dependency), each with a `→` remediation on failure:
     `dry_run: true`, so the probe computes a real verdict but never persists into the
     repository's outstanding-violation state (`calm-poc-cpvk`).
 14. `git pre-commit hook`, `git pre-push hook`, `agent git-guard hook` (required),
-    `agent Edit/Write hook (optional)`, `codex PreToolUse hooks (optional)`, and
-    `opencode plugin (optional)` (advisories `⚠` if absent).
+    `agent Edit/Write hook (optional)`, `codex PreToolUse hooks (optional)`,
+    `opencode plugin (optional)`, `pi extension (optional)`, and `omp extension
+    (optional)` (advisories `⚠` if absent).
 15. `legacy repo-local certs` and `config sync` — remaining pre-ADR-0007 artifacts,
     and whether the repo-local config matches the copy in the governance root.
 

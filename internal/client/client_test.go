@@ -443,6 +443,9 @@ func TestEmbeddedHookAssetsMatchAuthoritativeHooks(t *testing.T) {
 		"format-violations.py",
 		"apply-patch-proposals.py",
 		"opencode-plugin.js",
+		"native-checker.mjs",
+		"pi-extension.ts",
+		"omp-extension.ts",
 	} {
 		authoritative, err := os.ReadFile(filepath.Join(hooksDir, name))
 		if err != nil {

@@ -281,7 +281,8 @@ func RunCheck(args []string, stdout io.Writer, httpClient *http.Client, starter 
 	return writeValidationResult(stdout, opts.format, opts.repo, body)
 }
 
-// RunInstallHooks installs embedded Git and Claude hooks into a repository.
+// RunInstallHooks installs the embedded Git hooks, agent hook integrations, and
+// native Pi/OMP extensions into a repository.
 func RunInstallHooks(args []string, stdout, stderr io.Writer) error {
 	if len(args) > 1 {
 		return usageError{err: errors.New("client install-hooks accepts at most one repository argument")}
@@ -311,7 +312,10 @@ func RunInstallHooks(args []string, stdout, stderr io.Writer) error {
 	if err := installer.installAgentHook(); err != nil {
 		return err
 	}
-	return installer.installOpenCodePlugin()
+	if err := installer.installOpenCodePlugin(); err != nil {
+		return err
+	}
+	return installer.installPiOMPExtensions()
 }
 
 type hookInstaller struct {

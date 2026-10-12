@@ -256,13 +256,21 @@ remote path; the local path needs none of them.
 ## How a coding agent's Edit gets validated
 
 After onboarding, `install-hooks` has registered two `PreToolUse` entries in
-`.claude/settings.json` (and the equivalents in `.codex/hooks.json` and the
-OpenCode plugin): a Bash git-guard (blocks bypass commands) and an `Edit|Write`
-content-validation hook. When the agent proposes an Edit or Write to a `.go`,
-`.py`, or `.cs` file, or a Codex `apply_patch` touching such files (Codex routes
-`apply_patch` through the `Edit|Write` matcher), the hook reconstructs the full
-proposed content of each file, sends it to the governance server via
-`client validate`, and acts on the verdict *before the write lands*:
+`.claude/settings.json` (and the equivalents in `.codex/hooks.json`), plus native
+project extensions for Pi and OMP and the existing OpenCode plugin. The Git guard
+blocks bypass commands in every supported agent integration. The Pi extension
+guards native `edit`, `write`, and `bash` calls; the OMP extension guards native
+`edit`, `write`, and `bash` calls and forces strict literal replacement mode with
+fuzzy matching disabled. Pi requires project trust and enabled extensions; OMP
+discovers the project extension from the governed repository root (or an explicit
+`-e` entry path). Reload existing agent sessions after installation.
+
+For Claude, Codex, and OpenCode, the hook dispatches to the installed scripts.
+When the agent proposes an Edit or Write to a `.go`, `.py`, or `.cs` file, or a
+Codex `apply_patch` touching such files (Codex routes `apply_patch` through the
+`Edit|Write` matcher), the hook reconstructs the full proposed content of each
+file, sends it to the governance server via `client validate`, and acts on the
+verdict *before the write lands*:
 
 | Verdict | What the agent sees |
 |---------|---------------------|

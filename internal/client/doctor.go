@@ -823,12 +823,12 @@ func checkHooksInstalled(cfg doctorConfig) []checkResult {
 		}}
 	}
 	return []checkResult{
-		gitHookResult(cfg.repoRoot, "pre-commit"),
-		gitHookResult(cfg.repoRoot, "pre-push"),
 		gitGuardSettingsResult(cfg.repoRoot),
 		editWriteHookResult(cfg.repoRoot),
 		codexHookResult(cfg.repoRoot),
 		openCodePluginResult(cfg.repoRoot),
+		nativeExtensionResult(cfg.repoRoot, "pi", filepath.Join(".pi", "extensions", hookProductPrefix, "index.ts"), "agent-fitness-functions-pi-extension: managed by agent-fitness-functions client install-hooks"),
+		nativeExtensionResult(cfg.repoRoot, "omp", filepath.Join(".omp", "extensions", hookProductPrefix, "index.ts"), "agent-fitness-functions-omp-extension: managed by agent-fitness-functions client install-hooks"),
 	}
 }
 
@@ -1046,6 +1046,64 @@ func openCodePluginResult(repoRoot string) checkResult {
 		detail: "installed at .opencode/plugins/agent-fitness-functions.js",
 		passed: true,
 	}
+}
+
+func nativeExtensionResult(repoRoot, agent, relativeEntry, marker string) checkResult {
+	name := agent + " extension (optional)"
+	entryPath := filepath.Join(repoRoot, relativeEntry)
+	entry, err := os.ReadFile(entryPath)
+	if err != nil {
+		return checkResult{
+			name:        name,
+			detail:      "extension entry is not installed at " + relativeEntry,
+			remediation: "agent-fitness-functions client install-hooks",
+			warning:     true,
+		}
+	}
+	if !bytes.Contains(entry, []byte(marker)) {
+		return checkResult{
+			name:        name,
+			detail:      "extension entry is unmanaged at " + relativeEntry,
+			remediation: "agent-fitness-functions client install-hooks",
+			warning:     true,
+		}
+	}
+	helperPath := filepath.Join(filepath.Dir(entryPath), "native-checker.mjs")
+	helper, err := os.ReadFile(helperPath)
+	if err != nil || !bytes.Contains(helper, []byte("agent-fitness-functions-native-checker: managed by agent-fitness-functions client install-hooks")) {
+		return checkResult{
+			name:        name,
+			detail:      "shared native-checker.mjs is missing or unmanaged beside " + relativeEntry,
+			remediation: "agent-fitness-functions client install-hooks",
+			warning:     true,
+		}
+	}
+	for _, hookName := range []string{agentHookName, gitGuardName} {
+		hookPath, pathErr := (hookInstaller{repoRoot: repoRoot}).gitHookPath(hookName)
+		if pathErr != nil {
+			return checkResult{
+				name:        name,
+				detail:      "cannot resolve shared " + hookName + " sidecar: " + pathErr.Error(),
+				remediation: "agent-fitness-functions client install-hooks",
+				warning:     true,
+			}
+		}
+		if _, readErr := os.Stat(hookPath); readErr != nil {
+			return checkResult{
+				name:        name,
+				detail:      "shared " + hookName + " sidecar is missing at " + hookPath,
+				remediation: "agent-fitness-functions client install-hooks",
+				warning:     true,
+			}
+		}
+	}
+	detail := fmt.Sprintf("installed at %s; load the trusted project extension and launch %s from the governed repository root; reload existing sessions", relativeEntry, agent)
+	if agent == "pi" {
+		detail += "; Pi project trust and enabled extensions are required"
+	} else {
+		detail += "; OMP project extension discovery is cwd-only (use -e outside the root)"
+	}
+	return checkResult{name: name, detail: detail, passed: true}
 }
 
 // checkLegacyRepoLocalCerts flags the pre-ADR-0007 <repo>/certs/current

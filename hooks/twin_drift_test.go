@@ -19,6 +19,9 @@ func TestHookScriptsAreByteIdenticalToEmbeddedTwins(t *testing.T) {
 		"format-violations.py",
 		"apply-patch-proposals.py",
 		"opencode-plugin.js",
+		"native-checker.mjs",
+		"pi-extension.ts",
+		"omp-extension.ts",
 	} {
 		source, err := os.ReadFile(name)
 		if err != nil {
