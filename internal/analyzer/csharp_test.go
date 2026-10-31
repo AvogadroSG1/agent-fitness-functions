@@ -663,3 +663,43 @@ public sealed class SystemClock
 		t.Fatalf("LDR = %.3f, want 0.4 with comment and blank lines outside the ratio", result.FileMetric.LDR)
 	}
 }
+
+func TestAnalyzeCSharpFileScopesInterfaceWidthPerTypeAndMember(t *testing.T) {
+	cli := buildRoslynAnalyzer(t)
+	dir := t.TempDir()
+	var source strings.Builder
+	source.WriteString("namespace Sample.App;\n\npublic sealed record Session\n{\n")
+	for i := range 11 {
+		fmt.Fprintf(&source, "    public string Field%d { get; init; } = \"\";\n", i)
+	}
+	source.WriteString("}\n\npublic sealed class First\n{\n")
+	for i := range 15 {
+		fmt.Fprintf(&source, "    public int Op%d() => %d;\n", i, i)
+	}
+	source.WriteString("    public int Op0(int value) => value;\n}\n\npublic sealed class Second\n{\n")
+	for i := range 15 {
+		fmt.Fprintf(&source, "    public int Op%d() => %d;\n", i, i)
+	}
+	source.WriteString("    private int Hidden() => 0;\n}\n")
+	sourcePath := filepath.Join(dir, "Contracts.cs")
+	if err := os.WriteFile(sourcePath, []byte(source.String()), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	result, err := AnalyzeCSharpFile(context.Background(), sourcePath, cli)
+	if err != nil {
+		t.Fatalf("AnalyzeCSharpFile returned error: %v", err)
+	}
+	widths := map[string]int{}
+	for _, metric := range result.Interfaces {
+		widths[metric.Name] = metric.PublicMethods
+	}
+	want := map[string]int{"Session": 11, "First": 15, "Second": 15}
+	for name, width := range want {
+		if widths[name] != width {
+			t.Fatalf("interfaces = %+v, want %s width %d", result.Interfaces, name, width)
+		}
+	}
+	if InterfaceWidth(result) != 15 {
+		t.Fatalf("InterfaceWidth = %d, want the widest type (15)", InterfaceWidth(result))
+	}
+}

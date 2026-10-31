@@ -99,6 +99,7 @@ var result = new AnalysisResult
         LDR = HasExecutableBody(root) ? Ratio(logicLOC, codeLOC) : 1,
     },
     Imports = importMetric,
+    Interfaces = TypeInterfaces(root, tree, functionNodes),
 };
 
 var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
@@ -241,6 +242,50 @@ static bool IsTestMethod(SyntaxNode functionNode) =>
         return name is "Fact" or "Theory" or "Test" or "TestCase" or "TestMethod" or "DataTestMethod";
     });
 
+// Interface width is scored per declared type, as for Python classes and Go
+// receivers. A property is one operation however many accessors it has, and
+// overloads share one name, matching the Python scan's name-set semantics.
+static List<InterfaceMetric> TypeInterfaces(
+    SyntaxNode root, SyntaxTree tree, IReadOnlyList<SyntaxNode> functionNodes)
+{
+    var operations = root.DescendantNodes()
+        .OfType<TypeDeclarationSyntax>()
+        .ToDictionary(type => type, _ => new HashSet<string>(StringComparer.Ordinal));
+    foreach (var functionNode in functionNodes.Where(IsPublicFunction))
+    {
+        var owner = functionNode.FirstAncestorOrSelf<TypeDeclarationSyntax>();
+        if (owner is not null && operations.TryGetValue(owner, out var names))
+        {
+            names.Add(OperationName(functionNode));
+        }
+    }
+    return operations
+        .Select(entry => new InterfaceMetric
+        {
+            Name = QualifiedTypeName(entry.Key),
+            Kind = entry.Key.Keyword.ValueText,
+            Line = tree.GetLineSpan(entry.Key.Identifier.Span).StartLinePosition.Line + 1,
+            PublicMethods = entry.Value.Count,
+        })
+        .OrderBy(metric => metric.Line)
+        .ToList();
+}
+
+static string OperationName(SyntaxNode functionNode) => functionNode switch
+{
+    AccessorDeclarationSyntax { Parent.Parent: PropertyDeclarationSyntax property } => property.Identifier.ValueText,
+    AccessorDeclarationSyntax { Parent.Parent: IndexerDeclarationSyntax } => "this[]",
+    AccessorDeclarationSyntax { Parent.Parent: EventDeclarationSyntax @event } => @event.Identifier.ValueText,
+    MethodDeclarationSyntax method => method.Identifier.ValueText,
+    ConstructorDeclarationSyntax => ".ctor",
+    _ => FunctionName(functionNode),
+};
+
+static string QualifiedTypeName(TypeDeclarationSyntax type) =>
+    string.Join(
+        ".",
+        type.AncestorsAndSelf().OfType<TypeDeclarationSyntax>().Reverse().Select(t => t.Identifier.ValueText));
+
 static bool IsPublicFunction(SyntaxNode functionNode)
 {
     if (IsTestMethod(functionNode))
@@ -373,6 +418,15 @@ sealed class AnalysisResult
     public ModuleMetric ModuleMetric { get; set; } = new();
     [JsonPropertyName("import_metrics")]
     public ImportMetric Imports { get; set; } = new();
+    public List<InterfaceMetric> Interfaces { get; set; } = [];
+}
+
+sealed class InterfaceMetric
+{
+    public string Name { get; set; } = "";
+    public string Kind { get; set; } = "";
+    public int Line { get; set; }
+    public int PublicMethods { get; set; }
 }
 
 sealed class FunctionMetric
