@@ -92,7 +92,7 @@ var result = new AnalysisResult
         TotalLOC = totalLOC,
         LogicLOC = logicLOC,
         PublicMethods = publicMethods,
-        LDR = Ratio(logicLOC, totalLOC),
+        LDR = HasExecutableBody(root) ? Ratio(logicLOC, totalLOC) : 1,
     },
     Imports = importMetric,
 };
@@ -213,8 +213,36 @@ static string AccessorName(AccessorDeclarationSyntax accessor)
     return memberName + "." + accessor.Keyword.ValueText;
 }
 
+// Declaration-only files (records, interfaces, enums, auto-properties) carry
+// mandatory headers and docs but no logic to be dense with; LDR does not apply.
+static bool HasExecutableBody(SyntaxNode root) =>
+    root.DescendantNodes().Any(node => node is BlockSyntax or ArrowExpressionClauseSyntax);
+
+// Test runners invoke these by attribute; they are not part of a type's API.
+static bool IsTestMethod(SyntaxNode functionNode) =>
+    functionNode is MethodDeclarationSyntax method &&
+    method.AttributeLists.SelectMany(list => list.Attributes).Any(attribute =>
+    {
+        var name = attribute.Name switch
+        {
+            QualifiedNameSyntax qualified => qualified.Right.Identifier.Text,
+            AliasQualifiedNameSyntax alias => alias.Name.Identifier.Text,
+            SimpleNameSyntax simple => simple.Identifier.Text,
+            _ => attribute.Name.ToString(),
+        };
+        if (name.EndsWith("Attribute", StringComparison.Ordinal))
+        {
+            name = name[..^"Attribute".Length];
+        }
+        return name is "Fact" or "Theory" or "Test" or "TestCase" or "TestMethod" or "DataTestMethod";
+    });
+
 static bool IsPublicFunction(SyntaxNode functionNode)
 {
+    if (IsTestMethod(functionNode))
+    {
+        return false;
+    }
     if (functionNode.FirstAncestorOrSelf<InterfaceDeclarationSyntax>() is not null)
     {
         return true;

@@ -111,6 +111,31 @@ func TestConfigIsExcludedMatchesConfiguredPathOnly(t *testing.T) {
 	}
 }
 
+func TestConfigIsExcludedDoubleStarMatchesSubtree(t *testing.T) {
+	t.Parallel()
+
+	config := Config{ExcludePatterns: []string{"experiments/**", ".claude/**"}}
+	tests := []struct {
+		name string
+		file string
+		want bool
+	}{
+		{name: "direct child", file: "experiments/run.py", want: true},
+		{name: "deeply nested", file: "experiments/topic-poc/src/topic_poc/phase6/_service.py", want: true},
+		{name: "dot directory", file: ".claude/skills/x/scripts/extract.py", want: true},
+		{name: "directory itself is not a file", file: "experiments", want: false},
+		{name: "sibling sharing prefix", file: "experiments-old/run.py", want: false},
+		{name: "same name nested elsewhere", file: "data-pipeline/experiments/run.py", want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := config.IsExcluded(test.file); got != test.want {
+				t.Errorf("IsExcluded(%q) = %v, want %v", test.file, got, test.want)
+			}
+		})
+	}
+}
+
 func TestConfigIsExcludedMalformedPatternDoesNotMatch(t *testing.T) {
 	t.Parallel()
 
