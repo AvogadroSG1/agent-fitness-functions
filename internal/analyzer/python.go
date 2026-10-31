@@ -534,6 +534,19 @@ def _sql_composition(tree):
 _SCANS = (_temporal_purity, _sql_composition)
 
 
+_TEST_DECORATORS = frozenset({"fixture", "given", "when", "then", "scenario"})
+
+
+def _test_decorator_name(decorator):
+    if isinstance(decorator, ast.Call):
+        decorator = decorator.func
+    if isinstance(decorator, ast.Attribute):
+        return decorator.attr
+    if isinstance(decorator, ast.Name):
+        return decorator.id
+    return None
+
+
 class _InterfaceVisitor(ast.NodeVisitor):
     def __init__(self):
         self.module = {
@@ -564,8 +577,20 @@ class _InterfaceVisitor(ast.NodeVisitor):
             if interface is not None:
                 interface["_operations"].add(name)
 
+    def _is_test_operation(self, node):
+        # Test runners call these by convention; they are not an API surface.
+        if any(_test_decorator_name(d) in _TEST_DECORATORS for d in node.decorator_list):
+            return True
+        if not node.name.startswith("test"):
+            return False
+        if not self.class_stack:
+            return self.function_depth == 0
+        owner = self.class_stack[-1]
+        return owner["_test_class"] and self.function_depth == owner["_function_depth"]
+
     def _visit_function(self, node):
-        self._add_operation(node.name)
+        if not self._is_test_operation(node):
+            self._add_operation(node.name)
         self.path.extend((node.name, "<locals>"))
         self.function_depth += 1
         self.generic_visit(node)
@@ -586,6 +611,7 @@ class _InterfaceVisitor(ast.NodeVisitor):
             "public_methods": 0,
             "_operations": set(),
             "_function_depth": self.function_depth,
+            "_test_class": node.name.startswith("Test"),
         }
         self.interfaces.append(interface)
         self.path.append(node.name)
@@ -598,6 +624,7 @@ class _InterfaceVisitor(ast.NodeVisitor):
         for interface in self.interfaces:
             interface["public_methods"] = len(interface.pop("_operations"))
             interface.pop("_function_depth", None)
+            interface.pop("_test_class", None)
         return self.interfaces
 
 

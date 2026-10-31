@@ -924,3 +924,48 @@ sleep 5
 	}
 	return path
 }
+
+func TestPythonInterfaceMetricsExcludeTestOperations(t *testing.T) {
+	radon, err := exec.LookPath("radon")
+	if err != nil {
+		t.Skip("radon not installed")
+	}
+	root := t.TempDir()
+	var source strings.Builder
+	source.WriteString("import pytest\nfrom pytest_bdd import given, parsers, scenarios, then, when\n\nscenarios(\"x.feature\")\n\n")
+	for i := range 25 {
+		fmt.Fprintf(&source, "def test_case_%d():\n    assert True\n\n", i)
+	}
+	source.WriteString("@pytest.fixture\ndef database():\n    return 1\n\n")
+	source.WriteString("@pytest.fixture(scope=\"module\")\ndef settings():\n    return 1\n\n")
+	source.WriteString("@given(\"a thing\")\ndef a_thing():\n    return 1\n\n")
+	source.WriteString("@when(parsers.parse(\"it runs {n:d}\"))\ndef it_runs(n):\n    return n\n\n")
+	source.WriteString("@then(\"it passes\")\ndef it_passes():\n    return None\n\n")
+	source.WriteString("def build_helper():\n    return 1\n\n")
+	source.WriteString("class TestGroup:\n")
+	for i := range 25 {
+		fmt.Fprintf(&source, "    def test_member_%d(self):\n        assert True\n\n", i)
+	}
+	source.WriteString("    def helper(self):\n        return 1\n\n")
+	source.WriteString("class Builder:\n    def test_like_name(self):\n        return 1\n")
+	file := filepath.Join(root, "test_wide.py")
+	if err := os.WriteFile(file, []byte(source.String()), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	result, err := AnalyzePythonFile(context.Background(), file, radon)
+	if err != nil {
+		t.Fatalf("AnalyzePythonFile returned error: %v", err)
+	}
+	module := interfaceMetricsNamed(result.Interfaces, "")
+	if len(module) != 1 || module[0].PublicMethods != 1 {
+		t.Fatalf("module interface = %+v, want only build_helper counted", module)
+	}
+	group := interfaceMetricsNamed(result.Interfaces, "TestGroup")
+	if len(group) != 1 || group[0].PublicMethods != 1 {
+		t.Fatalf("TestGroup interface = %+v, want only helper counted", group)
+	}
+	builder := interfaceMetricsNamed(result.Interfaces, "Builder")
+	if len(builder) != 1 || builder[0].PublicMethods != 1 {
+		t.Fatalf("Builder interface = %+v, want test_like_name counted outside a Test class", builder)
+	}
+}

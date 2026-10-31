@@ -128,11 +128,18 @@ func (c Config) Enabled(name string) bool {
 
 // IsExcluded reports whether file matches any configured exclude pattern.
 // Patterns containing a path separator match the repository-relative path;
-// patterns without one retain basename matching.
+// patterns without one retain basename matching. A pattern ending in "/**"
+// matches every file under that repository-relative directory.
 func (c Config) IsExcluded(file string) bool {
 	base := filepath.Base(file)
 	path := filepath.FromSlash(file)
 	for _, pattern := range c.ExcludePatterns {
+		if prefix, ok := strings.CutSuffix(pattern, "/**"); ok {
+			if strings.HasPrefix(filepath.ToSlash(file), prefix+"/") {
+				return true
+			}
+			continue
+		}
 		target := base
 		matchPattern := pattern
 		if strings.Contains(pattern, "/") || strings.ContainsRune(pattern, filepath.Separator) {

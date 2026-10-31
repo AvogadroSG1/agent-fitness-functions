@@ -73,7 +73,11 @@ foreach (var functionNode in functionNodes)
 
 var importMetric = ImportMetric(usingDirectives, root, semanticModel);
 var totalLOC = lineSpan.EndLinePosition.Line - lineSpan.StartLinePosition.Line + 1;
-var logicLOC = source.Split('\n').Count(IsLogicLine);
+var sourceLines = source.Split('\n');
+var logicLOC = sourceLines.Count(IsLogicLine);
+// Comment and blank lines sit outside the ratio: mandated headers and XML
+// docs must not read as boilerplate relative to code.
+var codeLOC = sourceLines.Count(line => !IsCommentOrBlankLine(line));
 var result = new AnalysisResult
 {
     CALMNode = CALMNode(root, file),
@@ -92,9 +96,10 @@ var result = new AnalysisResult
         TotalLOC = totalLOC,
         LogicLOC = logicLOC,
         PublicMethods = publicMethods,
-        LDR = Ratio(logicLOC, totalLOC),
+        LDR = HasExecutableBody(root) ? Ratio(logicLOC, codeLOC) : 1,
     },
     Imports = importMetric,
+    Interfaces = TypeInterfaces(root, tree, functionNodes),
 };
 
 var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
@@ -213,8 +218,80 @@ static string AccessorName(AccessorDeclarationSyntax accessor)
     return memberName + "." + accessor.Keyword.ValueText;
 }
 
+// Declaration-only files (records, interfaces, enums, auto-properties) carry
+// mandatory headers and docs but no logic to be dense with; LDR does not apply.
+static bool HasExecutableBody(SyntaxNode root) =>
+    root.DescendantNodes().Any(node => node is BlockSyntax or ArrowExpressionClauseSyntax);
+
+// Test runners invoke these by attribute; they are not part of a type's API.
+static bool IsTestMethod(SyntaxNode functionNode) =>
+    functionNode is MethodDeclarationSyntax method &&
+    method.AttributeLists.SelectMany(list => list.Attributes).Any(attribute =>
+    {
+        var name = attribute.Name switch
+        {
+            QualifiedNameSyntax qualified => qualified.Right.Identifier.Text,
+            AliasQualifiedNameSyntax alias => alias.Name.Identifier.Text,
+            SimpleNameSyntax simple => simple.Identifier.Text,
+            _ => attribute.Name.ToString(),
+        };
+        if (name.EndsWith("Attribute", StringComparison.Ordinal))
+        {
+            name = name[..^"Attribute".Length];
+        }
+        return name is "Fact" or "Theory" or "Test" or "TestCase" or "TestMethod" or "DataTestMethod";
+    });
+
+// Interface width is scored per declared type, as for Python classes and Go
+// receivers. A property is one operation however many accessors it has, and
+// overloads share one name, matching the Python scan's name-set semantics.
+static List<InterfaceMetric> TypeInterfaces(
+    SyntaxNode root, SyntaxTree tree, IReadOnlyList<SyntaxNode> functionNodes)
+{
+    var operations = root.DescendantNodes()
+        .OfType<TypeDeclarationSyntax>()
+        .ToDictionary(type => type, _ => new HashSet<string>(StringComparer.Ordinal));
+    foreach (var functionNode in functionNodes.Where(IsPublicFunction))
+    {
+        var owner = functionNode.FirstAncestorOrSelf<TypeDeclarationSyntax>();
+        if (owner is not null && operations.TryGetValue(owner, out var names))
+        {
+            names.Add(OperationName(functionNode));
+        }
+    }
+    return operations
+        .Select(entry => new InterfaceMetric
+        {
+            Name = QualifiedTypeName(entry.Key),
+            Kind = entry.Key.Keyword.ValueText,
+            Line = tree.GetLineSpan(entry.Key.Identifier.Span).StartLinePosition.Line + 1,
+            PublicMethods = entry.Value.Count,
+        })
+        .OrderBy(metric => metric.Line)
+        .ToList();
+}
+
+static string OperationName(SyntaxNode functionNode) => functionNode switch
+{
+    AccessorDeclarationSyntax { Parent.Parent: PropertyDeclarationSyntax property } => property.Identifier.ValueText,
+    AccessorDeclarationSyntax { Parent.Parent: IndexerDeclarationSyntax } => "this[]",
+    AccessorDeclarationSyntax { Parent.Parent: EventDeclarationSyntax @event } => @event.Identifier.ValueText,
+    MethodDeclarationSyntax method => method.Identifier.ValueText,
+    ConstructorDeclarationSyntax => ".ctor",
+    _ => FunctionName(functionNode),
+};
+
+static string QualifiedTypeName(TypeDeclarationSyntax type) =>
+    string.Join(
+        ".",
+        type.AncestorsAndSelf().OfType<TypeDeclarationSyntax>().Reverse().Select(t => t.Identifier.ValueText));
+
 static bool IsPublicFunction(SyntaxNode functionNode)
 {
+    if (IsTestMethod(functionNode))
+    {
+        return false;
+    }
     if (functionNode.FirstAncestorOrSelf<InterfaceDeclarationSyntax>() is not null)
     {
         return true;
@@ -303,11 +380,19 @@ static bool IsImportUsed(
     });
 }
 
+static bool IsCommentOrBlankLine(string line)
+{
+    var trimmed = line.Trim();
+    return trimmed.Length == 0 ||
+        trimmed.StartsWith("//", StringComparison.Ordinal) ||
+        trimmed.StartsWith("/*", StringComparison.Ordinal) ||
+        trimmed.StartsWith('*');
+}
+
 static bool IsLogicLine(string line)
 {
     var trimmed = line.Trim();
-    if (trimmed.Length == 0 ||
-        trimmed.StartsWith("//", StringComparison.Ordinal) ||
+    if (IsCommentOrBlankLine(line) ||
         trimmed.StartsWith("using ", StringComparison.Ordinal) ||
         trimmed.StartsWith("namespace ", StringComparison.Ordinal) ||
         trimmed.StartsWith("public class ", StringComparison.Ordinal) ||
@@ -333,6 +418,15 @@ sealed class AnalysisResult
     public ModuleMetric ModuleMetric { get; set; } = new();
     [JsonPropertyName("import_metrics")]
     public ImportMetric Imports { get; set; } = new();
+    public List<InterfaceMetric> Interfaces { get; set; } = [];
+}
+
+sealed class InterfaceMetric
+{
+    public string Name { get; set; } = "";
+    public string Kind { get; set; } = "";
+    public int Line { get; set; }
+    public int PublicMethods { get; set; }
 }
 
 sealed class FunctionMetric

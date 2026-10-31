@@ -3,6 +3,7 @@ package analyzer
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -530,5 +531,175 @@ func TestDefaultRoslynCLI_RespectsEnvOverride(t *testing.T) {
 	resolvedCalm := defaultRoslynCLI()
 	if resolvedCalm != fakeBinary {
 		t.Errorf("expected %q, got %q", fakeBinary, resolvedCalm)
+	}
+}
+
+func TestAnalyzeCSharpFileTreatsDeclarationOnlyFilesAsDense(t *testing.T) {
+	cli := buildRoslynAnalyzer(t)
+	dir := t.TempDir()
+	sources := map[string]string{
+		"DailyStat.cs": `// <copyright file="DailyStat.cs" company="Example">
+// Copyright (c) Example. All rights reserved.
+// </copyright>
+
+namespace Sample.App;
+
+/// <summary>
+/// One row of a daily statistics view.
+/// </summary>
+/// <param name="Day">The day.</param>
+/// <param name="Value">The value.</param>
+public sealed record DailyStat(System.DateOnly Day, long Value);
+`,
+		"IClock.cs": `// <copyright file="IClock.cs" company="Example">
+// Copyright (c) Example. All rights reserved.
+// </copyright>
+
+namespace Sample.App;
+
+/// <summary>
+/// Wall-clock abstraction.
+/// </summary>
+public interface IClock
+{
+    /// <summary>
+    /// Gets the current instant.
+    /// </summary>
+    System.DateTimeOffset UtcNow { get; }
+}
+`,
+	}
+	for name, source := range sources {
+		sourcePath := filepath.Join(dir, name)
+		if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+			t.Fatalf("write source: %v", err)
+		}
+		result, err := AnalyzeCSharpFile(context.Background(), sourcePath, cli)
+		if err != nil {
+			t.Fatalf("AnalyzeCSharpFile(%s) returned error: %v", name, err)
+		}
+		if result.FileMetric.LDR != 1 {
+			t.Fatalf("%s LDR = %.3f, want 1 for a declaration-only file", name, result.FileMetric.LDR)
+		}
+	}
+
+	bodySource := `namespace Sample.App;
+
+// A comment line.
+// Another comment line.
+// Yet another comment line.
+public sealed class Clock
+{
+    public System.DateTimeOffset Now() => System.DateTimeOffset.UtcNow;
+}
+`
+	bodyPath := filepath.Join(dir, "Clock.cs")
+	if err := os.WriteFile(bodyPath, []byte(bodySource), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	result, err := AnalyzeCSharpFile(context.Background(), bodyPath, cli)
+	if err != nil {
+		t.Fatalf("AnalyzeCSharpFile(Clock.cs) returned error: %v", err)
+	}
+	if result.FileMetric.LDR >= 1 {
+		t.Fatalf("Clock.cs LDR = %.3f, want the line ratio for a file with a member body", result.FileMetric.LDR)
+	}
+}
+
+func TestAnalyzeCSharpFileExcludesTestMethodsFromPublicMethods(t *testing.T) {
+	cli := buildRoslynAnalyzer(t)
+	dir := t.TempDir()
+	var source strings.Builder
+	source.WriteString("namespace Sample.Tests;\n\npublic sealed class WideTests\n{\n")
+	for i := range 25 {
+		fmt.Fprintf(&source, "    [Fact]\n    public void Fact%d()\n    {\n        System.Console.WriteLine(%d);\n    }\n\n", i, i)
+	}
+	source.WriteString("    [Theory]\n    [InlineData(1)]\n    public void Theory(int value)\n    {\n        System.Console.WriteLine(value);\n    }\n\n")
+	source.WriteString("    [Xunit.FactAttribute]\n    public void Qualified()\n    {\n        System.Console.WriteLine(0);\n    }\n\n")
+	source.WriteString("    public int Helper()\n    {\n        return 1;\n    }\n}\n")
+	sourcePath := filepath.Join(dir, "WideTests.cs")
+	if err := os.WriteFile(sourcePath, []byte(source.String()), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	result, err := AnalyzeCSharpFile(context.Background(), sourcePath, cli)
+	if err != nil {
+		t.Fatalf("AnalyzeCSharpFile returned error: %v", err)
+	}
+	if result.FileMetric.PublicMethods != 1 {
+		t.Fatalf("public methods = %d, want only Helper counted", result.FileMetric.PublicMethods)
+	}
+}
+
+func TestAnalyzeCSharpFileExcludesCommentsFromLogicDensity(t *testing.T) {
+	cli := buildRoslynAnalyzer(t)
+	dir := t.TempDir()
+	source := `// <copyright file="SystemClock.cs" company="Example">
+// Copyright (c) Example. All rights reserved.
+// </copyright>
+
+namespace Sample.App;
+
+/// <summary>
+/// The real wall clock backed by
+/// <see cref="System.DateTimeOffset.UtcNow"/>.
+/// </summary>
+public sealed class SystemClock
+{
+    /* Block comments are documentation too. */
+    /// <inheritdoc />
+    public System.DateTimeOffset UtcNow => System.DateTimeOffset.UtcNow;
+}
+`
+	sourcePath := filepath.Join(dir, "SystemClock.cs")
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	result, err := AnalyzeCSharpFile(context.Background(), sourcePath, cli)
+	if err != nil {
+		t.Fatalf("AnalyzeCSharpFile returned error: %v", err)
+	}
+	// Code lines: namespace, class, {, property, } = 5; logic lines: class, property = 2.
+	if result.FileMetric.LDR != 0.4 {
+		t.Fatalf("LDR = %.3f, want 0.4 with comment and blank lines outside the ratio", result.FileMetric.LDR)
+	}
+}
+
+func TestAnalyzeCSharpFileScopesInterfaceWidthPerTypeAndMember(t *testing.T) {
+	cli := buildRoslynAnalyzer(t)
+	dir := t.TempDir()
+	var source strings.Builder
+	source.WriteString("namespace Sample.App;\n\npublic sealed record Session\n{\n")
+	for i := range 11 {
+		fmt.Fprintf(&source, "    public string Field%d { get; init; } = \"\";\n", i)
+	}
+	source.WriteString("}\n\npublic sealed class First\n{\n")
+	for i := range 15 {
+		fmt.Fprintf(&source, "    public int Op%d() => %d;\n", i, i)
+	}
+	source.WriteString("    public int Op0(int value) => value;\n}\n\npublic sealed class Second\n{\n")
+	for i := range 15 {
+		fmt.Fprintf(&source, "    public int Op%d() => %d;\n", i, i)
+	}
+	source.WriteString("    private int Hidden() => 0;\n}\n")
+	sourcePath := filepath.Join(dir, "Contracts.cs")
+	if err := os.WriteFile(sourcePath, []byte(source.String()), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	result, err := AnalyzeCSharpFile(context.Background(), sourcePath, cli)
+	if err != nil {
+		t.Fatalf("AnalyzeCSharpFile returned error: %v", err)
+	}
+	widths := map[string]int{}
+	for _, metric := range result.Interfaces {
+		widths[metric.Name] = metric.PublicMethods
+	}
+	want := map[string]int{"Session": 11, "First": 15, "Second": 15}
+	for name, width := range want {
+		if widths[name] != width {
+			t.Fatalf("interfaces = %+v, want %s width %d", result.Interfaces, name, width)
+		}
+	}
+	if InterfaceWidth(result) != 15 {
+		t.Fatalf("InterfaceWidth = %d, want the widest type (15)", InterfaceWidth(result))
 	}
 }

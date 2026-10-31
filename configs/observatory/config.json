@@ -1,6 +1,10 @@
 {
-  "enforcement-mode": "advisory",
-  "enforcement-on-error": "advisory",
+  "enforcement-mode": "block",
+  "enforcement-on-error": "block",
+  "exclude-patterns": [
+    "experiments/**",
+    ".claude/**"
+  ],
   "fitness-functions": {
     "cyclomatic-complexity": true,
     "dependency-discipline": true,
