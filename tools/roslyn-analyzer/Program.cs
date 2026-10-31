@@ -73,7 +73,11 @@ foreach (var functionNode in functionNodes)
 
 var importMetric = ImportMetric(usingDirectives, root, semanticModel);
 var totalLOC = lineSpan.EndLinePosition.Line - lineSpan.StartLinePosition.Line + 1;
-var logicLOC = source.Split('\n').Count(IsLogicLine);
+var sourceLines = source.Split('\n');
+var logicLOC = sourceLines.Count(IsLogicLine);
+// Comment and blank lines sit outside the ratio: mandated headers and XML
+// docs must not read as boilerplate relative to code.
+var codeLOC = sourceLines.Count(line => !IsCommentOrBlankLine(line));
 var result = new AnalysisResult
 {
     CALMNode = CALMNode(root, file),
@@ -92,7 +96,7 @@ var result = new AnalysisResult
         TotalLOC = totalLOC,
         LogicLOC = logicLOC,
         PublicMethods = publicMethods,
-        LDR = HasExecutableBody(root) ? Ratio(logicLOC, totalLOC) : 1,
+        LDR = HasExecutableBody(root) ? Ratio(logicLOC, codeLOC) : 1,
     },
     Imports = importMetric,
 };
@@ -331,11 +335,19 @@ static bool IsImportUsed(
     });
 }
 
+static bool IsCommentOrBlankLine(string line)
+{
+    var trimmed = line.Trim();
+    return trimmed.Length == 0 ||
+        trimmed.StartsWith("//", StringComparison.Ordinal) ||
+        trimmed.StartsWith("/*", StringComparison.Ordinal) ||
+        trimmed.StartsWith('*');
+}
+
 static bool IsLogicLine(string line)
 {
     var trimmed = line.Trim();
-    if (trimmed.Length == 0 ||
-        trimmed.StartsWith("//", StringComparison.Ordinal) ||
+    if (IsCommentOrBlankLine(line) ||
         trimmed.StartsWith("using ", StringComparison.Ordinal) ||
         trimmed.StartsWith("namespace ", StringComparison.Ordinal) ||
         trimmed.StartsWith("public class ", StringComparison.Ordinal) ||

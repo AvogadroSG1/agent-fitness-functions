@@ -629,3 +629,37 @@ func TestAnalyzeCSharpFileExcludesTestMethodsFromPublicMethods(t *testing.T) {
 		t.Fatalf("public methods = %d, want only Helper counted", result.FileMetric.PublicMethods)
 	}
 }
+
+func TestAnalyzeCSharpFileExcludesCommentsFromLogicDensity(t *testing.T) {
+	cli := buildRoslynAnalyzer(t)
+	dir := t.TempDir()
+	source := `// <copyright file="SystemClock.cs" company="Example">
+// Copyright (c) Example. All rights reserved.
+// </copyright>
+
+namespace Sample.App;
+
+/// <summary>
+/// The real wall clock backed by
+/// <see cref="System.DateTimeOffset.UtcNow"/>.
+/// </summary>
+public sealed class SystemClock
+{
+    /* Block comments are documentation too. */
+    /// <inheritdoc />
+    public System.DateTimeOffset UtcNow => System.DateTimeOffset.UtcNow;
+}
+`
+	sourcePath := filepath.Join(dir, "SystemClock.cs")
+	if err := os.WriteFile(sourcePath, []byte(source), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	result, err := AnalyzeCSharpFile(context.Background(), sourcePath, cli)
+	if err != nil {
+		t.Fatalf("AnalyzeCSharpFile returned error: %v", err)
+	}
+	// Code lines: namespace, class, {, property, } = 5; logic lines: class, property = 2.
+	if result.FileMetric.LDR != 0.4 {
+		t.Fatalf("LDR = %.3f, want 0.4 with comment and blank lines outside the ratio", result.FileMetric.LDR)
+	}
+}
